@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use gordian_kg::{Direction, KnowledgeGraph, Node};
 use std::path::PathBuf;
