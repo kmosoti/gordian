@@ -4,125 +4,99 @@ Gordian treats research provenance as executable project infrastructure.
 
 A conventional bibliography answers **where a statement came from**. Gordian's research graph is intended to answer stronger questions:
 
-- Which claims are supported by which studies or standards?
-- Which design choices are deductions versus experiments still waiting to happen?
-- Which theorem formalizes a normative rule?
-- Which assumptions does that theorem require?
-- Which algorithm implements a concept?
-- Which document specifies the algorithm?
-- Which empirical result would falsify a Gordian hypothesis?
+- Which concepts does the architecture rely on?
+- Which claims are supported, qualified, or challenged by which evidence?
+- Which assumptions sit underneath a theorem or algorithm?
+- Which design choices are deductions versus falsifiable Gordian hypotheses?
+- Which theorem captures the narrow formal property behind a safety rule?
+- Which algorithm operationalizes a concept?
+- Which implementation artifact realizes the algorithm?
+- Which experiment or benchmark can invalidate the design choice?
 
-The canonical graph is [`../knowledge/graph.jsonld`](../knowledge/graph.jsonld).
+The canonical corpus is [`../knowledge/graph/`](../knowledge/graph/), governed by [`../knowledge/ontology.md`](../knowledge/ontology.md).
+
+## Corpus structure
+
+```text
+knowledge/
+  ontology.md
+  graph/
+    00-core.jsonld
+    10-foundations.jsonld
+    20-sources.jsonld
+    30-studies-and-claims.jsonld
+    40-algorithms.jsonld
+    50-tools.jsonld
+    60-formal.jsonld
+    70-experiments.jsonld
+    80-implementation.jsonld
+```
+
+Shard names are editorial only. `gordian-kg` loads every `.jsonld` shard in sorted order and builds one validated directed graph with globally unique node IDs.
+
+This design allows the corpus to grow without creating one unreadable mega-file while retaining deterministic version-controlled state.
+
+## What is represented
+
+The graph currently reaches across several layers.
+
+### Gordian domain
+
+Mission Graph, Project, Mission, PlanRevision, Initiative, Atom, Quark, ExecutionAttempt, Candidate, integration candidate, evidence, artifact, attestation, semantic resources, capabilities, leases, accepted/deployment frontiers, projection, and reconciliation.
+
+### Planning and scheduling science
+
+HTN planning, partial-order causal-link planning, DAGs, topological ordering, critical path, work/span, RCPSP, list scheduling, HEFT/CPOP, and work stealing.
+
+### Concurrency and distributed systems
+
+Optimistic concurrency control, snapshot isolation, MVCC, conflict serializability, leases, fencing tokens, compare-and-swap, idempotency, deterministic replay, workflow nets, and Petri nets.
+
+### Reproducibility and provenance
+
+Hermeticity, content addressing, Merkle DAGs, W3C PROV, in-toto, SLSA, evidence fingerprints, and attestation.
+
+### Agent-engineering evidence
+
+CAID, STORM, AgentRoom, AgenticFlict, CodeTeam, and the current coding-agent reliability synthesis, with explicit bounded claims rather than benchmark values turned into universal laws.
+
+### Formal/verification engineering
+
+Lean, verification-guided development, differential randomized testing, property testing, Kani model checking, Loom/Shuttle concurrency exploration, Turmoil distributed simulation, coverage-guided fuzzing, mutation testing, and benchmark tooling.
 
 ## Node classes
 
-### Concept
+The ontology includes:
 
-A domain object or architectural abstraction, for example:
+```text
+Concept
+Source
+Claim
+Hypothesis
+Assumption
+Algorithm
+Theorem
+Experiment
+Tool
+Standard
+ImplementationArtifact
+Document
+```
 
-- Mission Graph
-- Atom
-- Quark
-- Evidence
-- Accepted Frontier
-- semantic read/write claims
+These classes are epistemically different. The graph should make it difficult to accidentally write:
 
-Concept nodes should not carry an implication of truth merely by existing.
+```text
+paper mentions X
+therefore Gordian design X is proven
+```
 
-### Source
+## Rust index
 
-An external research paper, standard, production engineering design, or other evidentiary basis.
+`gordian-kg` is Rust-native and currently indexes the merged corpus in `petgraph::StableDiGraph`.
 
-Examples include:
+The storage/index choice is provisional. The Foundation Initiative benchmarks it before Gordian depends on its performance characteristics.
 
-- HTN planning literature
-- W3C PROV
-- Bazel dependency semantics
-- in-toto
-- SLSA provenance
-- Jujutsu documentation
-- CAID / STORM / AgentRoom empirical studies
-
-A Source's presence means it is relevant, not that every Gordian inference drawn from it is established by the source.
-
-### Claim
-
-A proposition whose support can be discussed independently of Gordian's implementation.
-
-Example:
-
-> Isolated code state should be paired with explicit coordination for concurrent software agents.
-
-A Claim can have `supportedBy`, `challengedBy`, and `groundedIn` relations.
-
-### Hypothesis
-
-A Gordian-specific proposition requiring experiment.
-
-Examples:
-
-- Atom is the appropriate global scheduling boundary.
-- semantic claims predict harmful concurrency better than path ownership.
-- snapshot-isolated agents outperform continuously rebased agents.
-
-A hypothesis should have an explicit test target before it is allowed to quietly harden into doctrine.
-
-### Algorithm
-
-A specified computational procedure or decision rule, such as:
-
-- dependency-aware admission
-- evidence freshness
-- candidate admission
-- reconciliation
-
-Algorithms may be partly formalized, property-tested, benchmarked, or merely specified. Those are separate states.
-
-### Theorem
-
-A proposition represented in the Lean kernel.
-
-The theorem node records:
-
-- human-readable statement;
-- Lean source target;
-- verification method;
-- current verification state;
-- important scope notes.
-
-The graph must not label an empirical statement a theorem merely because a formal surrogate is easy to prove.
-
-### Document
-
-A human-readable specification, research note, or protocol in this repository.
-
-## Relation vocabulary
-
-The initial vocabulary intentionally stays small.
-
-| Relation | Meaning |
-| --- | --- |
-| `contains` | conceptual containment |
-| `decomposesInto` | decomposition relation |
-| `documentedBy` | explanatory document |
-| `specifiedBy` | normative specification |
-| `supportedBy` | external evidence supports a claim within stated scope |
-| `challengedBy` | source presents material counterevidence or limitation |
-| `qualifiedBy` | source weakens or scopes an otherwise useful conclusion |
-| `groundedIn` | concept/algorithm adapts an established mechanism or standard |
-| `motivatedBy` | source suggests the design direction without proving it |
-| `formalizedBy` | points from concept/claim/algorithm to a theorem |
-| `formalizes` | inverse conceptual relationship |
-| `implementedBy` | algorithm or concept has executable implementation |
-| `testedBy` | points to a hypothesis/experiment or executable test |
-| `uses` | algorithm/activity consumes another concept |
-| `produces` | activity produces an entity/evidence class |
-
-## Rust tooling
-
-`gordian-kg` deliberately implements only graph mechanics. It does not decide epistemic truth itself.
-
-### Validate
+### Structural validation
 
 ```bash
 cargo run -p gordian-kg -- validate
@@ -130,83 +104,121 @@ cargo run -p gordian-kg -- validate
 
 Checks:
 
-- every node has a non-empty ID;
-- IDs are unique;
-- every node has a name;
+- every node has identity, name, and type;
+- global IDs are unique across shards;
 - relation predicates are non-empty;
 - every relation target exists.
 
-This catches structural rot but not bad scientific reasoning.
+### Epistemic audit
 
-### Search
+```bash
+cargo run -p gordian-kg -- audit
+cargo run -p gordian-kg -- audit --strict
+```
+
+The initial audit flags structural epistemic holes such as:
+
+- a Source with no provenance locator;
+- a Claim with no evidence-oriented relation;
+- a Hypothesis with no experiment target;
+- a Theorem with no statement/checker target;
+- an Experiment with no executable/analysis target.
+
+This does not automate scientific judgment. It prevents missing scientific bookkeeping from becoming invisible.
+
+### Corpus statistics
+
+```bash
+cargo run -p gordian-kg -- stats
+```
+
+Reports node/edge counts plus distributions by type and predicate. These statistics will later feed documentation coverage gates.
+
+### Search and typed listing
 
 ```bash
 cargo run -p gordian-kg -- search "snapshot"
+cargo run -p gordian-kg -- list --kind Algorithm
+cargo run -p gordian-kg -- hypotheses
+cargo run -p gordian-kg -- theorems
 ```
 
-Searches IDs, names, summaries, and claim/theorem statements.
-
-### Neighborhood traversal
+### Neighborhood/evidence traversal
 
 ```bash
-cargo run -p gordian-kg -- neighbors claim:isolation-plus-coordination
+cargo run -p gordian-kg -- neighbors concept:atom
+cargo run -p gordian-kg -- neighbors claim:exact-artifact-verification --predicate groundedIn
+cargo run -p gordian-kg -- evidence claim:semantic-state-vs-code-state
 ```
 
-Shows both incoming and outgoing relationships. A predicate can be selected:
-
-```bash
-cargo run -p gordian-kg -- neighbors claim:isolation-plus-coordination --predicate supportedBy
-```
-
-### Evidence view
-
-```bash
-cargo run -p gordian-kg -- evidence claim:exact-artifact-verification
-```
-
-Restricts traversal to evidence-oriented relations such as `supportedBy`, `challengedBy`, `groundedIn`, `formalizedBy`, and `testedBy`.
-
-### Path query
+### Directed paths
 
 ```bash
 cargo run -p gordian-kg -- path concept:atom theorem:dispatch-requires-dependencies
 ```
 
-Uses breadth-first search over directed relations and returns a shortest path by edge count.
+The CLI uses breadth-first traversal to return a shortest directed path by edge count.
 
-This is primarily a navigation feature. A path in the graph is **not** automatically a valid logical proof chain because relation predicates have different semantics.
+A graph path is navigation, **not automatic logical entailment**. `supportedBy`, `formalizedBy`, and `testedBy` have radically different semantics.
 
-## Why not use a graph database yet?
+### DOT export
 
-The current graph is small enough that introducing Neo4j, RDF triplestores, or a distributed graph service would increase operational complexity without increasing epistemic quality.
+```bash
+cargo run -p gordian-kg -- export-dot --out /tmp/gordian-knowledge.dot
+```
 
-The JSON-LD file gives us:
+This produces a Graphviz-compatible export for external visualization without making a diagram format part of canonical state.
 
-- versioned research state in the repository;
-- ordinary code review;
-- deterministic snapshots;
-- Rust traversal;
-- a future interoperability path to RDF/PROV tooling;
-- no infrastructure requirement for early experiments.
+## Why JSON-LD plus a Rust graph instead of a graph database?
 
-A graph database becomes justified only when query volume, graph size, multi-user mutation, or reasoning requirements make the file representation measurably inadequate.
+At the current scale, a server/database would add operational state without increasing epistemic rigor.
+
+The shard corpus provides:
+
+- immutable repository snapshots;
+- ordinary diff/review;
+- deterministic merge/index construction;
+- no required external service;
+- linked-data-compatible identities;
+- straightforward Rust processing;
+- future export into RDF/PROV ecosystems.
+
+If corpus scale or queries later justify SPARQL/RDF infrastructure, Sophia/Oxigraph can be evaluated against actual benchmark/query requirements. Gordian will not adopt a graph database merely because the noun “graph” appears in the architecture.
 
 ## JSON-LD scope
 
-`graph.jsonld` is a **Gordian JSON-LD application profile**, not a claim that Gordian currently implements a complete RDF reasoner.
+The corpus is a **Gordian JSON-LD application profile**, not a claim that the runtime is currently an RDF reasoner.
 
-The `@context`, `@id`, and `@type` structures provide linked-data-compatible identities while `relations` remains deliberately easy for the Rust tool to consume.
+`@id`, `@type`, and `@context` provide linked-data identity. The explicit `relations` representation keeps canonical files readable and fast for Rust ingestion.
 
-If full RDF interoperability becomes necessary, an exporter should translate the application profile into explicit RDF predicates rather than forcing the runtime model to become RDF-native.
+A future RDF exporter can map Gordian predicates to full IRIs without forcing core runtime semantics into an RDF-only representation.
+
+## Completeness as a project invariant
+
+A material concept is not fully acquired merely because it appears in a Markdown paragraph.
+
+When research introduces a concept that affects Gordian, the expected closure is:
+
+```text
+Concept
+  -> Source / Claim / Assumption
+  -> Algorithm or design rule
+  -> Theorem where formalizable
+  -> Experiment where empirical
+  -> ImplementationArtifact when built
+  -> Documentation
+```
+
+Not every node needs every edge, but unexplained gaps should be visible.
 
 ## Epistemic invariant
 
-The most important rule for the knowledge graph is:
-
 > Traversability must never be confused with entailment.
 
-`A supportedBy B` records an evidentiary relationship. It does not mean B deductively proves A.
+A `supportedBy` edge records evidence, not proof.
 
-`A formalizedBy T` means T captures a formal property relevant to A. It does not mean T proves A's real-world usefulness.
+A `formalizedBy` edge means a theorem captures a formal property, not that the real-world architecture has been proven superior.
 
-This separation is essential to keeping the knowledge graph scientifically honest.
+A `testedBy` edge means the design is falsifiable, not that the experiment has passed.
+
+That distinction is the difference between a research knowledge graph and a citation-shaped mood board.
