@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   rust:
-    name: Rust graph tooling
+    name: Rust substrate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,7 +36,7 @@ jobs:
         run: cargo run -p gordian-kg -- validate
 
   lean:
-    name: Lean formal kernel
+    name: Formal models and proofs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -45,6 +45,7 @@ jobs:
       - name: Build, independently check proofs, and audit axioms
         uses: leanprover/lean-action@v1
         with:
+          lake-package-directory: formal
           auto-config: false
           use-github-cache: false
           build: true
