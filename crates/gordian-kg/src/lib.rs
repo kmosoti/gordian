@@ -129,7 +129,10 @@ impl KnowledgeGraph {
         files.sort();
 
         if files.is_empty() {
-            bail!("knowledge graph directory {} has no .jsonld shards", path.display());
+            bail!(
+                "knowledge graph directory {} has no .jsonld shards",
+                path.display()
+            );
         }
 
         let mut context = serde_json::Value::Null;
@@ -242,7 +245,10 @@ impl KnowledgeGraph {
     }
 
     pub fn nodes_of_type(&self, kind: &str) -> Vec<&Node> {
-        self.nodes.iter().filter(|node| node.has_type(kind)).collect()
+        self.nodes
+            .iter()
+            .filter(|node| node.has_type(kind))
+            .collect()
     }
 
     pub fn search(&self, query: &str) -> Vec<&Node> {
