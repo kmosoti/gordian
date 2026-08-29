@@ -1,0 +1,133 @@
+name: Experiment
+description: Define a falsifiable, reproducible Gordian experiment or benchmark.
+title: "[Experiment] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Experiments exist to make Gordian vulnerable to evidence. State the result that would revise the architecture before running the study.
+
+  - type: input
+    id: initiative
+    attributes:
+      label: Initiative
+      placeholder: Foundation and Falsification
+    validations:
+      required: true
+
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+      description: A bounded proposition, including the relevant workload/population/environment.
+      placeholder: Under ..., treatment X will ... relative to baseline Y.
+    validations:
+      required: true
+
+  - type: textarea
+    id: falsification
+    attributes:
+      label: Falsification and architecture revision rule
+      description: State a result that would reject, condition, or simplify the tested design.
+      placeholder: If ..., remove/narrow/replace ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: conditions
+    attributes:
+      label: Conditions and controls
+      description: Treatments, baselines, controls, held-constant variables, and credible alternatives.
+      placeholder: |
+        baselines:
+          - ...
+        treatments:
+          - ...
+        controls:
+          - ...
+        alternatives/confounders:
+          - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: population
+    attributes:
+      label: Workloads, population, and sampling
+      description: Repositories/tasks/graphs/models/workers, inclusion/exclusion rules, sample count or stopping rule, and seed strategy.
+      placeholder: |
+        workload corpus: ...
+        strata: ...
+        seeds: ...
+        inclusion/exclusion: ...
+        stopping rule: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Metrics and analysis plan
+      description: Define primary/secondary metrics before collection, effect summaries, uncertainty, and paired/repeated structure.
+      placeholder: |
+        primary metrics:
+          - ...
+        secondary metrics:
+          - ...
+        analysis:
+          - ...
+        multiple-comparison policy: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Reproducibility identity
+      description: Exact code, toolchains, dependencies, hardware/OS, model/provider settings, budgets, and environment digests.
+      placeholder: |
+        repository commit: ...
+        Rust/Lean/Jujutsu/tool versions: ...
+        hardware/OS: ...
+        model/provider/configuration: ...
+        time/token/cost/resource budget: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Raw artifacts and provenance
+      description: Where protocols, run manifests, raw outputs, failures, exclusions, analyses, and digests will be preserved.
+      placeholder: |
+        protocol: ...
+        run ledger: ...
+        raw results: ...
+        analysis: ...
+        knowledge graph nodes: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: threats
+    attributes:
+      label: Threats to validity
+      description: Selection effects, confounders, measurement error, model/task specificity, instrumentation gaps, and generalization limits.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: discipline
+    attributes:
+      label: Experiment checks
+      options:
+        - label: The falsification/revision rule is written before results are inspected.
+          required: true
+        - label: Failed, timed-out, excluded, and negative runs will be retained with reasons.
+          required: true
+        - label: The simple or status-quo baseline is included where comparison is feasible.
+          required: true
+        - label: Exact source, environment, toolchain, seed, and budget identities will be recorded.
+          required: true
+        - label: Conclusions will remain bounded to the actual experiment scope.
+          required: true
