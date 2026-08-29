@@ -1,0 +1,143 @@
+name: Atom
+description: Define one independently schedulable and verifiable Gordian work contract.
+title: "[Initiative] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An Atom is a contract, not a reminder. Describe the bounded transformation, assumptions, evidence, and benchmark obligations needed for another actor to execute and verify it without inventing missing semantics.
+
+  - type: input
+    id: initiative
+    attributes:
+      label: Initiative
+      description: Compound capability or subgoal this Atom contributes to.
+      placeholder: Foundation and Falsification
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What observable state should become true?
+      placeholder: Implement ... so that ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: Bound the Atom by stating tempting adjacent work that is excluded.
+
+  - type: textarea
+    id: research_basis
+    attributes:
+      label: Research and engineering basis
+      description: Link exact knowledge-graph nodes, sources, theorems, experiments, specifications, or prior decisions. Distinguish evidence from deduction.
+      placeholder: |
+        - knowledge node: ...
+        - source/proof/experiment: ...
+        - engineering deduction: ...
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Hard dependencies and required interfaces
+      description: List causal prerequisites and interfaces. Do not use creation order as dependency.
+      placeholder: |
+        - #12
+        - interface://...
+
+  - type: textarea
+    id: inputs_outputs
+    attributes:
+      label: Inputs, outputs, and semantic claims
+      description: Declare relevant inputs/outputs plus predicted read, write, provide, and require resources.
+      placeholder: |
+        inputs:
+          - ...
+        outputs:
+          - ...
+        reads:
+          - ...
+        writes:
+          - ...
+        provides:
+          - ...
+        requires:
+          - ...
+
+  - type: dropdown
+    id: effect_class
+    attributes:
+      label: Effect class
+      description: Select the strongest effect class this Atom may perform.
+      options:
+        - pure
+        - hermetic
+        - external_read
+        - idempotent_write
+        - compensatable_write
+        - irreversible
+        - judgment
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance predicates
+      description: State observable predicates. Completion cannot be only “code exists” or “issue closed.”
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification and evidence
+      description: Name the exact verification methods, artifacts, formal obligations, adversarial cases, and freshness boundary.
+      placeholder: |
+        - property/model tests: ...
+        - proof obligation: ...
+        - integration/fault cases: ...
+        - evidence subject: exact commit/spec/environment/verifier
+    validations:
+      required: true
+
+  - type: textarea
+    id: benchmark
+    attributes:
+      label: Performance and benchmark obligation
+      description: Required for hot paths or algorithms. Preserve a simple reference baseline and state workloads/metrics.
+      placeholder: |
+        baseline: ...
+        workloads: ...
+        metrics: ...
+        decision threshold: ...
+
+  - type: textarea
+    id: falsification
+    attributes:
+      label: Falsification or simplification trigger
+      description: What result should force a redesign, narrower claim, or removal of complexity?
+
+  - type: checkboxes
+    id: discipline
+    attributes:
+      label: Contract checks
+      options:
+        - label: The Atom is independently schedulable and verifiable.
+          required: true
+        - label: Dependencies are causal, not merely chronological.
+          required: true
+        - label: Rust remains canonical for production semantics; Python does not duplicate them.
+          required: true
+        - label: Any Lean claim is bounded to the exact proposition and assumptions.
+          required: true
+        - label: Optimization retains a reference oracle or other correctness bridge where practical.
+          required: true
