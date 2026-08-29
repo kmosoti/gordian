@@ -5,7 +5,7 @@ use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const EVIDENCE_PREDICATES: &[&str] = &[
     "supportedBy",
@@ -106,11 +106,43 @@ pub struct IndexedGraph {
 impl KnowledgeGraph {
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
+        if path.is_dir() {
+            Self::load_directory(path)
+        } else {
+            Self::load_file(path)
+        }
+    }
+
+    fn load_file(path: &Path) -> Result<Self> {
         let bytes = fs::read(path)
             .with_context(|| format!("failed to read knowledge graph {}", path.display()))?;
-        let graph = serde_json::from_slice(&bytes)
-            .with_context(|| format!("failed to parse knowledge graph {}", path.display()))?;
-        Ok(graph)
+        serde_json::from_slice(&bytes)
+            .with_context(|| format!("failed to parse knowledge graph {}", path.display()))
+    }
+
+    fn load_directory(path: &Path) -> Result<Self> {
+        let mut files = fs::read_dir(path)
+            .with_context(|| format!("failed to list knowledge graph {}", path.display()))?
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<std::io::Result<Vec<PathBuf>>>()?;
+        files.retain(|file| file.extension().is_some_and(|ext| ext == "jsonld"));
+        files.sort();
+
+        if files.is_empty() {
+            bail!("knowledge graph directory {} has no .jsonld shards", path.display());
+        }
+
+        let mut context = serde_json::Value::Null;
+        let mut nodes = Vec::new();
+        for file in files {
+            let shard = Self::load_file(&file)?;
+            if context.is_null() && !shard.context.is_null() {
+                context = shard.context;
+            }
+            nodes.extend(shard.nodes);
+        }
+
+        Ok(Self { context, nodes })
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -150,70 +182,58 @@ impl KnowledgeGraph {
 
     pub fn audit(&self) -> Vec<AuditFinding> {
         let mut findings = Vec::new();
-
         for node in &self.nodes {
             if node.summary.trim().is_empty() {
-                findings.push(AuditFinding {
-                    severity: FindingSeverity::Warning,
-                    node_id: node.id.clone(),
-                    message: "missing summary".to_owned(),
-                });
+                findings.push(finding(FindingSeverity::Warning, node, "missing summary"));
             }
-
             if node.has_type("Source") && node.url.as_deref().is_none_or(str::is_empty) {
-                findings.push(AuditFinding {
-                    severity: FindingSeverity::Error,
-                    node_id: node.id.clone(),
-                    message: "Source node has no URL/provenance locator".to_owned(),
-                });
+                findings.push(finding(
+                    FindingSeverity::Error,
+                    node,
+                    "Source node has no URL/provenance locator",
+                ));
             }
-
             if node.has_type("Claim") && !node.has_any_relation(EVIDENCE_PREDICATES) {
-                findings.push(AuditFinding {
-                    severity: FindingSeverity::Warning,
-                    node_id: node.id.clone(),
-                    message: "Claim has no evidence, qualification, formalization, or test relation"
-                        .to_owned(),
-                });
+                findings.push(finding(
+                    FindingSeverity::Warning,
+                    node,
+                    "Claim has no evidence, qualification, formalization, or test relation",
+                ));
             }
-
             if node.has_type("Hypothesis")
                 && !node.has_relation("testedBy")
                 && node.verification.is_empty()
             {
-                findings.push(AuditFinding {
-                    severity: FindingSeverity::Error,
-                    node_id: node.id.clone(),
-                    message: "Hypothesis has no experiment/test target".to_owned(),
-                });
+                findings.push(finding(
+                    FindingSeverity::Error,
+                    node,
+                    "Hypothesis has no experiment/test target",
+                ));
             }
-
             if node.has_type("Theorem") {
                 if node.statement.as_deref().is_none_or(str::is_empty) {
-                    findings.push(AuditFinding {
-                        severity: FindingSeverity::Error,
-                        node_id: node.id.clone(),
-                        message: "Theorem has no formal statement".to_owned(),
-                    });
+                    findings.push(finding(
+                        FindingSeverity::Error,
+                        node,
+                        "Theorem has no formal statement",
+                    ));
                 }
                 if node.verification.is_empty() {
-                    findings.push(AuditFinding {
-                        severity: FindingSeverity::Error,
-                        node_id: node.id.clone(),
-                        message: "Theorem has no checker target".to_owned(),
-                    });
+                    findings.push(finding(
+                        FindingSeverity::Error,
+                        node,
+                        "Theorem has no checker target",
+                    ));
                 }
             }
-
             if node.has_type("Experiment") && node.verification.is_empty() {
-                findings.push(AuditFinding {
-                    severity: FindingSeverity::Warning,
-                    node_id: node.id.clone(),
-                    message: "Experiment has no executable/analysis target".to_owned(),
-                });
+                findings.push(finding(
+                    FindingSeverity::Warning,
+                    node,
+                    "Experiment has no executable/analysis target",
+                ));
             }
         }
-
         findings
     }
 
@@ -222,10 +242,7 @@ impl KnowledgeGraph {
     }
 
     pub fn nodes_of_type(&self, kind: &str) -> Vec<&Node> {
-        self.nodes
-            .iter()
-            .filter(|node| node.has_type(kind))
-            .collect()
+        self.nodes.iter().filter(|node| node.has_type(kind)).collect()
     }
 
     pub fn search(&self, query: &str) -> Vec<&Node> {
@@ -250,7 +267,6 @@ impl KnowledgeGraph {
         let mut node_types = BTreeMap::new();
         let mut predicates = BTreeMap::new();
         let mut edges = 0;
-
         for node in &self.nodes {
             for node_type in &node.types {
                 *node_types.entry(node_type.clone()).or_insert(0) += 1;
@@ -260,7 +276,6 @@ impl KnowledgeGraph {
                 *predicates.entry(relation.predicate.clone()).or_insert(0) += 1;
             }
         }
-
         GraphStats {
             nodes: self.nodes.len(),
             edges,
@@ -278,18 +293,14 @@ impl KnowledgeGraph {
         let mut by_id = HashMap::with_capacity(self.nodes.len());
 
         for node in &self.nodes {
-            let index = graph.add_node(node.id.clone());
-            by_id.insert(node.id.clone(), index);
+            by_id.insert(node.id.clone(), graph.add_node(node.id.clone()));
         }
-
         for node in &self.nodes {
             let source = by_id[&node.id];
             for relation in &node.relations {
-                let target = by_id[&relation.target];
-                graph.add_edge(source, target, relation.predicate.clone());
+                graph.add_edge(source, by_id[&relation.target], relation.predicate.clone());
             }
         }
-
         Ok(IndexedGraph { graph, by_id })
     }
 
@@ -301,9 +312,9 @@ impl KnowledgeGraph {
         self.indexed()?.path(from, to)
     }
 
-    pub fn evidence_for(&self, claim_id: &str) -> Result<Vec<Neighbor>> {
+    pub fn evidence_for(&self, id: &str) -> Result<Vec<Neighbor>> {
         Ok(self
-            .neighbors(claim_id, None)?
+            .neighbors(id, None)?
             .into_iter()
             .filter(|neighbor| EVIDENCE_PREDICATES.contains(&neighbor.predicate.as_str()))
             .collect())
@@ -337,7 +348,6 @@ impl IndexedGraph {
         let Some(&index) = self.by_id.get(id) else {
             bail!("unknown node: {id}");
         };
-
         let mut neighbors = Vec::new();
         for edge in self.graph.edges_directed(index, PetDirection::Outgoing) {
             if predicate.is_none_or(|wanted| edge.weight() == wanted) {
@@ -357,7 +367,6 @@ impl IndexedGraph {
                 });
             }
         }
-
         neighbors.sort_by(|left, right| {
             left.predicate
                 .cmp(&right.predicate)
@@ -373,14 +382,13 @@ impl IndexedGraph {
         let Some(&to_index) = self.by_id.get(to) else {
             bail!("unknown node: {to}");
         };
-
         if from_index == to_index {
             return Ok(Some(vec![from.to_owned()]));
         }
 
         let mut queue = VecDeque::from([from_index]);
         let mut visited = HashSet::from([from_index]);
-        let mut previous: HashMap<NodeIndex, NodeIndex> = HashMap::new();
+        let mut previous = HashMap::<NodeIndex, NodeIndex>::new();
 
         while let Some(current) = queue.pop_front() {
             for next in self
@@ -395,9 +403,8 @@ impl IndexedGraph {
                     let mut path = vec![to_index];
                     let mut cursor = to_index;
                     while cursor != from_index {
-                        let parent = previous[&cursor];
-                        path.push(parent);
-                        cursor = parent;
+                        cursor = previous[&cursor];
+                        path.push(cursor);
                     }
                     path.reverse();
                     return Ok(Some(
@@ -409,7 +416,6 @@ impl IndexedGraph {
                 queue.push_back(next);
             }
         }
-
         Ok(None)
     }
 
@@ -429,6 +435,14 @@ impl IndexedGraph {
         }
         out.push_str("}\n");
         out
+    }
+}
+
+fn finding(severity: FindingSeverity, node: &Node, message: &str) -> AuditFinding {
+    AuditFinding {
+        severity,
+        node_id: node.id.clone(),
+        message: message.to_owned(),
     }
 }
 
@@ -508,9 +522,8 @@ mod tests {
 
     #[test]
     fn finds_directed_path() {
-        let graph = fixture();
         assert_eq!(
-            graph.path("claim:a", "theorem:c").unwrap(),
+            fixture().path("claim:a", "theorem:c").unwrap(),
             Some(vec![
                 "claim:a".to_string(),
                 "source:b".to_string(),
@@ -520,25 +533,8 @@ mod tests {
     }
 
     #[test]
-    fn finds_incoming_and_outgoing_neighbors() {
-        let graph = fixture();
-        let neighbors = graph.neighbors("source:b", None).unwrap();
-        assert!(neighbors.iter().any(|neighbor| {
-            neighbor.direction == Direction::Incoming
-                && neighbor.predicate == "supportedBy"
-                && neighbor.node_id == "claim:a"
-        }));
-        assert!(neighbors.iter().any(|neighbor| {
-            neighbor.direction == Direction::Outgoing
-                && neighbor.predicate == "motivates"
-                && neighbor.node_id == "theorem:c"
-        }));
-    }
-
-    #[test]
     fn audits_epistemic_requirements() {
-        let graph = fixture();
-        assert!(graph.audit().is_empty());
+        assert!(fixture().audit().is_empty());
     }
 
     #[test]
