@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use petgraph::Direction as PetDirection;
 use petgraph::stable_graph::{NodeIndex, StableDiGraph};
-use petgraph::visit::EdgeRef;
+use petgraph::visit::{EdgeRef, IntoEdgeReferences};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs;
