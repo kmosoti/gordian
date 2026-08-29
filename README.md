@@ -2,21 +2,20 @@
 
 Gordian is a research-driven coordination substrate for software development by humans and autonomous agents.
 
-It is not a project tracker, a Git workflow wrapper, or a branch-management convention. Gordian models engineering work as a set of explicit, verifiable graphs and uses Jujutsu as the change-state substrate beneath execution.
+It is not a project tracker, a Git workflow wrapper, or a branch-management convention. Gordian treats software development as a closed-loop coordination problem: specify a desired state, decompose it into verifiable work, execute against isolated code snapshots, observe evidence, and admit only verified states into the accepted frontier.
 
-## Core idea
+## Core model
 
-Traditional project systems collapse planning, execution, source control, and status into mutable tickets and branches. Gordian separates them.
+Gordian separates four structures that conventional project systems tend to collapse:
 
 ```text
-Book of Work         what should happen
-Jujutsu DAG          what code states exist
-Execution history    what actually happened
-Evidence graph       what has been verified
-Accepted frontier    what is allowed to become reality
+Mission Graph       what should become true
+Change Graph        what code states exist (Jujutsu)
+Execution History   what actually happened
+Evidence Graph      what is justified by observation
 ```
 
-The Book of Work decomposes engineering intent through:
+The canonical planning abstraction is the **Mission Graph**.
 
 ```text
 Project
@@ -27,55 +26,70 @@ Project
           Quark
 ```
 
-This hierarchy is decomposition, not execution order. Hard execution dependencies form a separate DAG.
+This hierarchy describes decomposition, not execution order. Hard execution dependencies form a separate directed acyclic graph.
+
+## Mission Graph semantics
+
+- **Project** is a persistent namespace and system boundary.
+- **Mission** defines a desired state, constraints, and acceptance criteria. It is intentionally independent of any particular implementation plan.
+- **PlanRevision** is a versioned strategy for satisfying a Mission.
+- **Initiative** is a non-primitive capability or subgoal.
+- **Atom** is the smallest independently schedulable and verifiable work contract.
+- **Quark** is an execution primitive internal to an Atom.
+- **ExecutionAttempt** records one concrete attempt to realize an Atom or Quark.
+- **Artifact** is a produced or consumed entity.
+- **Evidence** is an observation relevant to an acceptance predicate.
+- **Attestation** binds a claim to evidence, identity, execution context, and exact artifacts.
 
 ## Design principles
 
-1. **Mission is goal, not plan.** A mission defines desired state, constraints, and acceptance. Plans may be revised without changing the mission identity.
-2. **Atoms are verifiable contracts.** An Atom is the smallest independently schedulable unit with explicit inputs, preconditions, outputs, acceptance predicates, and evidence requirements.
-3. **Quarks are executor primitives.** Quarks are internal implementation steps of an Atom and should not become cross-Atom dependency targets.
-4. **Status is derived where possible.** Ready, blocked, running, verifying, and satisfied are projections over dependencies, attempts, and evidence rather than mutable labels treated as truth.
-5. **Execution attempts are separate from specifications.** A failed attempt does not mean the work contract itself has failed.
-6. **Evidence is bound to exact artifacts.** Verification attaches to immutable commit IDs, environment digests, verifier versions, and specification revisions.
-7. **Agents are probabilistic workers.** Correctness belongs to the substrate: permissions, isolation, verification, provenance, and admission rules.
-8. **Accepted state is coordinator-controlled.** Worker agents may mutate their assigned changes, but cannot redefine trunk, releases, or deployment state.
+1. **Goal and plan are different objects.** Replanning must not mutate the identity of the Mission.
+2. **Decomposition and dependency are different graphs.** Containment answers “part of what?” while dependency answers “requires what?”.
+3. **Atoms are contracts, not tickets.** They expose preconditions, declared inputs, outputs, semantic read/write claims, acceptance predicates, and verifier requirements.
+4. **Quarks preserve Atom abstraction boundaries.** Cross-Atom dependency on an internal Quark is forbidden; promote it to an Atom if another unit must depend on it.
+5. **Attempts are not specifications.** Attempts can fail, time out, or be abandoned while the Atom remains a stable contract.
+6. **State is derived from facts where possible.** `ready`, `blocked`, `running`, `verifying`, and `satisfied` are projections over graph structure, attempts, and evidence rather than manually edited truth.
+7. **Evidence is content-bound.** Verification applies to exact specification revisions, commit IDs, inputs, environments, and verifier versions.
+8. **Agents are probabilistic workers.** Correctness belongs to the deterministic substrate: isolation, permissions, provenance, verification, replay, and admission rules.
+9. **Coordination is semantic, not merely textual.** Workers declare and observe interface, capability, read, and write claims rather than relying on file-level merge success.
+10. **The accepted frontier is authority-controlled.** Worker agents cannot move `main`, redefine `trunk()`, create releases, or deploy by default.
 
-## Jujutsu model
-
-Gordian uses Jujutsu according to these semantics:
+## Jujutsu execution model
 
 | Gordian concept | Jujutsu representation |
 | --- | --- |
 | Accepted code frontier | `trunk()` |
 | Public accepted name | `main` |
-| Exact accepted state | commit ID |
-| Logical evolving work | change ID |
-| Agent execution environment | workspace |
+| Exact accepted version | commit ID |
+| Logical evolving code change | change ID |
+| Worker execution environment | workspace |
 | Independent work | sibling changes |
-| Dependent work | parent/child changes |
-| Integration | multi-parent change |
-| Verification batch | `jj run` |
-| Recovery history | operation log |
+| Causally dependent work | parent/child changes |
+| Candidate integration | multi-parent change |
+| Revision-scoped verification | `jj run` |
+| Repository recovery/history | operation log |
 | External transport identity | bookmark |
-| Release | tag |
-| Production state | deployment record |
-| Permanent `develop` branch | none |
+| Release identity | tag |
+| Production truth | deployment record pointing at an immutable release |
+| Permanent `develop` bookmark | none |
 
-The guiding rule is:
+The operational rule is:
 
-> Bookmarks represent external identities. Changes represent work. Workspaces represent execution. The DAG represents causality.
+> Bookmarks represent external identities. Changes represent evolving code. Workspaces represent execution. The DAG represents causality. Verification binds to exact commits.
 
-## Repository layout
+## Repository structure
 
 ```text
 docs/
   architecture.md
   spec/
-    bow-v0.md
+    mission-graph-v0.md
+  protocols/
+    jujutsu-agent-protocol.md
   research/
-    multi-agent-jujutsu.md
+    evidence-synthesis.md
 ```
 
 ## Current phase
 
-Gordian is in specification and falsification mode. The immediate objective is to make the work model, execution protocol, and safety invariants explicit enough to implement and test before introducing a large runtime.
+Gordian is in **specification and falsification** mode. The current objective is to define the Mission Graph semantics, invariants, Jujutsu execution protocol, evidence model, and measurable hypotheses tightly enough that the first runtime can be small and experimentally challenged rather than prematurely feature-rich.
