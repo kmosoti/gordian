@@ -1,7 +1,0 @@
-name = "gordian"
-version = "0.1.0"
-defaultTargets = ["Gordian"]
-
-[[lean_lib]]
-name = "Gordian"
-srcDir = "formal"
