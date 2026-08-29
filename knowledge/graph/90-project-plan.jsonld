@@ -1,0 +1,323 @@
+{
+  "@context": {
+    "name": "https://schema.org/name",
+    "summary": "https://schema.org/description",
+    "url": "https://schema.org/url",
+    "status": "https://gordian.dev/ns/status",
+    "statement": "https://gordian.dev/ns/statement",
+    "relations": "https://gordian.dev/ns/relations",
+    "predicate": "https://gordian.dev/ns/predicate",
+    "target": {"@id": "https://gordian.dev/ns/target", "@type": "@id"},
+    "verification": "https://gordian.dev/ns/verification"
+  },
+  "@graph": [
+    {
+      "@id": "concept:plan-selection",
+      "@type": ["Concept"],
+      "name": "Plan Selection",
+      "summary": "Authority-controlled selection of one immutable PlanRevision for current execution while retaining alternative and historical plans.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:plan-revision"},
+        {"predicate": "uses", "target": "concept:event"},
+        {"predicate": "implementedBy", "target": "algorithm:plan-selection-cas"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:project-resource-registry",
+      "@type": ["Concept"],
+      "name": "Project Resource Registry",
+      "summary": "Typed Project-scoped registry of repositories, knowledge resources, environments, artifact stores, trackers, release channels, and deployment targets with stable external identities.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "refines", "target": "concept:project"},
+        {"predicate": "uses", "target": "concept:capability"},
+        {"predicate": "uses", "target": "concept:artifact"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:sandbox-backend",
+      "@type": ["Concept"],
+      "name": "Sandbox Backend",
+      "summary": "Replaceable enforcement backend that constrains worker filesystem, process, network, device, secret, time, CPU, and memory authority according to a capability envelope.",
+      "status": "planned-hypothesis",
+      "relations": [
+        {"predicate": "uses", "target": "concept:capability"},
+        {"predicate": "uses", "target": "concept:effect-class"},
+        {"predicate": "testedBy", "target": "experiment:sandbox-backend-qualification"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:secret-broker",
+      "@type": ["Concept"],
+      "name": "Capability-Scoped Secret Broker",
+      "summary": "Authority service that resolves opaque secret references into short-lived least-privilege credentials for one approved actor, resource, sandbox, and effect without persisting plaintext in Mission state.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:capability"},
+        {"predicate": "uses", "target": "concept:actor"},
+        {"predicate": "uses", "target": "concept:project-resource-registry"},
+        {"predicate": "requires", "target": "concept:sandbox-backend"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:release-record",
+      "@type": ["Concept"],
+      "name": "Release Record",
+      "summary": "Immutable authority-controlled record binding exact accepted source, build and verifier evidence, artifact digests, provenance, toolchain/environment identity, and a release identity.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:accepted-frontier"},
+        {"predicate": "uses", "target": "concept:artifact"},
+        {"predicate": "uses", "target": "concept:attestation"},
+        {"predicate": "requires", "target": "concept:authority-model"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:deployment-record",
+      "@type": ["Concept"],
+      "name": "Deployment Record",
+      "summary": "Historical record of which immutable release or artifact set was attempted, observed, rolled back, or currently running in a target environment.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "refines", "target": "concept:deployment-frontier"},
+        {"predicate": "uses", "target": "concept:release-record"},
+        {"predicate": "uses", "target": "concept:event"},
+        {"predicate": "requires", "target": "concept:authority-model"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:backup-restore",
+      "@type": ["Concept"],
+      "name": "Backup and Restore",
+      "summary": "Recovery mechanism preserving canonical identities, immutable specifications, events, evidence metadata, artifacts, research state, and accepted/deployment frontiers across clean restoration.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:event"},
+        {"predicate": "uses", "target": "concept:artifact"},
+        {"predicate": "uses", "target": "concept:projection"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:migration-compatibility",
+      "@type": ["Concept"],
+      "name": "Migration and Compatibility Boundary",
+      "summary": "Explicit transformation and compatibility policy at persisted or wire boundaries that preserves historical interpretation instead of applying decorative project-wide version labels.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:backup-restore"},
+        {"predicate": "uses", "target": "concept:event"},
+        {"predicate": "uses", "target": "concept:projection"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:security-qualification",
+      "@type": ["Concept"],
+      "name": "Adversarial Security Qualification",
+      "summary": "Executable threat-model and attack evaluation of worker, planner, verifier, adapter, API, coordinator, sandbox, secret, evidence, provenance, and release authority boundaries.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:authority-model"},
+        {"predicate": "uses", "target": "concept:capability"},
+        {"predicate": "uses", "target": "concept:sandbox-backend"},
+        {"predicate": "uses", "target": "concept:secret-broker"},
+        {"predicate": "testedBy", "target": "experiment:release-qualification"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "concept:github-project-bootstrap",
+      "@type": ["Concept"],
+      "name": "Temporary GitHub Project Bootstrap",
+      "summary": "External issue and board projection used to execute Gordian's implementation before native self-hosting; it is explicitly non-canonical and cannot establish Atom satisfaction.",
+      "status": "temporary",
+      "relations": [
+        {"predicate": "contrastsWith", "target": "concept:mission-graph"},
+        {"predicate": "implementedBy", "target": "artifact:github-project-sync-script"},
+        {"predicate": "documentedBy", "target": "artifact:issue-index"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "algorithm:plan-selection-cas",
+      "@type": ["Algorithm"],
+      "name": "Plan Selection Compare-and-Swap",
+      "summary": "Selects a PlanRevision only when the caller is authorized and the expected prior selected-plan identity still matches, appending an auditable event on success.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:plan-revision"},
+        {"predicate": "uses", "target": "concept:capability"},
+        {"predicate": "produces", "target": "concept:event"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "algorithm:repair-action-classification",
+      "@type": ["Algorithm"],
+      "name": "Reconciliation Repair Classification",
+      "summary": "Classifies desired-versus-observed deltas into wait, retry, verify, repair, replan, judgment escalation, abandonment, or accepted-scope-change actions while respecting effect policy.",
+      "status": "planned",
+      "relations": [
+        {"predicate": "uses", "target": "concept:reconciliation"},
+        {"predicate": "uses", "target": "concept:effect-class"},
+        {"predicate": "produces", "target": "concept:plan-revision"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "hypothesis:evidence-fingerprint-worth-cost",
+      "@type": ["Hypothesis"],
+      "name": "Full Evidence Fingerprints Are Worth Their Cost",
+      "summary": "Binding verification to candidate, specification, inputs, dependencies, environment, and verifier prevents materially more false completion than weaker exact-commit binding at acceptable cost.",
+      "status": "untested",
+      "relations": [
+        {"predicate": "testedBy", "target": "experiment:evidence-invalidation-cost"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "hypothesis:formal-methods-add-unique-yield",
+      "@type": ["Hypothesis"],
+      "name": "Formal Methods Add Unique Defect Yield",
+      "summary": "Lean proof obligations and Lean/Rust conformance catch meaningful Gordian substrate defects beyond Rust types, property/state-machine tests, mutation tests, fuzzing, and review at justified maintenance cost.",
+      "status": "untested",
+      "relations": [
+        {"predicate": "testedBy", "target": "experiment:formal-method-yield"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "hypothesis:jsonld-petgraph-sufficient",
+      "@type": ["Hypothesis"],
+      "name": "Sharded JSON-LD and Rust Indexing Remain Sufficient",
+      "summary": "Version-controlled sharded JSON-LD plus Rust indexes provides adequate scale, query performance, diff quality, and epistemic auditability without an embedded RDF or graph database.",
+      "status": "untested",
+      "relations": [
+        {"predicate": "testedBy", "target": "experiment:knowledge-backend-qualification"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "hypothesis:sandbox-tiering-worth-complexity",
+      "@type": ["Hypothesis"],
+      "name": "Risk-Tiered Sandbox Backends Are Worth Their Complexity",
+      "summary": "Selecting the lightest sandbox that satisfies each capability/effect threat class reduces overhead without weakening enforcement compared with one universal heavy backend.",
+      "status": "untested",
+      "relations": [
+        {"predicate": "testedBy", "target": "experiment:sandbox-backend-qualification"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "experiment:evidence-invalidation-cost",
+      "@type": ["Experiment"],
+      "name": "Evidence Invalidation Safety and Cost Experiment",
+      "summary": "Injects candidate, specification, dependency, environment, and verifier changes to compare stale-evidence acceptance, unnecessary recomputation, and fingerprint overhead across binding policies.",
+      "status": "planned",
+      "url": "https://github.com/kmosoti/gordian/issues/59",
+      "relations": [
+        {"predicate": "tests", "target": "hypothesis:evidence-fingerprint-worth-cost"},
+        {"predicate": "uses", "target": "concept:evidence"},
+        {"predicate": "uses", "target": "concept:candidate"}
+      ],
+      "verification": [
+        {"method": "seeded fault experiment", "target": "issues/59", "status": "planned"}
+      ]
+    },
+    {
+      "@id": "experiment:formal-method-yield",
+      "@type": ["Experiment"],
+      "name": "Formal-Method Defect Yield Experiment",
+      "summary": "Compares incremental verification stacks over seeded Gordian defects and records unique detection, timing, theorem relevance, model mismatch, and maintenance cost.",
+      "status": "planned",
+      "url": "https://github.com/kmosoti/gordian/issues/60",
+      "relations": [
+        {"predicate": "tests", "target": "hypothesis:formal-methods-add-unique-yield"}
+      ],
+      "verification": [
+        {"method": "seeded defect matrix", "target": "issues/60", "status": "planned"}
+      ]
+    },
+    {
+      "@id": "experiment:knowledge-backend-qualification",
+      "@type": ["Experiment"],
+      "name": "Knowledge Graph Backend Qualification",
+      "summary": "Compares sharded JSON-LD/Rust indexing, improved streaming indexes, and embedded RDF alternatives over generated corpora and epistemic queries.",
+      "status": "planned",
+      "url": "https://github.com/kmosoti/gordian/issues/61",
+      "relations": [
+        {"predicate": "tests", "target": "hypothesis:jsonld-petgraph-sufficient"}
+      ],
+      "verification": [
+        {"method": "cross-backend benchmark and query equivalence", "target": "issues/61", "status": "planned"}
+      ]
+    },
+    {
+      "@id": "experiment:sandbox-backend-qualification",
+      "@type": ["Experiment"],
+      "name": "Sandbox Backend Qualification",
+      "summary": "Compares enforcement strength, escape/denial behavior, startup, memory, I/O, cleanup, and operational complexity across local process, container, stronger sandbox, and microVM candidates.",
+      "status": "planned",
+      "url": "https://github.com/kmosoti/gordian/issues/62",
+      "relations": [
+        {"predicate": "tests", "target": "hypothesis:sandbox-tiering-worth-complexity"},
+        {"predicate": "uses", "target": "concept:security-qualification"}
+      ],
+      "verification": [
+        {"method": "threat-model benchmark and malicious worker fixtures", "target": "issues/62", "status": "planned"}
+      ]
+    },
+    {
+      "@id": "experiment:release-qualification",
+      "@type": ["Experiment"],
+      "name": "End-to-End Release Qualification",
+      "summary": "Exercises clean installation, Mission execution, exact verification, admission, restart/replay, security, release/deployment, backup/restore, and performance against exact distribution artifacts.",
+      "status": "planned",
+      "url": "https://github.com/kmosoti/gordian/issues/69",
+      "relations": [
+        {"predicate": "uses", "target": "concept:release-record"},
+        {"predicate": "uses", "target": "concept:deployment-record"},
+        {"predicate": "uses", "target": "concept:backup-restore"},
+        {"predicate": "uses", "target": "concept:security-qualification"}
+      ],
+      "verification": [
+        {"method": "clean-environment qualification suite", "target": "issues/69", "status": "planned"}
+      ]
+    },
+    {
+      "@id": "artifact:github-project-sync-script",
+      "@type": ["ImplementationArtifact"],
+      "name": "GitHub Project Reconciliation Script",
+      "summary": "Thin Python bootstrap utility that idempotently compares repository issue URLs with Project 9 items and adds missing issues through the authenticated GitHub CLI.",
+      "status": "source-present",
+      "url": "https://github.com/kmosoti/gordian/blob/main/scripts/sync_github_project.py",
+      "relations": [
+        {"predicate": "implements", "target": "concept:github-project-bootstrap"}
+      ],
+      "verification": [
+        {"method": "dry-run and post-reconciliation comparison", "target": "scripts/sync_github_project.py", "status": "source-present"}
+      ]
+    },
+    {
+      "@id": "artifact:issue-index",
+      "@type": ["Document", "ImplementationArtifact"],
+      "name": "Gordian Atom Index",
+      "summary": "Human-readable map of the temporary 70-Atom implementation Mission, grouped by Initiative with a causal execution spine and first Codex implementation cut.",
+      "status": "source-present",
+      "url": "https://github.com/kmosoti/gordian/blob/main/docs/implementation/issue-index.md",
+      "relations": [
+        {"predicate": "documents", "target": "concept:github-project-bootstrap"},
+        {"predicate": "documents", "target": "concept:mission-graph"}
+      ],
+      "verification": []
+    }
+  ]
+}
