@@ -9,10 +9,11 @@ Gordian's documentation is organized around a strict separation between **specif
 3. [`spec/data-model.md`](spec/data-model.md) — storage-independent identities and canonical records.
 4. [`spec/invariants.md`](spec/invariants.md) — safety properties and their verification boundaries.
 5. [`implementation/project-plan.md`](implementation/project-plan.md) — end-to-end Initiative/Atom implementation plan.
-6. [`protocols/jujutsu-agent-protocol.md`](protocols/jujutsu-agent-protocol.md) — binding between Mission Atoms and Jujutsu execution.
-7. [`knowledge-graph.md`](knowledge-graph.md) — comprehensive research graph and Rust traversal/audit tooling.
-8. [`formal/theorem-catalog.md`](formal/theorem-catalog.md) — theorem statements, assumptions, checker targets, and non-claims.
-9. [`formal/proof-boundary.md`](formal/proof-boundary.md) — what proof can and cannot establish about the real implementation.
+6. [`implementation/issue-index.md`](implementation/issue-index.md) — live map of the 70 temporary GitHub Atoms, causal spine, and first Codex execution cut.
+7. [`protocols/jujutsu-agent-protocol.md`](protocols/jujutsu-agent-protocol.md) — binding between Mission Atoms and Jujutsu execution.
+8. [`knowledge-graph.md`](knowledge-graph.md) — comprehensive research graph and Rust traversal/audit tooling.
+9. [`formal/theorem-catalog.md`](formal/theorem-catalog.md) — theorem statements, assumptions, checker targets, and non-claims.
+10. [`formal/proof-boundary.md`](formal/proof-boundary.md) — what proof can and cannot establish about the real implementation.
 
 ## Algorithms
 
@@ -31,6 +32,7 @@ Gordian's documentation is organized around a strict separation between **specif
 
 - [`testing/falsification-plan.md`](testing/falsification-plan.md) — experiment and fault-injection program for Gordian-specific hypotheses.
 - [`implementation/project-plan.md`](implementation/project-plan.md) begins with the Foundation and Falsification Initiative, which turns those experiments into implementation prerequisites rather than post-hoc validation.
+- [`implementation/issue-index.md`](implementation/issue-index.md) links every currently planned experiment and implementation Atom to its executable issue contract.
 
 ## Executable artifacts
 
@@ -49,6 +51,9 @@ formal/
 
 orchestration/
     Thin Python experiment/process orchestration only.
+
+scripts/sync_github_project.py
+    Temporary idempotent reconciliation of repository issues into GitHub Project 9.
 ```
 
 ## Research graph commands
@@ -84,6 +89,8 @@ A theorem is described as machine checked only when those checks pass for the ex
 Rust owns production semantics and performance-sensitive code.
 
 Python may launch experiments, datasets, tools, worker processes, and analysis. It must call Rust rather than independently implement Mission Graph safety rules.
+
+The temporary Project reconciler follows that rule: it coordinates GitHub CLI calls but does not decide readiness, satisfaction, admission, or evidence semantics.
 
 See [`../AGENTS.md`](../AGENTS.md) for the full coding-agent contract.
 
