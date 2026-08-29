@@ -1,0 +1,6 @@
+name = "gordian-formal"
+defaultTargets = ["Gordian"]
+
+[[lean_lib]]
+name = "Gordian"
+srcDir = "."
