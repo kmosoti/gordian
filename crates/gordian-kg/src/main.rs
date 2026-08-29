@@ -8,7 +8,7 @@ use std::path::PathBuf;
 #[command(name = "gordian-kg")]
 #[command(about = "Traverse, validate, and audit the Gordian research knowledge graph")]
 struct Cli {
-    #[arg(long, default_value = "knowledge/graph.jsonld")]
+    #[arg(long, default_value = "knowledge/graph")]
     graph: PathBuf,
 
     #[command(subcommand)]
