@@ -2,7 +2,7 @@ import Lake
 
 open Lake DSL
 
-package GordianFormal where
+package Gordian where
 
 @[default_target]
 lean_lib Gordian where
