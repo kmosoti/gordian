@@ -1,4 +1,4 @@
-name = "gordian-formal"
+name = "GordianFormal"
 defaultTargets = ["Gordian"]
 
 [[lean_lib]]
