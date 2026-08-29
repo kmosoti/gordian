@@ -2,6 +2,8 @@
 
 The knowledge graph is not a bibliography and not a decorative map. It is the repository's machine-readable record of what Gordian believes, why it believes it, what remains uncertain, which algorithms embody each idea, which theorems formalize narrow properties, and which experiments can falsify Gordian-specific design choices.
 
+The canonical corpus is the sorted collection of JSON-LD shards under [`knowledge/graph/`](graph/). `gordian-kg` deterministically merges those shards into one indexed directed graph at runtime.
+
 ## Required node classes
 
 ### `Concept`
@@ -14,7 +16,7 @@ Examples: Mission, optimistic concurrency control, critical path, provenance, ca
 
 An externally retrievable evidence source: peer-reviewed paper, preprint, standard, official implementation documentation, or production-engineering account.
 
-Sources should identify provenance and scope. Source existence does not imply endorsement of every conclusion in it.
+Sources identify provenance and scope. Source existence does not imply endorsement of every conclusion in it.
 
 ### `Claim`
 
@@ -97,6 +99,8 @@ Human-readable repository documentation.
 | `refines` | more specific formulation of another concept |
 | `projectsTo` | representation can be mapped into another standard/model |
 
+The graph may introduce additional predicates when the distinction materially changes interpretation. New predicates should be documented before becoming common.
+
 ## Completeness rule
 
 A material concept belongs in the graph when any of the following happens:
@@ -130,11 +134,36 @@ The graph must support `challengedBy` and `qualifiedBy`; the audit and review pr
 
 Fast-moving papers and software documentation can change. Materially changed results should eventually be represented through distinct source-revision identities rather than overwriting historical provenance.
 
+## Shards
+
+The current corpus separates concerns without separating the logical graph:
+
+```text
+knowledge/graph/
+  00-core.jsonld
+  10-foundations.jsonld
+  20-sources.jsonld
+  30-studies-and-claims.jsonld
+  40-algorithms.jsonld
+  50-tools.jsonld
+  60-formal.jsonld
+  70-experiments.jsonld
+  80-implementation.jsonld
+```
+
+Shard boundaries are editorial only. Node IDs are globally unique and relations may cross any shard.
+
 ## Mechanical checks
 
-`gordian-kg validate` checks structural graph integrity.
+```bash
+cargo run -p gordian-kg -- validate
+cargo run -p gordian-kg -- audit
+cargo run -p gordian-kg -- stats
+```
 
-`gordian-kg audit` checks basic epistemic completeness:
+`validate` checks structural graph integrity.
+
+`audit` checks basic epistemic completeness:
 
 - Sources have provenance locators;
 - Claims have evidence-oriented relations;
@@ -142,23 +171,27 @@ Fast-moving papers and software documentation can change. Materially changed res
 - Theorems have formal statements/checker targets;
 - Experiments have executable/analysis targets.
 
-These checks cannot determine whether a scientific inference is good. They ensure the graph makes the inference inspectable.
+These checks cannot determine whether a scientific inference is good. They ensure the inference can be inspected.
 
-## Storage strategy
+## Storage and indexing strategy
 
-`knowledge/graph.jsonld` is the canonical version-controlled corpus for now.
+The JSON-LD shards remain the canonical version-controlled research corpus.
 
-The Rust tooling builds an indexed `petgraph` view for traversal and can export DOT. A future RDF/SPARQL projection may use Sophia/Oxigraph if queries justify that complexity. The storage backend is intentionally not allowed to dictate ontology semantics.
+The Rust tooling currently builds an indexed `petgraph` view for traversal, neighborhood queries, shortest directed paths, statistics, audit, and DOT export.
+
+This choice is provisional and benchmarked. A future RDF/SPARQL projection may use Sophia/Oxigraph if actual query requirements justify the operational complexity. Storage/index implementation must not dictate ontology semantics.
 
 ## Research ingestion workflow
 
 When a source or experiment changes Gordian's understanding:
 
 1. create/update the Source node;
-2. create/update the relevant Concept/Claim/Hypothesis nodes;
+2. create/update relevant Concept/Claim/Hypothesis nodes;
 3. add supporting, qualifying, or challenging relations;
-4. add algorithms/theorem/experiment relations affected by the result;
+4. add affected algorithms/theorems/experiments/implementation artifacts;
 5. update normative documentation only if the evidence justifies a semantic change;
 6. update implementation artifacts separately;
-7. run graph validation/audit;
+7. run graph validation/audit and applicable benchmarks;
 8. preserve uncertainty rather than resolving it editorially.
+
+A material new concept is not fully acquired until the graph, docs, and relevant experiment/proof/implementation links agree on what it means.
