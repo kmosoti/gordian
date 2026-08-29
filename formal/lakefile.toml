@@ -1,6 +1,0 @@
-name = "GordianFormal"
-defaultTargets = ["Gordian"]
-
-[[lean_lib]]
-name = "Gordian"
-srcDir = "."
