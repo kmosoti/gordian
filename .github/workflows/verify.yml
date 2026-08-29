@@ -33,7 +33,7 @@ jobs:
         run: cargo test --workspace
 
       - name: Validate research graph
-        run: cargo run --locked -p gordian-kg -- validate
+        run: cargo run -p gordian-kg -- validate
 
   lean:
     name: Lean formal kernel
@@ -42,10 +42,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build and independently check proofs
+      - name: Build, independently check proofs, and audit axioms
         uses: leanprover/lean-action@v1
         with:
+          auto-config: false
+          use-github-cache: false
           build: true
           test: false
+          lint: false
           nanoda: true
           nanoda-allow-sorry: false
+          axiom-audit: true
