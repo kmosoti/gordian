@@ -27,13 +27,13 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Lint
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
 
       - name: Validate research graph
-        run: cargo run -p gordian-kg -- validate
+        run: cargo run --locked -p gordian-kg -- validate
 
   formal:
     name: Formal models and proofs

@@ -183,7 +183,6 @@ The objective is not “maximize agents running.” It is useful Mission progres
 
 ```text
 AGENTS.md                       canonical coding-agent contract
-AGENT.md                        human-facing pointer to AGENTS.md
 LICENSE                         Apache-2.0
 Cargo.toml                      Rust workspace
 rust-toolchain.toml             Rust toolchain
@@ -235,16 +234,16 @@ docs/
 
 ## Development contract
 
-Read [`AGENTS.md`](AGENTS.md) before implementation. Current Codex tooling recognizes `AGENTS.md` as the repository instruction file; [`AGENT.md`](AGENT.md) exists as the requested singular human entrypoint.
+Read [`AGENTS.md`](AGENTS.md) before implementation. It is the repository's sole coding-agent instruction file.
 
 Baseline checks:
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo run -p gordian-kg -- validate
-cargo run -p gordian-kg -- audit
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace
+cargo run --locked -p gordian-kg -- validate
+cargo run --locked -p gordian-kg -- audit
 (cd formal && lake build)
 ```
 

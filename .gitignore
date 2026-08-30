@@ -1,2 +1,4 @@
 target/
 .lake/
+__pycache__/
+*.py[cod]

@@ -34,7 +34,7 @@ Local repository location reported for Codex:
 Canonical remote:
 
 ```text
-https://github.com/kmosoti/gordian.git
+https://github.com/kmosoti/gordian
 ```
 
 The bootstrap script assumes the local checkout is already a Jujutsu repository. It intentionally does not initialize or overwrite an unrelated directory.

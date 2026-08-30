@@ -1,6 +1,6 @@
 # Gordian Agent Contract
 
-This file is the canonical repository instruction set for coding agents. [`AGENT.md`](AGENT.md) is the singular human-facing entrypoint and points here.
+This is the repository's sole coding-agent instruction file.
 
 ## Mission
 
@@ -165,10 +165,10 @@ Use the strongest applicable method for each claim. A tool belongs only when it 
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo run -p gordian-kg -- validate
-cargo run -p gordian-kg -- audit
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace
+cargo run --locked -p gordian-kg -- validate
+cargo run --locked -p gordian-kg -- audit
 
 ruff check orchestration
 python -m compileall -q orchestration/src

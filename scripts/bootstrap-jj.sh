@@ -3,7 +3,7 @@ set -euo pipefail
 
 readonly DEFAULT_JJ_VERSION="0.44.0"
 readonly DEFAULT_REMOTE_NAME="origin"
-readonly DEFAULT_REMOTE_URL="https://github.com/kmosoti/gordian.git"
+readonly DEFAULT_REMOTE_URL="https://github.com/kmosoti/gordian"
 
 jj_version="${JJ_REQUIRED_VERSION:-$DEFAULT_JJ_VERSION}"
 remote_name="${GORDIAN_REMOTE_NAME:-$DEFAULT_REMOTE_NAME}"

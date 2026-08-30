@@ -51,7 +51,7 @@ Failed hypotheses create design changes or narrower scope. They are not buried b
 The repository already contains:
 
 - Apache-2.0 license and Rust workspace;
-- `README.md`, `AGENT.md`, and canonical `AGENTS.md`;
+- `README.md` and canonical `AGENTS.md`;
 - sharded JSON-LD research corpus;
 - Rust `gordian-kg` traversal/validation tool;
 - Lean models under `formal/`;
