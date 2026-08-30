@@ -1,0 +1,77 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "compositional-verifier-inheritance",
+  "class": "classification",
+  "issue": 75,
+  "hypothesis": {
+    "h0": "A verifier declared compositional yields the same verdict on an integration candidate containing the component it passed on.",
+    "h1": "An inherited pass co-occurs with an integration failure at a rate above 1%."
+  },
+  "falsification": "The compositional flag is removed from a verifier whose inherited pass co-occurs with an integration failure at any rate above 1%, with the stratified bootstrap 95% interval reported. Until this experiment runs, the safe configuration is compositional = false everywhere, which costs one verifier run per batch member.",
+  "conditions": [
+    {
+      "id": "inherited",
+      "description": "verifier verdict inherited under a compositional = true manifest entry"
+    },
+    {
+      "id": "rerun",
+      "description": "verifier re-executed on the integration candidate; the baseline"
+    }
+  ],
+  "baseline_condition": "rerun",
+  "population": {
+    "workloads": [
+      "at least 200 admitted integration candidates carrying at least one compositional manifest entry"
+    ],
+    "sampling": "single frozen corpus of integration episodes; every candidate is scored under both conditions",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "metrics": [
+    {
+      "id": "inherited_pass_with_integration_failure_rate",
+      "unit": "proportion",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "verifier_runs_saved",
+      "unit": "count",
+      "direction": "higher_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "inherited_pass_with_integration_failure_rate",
+    "effect_size": {
+      "measure": "exact proportion of inherited passes co-occurring with an integration failure",
+      "minimum_relevant": 0.01,
+      "unit": "rate above which the compositional flag is removed"
+    },
+    "min_n": 200,
+    "multiplicity": "holm",
+    "uncertainty": "stratified bootstrap 95% CI, 10000 resamples",
+    "stopping_rule": "fixed corpus; frozen before scoring"
+  },
+  "exclusion_rule": "An integration episode is excluded when the verifier could not execute in the rerun condition, or when the integration failure is attributed by the batch conflict-attribution rule to a member other than the one carrying the inherited pass. Excluded episodes are retained with their reason.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/integration-episodes.jsonl"
+  ],
+  "threats": [
+    "attribution of an integration failure to the wrong batch member; the conflict-attribution rule of docs/algorithms/evidence-and-admission.md is applied before scoring"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

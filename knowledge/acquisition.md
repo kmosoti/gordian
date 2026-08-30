@@ -114,7 +114,9 @@ The ontology in [`ontology.md`](ontology.md) remains normative. The comprehensiv
 - `Document`
 - `ReleaseArtifact`
 
-The first Rust schema does not yet encode every field below as a statically typed member. That is an implementation gap recorded in the Atom backlog, not permission to omit the information indefinitely.
+The classes above are the comprehensive target. The subset the JSON-LD corpus uses today is enumerated normatively in [`ontology.md`](ontology.md) under **Required node classes**, and includes `SourceRevision`, `Result` and `Decision` alongside the backlog identities `Initiative`, `Atom`, `Issue` and `PlanRevision`.
+
+The first Rust schema does not yet encode every field below as a statically typed member: `crates/gordian-kg` defines nine node fields, and the provenance and revision fields the corpus now carries ride along as untyped JSON. That is an implementation gap owned by `#71` (gaps `source-revision-schema-missing` and `source-provenance-fields-unpopulated`), not permission to omit the information indefinitely. Until it lands, `serde` silently drops any key the struct does not name, so a field added to a shard without a corresponding struct member is invisible to `validate` and `audit` even though it is present on disk.
 
 ## 4. Source identity and revision policy
 
@@ -152,6 +154,16 @@ The `immutable_locator` should be the narrowest durable locator available:
 - experiment artifact digest plus run manifest.
 
 When a paper, documentation page, or repository materially changes, create a distinct `SourceRevision` rather than rewriting history. New conclusions may supersede old ones, but the graph preserves which decision depended on which revision at the time.
+
+The corpus now carries the first worked example. `source:caid` is pinned to `arXiv:2603.21489v2`, retrieved 2026-08-30, and its two revisions are represented as nodes: `sourcerev:caid-v1` (`arXiv:2603.21489v1`, submitted 2026-03-23, superseded values +26.7 PaperBench / +14.3 Commit0, `status: superseded`) and `sourcerev:caid-v2` (submitted 2026-07-08, +25.6 / +14.7, `status: current`), joined by `supersedes`. Every relation targeting `source:caid` carries a `note` naming the revision it relies on, so the four repository documents that had presented the superseded v1 numbers as current can be checked mechanically rather than read carefully.
+
+The minimum field set a `SourceRevision` carries is normative in [`ontology.md`](ontology.md); the minimum provenance field set every `Source` carries — `source_kind`, `retrieved_at`, and either the paper fields or the non-paper fields — is normative there too, and is audit rule **S2**.
+
+### Locator resolution and staleness
+
+A locator that has never been checked and a locator that was checked and found dead must not look the same in the corpus. Three of the corpus's identifiers were dead for as long as nobody looked: the HEFT node cited a DOI that returns 404 and a year three years off, the RCPSP node carried no authors and a dead DOI, and the planning-literature node was a placeholder title over a 404 URL. Each was the sole support of a foundation node. All three have been replaced with identifiers that resolve, and the works they were standing in for are now cited by name.
+
+Resolution must therefore be scheduled rather than incidental. A scheduled and `workflow_dispatch` CI job resolves every `Source` url and writes `{id, url, last_checked, last_status}` into a committed manifest at `knowledge/source-locators.json`. The protocol matters, because naive `HEAD` requests produce false negatives: for a `https://doi.org/...` url, issue `GET` with `Accept: application/vnd.citationstyles.csl+json` following redirects and treat the source as live if and only if a JSON body with a `title` comes back; for any other url, issue `GET` following redirects and treat 2xx as live. The job fails only on 404 or 410, or on an unresolved DOI handle; 403, 429 and 5xx are recorded as `unverified` and do not fail the build, because ACM and IEEE return 403 to unattended clients for identifiers that are perfectly valid. That job is owned by `#74` (gap `source-url-resolvability-unchecked`).
 
 ## 5. Claim record
 
@@ -212,7 +224,9 @@ Do not manufacture uncertainty values when the source does not report them. Reco
 
 ## 6. Relations
 
-Core relations are defined in [`ontology.md`](ontology.md). The acquisition process should additionally preserve distinctions such as:
+Core relations are defined in [`ontology.md`](ontology.md), whose table is normative for the corpus: it states the allowed target `@type` per predicate, lists the inverse pairs, and forbids evidence edges in both directions between the same two nodes. Any predicate below that is not in that table is an acquisition-level distinction, and must be added there before it appears in a shard.
+
+The acquisition process should additionally preserve distinctions such as:
 
 | Relation | Meaning |
 | --- | --- |
@@ -383,6 +397,8 @@ The Rust tooling should eventually enforce the following.
 - every implementation Atom maps back to a Mission/Initiative and relevant knowledge nodes;
 - every public protocol field maps to a definition and invariant.
 
+The Atom-to-knowledge mapping has a concrete target rather than an intention. `knowledge/graph/95-backlog.jsonld` is generated from the native GitHub graph — one node per open issue, one `dependsOn` edge per native `blocked_by` edge, one `Initiative` node per milestone — and CI regenerates it and fails on any diff. The native blocked-by graph is authoritative for dependencies; the prose `## Dependencies` sections in issue bodies and the board's Wave, Fan In and Fan Out fields are projections of it. Each open issue's research-basis section names at least one knowledge-graph node id, and a lint resolves every such id against the shards. The generator, the CI step and the lint are owned by `#72` (gaps `kg-backlog-mirror-undecided` and `issue-to-kg-backlinks-absent`); the shard layout is specified in [`ontology.md`](ontology.md) under **Backlog mirror**.
+
 Mechanical coverage cannot judge whether the inference is sound. It prevents missing provenance and invisible assumptions from hiding behind fluent prose.
 
 ## 12. Required traversal queries
@@ -407,7 +423,7 @@ Traversal results must preserve edge predicates and direction. A shortest path w
 
 ## 13. Rust and Python responsibility
 
-Rust owns:
+Rust will own (planned; today the workspace contains only `crates/gordian-kg`, a JSON-LD linter, and the honest staging order is in [`docs/implementation/execution-order.md`](../docs/implementation/execution-order.md) section 3):
 
 - typed canonical graph schema;
 - deterministic parse, merge, canonicalize, and digest;

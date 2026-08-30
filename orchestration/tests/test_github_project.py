@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import json
 import unittest
 from unittest.mock import call, patch
 
 from gordian_orchestration.github_project import Config, IssueRef, ProjectItemRef, reconcile
+from gordian_orchestration.provenance import Provenance
+
+STAMP = Provenance(
+    generated_at="2026-08-30T00:00:00Z",
+    source_change_id="qxpvzzmnopqr",
+    source_commit_id="4f2a1b0c9d8e",
+    tool_versions={"gh": "gh version 2.63.2", "jj": "jj 0.34.0"},
+)
 
 
 class ReconciliationTests(unittest.TestCase):
@@ -46,7 +55,7 @@ class ReconciliationTests(unittest.TestCase):
             dry_run=True,
         )
 
-        report = reconcile(config)
+        report = reconcile(config, stamp=STAMP)
 
         self.assertEqual(report.missing_before, (self.issue_two.url,))
         self.assertEqual(report.remaining_after, (self.issue_two.url,))
@@ -76,7 +85,7 @@ class ReconciliationTests(unittest.TestCase):
             ],
         ]
 
-        report = reconcile(self.config)
+        report = reconcile(self.config, stamp=STAMP)
 
         self.assertEqual(report.missing_before, (self.issue_one.url, self.issue_two.url))
         self.assertEqual(report.added_urls, (self.issue_one.url, self.issue_two.url))
@@ -116,6 +125,54 @@ class ReconciliationTests(unittest.TestCase):
                 ),
             ],
         )
+
+    @patch("gordian_orchestration.github_project._run_gh", return_value="{}")
+    @patch("gordian_orchestration.github_project._project_items", return_value=[])
+    @patch("gordian_orchestration.github_project._open_issues", return_value=[])
+    def test_report_carries_source_and_environment_identity(
+        self,
+        open_issues,
+        project_items,
+        run_gh,
+    ) -> None:
+        config = Config(
+            owner=self.config.owner,
+            repository=self.config.repository,
+            project_number=self.config.project_number,
+            dry_run=True,
+        )
+
+        payload = reconcile(config, stamp=STAMP).as_json_object()
+
+        for key in ("generated_at", "source_change_id", "source_commit_id", "tool_versions"):
+            self.assertIn(key, payload)
+            self.assertTrue(payload[key], f"{key} is empty")
+        self.assertEqual(payload["generated_at"], "2026-08-30T00:00:00Z")
+        self.assertTrue(payload["tool_versions"]["gh"])
+        self.assertTrue(json.dumps(payload, sort_keys=True))
+
+    @patch("gordian_orchestration.github_project.provenance.collect", return_value=STAMP)
+    @patch("gordian_orchestration.github_project._run_gh", return_value="{}")
+    @patch("gordian_orchestration.github_project._project_items", return_value=[])
+    @patch("gordian_orchestration.github_project._open_issues", return_value=[])
+    def test_provenance_is_collected_when_no_stamp_is_supplied(
+        self,
+        open_issues,
+        project_items,
+        run_gh,
+        collect,
+    ) -> None:
+        config = Config(
+            owner=self.config.owner,
+            repository=self.config.repository,
+            project_number=self.config.project_number,
+            dry_run=True,
+        )
+
+        report = reconcile(config)
+
+        collect.assert_called_once_with()
+        self.assertEqual(report.source_commit_id, STAMP.source_commit_id)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
-use gordian_kg::{Direction, FindingSeverity, KnowledgeGraph, Node};
+use gordian_kg::{AuditContext, Direction, FindingSeverity, KnowledgeGraph, Node};
 use std::fs;
 use std::path::PathBuf;
 
@@ -10,6 +10,10 @@ use std::path::PathBuf;
 struct Cli {
     #[arg(long, default_value = "knowledge/graph")]
     graph: PathBuf,
+
+    /// Repository root that `audit` resolves verification targets against.
+    #[arg(long, default_value = ".")]
+    repo_root: PathBuf,
 
     #[command(subcommand)]
     command: Command,
@@ -78,7 +82,7 @@ fn main() -> Result<()> {
         }
         Command::Audit { strict } => {
             graph.validate()?;
-            let findings = graph.audit();
+            let findings = graph.audit(&AuditContext::for_repo(&cli.repo_root)?);
             let mut errors = 0_usize;
             let mut warnings = 0_usize;
 
@@ -86,11 +90,17 @@ fn main() -> Result<()> {
                 match finding.severity {
                     FindingSeverity::Error => {
                         errors += 1;
-                        println!("ERROR   {:<40} {}", finding.node_id, finding.message);
+                        println!(
+                            "ERROR   {:<9} {:<40} {}",
+                            finding.rule, finding.node_id, finding.message
+                        );
                     }
                     FindingSeverity::Warning => {
                         warnings += 1;
-                        println!("WARNING {:<40} {}", finding.node_id, finding.message);
+                        println!(
+                            "WARNING {:<9} {:<40} {}",
+                            finding.rule, finding.node_id, finding.message
+                        );
                     }
                 }
             }

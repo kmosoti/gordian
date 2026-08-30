@@ -65,15 +65,31 @@ unresolved uncertainty
 
 ## Rust first, Python thin
 
-**Rust is the production substrate.** It owns Mission Graph semantics, graph algorithms, scheduling, event projection, evidence/provenance, Jujutsu integration, persistence, authorization, leases, protocol parsing, and runtime hot paths.
+**Rust is planned to be the production substrate.** It is planned to own Mission Graph semantics, graph algorithms, scheduling, event projection, evidence/provenance, the source adapter, persistence, authorization, leases, protocol parsing, and runtime hot paths. Today the workspace contains exactly one crate, [`crates/gordian-kg`](crates/gordian-kg), which owns the research knowledge graph and nothing else. Which crate each planned capability lands in is decided by [`docs/implementation/crate-map.md`](docs/implementation/crate-map.md), in the order of [`docs/implementation/execution-order.md`](docs/implementation/execution-order.md).
 
 **Python is a thin orchestration layer** under [`orchestration/`](orchestration/). It launches experiments/tools/agents, generates datasets, and aggregates measurements. It must not become a second implementation of readiness, evidence freshness, authorization, leases, acceptance, or Mission satisfaction.
 
 **Lean is a development dependency** isolated under [`formal/`](formal/). Production Gordian does not require Lean at runtime.
 
+### Planned, not built
+
+This repository is a specification and a research corpus with one tool in it. The table below is
+the whole list of capabilities the documentation is allowed to describe in the planned tense, and
+what makes each claim true. `scripts/check-capability-tense.sh` fails CI when this file or
+[`AGENTS.md`](AGENTS.md) states one of them in the present tense before its Atoms have validating
+closure records.
+
+| Planned capability | Specified in | Becomes present tense when |
+| --- | --- | --- |
+| Rust owns canonical Mission Graph semantics | [`docs/spec/data-model.md`](docs/spec/data-model.md) | closure records for #9, #10, #12, #13 |
+| A Lean-to-Rust conformance pipeline | [`docs/formal/conformance-vectors.md`](docs/formal/conformance-vectors.md) — no vectors exist yet | closure record for #7 |
+| The scheduler dispatches Atoms across workers | [`docs/algorithms/scheduling.md`](docs/algorithms/scheduling.md) | closure records for #20, #21, #24 |
+| The evidence store binds evidence to exact candidates | [`docs/spec/data-model.md`](docs/spec/data-model.md) | closure records for #15, #16, #17 |
+| The Jujutsu adapter drives workspaces and candidates | [`docs/protocols/source-adapter-contract.md`](docs/protocols/source-adapter-contract.md) | closure records for #29, #30, #31 |
+
 ## Verification-guided development
 
-For safety-critical semantics Gordian follows a verification-guided pattern similar to the one demonstrated by Cedar:
+For safety-critical semantics Gordian intends to follow a verification-guided pattern similar to the one demonstrated by Cedar. The pipeline below is **not yet implemented**; #7 owns the Lean/Rust conformance harness and the vector format it consumes, and no conformance vectors exist yet.
 
 ```text
 small executable Lean model
@@ -89,24 +105,26 @@ property / mutation / fuzz / concurrency / integration tests
 
 A Lean theorem proves the formal proposition under its assumptions. It does **not** prove that an empirical architecture is faster, that a semantic-resource declaration is complete, or that Rust refines the model unless that bridge is itself established.
 
-The current Lean sources cover rank-certified dependency acyclicity, scheduling witness implications, evidence identity mismatch, authority separation, acceptance witnesses, declared non-interference symmetry, and deterministic replay identity.
+The current Lean sources cover rank-certified dependency acyclicity, scheduling witness implications, evidence identity mismatch, authority separation, acceptance witnesses, declared non-interference symmetry, and deterministic replay identity. They are **proposition-level models, not executable oracles**: nothing in Rust is differentially tested against them today, and a theorem here constrains the model, not an implementation.
 
 ```bash
 cd formal
 lake build
 ```
 
-CI additionally uses an independent checker with `sorry` disallowed and audits axioms.
+CI re-checks the compiled environment with an independent checker and runs an **axiom audit**; the audit is what rejects `sorryAx` and any non-allowlisted axiom. Locally, `lake build` alone does not reject `sorry` — **G-258 and G-239 are assigned to #2**, which adds `formal/Gordian/Audit.lean`, makes warnings errors, and adds the audit invocation to the documented local check list.
 
-## Jujutsu Change Graph
+## Source plane and the Jujutsu Change Graph
 
-Jujutsu is Gordian's preferred source-state adapter, subject to an explicit Git comparison experiment.
+The source plane is adapter-neutral. [`docs/protocols/source-adapter-contract.md`](docs/protocols/source-adapter-contract.md) is the trait; Jujutsu (#29-#33) and Git worktrees (#76) are two realizations of it, and #34 compares them with everything else held constant. Canonical records name a `logical_change_id` and an `exact_state_id`, never a backend's own vocabulary.
+
+Jujutsu is Gordian's preferred source-state adapter, subject to that comparison.
 
 | Gordian concept | Jujutsu representation |
 | --- | --- |
 | accepted source frontier | `trunk()` / public `main` projection |
-| exact source state | commit ID |
-| evolving implementation identity | change ID |
+| exact source state (`exact_state_id`) | commit ID |
+| evolving implementation identity (`logical_change_id`) | change ID |
 | isolated worker state | workspace |
 | independent work | sibling changes |
 | causal source dependency | parent/child changes |
@@ -122,7 +140,7 @@ Operational rule:
 
 > Bookmarks represent external identities. Changes represent evolving implementations. Workspaces represent execution. Graph topology represents causality. Verification binds to exact commits.
 
-The reported Codex environment currently has **Jujutsu 0.23.0**, which predates capabilities this design intends to test, including `jj run`. The Foundation Initiative therefore upgrades, pins, and contract-tests the supported Jujutsu baseline before the source adapter is implemented.
+[`scripts/bootstrap-jj.sh`](scripts/bootstrap-jj.sh) is the **single source of the pinned Jujutsu baseline**; no document restates that version number, so the two cannot drift. The script installs and configures that release, adds and fetches `origin`, tracks `main@origin`, defines `trunk()`, and checks that the `jj run` subcommand is registered. It is not a behavioral contract test. Issue **#1 owns the contract suite** that qualifies change-ID rewrite persistence, exact state identity, workspace isolation, sibling topology, multi-parent integration, conflict representation, operation recovery, and `jj run` behavior on a disposable repository; until it closes, those semantics are assumed, not qualified.
 
 ## Executable research knowledge graph
 
@@ -143,19 +161,24 @@ It contains concepts, sources, claims, hypotheses, assumptions, algorithms, theo
 - Lean, Cedar-style verification-guided development, DRT, property/mutation/fuzz/model/concurrency testing;
 - Rust implementation and benchmark choices.
 
-The Rust `gordian-kg` tool deterministically merges and indexes the shards:
+The Rust `gordian-kg` tool deterministically merges and indexes the shards. This block is the complete subcommand surface; nothing asserts that it stays that way yet (see below):
 
 ```bash
 cargo run -p gordian-kg -- validate
-cargo run -p gordian-kg -- audit
+cargo run -p gordian-kg -- audit --strict
 cargo run -p gordian-kg -- stats
 cargo run -p gordian-kg -- list --kind Algorithm
+cargo run -p gordian-kg -- show concept:atom
+cargo run -p gordian-kg -- search "critical path"
 cargo run -p gordian-kg -- hypotheses
+cargo run -p gordian-kg -- theorems
 cargo run -p gordian-kg -- evidence claim:semantic-state-vs-code-state
 cargo run -p gordian-kg -- neighbors concept:atom
 cargo run -p gordian-kg -- path concept:atom theorem:dispatch-requires-dependencies
 cargo run -p gordian-kg -- export-dot --out /tmp/gordian.dot
 ```
+
+**G-618 is assigned to #2**: a Rust test in `crates/gordian-kg`, run by `cargo test --workspace` in `.github/workflows/verify.yml`, parses this block, asserts every subcommand listed is accepted by the clap parser and that every clap subcommand appears here, and fails otherwise. Until it lands this block is kept true by hand.
 
 Traversal is not entailment. Edge type determines the epistemic meaning.
 
@@ -185,24 +208,46 @@ The objective is not “maximize agents running.” It is useful Mission progres
 AGENTS.md                       canonical coding-agent contract
 LICENSE                         Apache-2.0
 Cargo.toml                      Rust workspace
+Cargo.lock                      pinned dependency graph
 rust-toolchain.toml             Rust toolchain
+.gitignore
+
+.github/
+  workflows/verify.yml           CI: Rust, formal, Python, specification consistency
+  ISSUE_TEMPLATE/atom.yml        implementation Atom contract
+  ISSUE_TEMPLATE/experiment.yml  falsifiable study contract
+  PULL_REQUEST_TEMPLATE.md       closure-evidence checklist (a PR is not the admission gate)
 
 crates/
-  gordian-kg/                   executable research graph tooling
+  gordian-kg/                   executable research graph tooling (the only crate today)
 
 formal/
   lean-toolchain                Lean development toolchain
-  lakefile.toml                 isolated formal package
+  lakefile.lean                 isolated formal package
+  lake-manifest.json
   Gordian.lean
   Gordian/*.lean                formal models and proofs
 
 knowledge/
-  ontology.md
+  ontology.md                   node and relation semantics
+  acquisition.md                source revision identity and acquisition lifecycle
   graph/*.jsonld                sharded canonical research corpus
 
 orchestration/
   pyproject.toml
+  README.md
   src/gordian_orchestration/    thin Python process/experiment layer
+  tests/
+
+scripts/
+  bootstrap-jj.sh               pinned Jujutsu baseline install and configuration
+  sync_github_project.py        compatibility entrypoint into the Project reconciler
+  check-*.sh                    specification-consistency checkers, all run by CI
+
+artifacts/
+  schema/closure-record.schema.json   the normative definition of Atom closure
+  atoms/<N>/                          spec snapshot, verifier artifacts, closure.json
+  project-9-reconciliation.json       generated board reconciliation report
 
 docs/
   index.md
@@ -213,7 +258,10 @@ docs/
     data-model.md
     invariants.md
   protocols/
+    source-adapter-contract.md
     jujutsu-agent-protocol.md
+    jujutsu-development-environment.md
+    landing.md
   algorithms/
     scheduling.md
     evidence-and-admission.md
@@ -221,16 +269,26 @@ docs/
   formal/
     proof-boundary.md
     theorem-catalog.md
+    conformance-vectors.md
   research/
     methodology.md
     foundations.md
     agent-systems-2026.md
     evidence-synthesis.md
+    verification-strategy.md
   testing/
     falsification-plan.md
+    statistical-contract.md
   implementation/
     project-plan.md
+    execution-order.md
+    issue-index.md
+    agent-runbook.md
+    crate-map.md
 ```
+
+Planned trees, created by the Atom named beside them: `benches/` (#5), `experiments/` (#75), and
+`formal/conformance/` (#7).
 
 ## Development contract
 
@@ -243,14 +301,39 @@ cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 cargo run --locked -p gordian-kg -- validate
-cargo run --locked -p gordian-kg -- audit
+cargo run --locked -p gordian-kg -- audit --strict
+
+ruff check orchestration
+python -m compileall -q orchestration/src
+python -m unittest discover -s orchestration/tests
+
 (cd formal && lake build)
+
+for s in scripts/check-*.sh; do bash "$s"; done
 ```
+
+The independent Lean checker and the axiom audit are **CI-only** until #2 lands
+`formal/Gordian/Audit.lean` and adds the local invocation to this block. `--strict` is not
+optional: a bare `audit` passes on warnings and is not a gate.
 
 Targeted validation layers include property testing, mutation testing, fuzzing, Kani, Loom/Shuttle, Turmoil, differential Lean/Rust testing, benchmark regression gates, and fault injection. Each tool must protect a named risk; Gordian does not collect verification tooling as ornaments.
 
 ## Project execution
 
-The implementation plan is [`docs/implementation/project-plan.md`](docs/implementation/project-plan.md). GitHub issues are used temporarily as Atom records while Gordian builds the substrate intended to replace that workflow.
+**Start with [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md).** It is the loop an autonomous agent executes end to end: acquire the repository and toolchain, derive readiness from the native GitHub `blocked by` graph with `gordian-derive-status ready`, claim an Atom, create an isolated workspace from an exact base, execute, verify, land, write the closure record, recompute the board, update the knowledge graph, and evaluate the Mission stop condition with `scripts/check-mission-stop-condition.sh --gate`.
 
-The first Initiative is deliberately **Foundation and Falsification**: qualify Jujutsu, stabilize proof checking, build the benchmark corpus, establish Rust/Lean conformance testing, and measure alternative algorithms before higher layers rely on them.
+The plan is 77 Atoms across 14 Initiatives.
+[`docs/implementation/project-plan.md`](docs/implementation/project-plan.md) carries the normative
+Mission acceptance table and a derived view of the whole set;
+[`docs/implementation/execution-order.md`](docs/implementation/execution-order.md) carries the
+causal spine, the kernel-start gate, and the 43-Atom minimal self-hosting prerequisite set;
+[`docs/implementation/issue-index.md`](docs/implementation/issue-index.md) is the Initiative
+register and defines the bootstrap satisfaction rule. **The executable Atom contracts are the
+GitHub issue bodies**, used temporarily as Atom records while Gordian builds the substrate
+intended to replace that workflow.
+
+Closing a GitHub issue is bookkeeping. An Atom is closed when
+[`artifacts/schema/closure-record.schema.json`](artifacts/schema/closure-record.schema.json)
+validates its `artifacts/atoms/<N>/closure.json`.
+
+The first Initiative is deliberately **Foundation and Falsification**: stabilize the toolchain and CI, build the benchmark corpus and reference algorithms, and make the research corpus mechanically auditable. Only #2, #3, #4, #8, #71, and #72 gate the Mission Graph kernel; Jujutsu qualification, benchmark gates, the verification pilot, conformance testing, and the acquisition layers run concurrently with it and are consumed where `execution-order.md` section 5 says they are.

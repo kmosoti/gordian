@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gordian.dev/schema/attempt-record-v1.json",
+  "title": "AttemptRecord",
+  "description": "One execution attempt on one Atom, at artifacts/atoms/<atom_id>/attempts/<attempt_id>.json. docs/implementation/agent-runbook.md section 7 requires the record on every verifier_failed, timed_out, budget_exceeded, abandoned, and contract_defect outcome, and says it is validated in CI by the same validator as the closure record: scripts/check-closure-records.sh validates both. An attempt is not a specification: a failed attempt never mutates the Atom contract (AGENTS.md), which is why a contract_defect outcome must name the new issue it opened instead.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_format",
+    "attempt_id",
+    "atom_id",
+    "actor",
+    "outcome",
+    "reason",
+    "started_at",
+    "finished_at"
+  ],
+  "properties": {
+    "record_format": { "const": "gordian-attempt-v1" },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z-[a-z0-9][a-z0-9-]*$",
+      "description": "<started_at as a compact UTC timestamp>-<harness>, for example 20260830T142530Z-claude-code. The file name MUST be <attempt_id>.json, so an attempt cannot be silently overwritten and attempts sort chronologically; scripts/check-closure-records.sh enforces both."
+    },
+    "atom_id": {
+      "type": "string",
+      "description": "bootstrap: the GitHub issue number as a string; MUST equal the containing artifacts/atoms/<atom_id>/ directory"
+    },
+    "spec_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "the spec revision this attempt was made against, defined exactly as in closure-record.schema.json: SHA-256, lowercase hex, of artifacts/atoms/<atom_id>/spec.md after LF normalization"
+    },
+    "actor": {
+      "type": "object",
+      "description": "the actor that made the attempt (docs/implementation/agent-runbook.md section 6.1, G-511)",
+      "required": ["id", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(gordian-agent/[a-z0-9-]+/[A-Za-z0-9_-]+|human:[A-Za-z0-9_.@-]+)$"
+        },
+        "kind": { "enum": ["human", "agent", "coordinator"] }
+      }
+    },
+    "outcome": {
+      "enum": [
+        "verified",
+        "verifier_failed",
+        "timed_out",
+        "budget_exceeded",
+        "abandoned",
+        "contract_defect"
+      ],
+      "description": "the closed set of docs/implementation/agent-runbook.md section 7. A closed set, not free text: an outcome nobody can spell is an outcome nobody can count."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "why this attempt ended with that outcome, in one sentence. Never empty: 'retain failed, timed-out, excluded, and negative runs with reasons' (AGENTS.md)."
+    },
+    "contract_defect_issue": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "the issue opened against the Atom's contract. REQUIRED when outcome is contract_defect, and forbidden otherwise; scripts/check-closure-records.sh enforces both directions, so 'the contract is wrong' cannot be asserted without a repair Atom to answer it."
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "exact_state_id": {
+      "type": "string",
+      "description": "the state the attempt ended on, when one was frozen; absent when the attempt never reached a candidate"
+    },
+    "logical_change_id": { "type": "string" },
+    "verifiers": {
+      "type": "array",
+      "description": "the verifier runs this attempt performed, in the shape closure-record.schema.json uses. A verifier_failed attempt SHOULD carry the failing run.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["verifier_id", "command", "exit_code"],
+        "properties": {
+          "verifier_id": { "type": "string" },
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "artifact_path": { "type": "string" },
+          "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "description": "observed spend against the section 7 caps: 4 hours wall clock and USD 25 per Atom",
+      "additionalProperties": false,
+      "properties": {
+        "wall_clock_seconds": { "type": "number", "minimum": 0 },
+        "cost_usd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "known_limitations": { "type": "array", "items": { "type": "string" } }
+  }
+}

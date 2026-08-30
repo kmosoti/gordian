@@ -1,0 +1,112 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "semantic-conflict-prediction",
+  "class": "classification",
+  "issue": 52,
+  "hypothesis": {
+    "h0": "Semantic resource claims do not lower expected total cost per candidate pair against the changed-path-overlap baseline P1.",
+    "h1": "P3 or P4 lowers expected total cost per candidate pair by at least 10% relative to P1, after claim-generation and claim-maintenance cost."
+  },
+  "falsification": "P3 or P4 is retained only if its expected total cost per candidate pair is at least 10% below P1 in normalized repair-cost units, over a frozen corpus of at least 200 labeled integration episodes containing at least 50 harmful-conflict positives, with a stratified bootstrap 95% interval whose upper bound stays below the P1 cost. If neither reaches the threshold, semantic claims remain optional and the claim vocabulary is reduced to the subset the P4 ablation shows carrying the cost reduction.",
+  "conditions": [
+    {
+      "id": "P1",
+      "description": "changed-path overlap"
+    },
+    {
+      "id": "P2",
+      "description": "module/package ownership"
+    },
+    {
+      "id": "P3",
+      "description": "semantic read/write/interface claims"
+    },
+    {
+      "id": "P4",
+      "description": "combined model"
+    }
+  ],
+  "baseline_condition": "P1",
+  "population": {
+    "workloads": [
+      "at least 200 labeled integration episodes drawn from the Gordian integration corpus"
+    ],
+    "sampling": "single frozen labeled corpus; every predictor is scored on the identical corpus",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "metrics": [
+    {
+      "id": "expected_total_cost",
+      "unit": "normalized_repair_cost_units",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "precision",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "recall",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "false_serialization_rate",
+      "unit": "proportion",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "missed_conflict_rate",
+      "unit": "proportion",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "repair_cost",
+      "unit": "normalized_repair_cost_units",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "claim_generation_overhead",
+      "unit": "seconds_per_pair",
+      "direction": "lower_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "expected_total_cost",
+    "effect_size": {
+      "measure": "delta versus the P1 baseline, expressed as a relative cost reduction",
+      "minimum_relevant": 0.1,
+      "unit": "relative cost reduction versus P1"
+    },
+    "min_n": 200,
+    "multiplicity": "holm",
+    "uncertainty": "stratified bootstrap 95% CI, 10000 resamples",
+    "stopping_rule": "fixed corpus; the corpus is frozen before any predictor is scored"
+  },
+  "exclusion_rule": "A candidate pair is excluded when it carries no independent conflict label, when two independent labelers disagree on its category, or when the integration episode did not complete. Excluded pairs stay in the corpus with their exclusion reason and the analysis reports how many pairs each clause removed. The rule is applied by script before scoring.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/labeled-pairs.jsonl",
+    "runs/<run-id>/analysis/cost-curves.json"
+  ],
+  "threats": [
+    "label leakage from the predictor's own features into the ground-truth categorization",
+    "cost constants c_missed and c_serial chosen after seeing the data; they are fixed in this protocol before scoring"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

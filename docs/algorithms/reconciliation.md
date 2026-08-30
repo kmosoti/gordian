@@ -19,29 +19,79 @@ The controller operates over the unresolved delta.
 
 Mutable projections are convenient for query performance, but the canonical execution history should be append-oriented.
 
-Representative events:
+The canonical event set is:
 
 ```text
 MissionCreated
 PlanPublished
+PlanSelected
+PlanSuperseded
 AtomDeclared
 DependencyDeclared
+ProviderBindingDeclared
+ObservationRecorded
 AttemptStarted
+ResourceReserved
+ResourceReleased
 LeaseGranted
+LeaseRevoked
+LeaseExpired
+CapabilityExpired
+OperationCommutativityDeclared
 ScopeExpanded
 CandidateFrozen
 VerificationStarted
 EvidenceRecorded
+EvidenceRetracted
+EvidenceInherited
+VerifierNondeterminismObserved
 IntegrationCreated
+CandidateClaimed
+CandidateClaimReleased
+IntegrationConflictObserved
 ConflictObserved
+AdmissionPreempted
+AdmissionRejected
 CandidateAdmitted
+FrontierMoved
+AtomSatisfied
+SatisfactionInvalidated
+SatisfactionRestored
+AdmissionAborted
+FrontierDivergenceObserved
 DeploymentObserved
 AttemptFailed
 AttemptAbandoned
-PlanSuperseded
+AttemptCancelled
+CapabilityRevoked
+IrreversibleRetryAuthorized
+CompensationApplied
 ```
 
-Every event should have an immutable identity and enough causality/provenance metadata to interpret it.
+Every event MUST have an immutable identity, a dense `EventSeq` assigned on append, and enough
+causality/provenance metadata to interpret it. Appends are **transactional over a list of
+events**: a list is applied all-or-nothing and receives consecutive `EventSeq` values
+([`../spec/data-model.md` `## The frontier stream and log atomicity`](../spec/data-model.md#the-frontier-stream-and-log-atomicity)).
+
+`CandidateAdmitted`, `FrontierMoved`, `AdmissionAborted`, and `AdmissionRejected` form the
+**frontier stream**, whose newest `EventSeq` is the `FrontierVersion` that admission
+compare-and-swaps on. `CandidateAdmitted` is the admission **intent** event and carries the
+expected `FrontierVersion`, the `WitnessGuard`, and the recorded witness; `FrontierMoved` is the
+**completion** event; `AtomSatisfied` and `SatisfactionRestored` are the only events that may
+create a `SatisfactionRecord`, and their application is idempotent per `(atom, frontier_seq)`;
+`SatisfactionInvalidated` is the only event that may remove one, and every one of its five reasons
+has a named producer and trigger
+([`../spec/mission-graph.md` `### Satisfaction`](../spec/mission-graph.md#satisfaction));
+`AdmissionAborted` is the only event that may cancel an incomplete intent, and MUST be preceded by
+a compensating `reset_frontier`; `AdmissionRejected` records a false witness conjunct, so a
+rejected candidate leaves a trace instead of disappearing; `CandidateClaimed` /
+`CandidateClaimReleased` carry the exclusive admission-queue claim that stops one candidate
+entering two batches; `LeaseExpired` and `CapabilityExpired` make expiry a fact of canonical
+history rather than a wall-clock comparison, which is what keeps readiness replay-pure;
+`FrontierDivergenceObserved` records that a **named** projection of the frontier — `local_bookmark`
+or `published_bookmark` — disagreed with the log, and is appended whenever the divergence check
+runs, not only at startup. See
+[`evidence-and-admission.md` `### The algorithm`](evidence-and-admission.md#the-algorithm).
 
 ## 2. Projection
 
@@ -101,17 +151,22 @@ Projection derives convenience state such as:
 
 ```text
 Blocked(atom)
-Ready(atom)
-Running(atom)
+Ready(atom)          -- Enabled and Dispatchable
+Running(atom)        -- Active
 Verifying(atom)
-Satisfied(atom)
+Satisfied(atom)      -- an unsuperseded SatisfactionRecord exists
 StaleEvidence(atom)
+ConflictingEvidence(atom)
 Conflict(atom)
 ```
 
-These labels should be reproducible from canonical facts.
+`Satisfied(atom)` is a lookup into the `satisfaction_index` projection, which the projector writes
+only while applying an `AtomSatisfied` event. `ConflictingEvidence(atom)` is derived from a fresh
+pass and a fresh fail coexisting for one `(verifier, fingerprint)` pair, and maps to the
+`NeedVerification` reconciliation class.
 
-A UI may cache/materialize them, but cache mutation must not become the authoritative source of truth.
+These labels MUST be reproducible from canonical facts. A UI may cache them; cache mutation must
+not become the authoritative source of truth.
 
 ## 5. Reconciliation function
 
@@ -221,15 +276,45 @@ Replay = recompute projection from recorded history.
 Retry  = execute a new effectful attempt.
 ```
 
-For `pure` or `hermetic` work, retry may be routine.
+Retry policy is **total over `EffectClass`**. The row labels below are exactly the seven variants
+of `enum EffectClass` in
+[`../spec/data-model.md` `## Rust representation`](../spec/data-model.md#rust-representation),
+snake-cased. `scripts/check-effect-classes.sh` extracts the enum variants, these row labels, and
+the arms of `retryPolicy` in `formal/Gordian/EffectClass.lean`, and asserts set equality with
+cardinality 7.
 
-For `external_read`, a retry observes a later world and therefore creates new evidence.
+| Effect class | Definition | Automatic retry | Rule |
+| --- | --- | --- | --- |
+| `pure` | No I/O; output is a function of its declared arguments alone. | permitted, unbounded within the attempt budget | Retry is free. A differing result on retry is a defect in the implementation's purity claim and MUST emit `ScopeExpanded`. |
+| `hermetic` | Effects confined to declared inputs/outputs; reproducible from the declared input set. | permitted, unbounded within the attempt budget | Retry MUST recreate the declared input set. A differing result indicates an undeclared input and MUST emit `ScopeExpanded`. |
+| `external_read` | Observes state Gordian does not own. | permitted | Each retry observes a later world and therefore produces **new evidence** with a new `ObservationRecorded`; it MUST NOT overwrite or reuse the prior observation. |
+| `idempotent_write` | Write whose repetition is defined to be equivalent to one application. | permitted only under a declared idempotency key | The attempt MUST carry an idempotency key recorded before the effect. Retry without a key is forbidden. |
+| `compensatable_write` | Write with a defined inverse. | permitted only after compensation | Retry MUST first run the declared compensation for the ambiguous attempt and record `CompensationApplied`; a retry without a completed compensation is forbidden. |
+| `irreversible` | No inverse and no idempotency contract. | **forbidden** | After ambiguous completion Gordian MUST NOT auto-retry. It requires an explicit action by an actor holding `perform_irreversible_effect`, recorded as an `IrreversibleRetryAuthorized` attestation naming the ambiguous attempt and the recovery rationale. |
+| `judgment` | A defeasible assessment by a human or model evaluator. | permitted | Retry produces a **new** judgment artifact with its own identity and provenance. It MUST NOT overwrite, silently supersede, or average with the prior judgment. Both judgments remain addressable, and a disagreement surfaces as `NeedVerification`, not resolved by recency. |
 
-For `idempotent_write`, retry is permitted only under the declared idempotency contract.
+`pure` and `hermetic` are separate rows because their failure diagnoses differ: an unstable `pure`
+result means the code is not pure, while an unstable `hermetic` result means an input was not
+declared. Collapsing them loses the distinction that makes the retry observation useful.
+`judgment` previously had no rule at all.
 
-For `compensatable_write`, retry may require a compensation protocol.
+The Rust realization is:
 
-For `irreversible`, Gordian should require explicit high-authority action and should not auto-retry after ambiguous failure.
+```rust
+fn retry_policy(class: EffectClass) -> RetryRule {
+    match class {
+        EffectClass::Pure => RetryRule::Free,
+        EffectClass::Hermetic => RetryRule::FreeRecreatingInputs,
+        EffectClass::ExternalRead => RetryRule::NewObservation,
+        EffectClass::IdempotentWrite => RetryRule::RequiresIdempotencyKey,
+        EffectClass::CompensatableWrite => RetryRule::RequiresCompensation,
+        EffectClass::Irreversible => RetryRule::ManualOnly,
+        EffectClass::Judgment => RetryRule::NewJudgmentArtifact,
+    }
+}
+```
+
+No `_` wildcard. Adding a class MUST be a compile error.
 
 ## 9. Distributed event ingestion
 
@@ -328,4 +413,11 @@ This transition-preservation theorem family is the appropriate place to prove pr
 - no dispatch transition with unsatisfied hard dependencies;
 - no simultaneous incompatible exclusive leases.
 
-That is considerably stronger than proving isolated predicate lemmas, and it is the next major formal-method milestone after v0 compiles cleanly.
+That is considerably stronger than proving isolated predicate lemmas, and it is the next major
+formal-method milestone once the reference kernel compiles cleanly.
+
+The model itself lives at `formal/Gordian/Transition.lean` and is owned by a dedicated Atom, whose
+prerequisites are the concrete `Event` type (#12) and the derived-state predicates (#13). Gap
+`G-236` tracks the fact that this milestone is stated here and in
+[`../formal/theorem-catalog.md`](../formal/theorem-catalog.md) (T012, T013) without an owning Atom;
+it is closed by creating that Atom, not by this document.

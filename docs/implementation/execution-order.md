@@ -4,6 +4,18 @@ This document turns the Atom backlog into an execution strategy. GitHub issue nu
 
 The implementation plan is not a linear ticket queue. Work should run concurrently only when interfaces and verification boundaries make the concurrency credible.
 
+**The native GitHub `blocked by` graph is the single authority for dependencies.** Every ordered
+list and every arrow in this document is a projection of that graph, not a second source. Where a
+list and the graph disagree, the graph is right and the list is a defect. The generator that will
+emit these blocks between explicit markers, and the CI job that will regenerate and diff them, are
+**G-518 and G-433, assigned to #70**; until they land, an editor who changes an edge re-derives
+the affected blocks by hand and says so in the closure record.
+
+Sections 5-15 are **phases of the causal spine**, not Initiatives. An Initiative is a GitHub
+milestone ([`issue-index.md`](issue-index.md)); a phase groups Atoms by when their prerequisites
+are discharged, and routinely spans milestones. No Atom appears in more than one phase's ordered
+list.
+
 ## 1. Mission
 
 Build Gordian into a Rust-first, evidence-governed engineering coordination substrate that can:
@@ -13,7 +25,7 @@ Build Gordian into a Rust-first, evidence-governed engineering coordination subs
 3. schedule humans and autonomous workers against exact source snapshots;
 4. coordinate semantic intent without unrestricted shared mutation;
 5. bind verification to exact candidates and relevant inputs/environment/verifiers;
-6. integrate independent work explicitly through Jujutsu;
+6. integrate independent work explicitly through a source adapter, of which Jujutsu is one realization;
 7. promote accepted state only through capability-gated, conflict-free, fresh-evidence admission;
 8. persist and replay canonical state without repeating nondeterministic effects;
 9. prove narrow substrate invariants and test the model-to-Rust bridge;
@@ -24,7 +36,7 @@ Build Gordian into a Rust-first, evidence-governed engineering coordination subs
 
 ### Foundation before dependence
 
-No higher layer may rely on an algorithm, Jujutsu behavior, proof bridge, or storage choice that has not passed its qualification Atom.
+No higher layer may rely on an algorithm, source-adapter behavior, proof bridge, or storage choice that has not passed its qualification Atom.
 
 ### Reference before optimization
 
@@ -56,7 +68,7 @@ The repository already contains:
 - Rust `gordian-kg` traversal/validation tool;
 - Lean models under `formal/`;
 - a thin Python orchestration package;
-- architecture, specification, algorithms, research, proof-boundary, falsification, and project-plan documents;
+- architecture, specification, algorithms, research, proof-boundary, falsification, landing, source-adapter, crate-map, agent-runbook, and project-plan documents;
 - the temporary GitHub Atom backlog;
 - a local Jujutsu bootstrap script and protocol documentation.
 
@@ -64,61 +76,101 @@ These are a research and implementation scaffold. They are not evidence that Gor
 
 ## 4. Execution spine
 
-The shortest credible end-to-end causal spine is:
+The spine is the set of Atoms lying on at least one **maximum-length** blocker path to #69 in the
+post-revision graph. That path is 18 edges long, and every arrow drawn below is a real native
+`blocked by` edge — nothing here is a reading preference.
 
 ```text
-#1 + #2 + #3 + #4 + #5 + #6 + #7 + #8
-        |
-        v
-#9 -> #10 -> #11 -> #12 -> #13
-        |
-        +-----------------------+
-        |                       |
-        v                       v
-#14 -> #15 -> #16 -> #17      #18
-        |                       |
-        +-----------+-----------+
-                    v
-                  #19
-                    |
-        +-----------+------------+
-        |                        |
-        v                        v
-#20 -> #21 -> #22 -> #23 -> #24   #25 -> #26 -> #27 -> #28
-        |                              |
-        +---------------+--------------+
-                        v
-                  #29 -> #30 -> #31 -> #32 -> #33
-                        |
-                        v
-                  #35 -> #36 -> #38
-                        |
-                        v
-                       #49
-                        |
-                        v
-                  #68 -> #69
+#1 -> #2 -> #8 -> #71 -> #72 -> #9 -> #11 -> #12 -> #58 -> #10
+                                                            |
+                                +---------------------------+
+                                |                           |
+                                v                           v
+                               #13                         #25
+                                |                           |
+                                v                           v
+                               #20                         #26
+                                |                           |
+                                v                           v
+                               #21                         #44
+                                |                           |
+                                v                           v
+                               #24                         #45
+                                |                           |
+                                v                           v
+                               #38                         #46
+                                |                           |
+                                v                           v
+                               #40                         #48
+                                |                           |
+                                v                           v
+                               #41                         #49
+                                |                           |
+                                v                           v
+                               #42                         #68
+                                |                           |
+                                +----------> #69 <----------+
 ```
 
-This spine omits many necessary parallel and qualification Atoms for readability. It shows why implementing a UI or distributed worker first would be architecturally upside down.
+Twenty-seven Atoms, in two chains that separate at #10 and rejoin at #69. The left chain is
+distributed robustness reaching #69 through the release evidence bundle; the right chain is the
+self-hosting Mission. Everything not drawn is off the longest path and can therefore be scheduled
+concurrently with it — which is the only claim a spine is entitled to make.
 
-## 5. Foundation and Falsification
+The spine deliberately does **not** show the evidence and source planes (#14-#19, #29-#33), the
+persistence tail (#27, #28), or the experiments. They are prerequisites of Atoms in the spine but
+sit on shorter paths, so drawing them here would state a false ordering. Their order is in the
+phase sections below.
 
-### Execute first
+## 5. Qualification before dependence
 
-- #1 qualify and pin Jujutsu;
+### Kernel-start gate
+
+The Atoms #9 declares as hard dependencies — the whole gate, narrowed by D1 — are exactly:
+
+```text
+#2  #3  #4  #8  #71  #72
+```
+
+**The native `blocked by` list of #9 is the definition of this gate.** This list is a mirror of
+it, the `gate:foundation` label marks the same six issues, and the Project 9 "Foundation Gate"
+view filters on that label. No wave range, and no other prose list, defines the gate (G-406).
+
 - #2 stabilize Rust, Lean, Python, and CI;
 - #3 deterministic workload generators;
 - #4 simple reference algorithms;
-- #5 benchmark and regression discipline;
-- #6 verification-technique qualification;
-- #7 Lean/Rust differential conformance;
-- #8 research graph coverage and epistemic audit;
+- #8 research-graph coverage and epistemic audit;
 - #71 comprehensive research record schema;
-- #72 ontology/closure/repository coverage enforcement;
-- #73 epistemic traversal and impact queries;
-- #74 reproducible acquisition and staleness propagation;
-- #75 experiment run ledger and statistical contract.
+- #72 ontology, closure, and repository-coverage enforcement.
+
+### Concurrent with the kernel
+
+These do **not** gate #9. D1 re-attached each where it is actually consumed, so the kernel is not
+held behind qualification work that no kernel Atom reads:
+
+- #1 qualify and pin Jujutsu — consumed by #29 and #33;
+- #5 benchmark and regression discipline — consumed by #24;
+- #6 verification-technique pilot on #4 — consumed by #7 and #62;
+- #7 Lean/Rust differential conformance — consumed by #13;
+- #73 epistemic traversal and impact queries — consumed by #68;
+- #74 reproducible acquisition and staleness propagation — consumed by #68;
+- #75 experiment run ledger and statistical contract — consumed by #37.
+
+### The D1 split of #37 uses two real issue numbers
+
+`#37a` is not a representable node: GitHub issue numbers are integers, so `#37a` can never exist
+in the native blocked-by graph that D3 makes authoritative, and
+`scripts/check-selfhosting-closure.sh` — which recomputes closures from the live graph — would
+never see it. The split is therefore:
+
+```text
+#37   retained as the foundation subset:  experiment manifest validation and the run ledger
+#77   new issue, the worker-launch extension:  launching and supervising experiment workers
+```
+
+with `#37 blocked_by #75` (the pre-revision edge #75 -> #37 is reversed), `#77 blocked_by #37`,
+and `#39 blocked_by #77`. Every reference that read `#37a` now reads `#37`; every reference to
+"the later worker-launch extension" now reads `#77`.
 
 ### Parallelism
 
@@ -127,32 +179,58 @@ After #2:
 ```text
 #1 Jujutsu qualification
 #3 workload generators
-#6 verification matrix
+#6 verification-technique pilot
 #8/#71 knowledge schema acquisition
 ```
 
-may proceed concurrently because they touch separate development substrates. Interfaces must be published early:
+may proceed concurrently because they touch separate development substrates. Interfaces must be
+published early, at these paths:
 
-- workload format from #3;
-- reference algorithm contract from #4;
-- proof/conformance test-vector format from #7;
-- knowledge schema from #71;
-- experiment manifest from #75.
+```text
+workload format from #3                        -> orchestration/ generator module
+reference algorithm contract from #4           -> crates/gordian-core reference oracles
+proof/conformance test-vector format from #7   -> docs/formal/conformance-vectors.md
+knowledge schema from #71                      -> knowledge/ontology.md
+experiment manifest schema from #75            -> experiments/schema/
+closure record schema                          -> artifacts/schema/closure-record.schema.json
+source adapter contract from #29               -> docs/protocols/source-adapter-contract.md
+crate layout                                   -> docs/implementation/crate-map.md
+statistical contract                           -> docs/testing/statistical-contract.md
+```
+
+### Selecting among ready Atoms
+
+The ready set usually has more than one member. The selection order is total and is stated here
+once (G-530); [`agent-runbook.md`](agent-runbook.md) section 4 points at it and does not restate
+it:
+
+1. lowest `Wave` (longest-path depth over the native blocked-by graph);
+2. then highest `Fan Out` (out-degree — unblocking the most work first);
+3. then lowest issue number.
+
+**At most three bootstrap Atoms may be claimed simultaneously.** The cap exists because
+integration and admission are not yet implemented, so concurrent candidates are reconciled by
+hand. It is lifted when #38 closes.
 
 ### Exit gate
 
 Do not treat the foundation as complete until:
 
-- Rust CI is green;
-- Lean build, independent checker, and axiom audit are green with no `sorry`;
-- Jujutsu disposable-repository contracts pass on the selected release;
-- benchmark workload generators are seed-reproducible;
-- reference algorithms have stated complexity and correctness properties;
-- knowledge graph validation and policy audit pass;
-- experiment run manifests preserve failures/exclusions as well as successes;
-- the Lean/Rust bridge catches intentionally injected disagreement.
+- Rust CI is green (#2);
+- Lean build, the independent checker, and the axiom audit are green, with `sorryAx` and
+  non-allowlisted axioms rejected by the axiom audit (#2);
+- Jujutsu disposable-repository contract tests pass on the pinned release (#1);
+- benchmark workload generators are seed-reproducible (#3);
+- reference algorithms have stated complexity and correctness properties (#4);
+- benchmark and regression gates reject a seeded regression (#5);
+- knowledge-graph validation and `audit --strict` pass (#8, #72);
+- the research record schema represents source revisions and retrieval dates (#71);
+- experiment run manifests preserve failures and exclusions as well as successes (#37, #75);
+- the Lean/Rust conformance harness catches intentionally injected disagreement (#7), using the
+  vector format of [`../formal/conformance-vectors.md`](../formal/conformance-vectors.md);
+- the verification-technique pilot reports availability, cost, and defect yield per tool (#6).
 
-## 6. Rust Mission Graph kernel
+## 6. Typed kernel of the Mission Graph
 
 ### Order
 
@@ -193,7 +271,7 @@ Measure:
 - reconciliation full scan versus incremental indexes;
 - memory/allocation over wide, deep, sparse, and dense graphs.
 
-## 7. Evidence, provenance, and authority
+## 7. Exact evidence, provenance, and authority
 
 ### Order
 
@@ -202,27 +280,22 @@ Measure:
 3. #16 verifier manifests/exact-subject execution;
 4. #17 provenance and attestations;
 5. #18 capability policy and Cedar evaluation;
-6. #19 accepted-frontier admission/CAS;
-7. #59 stale-evidence prevention experiment;
-8. #60 formal-method defect-yield experiment.
+6. #19 accepted-frontier admission/CAS.
 
-#14 and #18 can begin in parallel after the identity model stabilizes. #19 cannot precede all evidence and authority semantics it is meant to enforce.
+#14 and #18 can begin in parallel after the identity model stabilizes. #19 cannot precede all evidence and authority semantics it is meant to enforce. The stale-evidence and formal-method experiments that consume this phase (#59, #60) are listed once, in the decision matrix of section 16.
 
 ### Safety gate
 
-Admission must fail unless:
+The normative admission predicate is the algorithm in
+[`../algorithms/evidence-and-admission.md#the-algorithm`](../algorithms/evidence-and-admission.md#the-algorithm),
+whose ten conjuncts are named in
+[`../spec/mission-graph.md`](../spec/mission-graph.md#accepted-frontier) and defined in
+[`../algorithms/evidence-and-admission.md#the-admission-conjuncts-defined`](../algorithms/evidence-and-admission.md#the-admission-conjuncts-defined).
+This document does not carry a second conjunct list; a phase gate that restated it would be a
+fourth divergent copy, which is what this revision removes.
 
-```text
-candidate reconciles current frontier
-and candidate has no unresolved conflict
-and required verifiers passed
-and evidence binds to the exact candidate
-and evidence remains fresh
-and actor has promotion authority
-and compare-and-swap expectation still holds
-```
-
-No model assertion, worker status, issue closure, or green UI projection can bypass this predicate.
+The gate for this phase is that admission is implemented against exactly that predicate, and that
+no model assertion, worker status, issue closure, or green UI projection can bypass it.
 
 ### Mutation gate
 
@@ -280,8 +353,10 @@ Use exact or brute-force solvers for small generated instances to measure heuris
 1. #25 PostgreSQL canonical persistence;
 2. #26 materialized projections/rebuild;
 3. #27 transactional frontier, lease, and plan-selection transitions;
-4. #28 crash/duplicate/recovery fault suite;
-5. #66 backup, restore, migration, and compatibility qualification.
+4. #28 crash/duplicate/recovery fault suite.
+
+Backup, restore, and migration qualification (#66) reads this phase's persistence but is listed
+once, in section 14.
 
 ### Storage rule
 
@@ -302,32 +377,41 @@ The system must survive:
 
 The same canonical history must rebuild the same canonical projection under the stated deterministic assumptions.
 
-## 10. Jujutsu Change Plane
+## 10. The source plane
+
+The plane is adapter-neutral. [`../protocols/source-adapter-contract.md`](../protocols/source-adapter-contract.md)
+is the trait; Jujutsu and Git are two realizations of it, which is what makes #34 a controlled
+comparison rather than a rewrite.
 
 ### Order
 
-1. #1 baseline qualification and local bootstrap;
-2. #29 bounded Rust CLI adapter and disposable fixture repo;
-3. #30 workspace/change lifecycle;
-4. #31 candidate freeze/exact handoff;
-5. #32 sibling integration/conflict repair;
-6. #33 exact-revision verification;
+1. #29 bounded Rust adapter over the source-adapter trait, plus a disposable fixture repo;
+2. #30 workspace/change lifecycle;
+3. #31 candidate freeze/exact handoff;
+4. #32 sibling integration/conflict repair;
+5. #33 exact-revision verification;
+6. #76 Git worktree adapter behind the same trait;
 7. #34 Jujutsu versus Git experiment.
+
+The pinned-baseline qualification this phase depends on (#1) is listed once, in section 5 under
+"Concurrent with the kernel".
 
 ### Local development bootstrap
 
-At the local repository:
+Acquisition and bootstrap are one block, in
+[`agent-runbook.md`](agent-runbook.md) section 0. It ends with:
 
 ```bash
-cd ~/projects/project-management-tools/gordian
 bash scripts/bootstrap-jj.sh --install
 ```
 
-The script configures the candidate release, `origin`, tracking, and `trunk()`. It does not push or rewrite source.
+The script is the single source of the pinned Jujutsu baseline and configures `origin`, tracking,
+and `trunk()`. It does not push or rewrite source, and it is not a behavioral contract test: that
+suite is #1.
 
 ### Adapter gate
 
-Do not spread shell commands across the runtime. The Rust adapter owns:
+Do not spread shell commands across the runtime. Each adapter owns:
 
 - structured argv/cwd/env;
 - supported-version/feature checks;
@@ -338,9 +422,9 @@ Do not spread shell commands across the runtime. The Rust adapter owns:
 
 ### Experiment gate
 
-#34 must be permitted to reject Jujutsu-specific complexity. Hold the Mission Graph, scheduler, workers, verification, and workloads constant while comparing the source adapter.
+#34 must be permitted to reject Jujutsu-specific complexity. Hold the Mission Graph, scheduler, workers, verification, and workloads constant while comparing the source adapter. That control is only credible because both adapters are driven through one trait and #76 exists: a comparison against a Git integration written for the occasion would vary the harness as well as the substrate.
 
-## 11. Agent execution and Python orchestration
+## 11. Agent execution and thin Python orchestration
 
 ### Order
 
@@ -348,10 +432,14 @@ Do not spread shell commands across the runtime. The Rust adapter owns:
 2. #62 sandbox backend qualification;
 3. #63 secret/credential brokerage;
 4. #36 generic process/agent adapter;
-5. #37 thin Python experiment orchestration;
-6. #38 local multi-worker coordinator;
-7. #39 isolation/coordination ablation;
-8. #53 snapshot versus continuous-rebase experiment.
+5. #37 experiment manifest validation and the run ledger — the D1 foundation subset, blocked by
+   #75;
+6. #77 the worker-launch extension split out of #37: launching and supervising experiment
+   workers, blocked by #37 and blocking #39;
+7. #38 local multi-worker coordinator;
+8. #39 isolation/coordination ablation.
+
+The snapshot-versus-rebase experiment (#53) consumes this phase and is listed once, in section 16.
 
 ### Rust/Python boundary
 
@@ -363,7 +451,7 @@ attempt/candidate state
 scheduler
 capabilities
 sandbox policy
-Jujutsu adapter
+source adapter
 evidence/admission
 canonical events
 ```
@@ -392,15 +480,17 @@ Before remote workers:
 - worker crash and coordinator restart recover;
 - performance traces separate useful work, verifier cost, conflict/repair, and coordinator overhead.
 
-## 12. Distributed robustness
+## 12. Robustness across processes
 
 ### Order
 
 1. #40 remote transport/idempotent commands;
 2. #41 distributed lease/frontier coordination;
 3. #42 deterministic fault simulation;
-4. #43 OpenTelemetry-compatible observability;
-5. #67 adversarial security and authority qualification.
+4. #43 OpenTelemetry-compatible observability.
+
+Adversarial security and authority qualification (#67) depends on this phase and is listed once,
+in section 14.
 
 Remote execution is not required for the first useful Gordian. Do not add it until local self-hosting reveals a real need and the canonical state machine is stable enough to simulate.
 
@@ -413,7 +503,7 @@ Remote execution is not required for the first useful Gordian. Do not add it unt
 - simulation seeds reproduce failures;
 - real integration tests qualify the gap between simulation and operating system/network behavior.
 
-## 13. Interfaces and temporary GitHub projection
+## 13. Interfaces and the temporary GitHub projection
 
 ### Order
 
@@ -427,7 +517,7 @@ The CLI should precede the API/UI because it exercises domain commands with the 
 
 GitHub issues and Project 9 are external planning projections. Their status is not native evidence and cannot establish Atom satisfaction.
 
-## 14. Release and operations
+## 14. Release, operations, and security qualification
 
 ### Order
 
@@ -442,18 +532,90 @@ Lean sources/checkers and large experiment corpora remain development artifacts.
 
 ### Order
 
-1. #48 import Gordian’s own plan;
+1. #48 import Gordian's own plan;
 2. #49 execute a real bounded multi-worker Mission;
-3. complete architecture experiments #34, #39, #50–#54, #59–#61;
-4. #68 publish retain/revise/reject decisions;
-5. #69 produce the end-to-end qualification evidence bundle.
+3. #68 publish retain/revise/reject decisions, once the experiments of section 16 have run;
+4. #69 produce the end-to-end qualification evidence bundle.
+
+### Minimal self-hosting prerequisite set
+
+The Atoms that MUST be closed before #49 can execute are exactly:
+
+```text
+1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20
+21 22 23 24 25 26 27 28 29 30 31 32 33 35 36 38 44 45 46 48
+58 71 72
+```
+
+**43 Atoms**, computed from the post-edit graph rather than adjusted by hand. The arithmetic, in
+full, because a hand-maintained number is exactly what went wrong before:
+
+```text
+45   baseline closure(#49)   [1-16, 18-27, 29-33, 35-38, 44, 45, 46, 48, 61, 71-75]
++ 3  #17, #58, #28           from the three edges this revision adds
+- 5  #37, #61, #73, #74, #75 the D1 narrowing removed their only path into closure(#49),
+                             which ran through #9
+= 43
+```
+
+The three added edges:
+
+```text
+#19 blocked_by #17    admission's EvidenceProvenanceValid conjunct reads provenance records
+#10 blocked_by #58    plan validation reads ExternalProvision.provider_resource
+#49 blocked_by #28    self-hosting acceptance requires coordinator kill/restart and replay
+```
+
+The five departures are a direct consequence of D1: `deps[#9]` was
+`[1,2,3,4,5,6,7,8,71,72,73,74,75]`, and removing `#9 blocked_by #73, #74, #75` removed the only
+route from #49 to #73/#74/#75, hence to #61 (reachable only via #73) and to #37 (reachable only
+via #74/#75 inside this closure). Claiming 48 while publishing a graph that computes 43 would fail
+the spec-consistency job on the first CI run after this revision lands.
+
+**#37, #61, #73, #74, #75 are re-attached outside the minimal set**, where they are actually
+consumed: `#37 blocked_by #75`, `#77 blocked_by #37`, `#39 blocked_by #77`, `#68 blocked_by #73,
+#74`, and #61 through `#73`/`#68`. All five are in `closure(#68)`, so none is orphaned; none is
+required before #49 can execute, which is what D1 decided when it narrowed the foundation gate.
+
+Not in the set, and deliberately so: #34, #37, #39, #50-#54, #59, #60, #61, #73, #74, #75, #76,
+#77 (experiments, the knowledge-graph query and acquisition layers, the experiment runner, and the
+second adapter — all of which run *on* a self-hosting Gordian), #40-#43 (distributed robustness),
+#47 (explorer UI), #55-#57 (planner lifecycle), #62-#67 (sandboxing, secrets, release, security),
+#68, #69, #70.
+
+The remaining coverage rule: **every issue in 1..77 that is neither in this set nor in
+`{49, 68, 69, 70}` MUST be in the transitive closure of #68 or of #69**, so that no Atom is
+orphaned from the Mission's own completion criterion. Before this revision the issues in neither
+closure were exactly `[28, 41, 42, 43, 47, 55, 56, 57, 70]`; #28 now enters through
+`#49 blocked_by #28`, #70 is in the excluded set, and the rest are closed by adding:
+
+```text
+#69 blocked_by #42, #43, #47, #57
+```
+
+with #41, #55, and #56 arriving transitively. With every edit in this revision applied, the
+computed orphan set is empty.
+
+`scripts/check-selfhosting-closure.sh` recomputes both closures from the live graph and asserts
+set equality with the list above; it fails on any orphan, and it fails if `closure(#49)` is not
+exactly the 43 numbers listed. **On failure it prints the computed set and the symmetric
+difference**, so the published list is corrected from the computation rather than the computation
+being argued with.
+
+During bootstrap, [`agent-runbook.md`](agent-runbook.md) section 4 restricts dispatch to this set
+until #49 closes, **plus #70**. The exception is deliberate: this set states what #49 requires,
+not what an agent may claim, and #70 owns the readiness command, the claim subcommands, and the
+board recompute that the bootstrap loop itself runs on. Excluding it from dispatch would make the
+loop unable to build the commands it depends on, and #1 and #70 are the only Wave-0 Atoms in the
+current graph. #48 imports exactly these 43 Atoms; #70 is not among them and is closed or archived
+when #48 lands.
 
 ### Self-hosting acceptance
 
 The bounded Mission must include:
 
 - at least two causally independent Atoms;
-- isolated Jujutsu workspaces from exact bases;
+- isolated source-adapter workspaces from exact bases;
 - shared semantic coordination;
 - exact candidate handoff and verification;
 - explicit integration and re-verification;
@@ -479,82 +641,86 @@ A run that eventually succeeds but is pathologically slow is not sufficient.
 | Coordination beats isolation alone | #39 | shared semantic plane |
 | Jujutsu beats Git for Gordian | #34 | source adapter dependency |
 
+Every row is one Hypothesis node in the knowledge graph with exactly one Experiment node testing
+it, and this table is a projection of that node set — **G-436 is assigned to #68**, which owns the
+regeneration and the check that this table, #68's blockers, and
+[`../testing/falsification-plan.md`](../testing/falsification-plan.md) name the same experiments.
+
 #68 must propagate negative results into specifications, docs, knowledge nodes, code removal, and follow-up Atoms.
 
 ## 17. Critical performance suite
 
-Before qualification, benchmark at least:
+Before qualification, the following must be benchmarked. Each obligation is a **row with an
+identity**, an owner, and a statement of whether it is required for the first qualification, so
+that #69's Performance acceptance can cite row ids instead of restating prose and so that an
+obligation cannot be silently dropped (G-475).
 
-### Mission Graph
+Row ids have the form `EO17-<AREA>-<n>` and are stable. Renaming an obligation keeps its id;
+retiring one removes the row and the citation in the owning issue in the same change.
 
-- validation/topological order;
-- ready-queue updates;
-- critical-path calculation;
-- full/incremental reconciliation;
-- memory by graph shape.
+**In first qualification** is `yes` when the measurement is required by #69's end-to-end
+qualification evidence bundle. `no` rows carry a one-line reason and are deferred to a later
+qualification; they still have an owner.
 
-### Scheduler
+| Row | Obligation | Owner | In first qualification |
+| --- | --- | --- | --- |
+| `EO17-MG-1` | Mission Graph validation and topological order | #10 | yes |
+| `EO17-MG-2` | ready-queue updates | #13 | yes |
+| `EO17-MG-3` | critical-path calculation | #21 | yes |
+| `EO17-MG-4` | full and incremental reconciliation | #57 | yes |
+| `EO17-MG-5` | memory by graph shape | #12 | yes |
+| `EO17-SCHED-1` | ranking and matching latency | #20 | yes |
+| `EO17-SCHED-2` | heuristic regret on small exactly solved instances | #24 | yes |
+| `EO17-SCHED-3` | makespan and critical-path efficiency | #24 | yes |
+| `EO17-SCHED-4` | contention, conflict, and verifier/retry cost | #22 | yes |
+| `EO17-SCHED-5` | robustness to bad estimates | #24 | yes |
+| `EO17-EVID-1` | canonical fingerprint generation | #15 | yes |
+| `EO17-EVID-2` | fresh and stale evidence lookup | #15 | yes |
+| `EO17-EVID-3` | artifact put, get, and verify | #14 | yes |
+| `EO17-EVID-4` | provenance closure | #17 | yes |
+| `EO17-EVID-5` | admission latency and contention | #19 | yes |
+| `EO17-PERSIST-1` | event append | #25 | yes |
+| `EO17-PERSIST-2` | projection update and rebuild | #26 | yes |
+| `EO17-PERSIST-3` | transactional CAS and lease contention | #27 | yes |
+| `EO17-PERSIST-4` | backup, restore, and migration | #66 | no — release and operations work outside `closure(#69)`; measured with the release evidence. |
+| `EO17-KG-1` | parse, merge, canonicalize, and audit | #8 | yes |
+| `EO17-KG-2` | typed path, closure, and impact queries | #73 | no — epistemic traversal lands after self-hosting; measured with #68's retention report. |
+| `EO17-KG-3` | source-revision and metadata scaling | #71 | yes |
+| `EO17-KG-4` | file/petgraph versus candidate graph backends | #61 | no — backend ablation experiment; measured with #68's retention report. |
+| `EO17-JJ-1` | workspace operations | #30 | yes |
+| `EO17-JJ-2` | exact identity and revset queries | #31 | yes |
+| `EO17-JJ-3` | `jj run` materialization and parallel verification | #33 | yes |
+| `EO17-JJ-4` | integration, conflict, and recovery | #32 | yes |
+| `EO17-JJ-5` | scaling by changes, workspaces, and repository topology | #1 | yes |
+| `EO17-COORD-1` | spawn and dispatch overhead | #38 | yes |
+| `EO17-COORD-2` | idle and loaded memory | #38 | yes |
+| `EO17-COORD-3` | worker-count scaling | #38 | yes |
+| `EO17-COORD-4` | event and telemetry volume | #43 | yes |
+| `EO17-COORD-5` | end-to-end Mission work and span efficiency | #49 | yes |
 
-- ranking and matching latency;
-- heuristic regret on small exact-solved instances;
-- makespan/critical-path efficiency;
-- contention, conflict, and verifier/retry cost;
-- robustness to bad estimates.
+### Benchmark obligation sections
 
-### Evidence and provenance
+Every issue that owns a row above carries a `## Benchmark obligation` section whose text contains,
+literally, each `EO17-*` id it owns. That is what makes the table a contract rather than a wish:
+the id is the join key between this document, the issue body, and #69's Performance acceptance.
+#69's Performance acceptance cites the `EO17-*` ids of the in-first-qualification rows and
+restates none of their prose, so the set it cites equals the set of `yes` rows above.
 
-- canonical fingerprint generation;
-- fresh/stale lookup;
-- artifact put/get/verify;
-- provenance closure;
-- admission latency/contention.
-
-### Persistence
-
-- event append;
-- projection update/rebuild;
-- transactional CAS/lease contention;
-- backup/restore/migration.
-
-### Knowledge graph
-
-- parse/merge/canonicalize/audit;
-- typed path/closure/impact queries;
-- source-revision and metadata scaling;
-- file/petgraph versus candidate backends.
-
-### Jujutsu
-
-- workspace operations;
-- exact identity/revset queries;
-- `jj run` materialization/parallel verification;
-- integration/conflict/recovery;
-- scaling by changes/workspaces/repository topology.
-
-### Coordinator
-
-- spawn/dispatch overhead;
-- idle/load memory;
-- worker-count scaling;
-- event/telemetry volume;
-- end-to-end Mission work/span efficiency.
+`scripts/check-benchmark-obligations.sh` is the checker that asserts (a) every `EO17-*` id occurs
+exactly once in the table, (b) every owner of a `yes` row is in #69's transitive closure computed
+from GitHub's `blockedBy` node lists, (c) every owner issue body contains a `## Benchmark
+obligation` section naming each id it owns, and (d) the ids cited in #69 equal the `yes` set. It
+does not exist yet, and neither do the issue-body sections: both are the remaining half of
+**G-475, assigned to #70**, which already owns the issue-body and drift automation of
+[`issue-index.md`](issue-index.md#adding-or-splitting-an-atom). Until it lands, the table above is
+maintained by the "Adding or splitting an Atom" checklist and every omission is a drift defect.
 
 ## 18. Definition of end-to-end implementation
 
-Gordian is implemented end to end only when:
+The definition of done is the normative Mission acceptance table in
+[`project-plan.md`](project-plan.md#mission-acceptance), and the machine-checkable stop condition
+is [`agent-runbook.md`](agent-runbook.md) section 3. This document does not restate them; two
+divergent prose lists is what this revision removes.
 
-- a clean installation can create and query native Mission Graph state;
-- all canonical semantics are Rust-owned;
-- formal proof jobs and Rust conformance evidence are green for retained obligations;
-- Jujutsu behavior is contract-qualified and adapter-bounded;
-- workers execute in enforceable capability/sandbox boundaries;
-- scheduling is dependency/resource/authority safe and benchmark-selected;
-- candidate evidence is exact and stale results fail closed;
-- persistence/replay/recovery/backup have executable evidence;
-- accepted, release, and deployment frontiers are distinct;
-- the system executes its own bounded multi-worker Mission;
-- architectural hypotheses have retain/revise/reject decisions;
-- the qualification bundle binds every claim to exact source, tools, environment, artifacts, and evidence;
-- unresolved limitations are published plainly.
-
-Until then, Gordian is an increasingly rigorous experiment, not a completed autonomous development system.
+Until every row of that table resolves to a validating closure record, Gordian is an increasingly
+rigorous experiment, not a completed autonomous development system.

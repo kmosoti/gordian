@@ -10,18 +10,33 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rust:
     name: Rust substrate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
+      # rust-toolchain.toml is the single authoritative pin: this action reads the channel
+      # and components from it, so no Rust version literal appears in this workflow.
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.98.0
-        with:
-          components: clippy,rustfmt
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+
+      - name: Assert the toolchain matches the pin
+        run: |
+          set -euo pipefail
+          channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
+          declared=$(sed -n 's/^rust-version *= *"\(.*\)"/\1/p' Cargo.toml)
+          actual=$(rustc --version | cut -d' ' -f2)
+          echo "rust-toolchain.toml: $channel; Cargo.toml: $declared; rustc: $actual"
+          test "$actual" = "$channel"
+          test "$declared" = "${channel%.*}"
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -35,15 +50,19 @@ jobs:
       - name: Validate research graph
         run: cargo run --locked -p gordian-kg -- validate
 
+      - name: Audit research graph
+        run: cargo run --locked -p gordian-kg -- audit --strict
+
   formal:
     name: Formal models and proofs
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Build, independently check proofs, and audit axioms
-        uses: leanprover/lean-action@v1
+        uses: leanprover/lean-action@50fcf42d2e460296f1a34b402e990d1b24f8b596 # v1.6.0
         env:
           LEAN_NUM_THREADS: "1"
         with:
@@ -60,12 +79,13 @@ jobs:
   python:
     name: Thin Python orchestration
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.14"
 
@@ -80,3 +100,34 @@ jobs:
 
       - name: Test
         run: python -m unittest discover -s orchestration/tests
+
+  spec-consistency:
+    name: Specification consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Full history: scripts/check-actor-identity.sh reads the commit range under review to
+      # validate the Gordian-Actor trailer (G-511). With the default shallow clone there is no
+      # range, and the checker would report an empty subject on every run.
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      # A loop over scripts/check-*.sh means adding a checker requires no workflow edit,
+      # so a checker that is added but not wired is impossible. scripts/check-checker-tests.sh
+      # is itself in that loop and runs scripts/tests/, so the checkers whose subject does not
+      # exist yet are held to the empty-subject / malformed-subject distinction.
+      - name: Run consistency checkers
+        run: |
+          set -euo pipefail
+          for s in scripts/check-*.sh; do
+            echo "== $s"; bash "$s"
+          done
+
+      - name: Lint the shell and Python scripts
+        run: |
+          set -euo pipefail
+          shellcheck scripts/*.sh scripts/tests/*.sh
+          bash -n scripts/*.sh scripts/tests/*.sh
+          python3 -m compileall -q scripts/

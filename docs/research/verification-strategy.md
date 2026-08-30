@@ -62,7 +62,12 @@ A theorem title is not evidence. A `.lean` file that merely restates assumptions
 
 ### Formal targets
 
-Initial safety properties include:
+Initial safety properties include the fourteen numbered targets below. This list is the numbering
+authority; [`../formal/theorem-catalog.md`](../formal/theorem-catalog.md) carries one index row per
+number, giving its `T`-id, a `formal/Gordian/<File>.lean#<declaration>` anchor or the literal
+`planned`, and the owning issue. Targets 11, 12 and 13 had no catalog row and no Theorem node at
+all; closing that disagreement is G-221, and the catalog table — not this list — is what a script
+checks against the Lean sources.
 
 1. a valid topological/rank certificate excludes hard-dependency cycles;
 2. dispatch witnesses imply prerequisite satisfaction;
@@ -97,7 +102,10 @@ Each requires implementation evidence, environmental qualification, or experimen
 
 ## 4. Model to Rust conformance
 
-The formal model should remain small and executable. Gordian follows a verification-guided pattern:
+The formal model should remain small and executable (target state; #7). Today's Lean sources are
+proposition-level models rather than executable oracles, and no Lean-to-Rust bridge, vector
+generator, or differential harness exists; #7 builds them. The pattern Gordian follows once they
+exist is:
 
 ```text
 formal transition/model function
@@ -332,7 +340,18 @@ The following claims are not theorem-shaped and must remain experimentally vulne
 - derived state reduces status drift;
 - formalization catches defects worth its maintenance cost.
 
-Each experiment needs a baseline, repeated runs, exact environment, failure taxonomy, and a predeclared result that would cause the design to change.
+Each experiment needs a named baseline condition, an exact environment, a failure taxonomy, and a
+predeclared result that would cause the design to change. "Repeated runs" is not a quantity: the
+minimum `n` per cell, the primary metric, the minimum effect size, the multiplicity policy, and
+the stopping rule are fixed per experiment class in
+[`../testing/statistical-contract.md`](../testing/statistical-contract.md), and the pre-registered
+protocol lives at `experiments/<experiment-id>/protocol.json`.
+
+Pre-registration is enforceable only if the protocol is frozen and the freeze is checkable. Each
+recorded run carries the digest of the protocol it ran under (`ExperimentRun.protocol_digest`), so
+a hypothesis edited after the data was seen is a digest mismatch rather than an accusation.
+Building the registry, the CI digest recomputation, and the audit rule that rejects an Experiment
+node without a well-formed digest is G-124, assigned to **#75**.
 
 ## 11. CI tiers
 
@@ -358,6 +377,19 @@ Loom/Shuttle models
 benchmark smoke and regression comparison
 Jujutsu disposable-repository contracts
 ```
+
+This tier is **not yet implemented**: `.github/workflows/verify.yml` is the only workflow in the
+repository and it covers the per-change tier alone, so no command set exists behind any line
+above. **#2** implements the tier and the local-parity script that lets an agent reproduce every
+CI `run:` step before pushing (G-525); the checks that run only through the Lean action, the
+independent checker and the axiom audit, are named there as CI-only.
+
+Benchmark evidence additionally has no comparable environment identity while every job runs on a
+shared `ubuntu-latest` runner. Until a benchmark workflow pins a fixed runner label, benchmark
+numbers are local-only and are not comparable across machines, and regression thresholds are
+computed from measured variance across runs sharing an identical `environment_digest` — the
+sha256 over `cpu_model`, `cpu_count`, `kernel_release`, `os_release`, `rustc_version`, and
+`jj_version` recorded in the benchmark artifact. That is G-513, assigned to **#5**.
 
 ### Research qualification
 

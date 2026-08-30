@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gordian.dev/schema/experiment-run-v1.json",
+  "title": "ExperimentRun",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_format", "run_id", "experiment_id", "protocol_digest", "started_at",
+    "finished_at", "condition", "seed", "environment", "outcome", "raw_artifacts",
+    "tuning_budget_per_arm", "metric_tooling", "nondeterminism_controls"
+  ],
+  "properties": {
+    "run_format":      { "const": "gordian-experiment-run-v1" },
+    "run_id":          { "type": "string" },
+    "experiment_id":   { "type": "string" },
+    "protocol_digest": { "type": "string",
+                         "description": "digest of protocol.json under gordian-canon-v1; a run whose digest does not match the protocol on disk is a post-hoc run" },
+    "started_at":      { "type": "string", "format": "date-time" },
+    "finished_at":     { "type": "string", "format": "date-time" },
+    "condition":       { "type": "string" },
+    "stratum":         { "type": ["string", "null"] },
+    "seed":            { "type": "integer" },
+    "environment":     { "type": "object",
+                         "required": ["source_commit", "toolchains", "hardware_class"] },
+    "tuning_budget_per_arm": {
+      "type": "array", "minItems": 1,
+      "description": "asymmetric-tuning control, docs/testing/statistical-contract.md section 3: the engineering-and-tuning budget spent on each arm before the first measured run. An arm with no tuning budget records an explicit zero; omission is an error, never an implied zero.",
+      "items": { "type": "object", "additionalProperties": false,
+                 "required": ["condition", "unit", "value"],
+                 "properties": { "condition": { "type": "string" },
+                                 "unit": { "enum": ["person_hours", "agent_tokens"] },
+                                 "value": { "type": "number", "minimum": 0 } } } },
+    "metric_tooling": {
+      "type": "array",
+      "description": "non-blind-metric control: every metric not produced by the harness names the pinned tool, its exact version, and the verbatim invocation. Hand-counted values are inadmissible.",
+      "items": { "type": "object", "additionalProperties": false,
+                 "required": ["metric_id", "tool", "version", "invocation"],
+                 "properties": { "metric_id": { "type": "string" },
+                                 "tool": { "type": "string" },
+                                 "version": { "type": "string" },
+                                 "invocation": { "type": "string" } } } },
+    "nondeterminism_controls": {
+      "type": "object", "additionalProperties": false,
+      "description": "LLM-nondeterminism control: fixed temperature, fixed seed list, and repeats per cell at or above the class minimum.",
+      "required": ["temperature", "seed_list", "repeats_per_cell"],
+      "properties": { "temperature": { "type": "number", "minimum": 0 },
+                      "seed_list": { "type": "array", "items": { "type": "integer" }, "minItems": 1 },
+                      "repeats_per_cell": { "type": "integer", "minimum": 1 } } },
+    "outcome":         { "enum": ["completed", "failed", "timeout", "excluded"] },
+    "exclusion_reason":{ "type": ["string", "null"] },
+    "measurements":    { "type": "object" },
+    "raw_artifacts":   { "type": "array",
+                         "items": { "type": "object", "required": ["path", "sha256"] } }
+  }
+}

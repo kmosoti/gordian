@@ -1,0 +1,111 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "derived-vs-mutable-state",
+  "class": "agent-trial",
+  "issue": 54,
+  "hypothesis": {
+    "h0": "Deriving readiness, blocking and satisfaction from canonical facts (D) does not lower incorrect scheduling decisions per 100 dispatches against mutable workflow status fields (M).",
+    "h1": "Condition D lowers incorrect scheduling decisions per 100 dispatches by at least 50% relative to M under injected faults."
+  },
+  "falsification": "Derived state is retained only if D shows at least a 50% relative reduction in incorrect scheduling decisions per 100 dispatches against M, over 150 trials per condition (30 workload items x 5 seeds), giving 30 trials per fault case per condition, with the 95% BCa interval on the paired ratio excluding 1.0. Below 50%, or with an interval including 1.0, mutable status fields are retained and derivation is reduced to a reporting view. D worse than M on any single fault case is filed as a defect and the experiment is re-run after the fix.",
+  "conditions": [
+    {
+      "id": "M",
+      "description": "manual, mutable workflow status fields"
+    },
+    {
+      "id": "D",
+      "description": "readiness, blocking and satisfaction derived from canonical facts"
+    }
+  ],
+  "baseline_condition": "M",
+  "population": {
+    "workloads": [
+      "30 repository-level Missions from the Gordian workload corpus"
+    ],
+    "sampling": "paired on the workload item; each trial injects exactly one fault case, drawn round-robin so every case receives 30 trials per condition",
+    "strata": [
+      {
+        "id": "event-loss",
+        "boundary": "one canonical event dropped before projection"
+      },
+      {
+        "id": "event-delay",
+        "boundary": "one canonical event delivered after a later event"
+      },
+      {
+        "id": "failed-attempt",
+        "boundary": "an ExecutionAttempt terminates without a candidate"
+      },
+      {
+        "id": "candidate-rewrite",
+        "boundary": "a candidate's exact state id changes after evidence was recorded"
+      },
+      {
+        "id": "dependency-change",
+        "boundary": "a hard dependency is added or removed mid-Mission"
+      }
+    ],
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "metrics": [
+    {
+      "id": "incorrect_scheduling_decisions_per_100_dispatches",
+      "unit": "count_per_100_dispatches",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "stale_status_divergence_events",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "operator_correction_count",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "time_to_detect_inconsistency",
+      "unit": "seconds",
+      "direction": "lower_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "incorrect_scheduling_decisions_per_100_dispatches",
+    "effect_size": {
+      "measure": "paired ratio of rates, D over M",
+      "minimum_relevant": 0.5,
+      "unit": "relative reduction versus M"
+    },
+    "min_n": 150,
+    "multiplicity": "holm",
+    "uncertainty": "BCa bootstrap 95% CI, 10000 resamples, resampling seed recorded",
+    "stopping_rule": "fixed_n"
+  },
+  "exclusion_rule": "A trial is excluded when the harness crashes before the first dispatch, when the model endpoint returns a transport error on more than 10% of the calls in that trial, or when the workload item's fixture repository fails its own pre-flight test. Excluded trials are retained with their reason and counted in the report. The rule is applied by script before the primary metric is inspected and never by judgement.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/event-log.jsonl",
+    "runs/<run-id>/raw/dispatch-log.jsonl"
+  ],
+  "threats": [
+    "adjudication of an incorrect dispatch by an observer rather than by replay; the adjudicator replays the event history and never inspects the status field under test",
+    "fault cases unevenly distributed across conditions; the round-robin draw is seeded and identical across arms"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

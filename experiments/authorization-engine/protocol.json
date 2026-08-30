@@ -1,0 +1,115 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "authorization-engine",
+  "class": "fault-injection",
+  "issue": 67,
+  "hypothesis": {
+    "h0": "Accepted-frontier or deployment mutation succeeds from at least one unauthorized principal.",
+    "h1": "Every enumerated unauthorized principal is refused."
+  },
+  "falsification": "The authority model is refuted by a single successful accepted-frontier or deployment mutation from any enumerated principal. The gate is a fail-closed rate of 1.0 with zero observed failures over 20 seeds per enumerated attack (5 attacks x 20 seeds = 100 runs). Lean proves the abstract role rule only; this suite is the enforcement evidence.",
+  "conditions": [
+    {
+      "id": "authorized",
+      "description": "live coordinator credential; the control, which must succeed"
+    },
+    {
+      "id": "unauthorized",
+      "description": "one enumerated unauthorized principal per stratum"
+    }
+  ],
+  "baseline_condition": "authorized",
+  "population": {
+    "workloads": [
+      "one project fixture with a live accepted frontier"
+    ],
+    "sampling": "enumerated fault x seed grid",
+    "strata": [
+      {
+        "id": "worker-credential",
+        "boundary": "a Worker role credential attempts promotion"
+      },
+      {
+        "id": "expired-token",
+        "boundary": "a coordinator token past its expiry event"
+      },
+      {
+        "id": "replayed-token",
+        "boundary": "a previously accepted token replayed"
+      },
+      {
+        "id": "stale-fencing-token",
+        "boundary": "a fencing token superseded by a later lease grant"
+      },
+      {
+        "id": "compromised-workspace",
+        "boundary": "a workspace process writing outside its lease subject"
+      }
+    ],
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ]
+  },
+  "metrics": [
+    {
+      "id": "fail_closed_rate",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "rejection_event_emitted",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "fail_closed_rate",
+    "effect_size": {
+      "measure": "exact proportion",
+      "minimum_relevant": 1.0,
+      "unit": "fail-closed rate; zero observed failures required"
+    },
+    "min_n": 20,
+    "multiplicity": "none",
+    "uncertainty": "Clopper-Pearson 95% interval",
+    "stopping_rule": "fixed grid; any observed failure stops the run and files a defect"
+  },
+  "exclusion_rule": "A run is excluded only when the fault injector itself fails to inject the enumerated fault, verified from the injector log. A run in which the fault was injected and the system did not fail closed is a failure, never an exclusion.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/injector.log",
+    "runs/<run-id>/raw/event-log.jsonl"
+  ],
+  "threats": [
+    "a refusal that emits no rejection event is a silent failure; rejection_event_emitted is measured alongside the primary and a missing event counts as a failure"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

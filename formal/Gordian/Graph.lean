@@ -12,13 +12,23 @@ inductive WorkKind where
   deriving Repr, DecidableEq
 
 def GloballyDependable : WorkKind → Prop
-  | .mission => True
-  | .initiative => True
   | .atom => True
   | _ => False
 
 theorem quark_not_globally_dependable : ¬ GloballyDependable .quark := by
   simp [GloballyDependable]
+
+theorem initiative_not_globally_dependable : ¬ GloballyDependable .initiative := by
+  simp [GloballyDependable]
+
+theorem mission_not_globally_dependable : ¬ GloballyDependable .mission := by
+  simp [GloballyDependable]
+
+/-- The whole policy in one statement, so docs/formal/theorem-catalog.md T002 can cite
+a theorem rather than a definition, and a widened definition breaks the proof. -/
+theorem globally_dependable_iff_atom {k : WorkKind} :
+    GloballyDependable k ↔ k = .atom := by
+  cases k <;> simp [GloballyDependable]
 
 universe u
 

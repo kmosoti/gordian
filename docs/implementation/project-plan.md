@@ -4,38 +4,63 @@ This plan is the implementation decomposition for Gordian itself. GitHub issues 
 
 The plan is ordered by causal dependency and evidence needs, not by feature glamour.
 
+**This document is a view.** The executable Atom contracts are the GitHub issue bodies; the
+authority for dependencies is the native GitHub `blocked by` graph; the authority for Initiative
+membership is the milestone. The only normative content here is the Mission acceptance table
+below. The Atom tables reproduce issue numbers, titles, target crates, and blockers so that a
+reader can see the whole plan at once, and they are re-derived whenever an Atom or an edge
+changes ([`issue-index.md`](issue-index.md#adding-or-splitting-an-atom)). The generator that will
+emit them from the live issue list, and the CI job that regenerates and diffs, are **G-413 and
+G-445, assigned to #70**.
+
 ## Project Mission
 
-Build a Rust-first coordination substrate that can represent engineering intent as a Mission Graph, execute work through isolated Jujutsu source states, coordinate human/agent workers, record deterministic execution/provenance, verify exact candidates, and admit only evidence-supported state through explicit authority.
+Build a Rust-first coordination substrate that can represent engineering intent as a Mission Graph, execute work through isolated source states, coordinate human/agent workers, record deterministic execution/provenance, verify exact candidates, and admit only evidence-supported state through explicit authority.
 
 Python remains a thin orchestration and experimentation layer. Lean and all formal dependencies remain development-only under `formal/`.
 
 ## Mission acceptance
 
-The Mission is satisfied when a clean installation can demonstrate the following end to end:
+This list is **normative**. [`execution-order.md`](execution-order.md) section 18 links here and
+states no second list. Previously project-plan.md carried 18 items, execution-order.md section 18
+carried 13 different ones, neither referenced the other, and project-plan.md contained no issue
+reference at all, so no item could be traced to work.
 
-1. define a Project/Mission/PlanRevision/Initiative/Atom graph through a typed interface;
-2. reject structurally invalid decomposition/dependency state;
-3. persist canonical work/events and rebuild derived state deterministically;
-4. derive ready/blocked work without mutable workflow-status truth;
-5. schedule compatible Atoms across one or more heterogeneous workers;
-6. create isolated Jujutsu workspaces from exact base commits;
-7. associate evolving implementations with change IDs and frozen candidates with exact commit IDs;
-8. coordinate declared/observed semantic resource claims and leases;
-9. run verifiers against exact candidates and store provenance-bound evidence;
-10. invalidate stale evidence when relevant identity changes;
-11. integrate independent candidates explicitly and re-verify composition;
-12. prevent Worker authority from moving accepted or deployed frontiers;
-13. promote an accepted frontier with race-safe compare-and-swap semantics;
-14. replay after process failure without repeating nondeterministic effects;
-15. expose CLI/API surfaces usable by humans and agent harnesses;
-16. run the project's own Atom workflow through Gordian as a self-hosting proof;
-17. publish benchmark and falsification evidence for the major Gordian-specific hypotheses;
-18. keep the research knowledge graph synchronized with implemented/falsified concepts.
+The Mission is satisfied when a clean installation can demonstrate the following end to end, and
+each row's Atoms have validating closure records
+([`../../artifacts/schema/closure-record.schema.json`](../../artifacts/schema/closure-record.schema.json)):
+
+| # | Acceptance item | Atoms |
+| --- | --- | --- |
+| 1 | define a Project/Mission/PlanRevision/Initiative/Atom graph through a typed interface | #9, #55, #58, #44, #45 |
+| 2 | reject structurally invalid decomposition/dependency state | #10 |
+| 3 | persist canonical work/events and rebuild derived state deterministically | #12, #25, #26 |
+| 4 | derive ready/blocked work without mutable workflow-status truth | #13 |
+| 5 | schedule compatible Atoms across one or more heterogeneous workers | #20, #21, #24 |
+| 6 | create isolated workspaces from exact base states | #29, #30 |
+| 7 | associate evolving implementations with logical change ids and frozen candidates with exact state ids | #31 |
+| 8 | coordinate declared/observed semantic resource claims and leases | #22, #23 |
+| 9 | run verifiers against exact candidates and store provenance-bound evidence | #16, #17, #33 |
+| 10 | invalidate stale evidence when relevant identity changes | #15 |
+| 11 | integrate independent candidates explicitly and re-verify composition | #32 |
+| 12 | prevent Worker authority from moving accepted or deployed frontiers | #18 |
+| 13 | promote an accepted frontier with race-safe compare-and-swap semantics | #19, #27 |
+| 14 | replay after process failure without repeating nondeterministic effects | #11, #26, #28 |
+| 15 | expose CLI/API surfaces usable by humans and agent harnesses | #44, #45, #46 |
+| 16 | run the project's own Atom workflow through Gordian as a self-hosting proof | #48, #49 |
+| 17 | publish benchmark and falsification evidence for the major Gordian-specific hypotheses | #34, #37, #39, #50, #51, #52, #53, #54, #59, #60, #61, #68, #75, #76, #77 |
+| 18 | keep the research knowledge graph synchronized with implemented/falsified concepts | #8, #71, #72, #73, #74 |
+
+`scripts/check-mission-acceptance.sh` asserts that every issue number in the Atoms column exists,
+and `scripts/check-mission-stop-condition.sh` asserts — for the stop condition — that each
+referenced Atom has a validating closure record, printing the unsatisfied rows otherwise. The stop
+condition itself is one sentence, in [`agent-runbook.md`](agent-runbook.md) section 3.
 
 ## Engineering constraints
 
-- Production semantics are Rust.
+- Production semantics are **planned** to be Rust; today the workspace contains one crate,
+  `gordian-kg`. [`crate-map.md`](crate-map.md) decides where each Atom's code goes and what it may
+  depend on.
 - Python is orchestration/analysis only.
 - Lean is development-only under `formal/`.
 - Safe Rust is the default; `unsafe` requires isolated proof/test/performance justification.
@@ -43,387 +68,188 @@ The Mission is satisfied when a clean installation can demonstrate the following
 - Every performance-sensitive algorithm gets complexity analysis plus representative/adversarial benchmarks.
 - Every formal claim states assumptions and empirical boundary.
 - Every agent-facing source mutation operates on an exact base.
-- Every verified source result identifies an exact candidate commit.
+- Every verified source result identifies an exact state id.
 - No permanent `develop` bookmark exists.
 - Distribution is deferred until single-node semantics survive model/property/fault testing.
 
+## Initiatives and Atoms
+
+Fourteen Initiatives, 77 Atoms. Each Initiative is a GitHub milestone and each Atom belongs to
+exactly one. `Blocked by` reproduces the native `blocked by` edges after the D3 revision; `Target
+crate` is the row that Atom owns in [`crate-map.md`](crate-map.md), and `—` means the Atom writes
+no crate code.
+
 # Initiative: Foundation and Falsification
 
-This Initiative establishes whether the ideas Gordian will depend on are actually reliable enough to justify implementation.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #1 | [Foundation] Qualify and pin the Jujutsu development baseline | — | — |
+| #2 | [Foundation] Stabilize Rust, formal, Python, and CI foundations | — | #1 |
+| #3 | [Foundation] Build deterministic benchmark and workload generators | — | #2 |
+| #4 | [Foundation] Establish simple reference algorithm baselines | — | #2, #3 |
+| #5 | [Foundation] Establish performance benchmark and regression gates | — | #3, #4 |
+| #6 | [Foundation] Qualify the verification technique stack | — | #2 |
+| #7 | [Foundation] Build Lean and Rust differential conformance testing | — | #2, #6 |
+| #8 | [Foundation] Complete research-graph coverage and epistemic audit | `gordian-kg` | #2 |
+| #50 | [Experiment] Run Mission Graph ontology ablation | — | #9, #10, #13, #37 |
+| #51 | [Experiment] Run Atom and Quark scheduling-granularity ablation | — | #10, #20, #24, #37 |
+| #52 | [Experiment] Benchmark semantic conflict prediction against path and module baselines | — | #22, #32, #37 |
+| #53 | [Experiment] Compare stable snapshot execution with continuous active rebasing | — | #30, #32, #37, #38 |
+| #54 | [Experiment] Compare derived state with mutable workflow status | — | #13, #26, #37 |
+| #59 | [Experiment] Measure stale-evidence prevention and invalidation cost | — | #3, #15, #16, #31, #37 |
+| #60 | [Experiment] Measure formal-method defect yield and maintenance cost | — | #6, #7, #10, #13, #15, #18, #19, #23, #27 |
+| #61 | [Research Corpus] Benchmark and qualify the knowledge-graph storage/query architecture | — | #3, #5, #8 |
+| #75 | [Foundation] Implement reproducible run ledger and statistical analysis contract | `gordian-experiments` | #3, #5, #71 |
 
-## Atom: Qualify and pin the Jujutsu development baseline
+# Initiative: Research Knowledge Substrate
 
-**Objective:** replace the reported local `jj 0.23.0` with a supported release and executable contract tests for required semantics.
-
-**Acceptance:**
-
-- document minimum supported Jujutsu release;
-- bootstrap/upgrade instructions are reproducible in the Codex environment;
-- fixtures prove change-ID rewrite persistence, exact commit identity, workspace isolation, sibling/parent topology, multi-parent integration, conflict representation, operation recovery, tag behavior, and `jj run` where required;
-- unsupported/missing behavior becomes an explicit adapter constraint rather than an assumption.
-
-**Evidence:** executable CLI contract-test results and captured Jujutsu version.
-
-## Atom: Stabilize Rust, formal, Python, and CI foundations
-
-**Objective:** establish deterministic development commands and strict continuous verification.
-
-**Acceptance:**
-
-- Rust formatting/clippy/tests pass under the pinned toolchain;
-- knowledge graph validates and audits;
-- Lean builds from `formal/`, independent type checking passes with `sorry` forbidden, axiom audit passes;
-- Python package is independently lint/testable without production-semantic duplication;
-- CI exposes each verification layer separately.
-
-## Atom: Build deterministic benchmark and workload generators
-
-**Objective:** create reusable synthetic/repository-derived workload generation before optimizing algorithms.
-
-**Dimensions:**
-
-```text
-node count
-edge count / density
-DAG width
-critical-path ratio
-fan-in / fan-out
-resource contention
-worker heterogeneity
-estimated duration/error distributions
-semantic claim overlap
-history/event volume
-```
-
-**Acceptance:** generated workloads are seed-reproducible and persisted with experiment metadata.
-
-## Atom: Establish reference algorithm baselines
-
-**Objective:** implement simple auditable baselines for topological validation, critical path, ready-queue/list scheduling, graph traversal, and evidence compatibility.
-
-**Acceptance:** each baseline states asymptotic complexity, has property tests, and can serve as a differential oracle for optimized implementations.
-
-## Atom: Establish performance benchmark gates
-
-**Objective:** prevent greedy/reference algorithms from silently becoming production bottlenecks.
-
-**Acceptance:** benchmark harness records wall time, CPU/instruction signal where useful, allocations/memory, workload shape, and regression thresholds. Scheduler comparisons include critical-path lower bounds and heterogeneous HEFT-style baselines.
-
-## Atom: Establish the verification technique matrix
-
-**Objective:** determine which verification technique catches which defect class and at what engineering cost.
-
-**Candidate methods:** Rust types, property testing, mutation testing, fuzzing, Kani, Loom, Shuttle, Turmoil, Lean, differential Lean/Rust testing, integration/fault testing.
-
-**Acceptance:** seeded defect matrix records coverage and cost; tools without a named useful defect/risk class are not mandatory dependencies.
-
-## Atom: Build Lean/Rust differential conformance harness
-
-**Objective:** connect executable formal models to optimized Rust semantics using generated inputs, Cedar-style.
-
-**Acceptance:** a mismatch fails CI/experiment; mismatches are shrunk/persisted as regression fixtures; docs explicitly distinguish DRT evidence from a universal refinement proof.
-
-## Atom: Complete research-graph coverage and epistemic audit
-
-**Objective:** ensure every architecture-changing research concept has explicit Source/Claim/Assumption/Algorithm/Theorem/Experiment/Implementation relationships where applicable.
-
-**Acceptance:** structural validation passes, epistemic audit has no errors, and documentation concepts have traceable graph identities.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #71 | [Knowledge] Implement comprehensive research record schema and source revision identity | `gordian-kg` | #8 |
+| #72 | [Knowledge] Enforce ontology, epistemic closure, and repository coverage | `gordian-kg` | #8, #71 |
+| #73 | [Knowledge] Implement epistemic traversal, contradiction, and downstream-impact queries | `gordian-kg` | #61, #71, #72 |
+| #74 | [Knowledge] Implement reproducible acquisition, source refresh, and staleness propagation | `gordian-kg` | #37, #71, #72 |
 
 # Initiative: Rust Mission Graph Kernel
 
-## Atom: Implement strongly typed identities and immutable specification revisions
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #9 | [Mission Graph Kernel] Implement typed identities and immutable specification revisions | `gordian-core` | #2, #3, #4, #8, #71, #72 |
+| #10 | [Mission Graph Kernel] Implement decomposition and hard-dependency validation | `gordian-core` | #4, #9, #58 |
+| #11 | [Mission Graph Kernel] Implement ExecutionAttempt, Candidate, and effect semantics | `gordian-core` | #9 |
+| #12 | [Mission Graph Kernel] Implement canonical events and deterministic projection | `gordian-core` | #4, #9, #11 |
+| #13 | [Mission Graph Kernel] Implement acceptance predicates and derived work state | `gordian-core` | #7, #10, #11, #12 |
+| #58 | [Mission Graph Kernel] Implement Project resource registry and external identity model | `gordian-core` | #9, #12 |
 
-Build Rust newtypes and immutable Project/Mission/PlanRevision/Initiative/Atom/Quark specifications with constructors that reject structurally invalid states.
+# Initiative: Planning and Reconciliation
 
-**Depends on:** Foundation CI; research graph coverage.
-
-## Atom: Implement decomposition and hard-dependency validation
-
-Implement typed decomposition rules, hard-dependency storage, cycle detection/topological certificates, and generated graph tests.
-
-**Depends on:** typed identities; reference algorithms.
-
-## Atom: Implement acceptance predicates and derived work state
-
-Implement acceptance predicate representation/evaluation contracts and derived `Blocked`, `Enabled`, `Active`, and `Satisfied` semantics without mutable status as canonical truth.
-
-**Depends on:** dependency validation; evidence interfaces.
-
-## Atom: Implement ExecutionAttempt, Candidate, and effect-class semantics
-
-Represent exact execution base, attempt outcomes, candidate freeze identity, and effect-aware retry/replay constraints.
-
-**Depends on:** typed identities.
-
-## Atom: Implement canonical Event and deterministic projection model
-
-Implement append-oriented events plus pure in-memory projection and rebuild tests.
-
-**Depends on:** core identities/attempt model; reference algorithms.
-
-# Initiative: Scheduling and Coordination
-
-## Atom: Implement dependency-aware ready queue and critical-path analysis
-
-Produce deterministic ready work and critical-path/slack metrics from Mission dependencies.
-
-**Depends on:** dependency validation; benchmark generators.
-
-**Performance acceptance:** benchmark scaling against reference implementation over sparse/dense/wide/deep DAGs.
-
-## Atom: Implement worker capability and resource compatibility
-
-Model worker capabilities/resources/cost estimates separately from logical readiness; `Enabled` and `Dispatchable` remain distinct.
-
-**Depends on:** ready queue; capability primitives.
-
-## Atom: Implement semantic resource claims and scope observation
-
-Represent read/write/provide/require claims; add instrumented observation interfaces and scope-expansion events.
-
-**Depends on:** core Atom model; execution events.
-
-**Experiment:** compare conflict prediction against path/module baselines before making semantic claims mandatory.
-
-## Atom: Implement lease and fencing arbitration
-
-Implement exclusive/shared leases, expiration/revocation, monotonically increasing fencing identities, and illegal-overlap rejection.
-
-**Depends on:** semantic resources; capability model.
-
-**Verification:** Lean transition model, Loom/Shuttle schedules, fault injection.
-
-## Atom: Implement and benchmark heterogeneous scheduling policies
-
-Implement deterministic greedy/list and HEFT-inspired policies behind a common policy interface.
-
-**Depends on:** capability/resource compatibility; critical-path; benchmark harness.
-
-**Acceptance:** policy selection is evidence-driven, with scheduler overhead included in total cost; opaque learned scheduling is out of scope until a real event corpus exists.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #55 | [Planning & Reconciliation] Implement PlanRevision proposal, comparison, and selection lifecycle | `gordian-core` | #9, #12, #13, #27 |
+| #56 | [Planning & Reconciliation] Implement planner proposal interface with validated decomposition ingestion | `gordian-core` | #10, #18, #20, #35, #55 |
+| #57 | [Planning & Reconciliation] Implement desired-versus-observed reconciliation and repair planning | — | #12, #13, #15, #26, #55, #56 |
 
 # Initiative: Evidence, Provenance, and Authority
 
-## Atom: Implement content-addressed artifact storage
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #14 | [Evidence & Authority] Implement content-addressed artifact storage | `gordian-artifacts` | #2, #4 |
+| #15 | [Evidence & Authority] Implement exact evidence fingerprints and freshness | `gordian-evidence` | #7, #11, #14 |
+| #16 | [Evidence & Authority] Implement verifier manifests and exact-subject execution | `gordian-evidence` | #14, #15 |
+| #17 | [Evidence & Authority] Implement provenance and attestations | `gordian-evidence` | #12, #14, #15, #16 |
+| #18 | [Evidence & Authority] Implement capability policy and evaluate Cedar | `gordian-coordination` | #6, #9 |
+| #19 | [Evidence & Authority] Implement candidate admission and accepted-frontier CAS | `gordian-coordination` | #13, #15, #16, #17, #18 |
 
-Build an artifact interface and local backend for immutable verifier/log/benchmark payloads with digest integrity, deduplication, and relocation-safe identity.
+# Initiative: Scheduling and Coordination
 
-## Atom: Implement exact evidence fingerprints and freshness
-
-Implement canonical bindings for specification, exact candidate, resolved inputs/dependencies, relevant environment, verifier, and canonicalization identity.
-
-**Depends on:** Candidate semantics; artifact identity; Lean evidence model.
-
-**Verification:** evidence mutation fault suite plus differential formal/Rust tests.
-
-## Atom: Implement verifier manifests and verifier execution interface
-
-Support required verifier sets, exact-subject execution, normalized results, byproducts, and environment capture.
-
-**Depends on:** evidence fingerprint; artifact store.
-
-## Atom: Implement provenance and attestations
-
-Implement Entity/Activity/Actor provenance plus in-toto/SLSA-inspired attestation fields and export mappings.
-
-**Depends on:** events; artifacts; evidence.
-
-## Atom: Implement capability policy and evaluate Cedar
-
-Build minimal capability semantics and benchmark/threat-model Cedar against an internal evaluator before deciding whether Cedar is production infrastructure.
-
-**Depends on:** typed actors/capabilities; Foundation verification matrix.
-
-## Atom: Implement candidate admission and accepted-frontier CAS
-
-Implement reconciliation, structural conflict gate, required verification, freshness, authority check, and conditional accepted-frontier mutation.
-
-**Depends on:** evidence, verifier, capability, event projection.
-
-**Verification:** mutation tests must kill removed/inverted admission checks; concurrency/fault tests must expose no lost update.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #20 | [Scheduling & Coordination] Implement dependency-aware ready queue and critical-path analysis | `gordian-scheduler` | #3, #4, #10, #13 |
+| #21 | [Scheduling & Coordination] Implement worker capability and resource compatibility | `gordian-scheduler` | #18, #20 |
+| #22 | [Scheduling & Coordination] Implement semantic resource claims and scope observation | `gordian-scheduler` | #9, #11, #12 |
+| #23 | [Scheduling & Coordination] Implement lease and fencing arbitration | `gordian-coordination` | #18, #22 |
+| #24 | [Scheduling & Coordination] Implement and benchmark heterogeneous scheduling policies | `gordian-scheduler` | #3, #5, #20, #21, #23 |
 
 # Initiative: Durable Persistence and Replay
 
-## Atom: Implement PostgreSQL canonical persistence
-
-Persist logical identities, immutable spec revisions, typed relations, attempts/candidates, evidence metadata, capabilities/leases, and canonical events transactionally.
-
-**Depends on:** Rust core semantics.
-
-## Atom: Implement materialized projections and deterministic rebuild
-
-Persist query projections as disposable/rebuildable acceleration structures and continuously verify rebuild equality.
-
-**Depends on:** PostgreSQL events; deterministic in-memory projector.
-
-## Atom: Implement transactional frontier, lease, and plan-selection transitions
-
-Use expected-version/CAS semantics and database constraints for globally visible state transitions.
-
-**Depends on:** persistence; admission; lease arbitration.
-
-## Atom: Build crash, duplicate-event, and recovery fault suite
-
-Inject crashes between append/projection, duplicate/reordered messages, stale schemas, and uncertain acknowledgements.
-
-**Depends on:** persistence/rebuild.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #25 | [Persistence & Replay] Implement PostgreSQL canonical persistence | `gordian-postgres` | #9, #10, #11, #12, #15, #18 |
+| #26 | [Persistence & Replay] Implement materialized projections and deterministic rebuild | `gordian-postgres` | #12, #25 |
+| #27 | [Persistence & Replay] Implement transactional frontier, lease, and plan-selection transitions | `gordian-postgres` | #19, #23, #25 |
+| #28 | [Persistence & Replay] Build crash, duplicate-event, and recovery fault suite | — | #26, #27 |
 
 # Initiative: Jujutsu Change Plane
 
-## Atom: Implement low-level Jujutsu command adapter and fixture repository
-
-Use structured command execution/parsing behind a narrow Rust interface; no shell-string construction.
-
-**Depends on:** qualified Jujutsu baseline.
-
-## Atom: Implement workspace/change lifecycle
-
-Spawn exact-base isolated workspaces, associate one normal-path writer with one logical change, observe change/commit identity transitions, and clean/recover workspaces safely.
-
-**Depends on:** JJ command adapter; ExecutionAttempt model.
-
-## Atom: Implement candidate freeze and exact commit handoff
-
-Freeze candidate commit identity, make subsequent mutation create a distinct candidate, and bind provenance/evidence subject identity.
-
-**Depends on:** workspace lifecycle; Candidate/evidence core.
-
-## Atom: Implement sibling integration and conflict repair workflow
-
-Preserve independent changes as siblings; create multi-parent integration candidates; represent conflict repair as bounded work; prohibit unresolved conflict admission.
-
-**Depends on:** candidate handoff; admission.
-
-## Atom: Implement exact-revision verification with Jujutsu
-
-Use `jj run` or equivalently isolated exact-revision materialization on the supported baseline to run read-only verifier sets and collect exact-candidate evidence.
-
-**Depends on:** JJ qualification; verifier interface.
-
-## Atom: Run Jujutsu versus Git source-substrate experiment
-
-Implement enough equivalent Git worktree orchestration to compare identity bookkeeping, recovery, integration, evidence invalidation, code complexity, and operator intervention.
-
-**Depends on:** functional Jujutsu adapter and representative workload corpus.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #29 | [Jujutsu Change Plane] Implement low-level Jujutsu command adapter and fixture repository | `gordian-source` (trait), `gordian-jj` | #1, #2 |
+| #30 | [Jujutsu Change Plane] Implement workspace and change lifecycle | `gordian-jj` | #11, #29 |
+| #31 | [Jujutsu Change Plane] Implement candidate freeze and exact commit handoff | `gordian-jj` | #15, #30 |
+| #32 | [Jujutsu Change Plane] Implement sibling integration and conflict repair workflow | `gordian-jj` | #19, #31 |
+| #33 | [Jujutsu Change Plane] Implement exact-revision verification with Jujutsu | `gordian-jj` | #1, #16, #29, #31 |
+| #34 | [Jujutsu Change Plane] Run the Jujutsu versus Git source-substrate experiment | `gordian-source` | #3, #5, #29, #30, #31, #32, #33, #76 |
+| #76 | [Source Plane] Implement the Git worktree source adapter | `gordian-git` | #29 |
 
 # Initiative: Agent Execution and Thin Python Orchestration
 
-## Atom: Define worker protocol and sandbox capability envelope
-
-Define worker input/output/events, exact base/candidate semantics, allowed filesystem/process/network/secrets capabilities, resource budgets, cancellation, and abandonment.
-
-## Atom: Implement generic process/agent worker adapter
-
-Run a worker implementation without coupling Gordian semantics to a specific model vendor. Worker output is probabilistic/effectful input to deterministic validation.
-
-**Depends on:** worker protocol; JJ workspace lifecycle; capability policy.
-
-## Atom: Implement Python experiment orchestration package
-
-Build thin runners for repeated trials, datasets/seeds, model/tool invocation, result collection, and statistical analysis while delegating all domain decisions to Rust.
-
-**Depends on:** stable Rust CLI/protocol surfaces.
-
-## Atom: Implement local multi-worker coordinator
-
-Coordinate multiple isolated workers with dependency scheduling, semantic signals, leases, candidate integration, verification, and repair on one machine.
-
-**Depends on:** scheduler; coordination; Jujutsu; evidence; worker adapter; persistence.
-
-## Atom: Run isolation and coordination ablation suite
-
-Compare solo, isolated-only, shared-status, and semantic-coordination conditions under fixed budgets and repeated trials.
-
-**Depends on:** local coordinator; Python experiment runner.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #35 | [Agent Execution] Define worker protocol and sandbox capability envelope | `gordian-runtime` | #18, #23, #30 |
+| #36 | [Agent Execution] Implement generic process and agent worker adapter | `gordian-runtime` | #30, #35 |
+| #37 | [Agent Execution] Implement thin Python experiment orchestration | `gordian-experiments` | #2, #5, #75 |
+| #38 | [Agent Execution] Implement local multi-worker coordinator | `gordian-runtime` | #24, #27, #32, #33, #36 |
+| #39 | [Agent Execution] Run isolation and coordination ablation | — | #3, #37, #38, #77 |
+| #62 | [Agent Execution] Implement and qualify sandbox backends for untrusted workers | — | #6, #18, #35, #36 |
+| #63 | [Agent Execution] Implement capability-scoped secret and credential brokerage | — | #18, #35, #58, #62 |
+| #77 | [Agent Execution] Launch and supervise experiment workers | `gordian-experiments` | #37 |
 
 # Initiative: Distributed Robustness
 
-## Atom: Define remote worker transport and idempotent command protocol
-
-Specify message identities, acknowledgements, retries, causal references, artifact transfer, heartbeats/liveness, and cancellation without assuming exactly-once delivery.
-
-**Depends on:** stable local worker protocol/event semantics.
-
-## Atom: Implement distributed lease/frontier coordination
-
-Extend fencing and frontier transitions across multiple coordinator/worker processes while retaining a single authoritative acceptance linearization mechanism.
-
-**Depends on:** transport; persistence; lease/frontier semantics.
-
-## Atom: Build deterministic distributed fault simulation
-
-Use Turmoil or an equivalent controlled simulator to inject partitions, latency, disconnects, duplicate messages, failover, stale leases, and uncertain acknowledgements.
-
-**Depends on:** distributed transport/coordination.
-
-## Atom: Instrument Gordian with OpenTelemetry-compatible observability
-
-Expose traces/metrics/events for scheduling latency, blocking, conflicts, retries, stale evidence, projection rebuild, lease contention, verifier cost, and accepted-frontier age without optimizing blindly for those proxies.
-
-**Depends on:** runtime semantics sufficiently stable to define useful signals.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #40 | [Distributed Robustness] Define remote worker transport and idempotent command protocol | — | #12, #27, #35, #38 |
+| #41 | [Distributed Robustness] Implement distributed lease and accepted-frontier coordination | `gordian-coordination` | #23, #27, #40 |
+| #42 | [Distributed Robustness] Build deterministic distributed fault simulation | — | #40, #41 |
+| #43 | [Distributed Robustness] Instrument Gordian with OpenTelemetry-compatible observability | — | #38 |
 
 # Initiative: Human and Programmatic Interface
 
-## Atom: Implement Gordian CLI
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #44 | [Interfaces] Implement the Gordian CLI | `gordian-runtime` | #20, #25, #26 |
+| #45 | [Interfaces] Implement a headless typed API and event stream | `gordian-runtime` | #18, #25, #44 |
+| #46 | [Interfaces] Implement GitHub bootstrap and import adapter | `gordian-runtime` | #25, #45 |
+| #47 | [Interfaces] Build Mission Graph and evidence explorer | — | #45 |
 
-Expose Project/Mission/plan/initiative/atom queries, dependency/evidence traversal, execution/admission commands, and inspection of exact source/evidence identities.
+# Initiative: Temporary GitHub Bootstrap
 
-**Depends on:** Rust core plus persistence.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #70 | [Bootstrap] Reconcile repository Atoms into GitHub Project 9 | — | — |
 
-## Atom: Implement headless API
+# Initiative: Release, Operations, and Acceptance
 
-Expose stable typed API/streaming event surfaces for humans, UIs, and agents without making a web frontend canonical state.
-
-**Depends on:** CLI/domain interfaces and authentication/capability policy.
-
-## Atom: Implement GitHub bootstrap/import adapter
-
-Import existing Gordian GitHub issues and relevant metadata into Mission Graph objects/provenance without treating GitHub Project status as authoritative semantics.
-
-**Depends on:** Mission Graph persistence/API.
-
-## Atom: Build Mission Graph/evidence explorer
-
-Provide a human view over decomposition, dependencies, ready/blocked work, Jujutsu candidate topology, semantic contention, attempts, evidence, provenance, and research graph.
-
-**Depends on:** headless API. UI implementation must be a projection over canonical facts.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #64 | [Release & Deployment] Implement immutable release and deployment records | — | #17, #19, #25, #27, #58 |
+| #65 | [Release & Deployment] Build reproducible signed distribution artifacts | — | #2, #14, #17, #44, #45, #64 |
+| #66 | [Release & Deployment] Implement backup, restore, migration, and compatibility qualification | — | #14, #25, #26, #64, #65 |
+| #67 | [Release & Deployment] Perform adversarial security and authority qualification | — | #18, #19, #23, #27, #35, #40, #62, #63, #65 |
 
 # Initiative: Self-Hosting and Acceptance
 
-## Atom: Import the Gordian implementation plan into Gordian itself
-
-Convert the temporary GitHub issue substrate into native Project/Mission/Initiative/Atom state while retaining GitHub issue links as provenance.
-
-**Depends on:** GitHub bootstrap/import; local runtime.
-
-## Atom: Execute an end-to-end multi-agent self-hosting Mission
-
-Select a bounded real Gordian feature, plan it through native Mission Graph, execute concurrent Jujutsu workers, collect evidence, integrate, promote accepted source state, and reconstruct the run after restart.
-
-**Depends on:** all local-runtime critical path capabilities.
-
-## Atom: Publish architecture falsification report
-
-Aggregate the experiment ledger and explicitly retain, revise, or reject the major hypotheses: Mission ontology, Atom boundary, semantic claims, snapshot execution, Jujutsu advantage, derived state, formalization value, and scheduling policy.
-
-**Depends on:** relevant experiments.
-
-A negative result is a successful research outcome if it removes unjustified complexity.
+| Atom | Title | Target crate | Blocked by |
+| --- | --- | --- | --- |
+| #48 | [Self-Hosting] Import the Gordian implementation plan into native Mission Graph | — | #38, #46 |
+| #49 | [Self-Hosting] Execute an end-to-end multi-agent Gordian Mission | — | #28, #33, #38, #48 |
+| #68 | [Self-Hosting] Publish the architecture falsification and retention report | — | #24, #34, #39, #49, #50, #51, #52, #53, #54, #59, #60, #61, #73, #74 |
+| #69 | [Self-Hosting] Produce the end-to-end release qualification evidence bundle | — | #42, #43, #47, #49, #57, #65, #66, #67, #68 |
 
 # Critical path
 
-The high-level causal spine is:
+The spine is drawn once, in [`execution-order.md`](execution-order.md) section 4, as the set of
+Atoms lying on a maximum-length blocker path to #69. The shape of it:
 
 ```text
-Foundation/Falsification
-    -> Rust Mission Graph Kernel
-    -> Evidence + Scheduling + Persistence
-    -> Jujutsu Change Plane
-    -> Local Agent Coordinator
-    -> CLI/API
-    -> Self-hosting Mission
+Foundation and executable research
+    -> typed Mission Graph kernel
+    -> evidence, scheduling, and persistence
+    -> the source plane
+    -> local agent coordinator
+    -> CLI and typed API
+    -> native import and the self-hosting Mission
+    -> architecture retain/revise/reject decisions
+    -> release qualification
 ```
 
-Distributed execution and rich human UI are intentionally outside the shortest path to validating the substrate.
+Distributed execution and the rich human UI are intentionally outside the shortest path to
+validating the substrate, but they are not orphaned: `execution-order.md` section 15 states the
+coverage rule that keeps every Atom in `closure(#68) ∪ closure(#69)`.
+
+The **minimal self-hosting prerequisite set** — the 43 Atoms that must close before #49 can
+execute — is in [`execution-order.md`](execution-order.md#minimal-self-hosting-prerequisite-set),
+with the arithmetic that produced the number. #48 imports exactly those 43.
 
 # Project-management bootstrap
 
@@ -431,8 +257,10 @@ Until Gordian can self-host:
 
 - each GitHub issue represents one Atom;
 - the issue body records Initiative, objective, dependencies, acceptance, verification, and benchmark obligations;
-- GitHub issue state is **not** scientific evidence of Atom satisfaction;
+- the native `blocked by` graph, not the `## Dependencies` prose, is the authority for edges;
+- GitHub issue state is **not** scientific evidence of Atom satisfaction; the bootstrap
+  satisfaction rule is in [`issue-index.md`](issue-index.md#bootstrap-satisfaction-rule);
 - exact code verification remains attached to candidate source identities;
-- the GitHub Project view is a convenience projection only.
+- the GitHub Project 9 view is a derived projection only.
 
 Once native Mission Graph persistence exists, these issues should be imported as provenance and Gordian should become the canonical coordination substrate for its own development.

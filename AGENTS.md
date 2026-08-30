@@ -10,16 +10,20 @@ Build Gordian as a research-driven coordination substrate for human and autonomo
 
 Before substantial implementation, read the documents relevant to the Atom, beginning with:
 
-1. [`README.md`](README.md)
-2. [`docs/architecture.md`](docs/architecture.md)
-3. [`docs/spec/mission-graph.md`](docs/spec/mission-graph.md)
-4. [`docs/spec/invariants.md`](docs/spec/invariants.md)
-5. [`docs/implementation/execution-order.md`](docs/implementation/execution-order.md)
-6. [`knowledge/ontology.md`](knowledge/ontology.md)
-7. [`knowledge/acquisition.md`](knowledge/acquisition.md)
-8. [`docs/research/verification-strategy.md`](docs/research/verification-strategy.md)
-9. [`docs/formal/proof-boundary.md`](docs/formal/proof-boundary.md)
-10. [`docs/protocols/jujutsu-agent-protocol.md`](docs/protocols/jujutsu-agent-protocol.md)
+1. [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) — the loop you execute, start to finish
+2. [`README.md`](README.md)
+3. [`docs/architecture.md`](docs/architecture.md)
+4. [`docs/spec/mission-graph.md`](docs/spec/mission-graph.md)
+5. [`docs/spec/invariants.md`](docs/spec/invariants.md)
+6. [`docs/implementation/execution-order.md`](docs/implementation/execution-order.md)
+7. [`docs/implementation/crate-map.md`](docs/implementation/crate-map.md) — before writing any Rust
+8. [`knowledge/ontology.md`](knowledge/ontology.md)
+9. [`knowledge/acquisition.md`](knowledge/acquisition.md)
+10. [`docs/research/verification-strategy.md`](docs/research/verification-strategy.md)
+11. [`docs/formal/proof-boundary.md`](docs/formal/proof-boundary.md)
+12. [`docs/protocols/source-adapter-contract.md`](docs/protocols/source-adapter-contract.md)
+13. [`docs/protocols/jujutsu-agent-protocol.md`](docs/protocols/jujutsu-agent-protocol.md)
+14. [`docs/protocols/landing.md`](docs/protocols/landing.md)
 
 Do not rely on README summaries when a normative specification or Atom contract is more precise.
 
@@ -27,21 +31,28 @@ Do not rely on README summaries when a normative specification or Atom contract 
 
 ### Rust is the substrate
 
-Production semantics belong in Rust.
+Production semantics belong in Rust. Today exactly one crate exists, `crates/gordian-kg`, and it
+owns the research knowledge schema, validation, indexes, and queries. Everything else below is
+**planned**; [`docs/implementation/crate-map.md`](docs/implementation/crate-map.md) decides which
+crate it lands in and what that crate may depend on, and
+[`docs/implementation/execution-order.md`](docs/implementation/execution-order.md) decides when.
 
-Rust owns:
+Rust will own (planned):
 
 - Mission Graph domain types and invariants;
-- canonical research knowledge schema, validation, indexes, and queries;
 - graph algorithms and indexing;
 - scheduling and concurrency control;
 - event and state projection;
 - evidence and provenance semantics;
-- Jujutsu integration;
+- the source adapter, of which Jujutsu integration is one realization;
 - persistence adapters;
 - authorization and capability enforcement;
 - protocol parsing and validation;
 - CLI, server, and runtime hot paths.
+
+Do not describe any of these in the present tense until the owning Atom has a validating closure
+record; `scripts/check-capability-tense.sh` fails CI on the ones listed in `README.md` under
+"Planned, not built".
 
 Prefer safe Rust. `unsafe` requires a documented invariant, a demonstrated performance or interoperability need, focused tests, Miri or sanitizer coverage where applicable, and benchmark evidence showing why the safe design is insufficient.
 
@@ -61,12 +72,15 @@ All Lean source, toolchains, Lake configuration, formal fixtures, checker config
 
 Lean MUST NOT be required to build or run the production Gordian binary.
 
-Formal development follows verification-guided development:
+Formal development follows verification-guided development. The current Lean modules are
+proposition-level models with no executable oracle and no Rust bridge; the pipeline is **planned**
+and #7 owns it, with the vector format in
+[`docs/formal/conformance-vectors.md`](docs/formal/conformance-vectors.md):
 
-1. write a small executable formal model for safety-critical semantics;
+1. write a small executable formal model for safety-critical semantics (planned, #7);
 2. prove meaningful model properties under explicit assumptions;
 3. implement optimized production semantics in Rust;
-4. differentially test Rust against the executable model over generated inputs;
+4. differentially test Rust against the executable model over generated inputs (planned, #7);
 5. use property, mutation, fuzz, bounded verification, concurrency, integration, and fault tests outside the formal model.
 
 A theorem about the model is never described as proof of an empirical performance claim or proof that Rust refines the model unless that refinement has actually been established.
@@ -90,9 +104,9 @@ A theorem about the model is never described as proof of an empirical performanc
 
 Jujutsu is the preferred local change substrate, subject to the Jujutsu-versus-Git experiment. GitHub remains an external collaboration and transport system.
 
-The initial Codex environment reported `jj 0.23.0`. That release predates behavior Gordian intends to qualify, including `jj run`. Do not design around the old binary.
+[`scripts/bootstrap-jj.sh`](scripts/bootstrap-jj.sh) is the single source of the pinned Jujutsu baseline. Do not restate that version number anywhere, and do not design around an older binary.
 
-From the repository root, use the safe bootstrap and then execute issue #1's disposable-repository qualification suite:
+Acquisition and bootstrap are one block, in [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) section 0. From an existing checkout:
 
 ```bash
 bash scripts/bootstrap-jj.sh --install
@@ -101,6 +115,8 @@ jj root
 jj status
 jj log -r '::@ | @::'
 ```
+
+The script is not a behavioral contract test; #1 owns that suite.
 
 Repository policy:
 
@@ -118,9 +134,11 @@ There is no permanent `develop` bookmark.
 
 One active writer per logical change is the normal path. Speculative alternatives receive separate changes from the same exact base.
 
-Never move `main`, create releases, deploy, or push canonical state from a worker flow unless the current Atom explicitly grants the corresponding coordinator authority.
+Never move `main`, create releases, deploy, or push canonical state from a worker flow. Publication is reserved to an actor holding `move_accepted_frontier`; who that is, and under exactly what condition, is the bootstrap authority table in [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) section 6.7, and the sequence is [`docs/protocols/landing.md`](docs/protocols/landing.md).
 
-Verification applies to exact commit IDs. Rewriting a change after verification creates a new Candidate and invalidates commit-bound evidence even when the change ID remains stable.
+Verification applies to exact state ids. Rewriting a change after verification creates a new Candidate and invalidates state-bound evidence even when the `logical_change_id` remains stable.
+
+**Never edit the default workspace.** Work happens in a workspace created with `jj workspace add -r 'trunk()'`, per the runbook section 6.5; another agent or a human may hold the default one.
 
 ## Black-box module rule
 
@@ -134,7 +152,10 @@ input contract -> deterministic or controlled transformation -> output contract
 
 Internal representation may change without forcing callers to know about it.
 
-Cross-crate dependencies must follow declared architecture direction. Avoid convenience imports that create hidden coupling.
+Cross-crate dependencies must follow the declared architecture direction, which is
+[`docs/implementation/crate-map.md`](docs/implementation/crate-map.md) and nothing else: a
+dependency is permitted if and only if it appears in that crate's `May depend on` row.
+`scripts/check-crate-map.sh` enforces it. Avoid convenience imports that create hidden coupling.
 
 ## Performance rule
 
@@ -168,21 +189,35 @@ cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 cargo run --locked -p gordian-kg -- validate
-cargo run --locked -p gordian-kg -- audit
+cargo run --locked -p gordian-kg -- audit --strict
 
 ruff check orchestration
 python -m compileall -q orchestration/src
 python -m unittest discover -s orchestration/tests
 
 (cd formal && lake build)
+
+for s in scripts/check-*.sh; do bash "$s"; done
 ```
 
-CI additionally runs an independent Lean checker with `sorry` disallowed and audits the compiled environment for disallowed axioms.
+`--strict` is not optional: a bare `audit` passes on warnings and is therefore not a gate.
+
+CI additionally re-checks the compiled Lean environment with an independent checker and runs an
+**axiom audit**; the audit is what rejects `sorryAx` and any non-allowlisted axiom. Those two are
+**CI-only** until #2 lands `formal/Gordian/Audit.lean` and adds the local invocation here
+(**G-258 and G-239, assigned to #2**). **G-525 is assigned to #2** for `scripts/verify-local.sh`,
+which will make this block and the workflow one script rather than two lists. **G-625 is assigned
+to #2** for the test coverage of the tooling itself: `crates/gordian-kg/tests/` has no integration
+test running every subcommand against `knowledge/graph/` and no positive and negative test per
+audit rule, so the checker that gates the corpus is itself unguarded. **G-612 is assigned to #2**
+for CI supply-chain and hygiene: a `cargo deny check` step with a committed `deny.toml`, and a
+`.github/dependabot.yml` covering the cargo, pip, and github-actions ecosystems. Pinned action
+SHAs, per-job `timeout-minutes`, and the top-level `concurrency:` group are already in place.
 
 ### As applicable
 
 - generated property and state-machine tests;
-- differential randomized testing against executable Lean models;
+- differential randomized testing against executable Lean models (planned, #7);
 - mutation testing with `cargo-mutants` or an equivalent method;
 - fuzzing for parsers, protocols, event histories, JSON-LD, Jujutsu output, and command sequences;
 - Miri and sanitizers for unsafe and memory-sensitive boundaries;
@@ -247,7 +282,7 @@ An experiment must state before execution:
 
 Retain failed, timed-out, excluded, and negative runs with reasons. Do not keep only favorable trials. Conclusions remain bounded to the actual study scope.
 
-Use [`.github/ISSUE_TEMPLATE/experiment.yml`](.github/ISSUE_TEMPLATE/experiment.yml) for experiment Atoms.
+Use [`.github/ISSUE_TEMPLATE/experiment.yml`](.github/ISSUE_TEMPLATE/experiment.yml) for experiment Atoms. The analysis design is fixed per experiment class by [`docs/testing/statistical-contract.md`](docs/testing/statistical-contract.md), not chosen per study. The authorized provider list, credential environment variables, and cost caps are **G-526, assigned to #37**; until it lands, record provider, model id, and observed spend in the run manifest and stay inside the per-Atom caps of the runbook section 7.
 
 ## Documentation style
 
@@ -279,36 +314,57 @@ An Atom must define:
 - effect class;
 - acceptance predicates;
 - verification and exact evidence subjects;
-- benchmark obligation for performance-sensitive work;
+- benchmark obligation for performance-sensitive work, written as a `## Benchmark obligation`
+  section naming each `EO17-*` row id the Atom owns in
+  [`docs/implementation/execution-order.md`](docs/implementation/execution-order.md) section 17;
 - falsification or simplification trigger for experimental architecture.
 
-Before declaring an Atom complete, provide:
-
-- exact objective satisfied;
-- implementation summary;
-- tests and verifier evidence;
-- benchmark evidence when required;
-- knowledge-graph updates for material concepts or results;
-- documentation updates for changed semantics;
-- exact Jujutsu Candidate identity when supported;
-- unresolved risks, assumptions, or deferred work.
+Before declaring an Atom complete, write `artifacts/atoms/<N>/closure.json` conforming to
+[`artifacts/schema/closure-record.schema.json`](artifacts/schema/closure-record.schema.json) and
+link it from the closing comment. That schema is the single normative list; do not restate it
+here, and do not close an Atom whose record fails `scripts/check-closure-records.sh`. The
+procedure is [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md)
+section 2, and the reviewer-facing copy of the same eight items is
+[`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md).
 
 Passing tests are necessary but not automatically sufficient when the Atom has stronger acceptance predicates. Closing a GitHub issue is bookkeeping, not native satisfaction evidence.
 
+An attempt that does not reach closure is recorded too: the retry limits, budget caps, and the
+ordered abandon procedure are [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md)
+section 7. Weakening an acceptance predicate to make an attempt pass is a specification change,
+never an implementation choice.
+
+### Actor identity
+
+Every change an agent creates carries the actor string
+`gordian-agent/<harness>/<run-id>` as its author, as a `Gordian-Actor:` commit trailer, as the
+closure record's `actor.id`, and as the first line of the comment claiming the Atom. The four must
+agree. The closure record's `actor` names the record's **author** — whoever held the coordinator
+role when it was written — which in the bootstrap loop is the same agent run; when it is not, the
+worker's identity is recovered from the commit trailer and the claim comment. See the runbook
+sections 2 and 6.1.
+
+### Per-file license headers
+
+Per-file license headers are not required; `LICENSE` alone governs. **G-617 is assigned to #2**,
+which decides whether to adopt SPDX headers and, if so, adds the CI grep that enforces them.
+
 ## Temporary GitHub substrate
 
-GitHub issues and Project 9 are temporary external projections while Gordian builds its native planning substrate.
+GitHub issues and Project 9 are temporary external projections while Gordian builds its native planning substrate. The **native `blocked by` graph is authoritative** for dependencies; the `## Dependencies` prose in an issue body is a mirror with no authority. The milestone is authoritative for Initiative membership. `Wave`, `Fan In`, `Fan Out`, `Status = Blocked` and `Status = Ready` are derived projections, never inputs, and are written only by `gordian-derive-status derive --apply`; `In Progress`, `In Review`, and `Accepted` are claim facts the runbook's loop asserts and the derivation never overwrites. No board cell is read back as authority — see [`docs/implementation/issue-index.md`](docs/implementation/issue-index.md) and [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) section 6.9.
 
-After granting local `gh` project scope:
+Board and issue mutations run non-interactively. `gh auth refresh -s project` is a browser flow an
+unattended agent cannot complete; supply a **classic** personal access token carrying the `repo`
+and `project` scopes through the `GH_TOKEN` environment variable, and never commit it. A
+fine-grained token does not carry the classic `project` scope that `gh project item-add` requires.
 
 ```bash
-gh auth refresh -s project
-python -m pip install -e ./orchestration
-gordian-project-sync --dry-run
-gordian-project-sync --report artifacts/project-9-reconciliation.json
+python3.14 -m pip install -e './orchestration[dev]'
+GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --dry-run
+GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --report artifacts/project-9-reconciliation.json
 ```
 
-The reconciler may add missing issue URLs and report duplicates. It must not infer readiness, status, satisfaction, evidence, or acceptance from GitHub fields.
+The reconciler may add missing issue URLs and report duplicates. It must not infer readiness, status, satisfaction, evidence, or acceptance from GitHub fields. #70 owns this projection and is closed or archived once #48 lands; **G-475, G-502, G-507, G-522, G-527, G-530, and G-609 are assigned to #70.** The readiness projection of G-504 and G-516 is already checked in as `gordian-derive-status` — [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) section 6.2 names it as the only sanctioned way to pick the next Atom — and what remains of those two ids is the committed edge snapshot (G-502) and the ordered `ready` output (G-530).
 
 ## No cargo-cult dependencies
 

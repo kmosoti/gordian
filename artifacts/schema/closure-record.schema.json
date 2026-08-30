@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gordian.dev/schema/closure-record-v1.json",
+  "title": "ClosureRecord",
+  "description": "The single normative record of what closing an Atom contains. Written by the coordinator after admission, at artifacts/atoms/<atom_id>/closure.json, in a bookkeeping change outside the verified candidate (docs/implementation/agent-runbook.md section 1). Validated in CI by scripts/check-closure-records.sh, with the spec_digest recomputation in scripts/check-spec-digests.sh and the actor cross-check in scripts/check-actor-identity.sh. Failed and abandoned attempts on the same Atom are recorded separately, at artifacts/atoms/<atom_id>/attempts/<attempt_id>.json, against attempt-record.schema.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_format",
+    "atom_id",
+    "spec_digest",
+    "actor",
+    "exact_state_id",
+    "logical_change_id",
+    "verifiers",
+    "benchmarks",
+    "knowledge_graph_node_ids",
+    "known_limitations",
+    "closed_at"
+  ],
+  "properties": {
+    "record_format": { "const": "gordian-closure-v1" },
+    "atom_id": {
+      "type": "string",
+      "description": "bootstrap: the GitHub issue number as a string"
+    },
+    "spec_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "THE definition, and the only one: the SHA-256, lowercase hex, of the bytes of artifacts/atoms/<atom_id>/spec.md after LF normalization (every CR byte removed). `gordian-canon-v1` is the name of that normalization for this field; it adds nothing beyond it. scripts/check-spec-digests.sh recomputes this value from the committed snapshot and fails on disagreement, and rejects a snapshot that still contains CR bytes."
+    },
+    "actor": {
+      "type": "object",
+      "description": "the actor that EXECUTED the Atom and produced the verified candidate \u2014 not the coordinator that later wrote this bookkeeping record. This is the string the claim comment opens with and the Gordian-Actor trailer on the Atom\u0027s own changes carries (docs/implementation/agent-runbook.md section 6.1, G-511).",
+      "required": ["id", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(gordian-agent/[a-z0-9-]+/[A-Za-z0-9_-]+|human:[A-Za-z0-9_.@-]+)$",
+          "description": "an agent actor string gordian-agent/<harness>/<run-id>, or human:<identity> when a person executed the Atom"
+        },
+        "kind": { "enum": ["human", "agent", "coordinator"] }
+      }
+    },
+    "recorded_by": {
+      "type": "object",
+      "description": "the COORDINATOR actor that authored the bookkeeping change containing this record. Section 1 of the runbook has the coordinator write the record in a change whose commit trailer carries the coordinator\u0027s actor, not the executing agent\u0027s, so the two are separate fields and G-511\u0027s closure-record binding is satisfiable: scripts/check-actor-identity.sh matches the Gordian-Actor trailer of the commit that adds this file against recorded_by, falling back to actor when the coordinator and the executor are the same actor and this field is omitted.",
+      "required": ["id", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(gordian-agent/[a-z0-9-]+/[A-Za-z0-9_-]+|human:[A-Za-z0-9_.@-]+)$"
+        },
+        "kind": { "enum": ["human", "agent", "coordinator"] }
+      }
+    },
+    "exact_state_id": {
+      "type": "string",
+      "description": "the admitted state of the Atom's work; an ancestor of the bookkeeping change this record lives in, so the file never contains its own digest"
+    },
+    "logical_change_id": { "type": "string" },
+    "verifiers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "verifier_id",
+          "command",
+          "exit_code",
+          "artifact_path",
+          "artifact_sha256"
+        ],
+        "properties": {
+          "verifier_id": { "type": "string" },
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "artifact_path": { "type": "string" },
+          "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "benchmarks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["experiment_id", "run_id", "artifact_sha256"]
+      }
+    },
+    "knowledge_graph_node_ids": { "type": "array", "items": { "type": "string" } },
+    "known_limitations": { "type": "array", "items": { "type": "string" } },
+    "formal_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["theorem", "checker", "status"]
+      }
+    },
+    "closed_at": { "type": "string", "format": "date-time" }
+  }
+}

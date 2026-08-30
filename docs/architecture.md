@@ -203,54 +203,68 @@ This distinction removes much of the ambiguous state churn common in project tra
 
 ## 6. Derived state
 
-Mutable status fields should not be treated as foundational truth when the state can be derived.
+Mutable status fields are not foundational truth when state can be derived.
 
-For an Atom `a`:
+The normative definitions of `Blocked`, `Enabled`, `Dispatchable`, `Active`, and `Satisfied` live
+in `docs/spec/mission-graph.md#logical-state-predicates`
+([link](spec/mission-graph.md#logical-state-predicates)), and the seven readiness sub-predicates
+under `## Readiness predicate definitions`,
+`docs/spec/mission-graph.md#readiness-predicate-definitions`
+([link](spec/mission-graph.md#readiness-predicate-definitions)). This document defines none of
+them.
 
-```text
-Blocked(a) := exists d in hard_dependencies(a) where not Satisfied(d)
-```
+Three divergent copies of the same conjunctions previously existed here, in
+`spec/mission-graph.md`, and in `algorithms/scheduling.md`, and they had already drifted: this
+file said "all hard dependencies are satisfied" where the spec said `not Blocked(a)`, and none of
+the three defined a single one of the seven sub-predicates.
 
-```text
-Enabled(a) :=
-  ValidSpec(a)
-  and all hard dependencies are satisfied
-  and all logical preconditions hold
-```
+The one architectural point worth stating here is the shape. The block below is a byte-identical
+reproduction of the normative block in `docs/spec/mission-graph.md`;
+`scripts/check-satisfied-sync.sh` enforces the identity.
 
-```text
-Dispatchable(a) :=
-  Enabled(a)
-  and a compatible executor is available
-  and resources are available
-  and authorization is valid
-  and no conflicting lease prevents execution
-```
-
+<!-- BEGIN SATISFIED-DEF -->
 ```text
 Satisfied(a) :=
-  acceptance predicates evaluate successfully
-  against compatible, fresh evidence
+  exists an admitted frontier F, with I = F.integration_candidate
+  where candidate(a) is in transitive_parent_candidates(I)
+  and for every required verifier v in manifest(a):
+      if an EvidenceInherited event records v for (I, candidate(a))
+        then FreshPass(v, candidate(a))
+        else FreshPass(v, I)
 ```
+<!-- END SATISFIED-DEF -->
 
-The UI may display `PLANNED`, `BLOCKED`, `READY`, `RUNNING`, `VERIFYING`, `SATISFIED`, or `ABANDONED`, but these are projections over underlying facts wherever feasible.
+`Satisfied` is a property of the **admitted frontier**, not of a candidate. An Atom is Satisfied
+when its Candidate was admitted into the accepted frontier as part of an `IntegrationCandidate`
+whose integration verification discharged that Atom's verifier manifest, and no invalidation
+event has since fired. A candidate that passed every verifier in a workspace and was never
+admitted has established nothing about the project's accepted state, and MUST NOT unblock a
+dependent — because a dependent's execution base is a frontier state, and an unadmitted candidate
+is in no frontier state.
+
+The UI may display `PLANNED`, `BLOCKED`, `READY`, `RUNNING`, `VERIFYING`, `SATISFIED`, or
+`ABANDONED`, but these are projections over the canonical event log.
 
 ## 7. Evidence freshness
 
 Verification must be bound to the exact thing verified.
 
-Define a conceptual fingerprint:
+The fingerprint is:
 
 ```text
-Fingerprint(a) = H(
-  spec_revision
-  || exact_code_state
-  || declared_inputs
-  || resolved_dependencies
-  || relevant_environment
-  || verifier_definition
+Fingerprint(s, v) = H(
+  canonicalization_scheme
+  || spec_revision(s)
+  || s.exact_state_id
+  || input_digest(s)
+  || dependency_digest(s)
+  || environment_digest(s, v)
+  || verifier_digest(v)
 )
 ```
+
+Seven components, one per `EvidenceBinding` field. Normative definition:
+[`algorithms/evidence-and-admission.md` `### The fingerprint`](algorithms/evidence-and-admission.md#the-fingerprint).
 
 Evidence is compatible only when its subject fingerprint matches the state under evaluation.
 
@@ -438,19 +452,19 @@ The worker can destroy its own hypothesis. It cannot redefine accepted reality.
 
 ## 16. Admission rule
 
-A candidate code state `c` may be admitted to the accepted frontier only when all required conditions hold.
+An `IntegrationCandidate` may be admitted to the accepted frontier only when every conjunct of
+the admission witness holds. The witness is defined once, normatively, in
+[`algorithms/evidence-and-admission.md` `### The admission conjuncts, defined`](algorithms/evidence-and-admission.md#the-admission-conjuncts-defined),
+and the protocol that evaluates and commits it in
+[`### The algorithm`](algorithms/evidence-and-admission.md#the-algorithm). This document
+deliberately restates no conjunct list: a fourth informal copy is how the four existing copies
+came to disagree.
 
-Conceptually:
-
-```text
-Accept(c) iff
-  current_trunk is an ancestor of or explicitly reconciled into c
-  and c contains no unresolved structural conflict
-  and every required verifier passes
-  and all evidence is bound to the exact candidate identity
-  and evidence remains fresh for the current specification and inputs
-  and the actor performing admission has coordinator authority
-```
+Architecturally, the shape is what matters. Admission is a compare-and-swap on the canonical event
+log rather than a write to a source bookmark; the bookmark and the published frontier are
+projections of the log; and the conjuncts range over reconciliation with the current frontier,
+conflict freedom, verifier-manifest completeness, verification results, evidence binding,
+freshness, provenance, lease fencing at freeze, and coordinator authority.
 
 Notably, “the LLM says it is done” is not part of this predicate.
 
@@ -531,3 +545,10 @@ The emerging system is best summarized as:
 > **Mission Graph + MVCC-style coordination + Jujutsu change DAG + scheduler + provenance/evidence system + capability-gated acceptance.**
 
 The result should behave less like a project-management board and more like a verifiable engineering control plane.
+
+## 20. Crate layout
+
+See [`implementation/crate-map.md`](implementation/crate-map.md) for the authoritative table of
+crates, permitted dependency directions, and owning issues. This document previously contained no
+occurrence of the word "crate", so the "declared architecture direction" that `AGENTS.md` requires
+agents to follow did not exist.

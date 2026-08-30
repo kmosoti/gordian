@@ -74,9 +74,9 @@ EOF
 fi
 
 if [[ ! -d .jj ]]; then
-  cat >&2 <<'EOF'
-current directory is not an existing Jujutsu repository (.jj is missing)
-refusing to initialize automatically; cd to ~/projects/project-management-tools/gordian
+  cat >&2 <<EOF
+current directory ($PWD) is not an existing Jujutsu repository (.jj is missing)
+refusing to initialize automatically; cd to the Gordian repository root and rerun
 EOF
   exit 1
 fi

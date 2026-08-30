@@ -1,8 +1,17 @@
 # Jujutsu Development Environment
 
-Gordian uses Jujutsu as its preferred development and candidate-source substrate, subject to the Git comparison experiment in issue #34. The local Codex environment reported `jj 0.23.0`. That release predates `jj run` and several configuration/identity behaviors the Gordian protocol intends to exercise.
+Gordian uses Jujutsu as its preferred development and candidate-source substrate, subject to the
+Git comparison experiment in issue #34. Jujutsu is one implementation of the adapter-neutral
+[`source-adapter-contract.md`](source-adapter-contract.md); the semantics it serves are stated
+there and in [`jujutsu-agent-protocol.md`](jujutsu-agent-protocol.md), not here.
 
-As of 2026-08-29, the latest released Jujutsu documented upstream is `0.44.0`; `jj run` arrived in `0.43.0`. Gordian therefore treats `0.44.0` as the current **candidate qualification baseline**, not an eternally supported version. Issue #1 must prove the required behaviors through disposable-repository contract tests before the adapter declares support.
+The pinned candidate release is `DEFAULT_JJ_VERSION` in
+[`scripts/bootstrap-jj.sh`](../../scripts/bootstrap-jj.sh), which is the **single source** of the
+baseline; this document deliberately does not restate a version number that could drift from it.
+At the time of writing that value is the current upstream release (`jj run` arrived in `0.43.0`,
+and the measured local toolchain on 2026-08-30 matched the pin). It is a **candidate
+qualification baseline**, not an eternally supported version: issue #1 must prove the required
+behaviors through disposable-repository contract tests before the adapter declares support.
 
 ## 1. Why Gordian needs a qualified baseline
 
@@ -23,13 +32,7 @@ Required behaviors include:
 
 Gordian must not infer support merely from a version comparison. The version gate prevents obviously unsupported installations; the contract suite establishes behavioral support.
 
-## 2. Repository assumptions
-
-Local repository location reported for Codex:
-
-```text
-~/projects/project-management-tools/gordian
-```
+## 2. Obtaining a checkout
 
 Canonical remote:
 
@@ -37,7 +40,22 @@ Canonical remote:
 https://github.com/kmosoti/gordian
 ```
 
-The bootstrap script assumes the local checkout is already a Jujutsu repository. It intentionally does not initialize or overwrite an unrelated directory.
+A fresh agent with no existing checkout acquires one and configures it in a single sequence,
+which contains no personal absolute path and no interactive step:
+
+```bash
+jj git clone https://github.com/kmosoti/gordian
+cd gordian
+bash scripts/bootstrap-jj.sh --install
+```
+
+`jj git clone` creates the `origin` remote with that URL, so the bootstrap's remote check passes
+without adding anything. The end-to-end agent loop that this sequence is the first step of is
+[`../implementation/agent-runbook.md`](../implementation/agent-runbook.md).
+
+The bootstrap script assumes the current directory is already a Jujutsu repository. It
+intentionally does not initialize or overwrite an unrelated directory, so it must be run from the
+root of the clone.
 
 ## 3. Bootstrap
 
@@ -57,7 +75,8 @@ The script:
 6. tracks `main@origin`;
 7. configures fetch/push defaults;
 8. defines `trunk()` as `main@origin` through supported `jj config set --repo` commands;
-9. verifies `jj run` and exact remote-trunk resolution;
+9. checks that the `jj run` subcommand is registered (not a behavioral contract test; see
+   section 9 / issue #1) and resolves `trunk()`;
 10. never pushes, rewrites, rebases, abandons, or promotes code.
 
 Run without `--install` for a read/configure-only check:
@@ -66,13 +85,14 @@ Run without `--install` for a read/configure-only check:
 ./scripts/bootstrap-jj.sh
 ```
 
-Override the candidate release only for qualification work:
+Override the candidate release only for qualification work, by naming the release under test:
 
 ```bash
-JJ_REQUIRED_VERSION=0.44.0 ./scripts/bootstrap-jj.sh --install
+JJ_REQUIRED_VERSION="$JJ_CANDIDATE" ./scripts/bootstrap-jj.sh --install
 ```
 
-Any changed release must be recorded in contract-test evidence and the supported-baseline decision.
+Any changed release must be recorded in contract-test evidence and the supported-baseline
+decision, and `DEFAULT_JJ_VERSION` in the script is what changes when the baseline moves.
 
 ## 4. Identity configuration
 
@@ -96,7 +116,7 @@ jj config set --user user.email "you@example.com"
 
 The bootstrap sets repository-scoped values using the CLI rather than committing `.jj/repo/config.toml`. Current Jujutsu stores repository/workspace configuration outside the repository metadata location that older versions used.
 
-Conceptually:
+The resulting repository-scoped values are:
 
 ```toml
 [git]
@@ -117,29 +137,74 @@ Do not create a permanent `develop` bookmark.
 trunk() == main@origin
 ```
 
-`main` is the public accepted/releasable source frontier. It is not the worker scratchpad and not proof of what is deployed.
+is a **projection** of `project(H).accepted_frontier`, not the accepted frontier itself. When the
+bookmark and the event log disagree, the log wins: the coordinator appends
+`FrontierDivergenceObserved { expected, observed, source }` and re-drives the bookmark
+([`../spec/invariants.md` `## Accepted-frontier linearization`](../spec/invariants.md#accepted-frontier-linearization)).
+
+A local `trunk()` that has drifted is therefore an operational fact to be recorded and repaired,
+never a reason to move the frontier. Three representations existed — the revset alias, the remote
+bookmark, and the `accepted_frontier` projection — and no document said which was authoritative or
+how they were reconciled at startup.
+
+`main` is the public accepted/releasable source frontier. It is not the worker scratchpad and not
+proof of what is deployed. Moving it is the landing sequence of [`landing.md`](landing.md), which
+only an actor holding `move_accepted_frontier` may run.
 
 ### One Atom attempt, one workspace, one normal-path writer
 
-Conceptual command:
+An agent starting Atom `#N` runs exactly this, from the root of the clone. It is executable as
+written once the four environment variables are set; the actor string is the
+`gordian-agent/<harness>/<run-id>` identity of the runbook.
 
 ```bash
-jj workspace add ../gordian-worker-<attempt> \
-  --name worker-<attempt> \
-  -r <exact-base-commit>
+export GORDIAN_ATOM=42
+export GORDIAN_ACTOR="gordian-agent/claude-code/run-882"
+export GORDIAN_ACTOR_SLUG="$(printf '%s' "$GORDIAN_ACTOR" | tr '/' '-')"
+export GORDIAN_WORKSPACE_ROOT="${GORDIAN_WORKSPACE_ROOT:-$PWD/../gordian-workspaces}"
+
+mkdir -p "$GORDIAN_WORKSPACE_ROOT"
+jj workspace add "$GORDIAN_WORKSPACE_ROOT/atom-$GORDIAN_ATOM-$GORDIAN_ACTOR_SLUG" \
+  --name "atom-$GORDIAN_ATOM-$GORDIAN_ACTOR_SLUG" \
+  -r 'trunk()'
+
+cd "$GORDIAN_WORKSPACE_ROOT/atom-$GORDIAN_ATOM-$GORDIAN_ACTOR_SLUG"
+jj describe -m "Atom: #$GORDIAN_ATOM
+
+Gordian-Actor: $GORDIAN_ACTOR"
+
+# ... implement and run the Atom's verifier manifest here ...
+
+jj bookmark create "gordian/atom-$GORDIAN_ATOM/$GORDIAN_ACTOR_SLUG" -r @
+jj git push --bookmark "gordian/atom-$GORDIAN_ATOM/$GORDIAN_ACTOR_SLUG" --allow-new
 ```
+
+The bookmark naming rule is `gordian/atom-<N>/<actor-slug>`, where `<actor-slug>` is the actor
+string with `/` replaced by `-`. Every bookmark an agent creates lives under the `gordian/`
+namespace; `main` is never in it. Pushing such a bookmark is the adapter's `stage` operation
+([`source-adapter-contract.md`](source-adapter-contract.md)): it makes the exact state fetchable
+by an external verifier, it is garbage-collectable, and it implies nothing about admission.
+
+Each agent works in its own added workspace and must **never edit the default workspace**, which
+belongs to whoever cloned the repository and is not an execution container.
+
+`-r 'trunk()'` is the base only when the Atom has no unsatisfied hard dependency. When it has
+one, the coordinator supplies an exact `PrerequisiteContaining` base instead, per
+[`jujutsu-agent-protocol.md` `## 5. Snapshot rule`](jujutsu-agent-protocol.md#5-snapshot-rule);
+substitute that state id for `trunk()` in the `jj workspace add` invocation.
 
 Each active attempt receives:
 
 ```text
 Atom/spec revision
-exact base commit
-workspace identity
-logical change ID
-owner lease/capability envelope
+exact base state (exact_state_id)
+workspace identity (workspace_id)
+logical change identity (logical_change_id)
+owner lease/capability envelope (LeaseSubject::LogicalChange, fencing_token)
 ```
 
-Two speculative attempts for the same Atom receive distinct change IDs from the same base. Two workers do not intentionally rewrite one change ID.
+Two speculative attempts for the same Atom receive distinct logical change identities from the
+same base. Two workers do not intentionally rewrite one logical change.
 
 ### Causality, not chronology
 
@@ -153,12 +218,19 @@ A worker hands off:
 Atom identity
 specification revision
 attempt identity
-base commit ID
-Jujutsu change ID
-exact candidate commit ID
+base_exact_state_id
+logical_change_id
+exact_state_id
+fencing_token
 ```
 
-Verification binds to the exact commit ID. Any rewrite creates a new candidate and invalidates candidate-bound evidence even when the logical change ID survives.
+Jujutsu adapter: `logical_change_id` = change ID, `exact_state_id` = commit ID; a Git adapter
+synthesizes the change identity and uses the commit SHA. The canonical record is
+[`../spec/data-model.md` `## Candidate`](../spec/data-model.md#candidate).
+
+Verification binds to the `exact_state_id`. Any rewrite creates a new candidate and invalidates
+candidate-bound evidence even when the `logical_change_id` survives. The `fencing_token` is
+carried so admission can check `LeaseValidAtFreeze`.
 
 ## 7. Read-only exact-revision verification
 
@@ -178,7 +250,13 @@ Ignored files may persist in temporary working copies for incremental builds. Qu
 
 ## 8. Remote setup without implicit publication
 
-The bootstrap adds/fetches `origin`, but never pushes. Publication remains an explicit coordinator/human action.
+The bootstrap adds and fetches `origin` but never pushes. Publication is an operation of an actor
+holding the `move_accepted_frontier` capability, performed through the source adapter's
+`move_frontier` and the landing sequence of [`landing.md`](landing.md). That actor may be a
+software agent; no human step is required.
+
+A worker pushing a `gordian/`-namespaced staging bookmark is not publication: it moves no
+frontier. Only `main` is the published frontier projection.
 
 Inspect:
 
@@ -213,7 +291,8 @@ Issue #1 should build disposable repositories and test:
 9. tag fetch/push behavior needed for releases;
 10. `jj run` exact-revision isolation, bounded parallelism, failure behavior, and `--ignore-changes` semantics;
 11. machine-readable template/revset outputs used by the Rust adapter;
-12. migration from the reported `0.23.0` local repository without source loss.
+12. migration of a fixture repository created by the `0.23.0` release that the project's first
+    local environment historically ran, without source loss.
 
 The suite records:
 

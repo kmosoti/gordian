@@ -7,7 +7,7 @@ The studies below do **not** prove Gordian. They help constrain which architectu
 ## 1. CAID — dependency-aware isolated delegation
 
 **Paper:** Geng & Neubig, *Effective Strategies for Asynchronous Software Engineering Agents*  
-**arXiv:** https://arxiv.org/abs/2603.21489
+**arXiv:** https://arxiv.org/abs/2603.21489v2 (retrieved 2026-08-30)
 
 ### Reported mechanism
 
@@ -23,14 +23,16 @@ executable test-based verification
 
 ### Current headline result
 
-The current arXiv abstract reports improvements over single-agent baselines of:
+The submission history holds exactly two versions, and the current one is v2:
 
 ```text
-PaperBench: +26.7 absolute
-Commit0:    +14.3 absolute
+arXiv:2603.21489v1  23 Mar 2026  +26.7 PaperBench  +14.3 Commit0   superseded
+arXiv:2603.21489v2   8 Jul 2026  +25.6 PaperBench  +14.7 Commit0   current, retrieved 2026-08-30
 ```
 
-The earlier research note used to bootstrap Gordian contained different values (+25.6 / +14.7). Because the public source has changed, Gordian records this as source-version drift rather than silently treating both as identical.
+The cited improvements over single-agent baselines are therefore **+25.6 absolute on PaperBench** and **+14.7 absolute on Commit0**, from v2.
+
+This document previously presented the v1 figures as current and the v2 figures as an earlier research note, which inverted the very drift the record exists to capture; the correction is G-105. Because the public source changed, Gordian keeps both rows rather than silently treating them as identical: `source:caid` pins v2, and `sourcerev:caid-v1` / `sourcerev:caid-v2` hold the two revisions. The same two-row ledger appears in [`methodology.md`](methodology.md) section 4 and [`evidence-synthesis.md`](evidence-synthesis.md) section 2.1.
 
 ### Gordian inference
 

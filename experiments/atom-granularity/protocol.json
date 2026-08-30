@@ -1,0 +1,128 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "atom-granularity",
+  "class": "agent-trial",
+  "issue": 51,
+  "hypothesis": {
+    "h0": "The atom-quark decomposition does not lower wall-clock time to Mission satisfaction against the coarse baseline at a fixed token and tool budget.",
+    "h1": "The atom-quark decomposition lowers median wall-clock time to Mission satisfaction by at least 15% relative to the coarse baseline at a fixed token and tool budget."
+  },
+  "falsification": "atom-quark is retained only if its median wall-clock to Mission satisfaction is at least 15% below the coarse baseline over 150 trials per condition (30 workload items x 5 seeds), with the 95% BCa interval on the paired Hodges-Lehmann shift excluding zero. Below 15%, Quark is removed as a first-class concept and Atom decomposition is flattened. If fine beats atom-quark by 15% or more on the same measurement, the global scheduling boundary moves down to the Quark-like primitive.",
+  "conditions": [
+    {
+      "id": "coarse",
+      "description": "Initiative -> large work units"
+    },
+    {
+      "id": "atom-quark",
+      "description": "Initiative -> Atom -> local Quarks"
+    },
+    {
+      "id": "fine",
+      "description": "Quark-like primitives scheduled globally"
+    }
+  ],
+  "baseline_condition": "coarse",
+  "population": {
+    "workloads": [
+      "30 repository-level Missions from the Gordian workload corpus"
+    ],
+    "sampling": "paired on the workload item; the three conditions run in randomized order within each item",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "metrics": [
+    {
+      "id": "wall_clock_to_satisfaction",
+      "unit": "seconds",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "planner_token_cost",
+      "unit": "tokens",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "graph_node_count",
+      "unit": "nodes",
+      "direction": "neutral"
+    },
+    {
+      "id": "critical_path_length",
+      "unit": "nodes",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "parallelism_exposed",
+      "unit": "concurrent_atoms",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "coordination_events",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "dependency_promotions",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "integration_failures",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "replans",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "verification_cost",
+      "unit": "seconds",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "human_comprehensibility_rating",
+      "unit": "likert_1_5",
+      "direction": "higher_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "wall_clock_to_satisfaction",
+    "effect_size": {
+      "measure": "paired Hodges-Lehmann shift, expressed as a relative reduction versus coarse",
+      "minimum_relevant": 0.15,
+      "unit": "relative reduction"
+    },
+    "min_n": 150,
+    "multiplicity": "holm",
+    "uncertainty": "BCa bootstrap 95% CI, 10000 resamples, resampling seed recorded",
+    "stopping_rule": "fixed_n"
+  },
+  "exclusion_rule": "A trial is excluded when the harness crashes before the first dispatch, when the model endpoint returns a transport error on more than 10% of the calls in that trial, or when the workload item's fixture repository fails its own pre-flight test. Excluded trials are retained with their reason and counted in the report. The rule is applied by script before the primary metric is inspected and never by judgement.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/transcript.jsonl",
+    "runs/<run-id>/raw/mission-graph.json"
+  ],
+  "threats": [
+    "planner prompt tuning applied to one decomposition only; controlled by the equal per-arm tuning budget of statistical-contract.md section 3",
+    "workload corpus skew toward decomposable Missions"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

@@ -75,7 +75,7 @@ Independent checking reduces implementation-risk in the primary checker but does
 
 ## 4. The current theorem strategy
 
-The v0 formal model intentionally focuses on propositions that are both important and crisp.
+The current formal model intentionally focuses on propositions that are both important and crisp.
 
 ### Graph structure
 
@@ -85,7 +85,7 @@ This theorem does **not** prove that every arbitrary graph can be ranked. Instea
 
 ### Abstraction boundary
 
-Prove that the v0 global hard-dependency target predicate excludes Quarks.
+Prove that the global hard-dependency target predicate defined by the Mission Graph Specification excludes Quarks.
 
 This proves the policy encoding, not that Atom/Quark is the optimal abstraction.
 

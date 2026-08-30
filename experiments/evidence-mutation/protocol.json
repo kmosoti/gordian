@@ -1,0 +1,118 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "evidence-mutation",
+  "class": "fault-injection",
+  "hypothesis": {
+    "h0": "Evidence bound to a mutated fingerprint component can still satisfy current compatibility.",
+    "h1": "Every single-component fingerprint mutation causes the compatibility check to fail closed."
+  },
+  "falsification": "The freshness and compatibility rules are refuted by a single run in which evidence bound to a mutated fingerprint component satisfies current compatibility. The gate is a fail-closed rate of 1.0 with zero observed failures over 20 seeds per enumerated mutation (6 mutations x 20 seeds = 120 runs). The Clopper-Pearson 95% interval is reported so the residual uncertainty at n = 20 stays visible; it does not license a nonzero failure rate.",
+  "conditions": [
+    {
+      "id": "unmutated",
+      "description": "verified candidate with an intact fingerprint; the control"
+    },
+    {
+      "id": "mutated",
+      "description": "verified candidate with exactly one fingerprint component mutated"
+    }
+  ],
+  "baseline_condition": "unmutated",
+  "population": {
+    "workloads": [
+      "one verified candidate fixture per enumerated mutation"
+    ],
+    "sampling": "enumerated fault x seed grid; every mutation receives every seed",
+    "strata": [
+      {
+        "id": "commit",
+        "boundary": "exact_source_commit mutated"
+      },
+      {
+        "id": "spec",
+        "boundary": "specification_revision mutated"
+      },
+      {
+        "id": "input",
+        "boundary": "input/artifact digest mutated"
+      },
+      {
+        "id": "resolved-dependency",
+        "boundary": "resolved_dependencies digest mutated"
+      },
+      {
+        "id": "environment",
+        "boundary": "environment/toolchain digest mutated"
+      },
+      {
+        "id": "verifier",
+        "boundary": "verifier identity or version mutated"
+      }
+    ],
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ]
+  },
+  "metrics": [
+    {
+      "id": "fail_closed_rate",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "detection_latency",
+      "unit": "milliseconds",
+      "direction": "lower_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "fail_closed_rate",
+    "effect_size": {
+      "measure": "exact proportion",
+      "minimum_relevant": 1.0,
+      "unit": "fail-closed rate; zero observed failures required"
+    },
+    "min_n": 20,
+    "multiplicity": "none",
+    "uncertainty": "Clopper-Pearson 95% interval",
+    "stopping_rule": "fixed grid; any observed failure stops the run and files a defect"
+  },
+  "exclusion_rule": "A run is excluded only when the fault injector itself fails to inject the enumerated fault, verified from the injector log. A run in which the fault was injected and the system did not fail closed is a failure, never an exclusion.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/injector.log",
+    "runs/<run-id>/raw/evidence.json"
+  ],
+  "threats": [
+    "a mutation that the canonicalization scheme normalizes away, masking a real gap; each mutation asserts a changed fingerprint digest before the compatibility check runs"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

@@ -1,0 +1,110 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "jj-vs-git",
+  "class": "agent-trial",
+  "issue": 34,
+  "hypothesis": {
+    "h0": "The Jujutsu source adapter does not raise the operator-intervention-free completion rate above the Git-worktree adapter.",
+    "h1": "The Jujutsu adapter raises the operator-intervention-free completion rate by at least 10 percentage points over the Git-worktree adapter."
+  },
+  "falsification": "Jujutsu becomes a hard platform dependency only if its operator-intervention-free completion rate exceeds the Git-worktree arm's by at least 10 percentage points over 150 trials per arm (30 workload items x 5 seeds), with the 95% BCa interval on the paired difference in proportions excluding zero. Below 10 percentage points the source plane stays behind the adapter trait with both implementations supported, and no Gordian component may name a Jujutsu concept directly.",
+  "conditions": [
+    {
+      "id": "git",
+      "description": "Git worktree source adapter, delivered by issue 76"
+    },
+    {
+      "id": "jj",
+      "description": "Jujutsu source adapter, delivered by issue 29"
+    }
+  ],
+  "baseline_condition": "git",
+  "population": {
+    "workloads": [
+      "30 repository-level Missions from the Gordian workload corpus"
+    ],
+    "sampling": "paired on the workload item; Mission Graph, scheduler, agent models, workload, verification and coordination protocol held fixed; both arms driven through the single SourceAdapter trait of docs/protocols/source-adapter-contract.md",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "metrics": [
+    {
+      "id": "intervention_free_completion_rate",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "orchestrator_loc",
+      "unit": "lines",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "orchestrator_state_transitions",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "identity_bookkeeping_failures",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "recovery_effort",
+      "unit": "seconds",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "concurrent_operation_failures",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "evidence_invalidation_mistakes",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "integration_operations",
+      "unit": "count",
+      "direction": "lower_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "intervention_free_completion_rate",
+    "effect_size": {
+      "measure": "paired difference in proportions on the workload item",
+      "minimum_relevant": 0.1,
+      "unit": "percentage points, expressed as a proportion"
+    },
+    "min_n": 150,
+    "multiplicity": "holm",
+    "uncertainty": "BCa bootstrap 95% CI, 10000 resamples, resampling seed recorded",
+    "stopping_rule": "fixed_n"
+  },
+  "exclusion_rule": "A trial is excluded when the harness crashes before the first dispatch, when the model endpoint returns a transport error on more than 10% of the calls in that trial, or when the workload item's fixture repository fails its own pre-flight test. Excluded trials are retained with their reason and counted in the report. The rule is applied by script before the primary metric is inspected and never by judgement.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/transcript.jsonl",
+    "runs/<run-id>/raw/tokei.json"
+  ],
+  "threats": [
+    "the primary metric must not be implementer-authored; it is emitted by the harness, and orchestrator_loc and orchestrator_state_transitions are secondary and counted only by tokei 12.1.2 with the invocation recorded in metric_tooling",
+    "asymmetric tuning between adapters; controlled by the equal per-arm budget of 40 person-hours and 20000000 agent tokens",
+    "LLM nondeterminism; controlled by temperature 0.0 and the fixed seed list [1,2,3,4,5]"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

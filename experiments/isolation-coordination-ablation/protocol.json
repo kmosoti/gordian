@@ -1,0 +1,118 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "isolation-coordination-ablation",
+  "class": "agent-trial",
+  "issue": 39,
+  "hypothesis": {
+    "h0": "Adding semantic claims and signals (condition D) does not raise success at fixed budget above shared task state (condition C).",
+    "h1": "Condition D raises success at fixed budget by at least 10 percentage points over condition C."
+  },
+  "falsification": "The semantic coordination layer of condition D is retained only if D's success at fixed budget exceeds C's by at least 10 percentage points over 30 repository tasks x 5 seeds = 150 trials per cell, analysed as a paired difference in proportions on the workload item with a BCa bootstrap 95% interval whose lower bound stays above zero. Below 10 percentage points, the layer is not expanded and C's shared task state becomes the shipped coordination plane. If B matches C within the same 10-point band, shared task state is dropped as well.",
+  "conditions": [
+    {
+      "id": "A",
+      "description": "solo worker"
+    },
+    {
+      "id": "B",
+      "description": "isolated parallel workers, merge at end"
+    },
+    {
+      "id": "C",
+      "description": "isolated workers plus shared task state"
+    },
+    {
+      "id": "D",
+      "description": "isolated workers plus semantic claims and signals"
+    }
+  ],
+  "baseline_condition": "C",
+  "population": {
+    "workloads": [
+      "30 repository tasks from the Gordian workload corpus"
+    ],
+    "sampling": "paired on the workload item; conditions in randomized order; model, budget, verifier and trial policy held fixed",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "metrics": [
+    {
+      "id": "success_at_fixed_budget",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "abandonment",
+      "unit": "proportion",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "integration_conflicts",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "repair_attempts",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "wall_clock",
+      "unit": "seconds",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "model_tool_cost",
+      "unit": "usd",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "verification_failures",
+      "unit": "count",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "run_to_run_variance",
+      "unit": "proportion",
+      "direction": "lower_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "success_at_fixed_budget",
+    "effect_size": {
+      "measure": "paired difference in proportions on the workload item",
+      "minimum_relevant": 0.1,
+      "unit": "percentage points, expressed as a proportion"
+    },
+    "min_n": 150,
+    "multiplicity": "holm",
+    "uncertainty": "BCa bootstrap 95% CI, 10000 resamples, resampling seed recorded",
+    "stopping_rule": "fixed_n"
+  },
+  "exclusion_rule": "A trial is excluded when the harness crashes before the first dispatch, when the model endpoint returns a transport error on more than 10% of the calls in that trial, or when the workload item's fixture repository fails its own pre-flight test. Excluded trials are retained with their reason and counted in the report. The rule is applied by script before the primary metric is inspected and never by judgement.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/transcript.jsonl",
+    "runs/<run-id>/raw/coordination-events.jsonl"
+  ],
+  "threats": [
+    "asymmetric tuning of condition D; controlled by the equal per-arm budget of 40 person-hours and 20000000 agent tokens",
+    "LLM run-to-run nondeterminism; controlled by temperature 0.0 and the fixed seed list [1,2,3,4,5]",
+    "verifier strength drifting between conditions; the verifier is pinned for the whole grid"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}

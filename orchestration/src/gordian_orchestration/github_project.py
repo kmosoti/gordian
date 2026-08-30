@@ -3,18 +3,23 @@
 This module is deliberately orchestration-only. It invokes the authenticated GitHub
 CLI and does not own Mission Graph, Atom, dependency, readiness, or satisfaction
 semantics.
+
+Derived board fields are not written here. `gordian-derive-status` owns Wave, Fan In,
+Fan Out and Status; this command owns membership only.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from . import provenance
+from .gh import GH_AUTH_HINT, run_gh
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,33 +57,30 @@ class ReconciliationReport:
     failed_urls: tuple[str, ...]
     remaining_after: tuple[str, ...]
     dry_run: bool
+    generated_at: str
+    source_change_id: str
+    source_commit_id: str
+    tool_versions: dict[str, str]
 
     @property
     def converged(self) -> bool:
         return not self.remaining_after and not self.failed_urls
 
     def as_json_object(self) -> dict[str, Any]:
+        """Emit the report with its source and environment identity.
+
+        A reconciliation report that cannot say which working copy and which tool
+        versions produced it is not evidence, only an assertion.
+        """
         return {**asdict(self), "converged": self.converged}
 
 
 def _run_gh(arguments: list[str]) -> str:
     """Run GitHub CLI without a shell and return stdout.
 
-    Authentication and the `project` token scope remain the user's local concern.
-    The raised error preserves stderr while avoiding command-string interpolation.
+    An unattended agent authenticates by exporting `GH_TOKEN`; see `gh.GH_AUTH_HINT`.
     """
-
-    completed = subprocess.run(
-        ["gh", *arguments],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode != 0:
-        stderr = completed.stderr.strip() or "GitHub CLI command failed"
-        command = "gh " + " ".join(arguments[:3])
-        raise RuntimeError(f"{command}: {stderr}")
-    return completed.stdout
+    return run_gh(arguments)
 
 
 def _json(arguments: list[str]) -> Any:
@@ -165,9 +167,12 @@ def _missing(issue_urls: set[str], items: list[ProjectItemRef]) -> tuple[str, ..
     return tuple(sorted(issue_urls - {item.url for item in items}))
 
 
-def reconcile(config: Config) -> ReconciliationReport:
-    # This is also a token-scope and project-existence check. The GitHub CLI's
-    # documented remediation is `gh auth refresh -s project`.
+def reconcile(
+    config: Config, *, stamp: provenance.Provenance | None = None
+) -> ReconciliationReport:
+    # This is also a token-scope and project-existence check. The non-interactive
+    # remediation is a classic personal access token with the `repo` and `project`
+    # scopes in `GH_TOKEN`; `gh auth refresh -s project` is the interactive one.
     _run_gh(
         [
             "project",
@@ -214,6 +219,7 @@ def reconcile(config: Config) -> ReconciliationReport:
     else:
         remaining_after = missing_before
 
+    stamp = stamp or provenance.collect()
     return ReconciliationReport(
         owner=config.owner,
         repository=config.repository,
@@ -226,6 +232,10 @@ def reconcile(config: Config) -> ReconciliationReport:
         failed_urls=tuple(failed),
         remaining_after=remaining_after,
         dry_run=config.dry_run,
+        generated_at=stamp.generated_at,
+        source_change_id=stamp.source_change_id,
+        source_commit_id=stamp.source_commit_id,
+        tool_versions=stamp.tool_versions,
     )
 
 
@@ -259,10 +269,7 @@ def main() -> int:
         report = reconcile(config)
     except (OSError, RuntimeError) as error:
         print(str(error), file=sys.stderr)
-        print(
-            "Verify `gh` authentication and run `gh auth refresh -s project` when needed.",
-            file=sys.stderr,
-        )
+        print(GH_AUTH_HINT, file=sys.stderr)
         return 2
 
     encoded = json.dumps(report.as_json_object(), indent=2, sort_keys=True)

@@ -8,17 +8,21 @@ Gordian's documentation separates **specified semantics**, **formal propositions
 2. [`spec/mission-graph.md`](spec/mission-graph.md) defines the normative Mission Graph semantics.
 3. [`spec/data-model.md`](spec/data-model.md) defines storage-independent identities and canonical records.
 4. [`spec/invariants.md`](spec/invariants.md) defines safety properties and verification boundaries.
-5. [`implementation/project-plan.md`](implementation/project-plan.md) defines the end-to-end Initiative and Atom scope.
-6. [`implementation/execution-order.md`](implementation/execution-order.md) defines the causal implementation spine, parallel work, gates, experiment decisions, and performance qualification.
-7. [`implementation/issue-index.md`](implementation/issue-index.md) maps the current 75 temporary GitHub Atoms into Initiatives without treating issue state as completion evidence.
-8. [`protocols/jujutsu-agent-protocol.md`](protocols/jujutsu-agent-protocol.md) binds Mission Atoms to source execution and exact candidates.
-9. [`protocols/jujutsu-development-environment.md`](protocols/jujutsu-development-environment.md) qualifies and bootstraps the local Jujutsu environment.
-10. [`knowledge-graph.md`](knowledge-graph.md) explains the executable research graph and Rust traversal tooling.
+5. [`implementation/project-plan.md`](implementation/project-plan.md) carries the **normative Mission acceptance table** and a derived view of the Initiative and Atom scope. The executable Atom contracts are the GitHub issue bodies, not this document.
+6. [`implementation/execution-order.md`](implementation/execution-order.md) defines the causal implementation spine, the kernel-start gate, phase concurrency, the minimal self-hosting prerequisite set, experiment decisions, and performance qualification.
+7. [`implementation/issue-index.md`](implementation/issue-index.md) maps the temporary GitHub Atoms into the 14 Initiatives, defines the bootstrap satisfaction rule, and defines the derived board fields — without treating issue state as completion evidence.
+8. [`implementation/agent-runbook.md`](implementation/agent-runbook.md) is the loop an autonomous agent executes: acquiring the repository and toolchain, deriving readiness with `gordian-derive-status ready`, claiming, the workspace and its exact base, verification, landing, the closure record, the board recompute, the knowledge-graph update, and the Mission stop condition.
+9. [`implementation/crate-map.md`](implementation/crate-map.md) decides which crate each Rust Atom writes into and what that crate may depend on.
+10. [`protocols/source-adapter-contract.md`](protocols/source-adapter-contract.md) is the adapter-neutral source-plane trait; Jujutsu and Git are two realizations of it.
+11. [`protocols/jujutsu-agent-protocol.md`](protocols/jujutsu-agent-protocol.md) binds Mission Atoms to source execution and exact candidates.
+12. [`protocols/jujutsu-development-environment.md`](protocols/jujutsu-development-environment.md) qualifies and bootstraps the local Jujutsu environment.
+13. [`protocols/landing.md`](protocols/landing.md) defines how an admitted integration candidate reaches the shared remote, and who may do it.
+14. [`knowledge-graph.md`](knowledge-graph.md) explains the executable research graph and Rust traversal tooling.
 
 ## Algorithms
 
 - [`algorithms/scheduling.md`](algorithms/scheduling.md) covers DAG readiness, critical path, resource matching, semantic conflict prediction, leases, and scheduling policies.
-- [`algorithms/evidence-and-admission.md`](algorithms/evidence-and-admission.md) covers exact-subject fingerprints, stale-evidence rejection, integration, and accepted-frontier promotion.
+- [`algorithms/evidence-and-admission.md`](algorithms/evidence-and-admission.md) covers exact-subject fingerprints, stale-evidence rejection, integration, and accepted-frontier promotion. **It carries the normative admission predicate**: the algorithm at [`#the-algorithm`](algorithms/evidence-and-admission.md#the-algorithm), whose conjuncts are defined at [`#the-admission-conjuncts-defined`](algorithms/evidence-and-admission.md#the-admission-conjuncts-defined). `spec/mission-graph.md` names the conjuncts; it does not define admission.
 - [`algorithms/reconciliation.md`](algorithms/reconciliation.md) covers deterministic projection, desired-versus-observed delta, repair, and replanning.
 
 ## Research and acquisition
@@ -44,11 +48,13 @@ cd formal
 lake build
 ```
 
-CI also invokes an independent checker with `sorry` disallowed and audits the compiled environment for disallowed axioms. A theorem is machine checked only for the exact declaration, assumptions, formal sources, toolchain, and successful checker evidence.
+CI re-checks the compiled environment with an independent checker and runs an **axiom audit**. The audit is what rejects `sorryAx` and any non-allowlisted axiom; the independent checker re-verifies the environment rather than policing `sorry`. A theorem is machine checked only for the exact declaration, assumptions, formal sources, toolchain, and successful checker evidence.
 
 ## Validation and experiments
 
 - [`testing/falsification-plan.md`](testing/falsification-plan.md) defines the architecture-ablation and fault-injection program.
+- [`testing/statistical-contract.md`](testing/statistical-contract.md) fixes the analysis design per experiment class, so no manifest chooses its own statistics after the fact.
+- [`formal/conformance-vectors.md`](formal/conformance-vectors.md) defines the Lean/Rust conformance vector format that #7 consumes.
 - [`implementation/execution-order.md`](implementation/execution-order.md) turns experimental qualification into causal prerequisites rather than post-hoc validation.
 - GitHub Experiment Atoms use [`.github/ISSUE_TEMPLATE/experiment.yml`](../.github/ISSUE_TEMPLATE/experiment.yml) to require a predeclared falsification and analysis contract.
 - Ordinary implementation Atoms use [`.github/ISSUE_TEMPLATE/atom.yml`](../.github/ISSUE_TEMPLATE/atom.yml) to require causal dependencies, acceptance predicates, evidence, and benchmark obligations.
@@ -65,6 +71,7 @@ knowledge/acquisition.md
 
 crates/gordian-kg/
     Rust loader, validator, epistemic auditor, index, traversal CLI, and DOT exporter.
+    The only crate that exists today; crates/ is planned per implementation/crate-map.md.
 
 formal/
     Isolated Lean package, models, proofs, checker configuration, and formal dependencies.
@@ -72,18 +79,38 @@ formal/
 orchestration/
     Thin Python experiment, process, acquisition, and temporary Project orchestration.
 
+artifacts/schema/closure-record.schema.json
+    The single normative definition of what closing an Atom records.
+
+artifacts/atoms/<N>/
+    Per-Atom spec snapshot, verifier artifacts, attempt records, and closure.json.
+
 scripts/bootstrap-jj.sh
-    Safe Jujutsu candidate-baseline installation/configuration without push or rewrite.
+    Safe Jujutsu baseline installation/configuration without push or rewrite. It is the single
+    source of the pinned version; no document restates that number.
+
+scripts/check-*.sh
+    The specification-consistency checkers. The verify workflow runs every one of them.
 
 scripts/sync_github_project.py
     Compatibility entrypoint into the packaged Project reconciliation command.
+```
+
+Three trees are declared here and do not exist yet. Each is created by the Atom named beside it,
+and `gordian-kg audit --strict` reports any knowledge-graph verification target whose leading path
+component is missing and whose entry status is not `planned` (**G-521, assigned to #72**):
+
+```text
+benches/                planned; owned by #5   performance benchmark and regression gates
+experiments/            planned; owned by #75  protocol and run manifests, plus their schemas
+formal/conformance/     planned; owned by #7   Lean/Rust conformance vectors and index.json
 ```
 
 ## Research graph commands
 
 ```bash
 cargo run -p gordian-kg -- validate
-cargo run -p gordian-kg -- audit
+cargo run -p gordian-kg -- audit --strict
 cargo run -p gordian-kg -- stats
 cargo run -p gordian-kg -- list --kind Hypothesis
 cargo run -p gordian-kg -- hypotheses
@@ -94,23 +121,30 @@ cargo run -p gordian-kg -- theorems
 cargo run -p gordian-kg -- export-dot --out /tmp/gordian.dot
 ```
 
-These current commands provide basic structural traversal. Issues #71–#74 expand the schema, ontology enforcement, epistemic queries, source revision refresh, contradiction handling, and downstream-impact analysis.
+These current commands provide basic structural traversal. Issues #71-#74 expand the schema, ontology enforcement, epistemic queries, source revision refresh, contradiction handling, and downstream-impact analysis.
+
+`audit --strict` fails on warnings as well as errors, and is the form CI and every documented
+check list uses. A bare `audit` is not a gate.
 
 ## Rust and Python boundary
 
-Rust owns:
+Rust will own the following (**planned**; today the workspace contains one crate, `gordian-kg`,
+and the crate each capability lands in is decided by
+[`implementation/crate-map.md`](implementation/crate-map.md), on the order of
+[`implementation/execution-order.md`](implementation/execution-order.md)):
 
 ```text
 Mission Graph semantics
 canonical identities and events
 scheduling and leases
 evidence, provenance, and admission
-Jujutsu adapter
+the source adapter
 persistence and replay
 capability and authority decisions
-knowledge graph schema, validation, indexes, and queries
 production hot paths
 ```
+
+Rust owns today: knowledge-graph schema, validation, indexes, and queries (`gordian-kg`).
 
 Python may launch tools, workers, experiments, source acquisition, GitHub projection, and statistical analysis. It must call Rust rather than independently implement readiness, satisfaction, evidence freshness, authorization, lease safety, or acceptance.
 
@@ -121,13 +155,25 @@ See [`../AGENTS.md`](../AGENTS.md) for the complete coding-agent contract.
 After local GitHub CLI authorization:
 
 ```bash
-gh auth refresh -s project
-python -m pip install -e ./orchestration
-gordian-project-sync --dry-run
-gordian-project-sync --report artifacts/project-9-reconciliation.json
+python3.14 -m pip install -e './orchestration[dev]'
+GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --dry-run
+GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --report artifacts/project-9-reconciliation.json
 ```
 
+`GH_TOKEN` carries a **classic** personal access token with the `repo` and `project` scopes; the
+interactive `gh auth refresh -s project` flow is not available to an unattended agent, and a
+fine-grained token does not carry the classic `project` scope that `gh project item-add` requires.
+
 The command reconciles open issues into Project 9 and verifies the resulting URL set. It does not make the board canonical Gordian state.
+
+### Reconciliation snapshot policy
+
+`artifacts/project-9-reconciliation.json` is a tracked generated report. It is regenerated by the
+`--report` command above, and only on these triggers: after an Atom is added, split, or closed,
+and after any dependency edge changes. It carries no run identity today — no timestamp, no source
+state, no tool version — so two copies cannot be ordered. **G-609 is assigned to #70**, which adds
+`generated_at`, `source_change_id`, `source_commit_id`, and `tool_versions` to the emitted
+object.
 
 ## Epistemic labels
 

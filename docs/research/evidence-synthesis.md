@@ -19,13 +19,20 @@ Gordian uses four informal evidence classes:
 
 ### 2.1 CAID: dependency-aware asynchronous isolated delegation
 
-Source: Jiayi Geng and Graham Neubig, *Effective Strategies for Asynchronous Software Engineering Agents*, arXiv:2603.21489, 2026.
+Source: Jiayi Geng and Graham Neubig, *Effective Strategies for Asynchronous Software Engineering Agents*, arXiv:2603.21489v2, 2026. Retrieved 2026-08-30.
 
-https://arxiv.org/abs/2603.21489
+https://arxiv.org/abs/2603.21489v2
 
-The current arXiv abstract reports that Centralized Asynchronous Isolated Delegation (CAID) constructs dependency-aware task plans, executes subtasks concurrently in isolated workspaces, and integrates work with executable test-based verification. It reports improvements over single-agent baselines of **26.7 percentage points on PaperBench** and **14.3 points on Commit0**.
+The paper reports that Centralized Asynchronous Isolated Delegation (CAID) constructs dependency-aware task plans, executes subtasks concurrently in isolated workspaces, and integrates work with executable test-based verification.
 
-An earlier Gordian research note recorded 25.6 and 14.7. The discrepancy is treated as source/version drift; the current primary-source abstract is authoritative for this ledger unless the paper body clarifies a different metric/version.
+The submission history holds exactly two versions, and the current one is v2:
+
+```text
+arXiv:2603.21489v1  23 Mar 2026  +26.7 PaperBench  +14.3 Commit0   superseded
+arXiv:2603.21489v2   8 Jul 2026  +25.6 PaperBench  +14.7 Commit0   current, retrieved 2026-08-30
+```
+
+The cited improvements over single-agent baselines are therefore **25.6 percentage points on PaperBench** and **14.7 points on Commit0**. This ledger previously carried the v1 figures as current and described the v2 figures as an earlier research note, which reversed the drift; the correction is G-105. Version drift is recorded, not silently resolved in whichever direction is convenient — the pinned version and retrieval date above are what make the record checkable, and #71 adds the `SourceRevision` identity that lets the knowledge graph hold both rows rather than only the current one.
 
 **Supported conclusion:** parallel software-agent work benefits from dependency-aware decomposition, isolated mutable state, structured integration, and executable verification on the studied workloads.
 

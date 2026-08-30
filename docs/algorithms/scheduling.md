@@ -4,41 +4,72 @@ Gordian's scheduler operates over the Mission Graph, semantic resource claims, c
 
 ## 1. Hard-dependency readiness
 
-Let the hard dependency relation be:
+Let the hard dependency relation be `A -> B`, meaning `A` depends on `B`. Allowed depender and
+prerequisite kinds are `Atom` on both sides
+([`../spec/data-model.md` `### Global hard dependency target kinds`](../spec/data-model.md#global-hard-dependency-target-kinds)).
+
+The readiness predicates are **defined once**, in
+`docs/spec/mission-graph.md#logical-state-predicates`
+([link](../spec/mission-graph.md#logical-state-predicates)), and the seven named sub-predicates under
+`## Readiness predicate definitions`, `docs/spec/mission-graph.md#readiness-predicate-definitions`
+([link](../spec/mission-graph.md#readiness-predicate-definitions)). This document defines none of
+them. The two blocks reproduced below are byte-identical copies of the normative blocks, and
+`scripts/check-predicate-definitions.sh` fails the build if they drift.
 
 ```text
-A -> B
+Blocked(a) :=
+  exists d in hard_dependencies(a)
+  where dependency_condition(d) is false
+  or exists q in required_interfaces(a)
+     such that no Atom p with Satisfied(p) has q in provided_interfaces(p)
+     and q has no ExternalProvision record
+  or exists i in declared_inputs(a)
+     such that no Atom p with Satisfied(p) has i in declared_outputs(p)
+     and i has no ExternalProvision record
 ```
 
-meaning `A` depends on `B`.
+`Satisfied` here is the **admitted-frontier** predicate: an Atom is Satisfied only when its
+Candidate was admitted into the accepted frontier as part of an `IntegrationCandidate` whose
+integration verification discharged the Atom's manifest. A verified-but-unadmitted candidate does
+not unblock a dependent, because a dependent's execution base is a frontier state and an
+unadmitted candidate is in no frontier state.
 
-For Atom `a`:
+### Computing Blocked in O(in-degree)
+
+Plan validation resolves exactly one `ProviderBinding` per requirement and materializes each
+Atom-provider binding as one derived `HardDependency` (`origin = derived_interface` /
+`derived_artifact`), rejecting publication of any plan whose requirement is unbound, unprovided,
+or ambiguously provided. Because the binding is unique, the existential in clauses 2 and 3 has at
+most one witness, so the conjunction over derived edges is extensionally equal to the three-clause
+form and the runtime evaluates one loop over one edge table:
 
 ```text
-Blocked(a) := exists d in HardDeps(a) where not Satisfied(d)
+blocked(a) = hard_dep_edges[a].iter().any(|d| !dependency_condition(d))
 ```
 
-```text
-Enabled(a) :=
-    ValidSpec(a)
-    and not Blocked(a)
-    and PreconditionsHold(a)
-```
+with `dependency_condition(d)` reading `satisfaction_index[d.prerequisite_atom]`, an O(1)
+projection lookup. Readiness is therefore O(in-degree), not a graph walk.
 
 The distinction between **Enabled** and **Dispatchable** is deliberate.
 
 ```text
-Dispatchable(a) :=
-    Enabled(a)
-    and CompatibleExecutorAvailable(a)
-    and RequiredResourcesAvailable(a)
-    and AuthorizationValid(a)
-    and LeaseCompatible(a)
+Enabled(a) :=
+  ValidSpec(a)
+  and not Blocked(a)
+  and PreconditionsHold(a)
 ```
 
-An Atom may therefore be logically ready even when no current executor or resource allocation can run it.
+```text
+Dispatchable(a) :=
+  Enabled(a)
+  and CompatibleExecutorAvailable(a)
+  and RequiredResourcesAvailable(a)
+  and AuthorizationValid(a)
+  and LeaseCompatible(a)
+```
 
-This avoids encoding infrastructure scarcity as a false dependency.
+An Atom may therefore be logically ready even when no current executor or resource allocation can
+run it. This avoids encoding infrastructure scarcity as a false dependency.
 
 ## 2. DAG validation
 
@@ -193,74 +224,110 @@ Absence of observed access is not proof of absence. Instrumentation coverage mus
 
 Semantic claims are predictions. Leases are runtime coordination controls.
 
-A useful initial lease tuple is:
+The canonical record is
+[`../spec/data-model.md` `## Lease`](../spec/data-model.md#lease), reproduced here field for
+field because the scheduler reads every one of them; the two blocks MUST stay identical:
 
 ```text
+LeaseSubject =
+  | SemanticResource(SemanticResourceId)
+  | LogicalChange(LogicalChangeId)
+  | Coordinator(ProjectId)
+
 Lease {
   id,
-  holder,
-  subject_atom,
-  resource,
-  mode,
-  issued_at,
-  expires_at,
-  fencing_token
+  holder_actor,
+  holder_attempt?,             -- absent for a Coordinator lease, which no attempt holds
+  subject,                     -- LeaseSubject
+  mode,                        -- read | write_shared_if_commutative | write_exclusive
+  operation?,                  -- REQUIRED when mode = write_shared_if_commutative
+  fencing_token,               -- FencingToken, strictly monotonic per subject
+  issued_at_event,             -- EventSeq of the LeaseGranted event
+  expires_at_event,            -- EventSeq at or after which the lease is not live
+  issued_at,                   -- wall clock; provenance only, never read by a predicate
+  expires_at,                  -- wall clock; provenance only, never read by a predicate
+  revoked_at_event?            -- EventSeq of the LeaseRevoked event
 }
 ```
 
-Modes:
+Liveness is denominated in `EventSeq`, never in wall-clock time: a scheduler that compared
+`expires_at` against a clock would answer readiness differently on every replay.
 
-```text
-read
-write_shared_if_commutative
-write_exclusive
-```
+The lease subject is a three-constructor sum, not a bare semantic resource, because Gordian
+excludes three different things: concurrent semantic writes to a domain resource, concurrent
+rewriting of one evolving source change, and two coordinators admitting for one Project. A change
+identity is not a `SemanticResource`, and neither is the coordinator role.
 
-The important future invariant is:
+The invariants are:
 
-> Two valid exclusive write leases over the same semantic resource cannot coexist.
+> Two live exclusive write leases over the same `LeaseSubject` MUST NOT coexist.
 
-A monotonically increasing fencing token should be preferred over trusting wall-clock lease expiration alone when a downstream resource can reject stale actors.
+> At most one live `write_exclusive` lease may have subject `LogicalChange(x)` for any `x`.
+
+A `write_shared_if_commutative` grant is permitted only on a `SemanticResource` subject, and only
+when the requesting and every live holder's `ResourceClaim.operation` is a member of that
+resource's `metadata.commutative_operations`. Commutativity is declared explicitly by a
+capability-holding actor and recorded as an `OperationCommutativityDeclared` event; it is never
+inferred from declared resource independence, which is not proof of semantic commutativity.
+
+A monotonically increasing `FencingToken` is issued per `LeaseSubject` and MUST be preferred over
+trusting wall-clock lease expiration alone. Because the source plane cannot reject a stale actor,
+the token is recorded on the `Candidate` at freeze and checked at admission
+(`LeaseValidAtFreeze`).
 
 ## 8. Stable snapshot execution
 
-Once admitted, an Atom receives an exact base candidate:
+Once admitted for execution, an Atom `b` receives an exact base state constrained by
+**PrerequisiteContaining**
+([`../spec/mission-graph.md` `## Stable snapshots`](../spec/mission-graph.md#stable-snapshots)):
 
 ```text
-base_commit = C_t
+base = F  where
+    F is an admitted frontier state
+    and for every d in hard_dependencies(b):
+        Satisfied(d) and satisfaction_frontier_seq(d) <= frontier_seq(F)
 ```
 
-The worker executes against that snapshot in an isolated Jujutsu workspace.
+In the common case `F` is the current accepted frontier and the constraint is discharged by the
+fact that `b` was dispatched only when `not Blocked(b)`. It is stated separately because a
+scheduler may deliberately dispatch against an older frontier — to reuse a warm workspace, or to
+reproduce a failure — and doing so against a base that predates a prerequisite's admission is
+exactly the bug this rule forbids.
 
-Gordian does not continuously rebase the worker as accepted state advances.
+The worker executes against that snapshot in an isolated workspace.
 
-Instead:
+Gordian does not continuously rebase the worker as accepted state advances. Instead:
 
 ```text
 snapshot
   -> work
-  -> freeze candidate
-  -> reconcile with current frontier
+  -> freeze candidate (records fencing_token, exact_state_id, base_frontier_seq)
+  -> enter admission queue
+  -> integration batch over the current frontier
   -> integration verification
+  -> admission or return to reconciliation
 ```
 
-This is analogous to optimistic concurrency control in one limited sense: workers reason over stable snapshots, and staleness/conflict is checked at commit/integration time.
+Reconciliation happens in **batches**, not per candidate: see
+[`evidence-and-admission.md` `### Re-verification policy`](evidence-and-admission.md#re-verification-policy).
+Per-candidate reconciliation costs `O(N²)` verifier runs for `N` concurrent workers, because each
+admission invalidates every other in-flight candidate's evidence.
 
-The analogy must not be stretched into a claim that source edits are database transactions. Software semantic conflicts are richer than database read/write conflicts.
+This is analogous to optimistic concurrency control in one limited sense: workers reason over
+stable snapshots, and staleness/conflict is checked at integration time. The analogy must not be
+stretched into a claim that source edits are database transactions.
 
 ## 9. Candidate-set integration
 
-Suppose independent Atoms produce exact candidates:
+Suppose independent Atoms produce exact candidates `A@c1`, `B@c2`, `C@c3`.
 
-```text
-A@c1
-B@c2
-C@c3
-```
+Rather than forcing an arbitrary serial history, the coordinator assembles an `IntegrationBatch`
+and creates an explicit `IntegrationCandidate` `I` whose `base_frontier` is the current accepted
+frontier `t` and whose `parent_candidates` are `{c1, c2, c3}`.
 
-Rather than forcing an arbitrary serial history, create an explicit integration candidate `I` over the selected parent states.
-
-The integration candidate gets its own evidence fingerprint and verifier set.
+`I` is a first-class record with its own identity, its own `integration_manifest`, and its own
+evidence fingerprint
+([`../spec/data-model.md` `## Integration candidate`](../spec/data-model.md#integration-candidate)).
 
 ```text
 Verified(A) and Verified(B)
@@ -272,7 +339,11 @@ does not imply:
 Verified(Integrate(A, B))
 ```
 
-This non-compositionality rule is central. Unit-level success cannot substitute for system-level verification.
+except for verifiers whose manifest entry declares `compositional = true`, whose inheritance is
+recorded as an `EvidenceInherited` event and whose entry remains in `integration_manifest(I)`
+marked inheritable. This non-compositionality rule is central: unit-level success cannot
+substitute for system-level verification, and the `compositional` flag is the single, auditable,
+falsifiable exception.
 
 ## 10. Scheduling objective
 

@@ -121,7 +121,18 @@ For example, AgentRoom is relevant because its ablations point toward the import
 
 Research and software documentation can change after Gordian records a result.
 
-The initial research supplied to Gordian reported different CAID headline deltas than the current arXiv abstract. The current abstract reports +26.7 absolute on PaperBench and +14.3 on Commit0.
+Gordian's own worked example of this is the CAID paper, arXiv:2603.21489, whose submission history
+holds exactly two versions:
+
+```text
+arXiv:2603.21489v1  23 Mar 2026  +26.7 PaperBench  +14.3 Commit0   superseded
+arXiv:2603.21489v2   8 Jul 2026  +25.6 PaperBench  +14.7 Commit0   current, retrieved 2026-08-30
+```
+
+The v2 figures are the ones this corpus cites. For a period the research documents carried the v1
+figures as current, which inverted the drift they exist to record; that is G-105, and the
+corrected pin is the `source:caid` node's `arXiv:2603.21489v2` URL together with its retrieval
+date.
 
 The correct response to this kind of drift is not to silently select whichever number is convenient.
 
@@ -251,11 +262,23 @@ Avoid:
 - using model-judge output as if it were ground truth without calibration;
 - treating benchmark pass rate as a full measure of engineering usefulness.
 
-Prefer paired comparisons where feasible, repeated trials, uncertainty intervals, and explicit ablations.
+Prefer paired comparisons, repeated trials, uncertainty intervals, and explicit ablations. Agent
+evaluation error bars are themselves a methodological subject: see Miller, *Adding Error Bars to
+Evals*, arXiv:2411.00640, for the resampling and clustering treatment this corpus follows, and
+Georges et al. (DOI 10.1145/1297027.1297033) and Mytkowicz et al. (DOI 10.1145/1508244.1508275)
+for measurement bias and rigorous benchmark methodology.
+
+The named values — design, primary metric, effect-size measure, uncertainty method, minimum `n`,
+multiplicity policy, precision target, and stopping rule — are fixed per experiment class in
+[`../testing/statistical-contract.md`](../testing/statistical-contract.md). This section states
+the discipline; that document states the numbers. An experiment that does not name a class is not
+runnable.
 
 ## 10. Specification gaming
 
-Gordian itself is vulnerable to Goodhart effects.
+Gordian itself is vulnerable to Goodhart effects — Strathern's formulation that a measure which
+becomes a target ceases to be a good measure (DOI 10.1017/S1062798700002660), and the failure
+taxonomy of Manheim and Garrabrant, *Categorizing Variants of Goodhart's Law*, arXiv:1803.04585.
 
 Potential proxies:
 

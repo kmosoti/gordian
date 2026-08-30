@@ -1,0 +1,115 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "replay-faults",
+  "class": "fault-injection",
+  "issue": 28,
+  "hypothesis": {
+    "h0": "Rebuilding a projection from history under injected log faults can yield state that differs from the recorded canonical state, or ambiguous state accepted without a rejection.",
+    "h1": "Every enumerated log fault is deterministically normalized or deterministically rejected, and the rebuilt projection equals the recorded canonical state."
+  },
+  "falsification": "Deterministic replay is refuted by a single rebuilt projection differing from the recorded canonical state, or by a single ambiguous state accepted without a rejection event. The gate is zero observed failures over 20 seeds per enumerated injection (5 injections x 20 seeds = 100 runs).",
+  "conditions": [
+    {
+      "id": "clean",
+      "description": "valid random event trace, rebuilt without injection; the control"
+    },
+    {
+      "id": "injected",
+      "description": "one enumerated log fault injected into the trace"
+    }
+  ],
+  "baseline_condition": "clean",
+  "population": {
+    "workloads": [
+      "randomly generated valid event traces over a fixed project fixture"
+    ],
+    "sampling": "enumerated fault x seed grid; the trace generator is seeded from the same list",
+    "strata": [
+      {
+        "id": "duplicate-events",
+        "boundary": "one event delivered twice"
+      },
+      {
+        "id": "out-of-order",
+        "boundary": "two adjacent events transposed"
+      },
+      {
+        "id": "missing-event",
+        "boundary": "one event dropped"
+      },
+      {
+        "id": "unknown-version",
+        "boundary": "one event carrying an unknown schema version"
+      },
+      {
+        "id": "partial-write",
+        "boundary": "one event truncated mid-record"
+      }
+    ],
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ]
+  },
+  "metrics": [
+    {
+      "id": "fail_closed_rate",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    },
+    {
+      "id": "projection_equality",
+      "unit": "proportion",
+      "direction": "higher_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "fail_closed_rate",
+    "effect_size": {
+      "measure": "exact proportion",
+      "minimum_relevant": 1.0,
+      "unit": "fail-closed rate; zero observed failures required"
+    },
+    "min_n": 20,
+    "multiplicity": "none",
+    "uncertainty": "Clopper-Pearson 95% interval",
+    "stopping_rule": "fixed grid; any observed failure stops the run and files a defect"
+  },
+  "exclusion_rule": "A run is excluded only when the fault injector itself fails to inject the enumerated fault, verified from the injector log. A run in which the fault was injected and the system did not fail closed is a failure, never an exclusion.",
+  "environment": {
+    "source_commit": "pinned at run time; the exact commit is recorded in each run.json",
+    "toolchains": [
+      "rust 1.98.0 (rust-toolchain.toml)",
+      "jujutsu version recorded per run",
+      "tokei 12.1.2"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "runs/<run-id>/raw/trace.jsonl",
+    "runs/<run-id>/raw/projection.json"
+  ],
+  "threats": [
+    "a generator that never produces the interleavings the fault targets; trace coverage over event kinds is reported with each run"
+  ],
+  "registered_at": "2026-08-30T00:00:00Z",
+  "registered_by": "gordian-spec-alignment"
+}
