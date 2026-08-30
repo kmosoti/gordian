@@ -1,0 +1,14 @@
+{
+  "added_urls": [],
+  "converged": true,
+  "dry_run": false,
+  "duplicate_urls_before": [],
+  "failed_urls": [],
+  "missing_before": [],
+  "open_issue_count": 75,
+  "owner": "kmosoti",
+  "project_issue_count_before": 75,
+  "project_number": 9,
+  "remaining_after": [],
+  "repository": "kmosoti/gordian"
+}
