@@ -10,6 +10,9 @@ requires-python = ">=3.14"
 license = "Apache-2.0"
 dependencies = []
 
+[project.scripts]
+gordian-project-sync = "gordian_orchestration.github_project:main"
+
 [tool.ruff]
 target-version = "py314"
 line-length = 100
