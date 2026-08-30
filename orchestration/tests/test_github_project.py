@@ -48,30 +48,42 @@ class ReconciliationTests(unittest.TestCase):
 
         report = reconcile(config)
 
-        self.assertEqual(report.missing_urls, (self.issue_two.url,))
-        self.assertEqual(report.duplicate_urls, (self.issue_one.url,))
+        self.assertEqual(report.missing_before, (self.issue_two.url,))
+        self.assertEqual(report.remaining_after, (self.issue_two.url,))
+        self.assertEqual(report.duplicate_urls_before, (self.issue_one.url,))
         self.assertEqual(report.added_urls, ())
         self.assertEqual(report.failed_urls, ())
+        self.assertFalse(report.converged)
         run_gh.assert_called_once_with(
             ["project", "view", "9", "--owner", "kmosoti", "--format", "json"]
         )
 
     @patch("gordian_orchestration.github_project._run_gh", return_value="{}")
-    @patch("gordian_orchestration.github_project._project_items", return_value=[])
+    @patch("gordian_orchestration.github_project._project_items")
     @patch("gordian_orchestration.github_project._open_issues")
-    def test_apply_adds_every_missing_issue_once(
+    def test_apply_adds_missing_issues_and_verifies_convergence(
         self,
         open_issues,
-        _project_items,
+        project_items,
         run_gh,
     ) -> None:
         open_issues.return_value = [self.issue_two, self.issue_one]
+        project_items.side_effect = [
+            [],
+            [
+                ProjectItemRef(item_id="a", url=self.issue_one.url),
+                ProjectItemRef(item_id="b", url=self.issue_two.url),
+            ],
+        ]
 
         report = reconcile(self.config)
 
-        self.assertEqual(report.missing_urls, (self.issue_one.url, self.issue_two.url))
+        self.assertEqual(report.missing_before, (self.issue_one.url, self.issue_two.url))
         self.assertEqual(report.added_urls, (self.issue_one.url, self.issue_two.url))
         self.assertEqual(report.failed_urls, ())
+        self.assertEqual(report.remaining_after, ())
+        self.assertTrue(report.converged)
+        self.assertEqual(project_items.call_count, 2)
         self.assertEqual(
             run_gh.call_args_list,
             [
