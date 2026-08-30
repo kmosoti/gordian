@@ -13,6 +13,7 @@ import subprocess
 import sys
 from collections import Counter
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -22,6 +23,7 @@ class Config:
     repository: str
     project_number: int
     dry_run: bool
+    limit: int = 1000
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,12 +45,20 @@ class ReconciliationReport:
     repository: str
     project_number: int
     open_issue_count: int
-    current_project_issue_count: int
-    missing_urls: tuple[str, ...]
-    duplicate_urls: tuple[str, ...]
+    project_issue_count_before: int
+    missing_before: tuple[str, ...]
+    duplicate_urls_before: tuple[str, ...]
     added_urls: tuple[str, ...]
     failed_urls: tuple[str, ...]
+    remaining_after: tuple[str, ...]
     dry_run: bool
+
+    @property
+    def converged(self) -> bool:
+        return not self.remaining_after and not self.failed_urls
+
+    def as_json_object(self) -> dict[str, Any]:
+        return {**asdict(self), "converged": self.converged}
 
 
 def _run_gh(arguments: list[str]) -> str:
@@ -89,7 +99,7 @@ def _open_issues(config: Config) -> list[IssueRef]:
             "--state",
             "open",
             "--limit",
-            "1000",
+            str(config.limit),
             "--json",
             "number,title,url",
         ]
@@ -120,7 +130,7 @@ def _project_items(config: Config) -> list[ProjectItemRef]:
             "--owner",
             config.owner,
             "--limit",
-            "1000",
+            str(config.limit),
             "--format",
             "json",
         ]
@@ -151,6 +161,10 @@ def _project_items(config: Config) -> list[ProjectItemRef]:
     return items
 
 
+def _missing(issue_urls: set[str], items: list[ProjectItemRef]) -> tuple[str, ...]:
+    return tuple(sorted(issue_urls - {item.url for item in items}))
+
+
 def reconcile(config: Config) -> ReconciliationReport:
     # This is also a token-scope and project-existence check. The GitHub CLI's
     # documented remediation is `gh auth refresh -s project`.
@@ -167,16 +181,16 @@ def reconcile(config: Config) -> ReconciliationReport:
     )
 
     issues = _open_issues(config)
-    items = _project_items(config)
-    project_counts = Counter(item.url for item in items)
+    before_items = _project_items(config)
+    before_counts = Counter(item.url for item in before_items)
     issue_urls = {issue.url for issue in issues}
-    missing = sorted(issue_urls - set(project_counts))
-    duplicates = sorted(url for url, count in project_counts.items() if count > 1)
+    missing_before = _missing(issue_urls, before_items)
+    duplicates = tuple(sorted(url for url, count in before_counts.items() if count > 1))
 
     added: list[str] = []
     failed: list[str] = []
     if not config.dry_run:
-        for url in missing:
+        for url in missing_before:
             try:
                 _run_gh(
                     [
@@ -196,17 +210,21 @@ def reconcile(config: Config) -> ReconciliationReport:
                 failed.append(url)
             else:
                 added.append(url)
+        remaining_after = _missing(issue_urls, _project_items(config))
+    else:
+        remaining_after = missing_before
 
     return ReconciliationReport(
         owner=config.owner,
         repository=config.repository,
         project_number=config.project_number,
         open_issue_count=len(issues),
-        current_project_issue_count=len(items),
-        missing_urls=tuple(missing),
-        duplicate_urls=tuple(duplicates),
+        project_issue_count_before=len(before_items),
+        missing_before=missing_before,
+        duplicate_urls_before=duplicates,
         added_urls=tuple(added),
         failed_urls=tuple(failed),
+        remaining_after=remaining_after,
         dry_run=config.dry_run,
     )
 
@@ -218,6 +236,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="kmosoti")
     parser.add_argument("--repository", default="kmosoti/gordian")
     parser.add_argument("--project", type=int, default=9, dest="project_number")
+    parser.add_argument("--limit", type=int, default=1000)
+    parser.add_argument("--report", type=Path)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -233,6 +253,7 @@ def main() -> int:
         repository=arguments.repository,
         project_number=arguments.project_number,
         dry_run=arguments.dry_run,
+        limit=arguments.limit,
     )
     try:
         report = reconcile(config)
@@ -244,8 +265,15 @@ def main() -> int:
         )
         return 2
 
-    print(json.dumps(asdict(report), indent=2, sort_keys=True))
-    return 1 if report.failed_urls else 0
+    encoded = json.dumps(report.as_json_object(), indent=2, sort_keys=True)
+    print(encoded)
+    if arguments.report:
+        arguments.report.parent.mkdir(parents=True, exist_ok=True)
+        arguments.report.write_text(encoded + "\n", encoding="utf-8")
+
+    if report.dry_run:
+        return 0
+    return 0 if report.converged else 1
 
 
 if __name__ == "__main__":
