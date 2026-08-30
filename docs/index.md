@@ -1,38 +1,57 @@
 # Gordian Documentation
 
-Gordian's documentation is organized around a strict separation between **specified semantics**, **formal propositions**, **external evidence**, **implementation mechanisms**, and **falsifiable hypotheses**.
+Gordian's documentation separates **specified semantics**, **formal propositions**, **external evidence**, **implementation mechanisms**, **experiments**, and **temporary planning projections**. A document should not gain authority merely because it is polished prose.
 
 ## Start here
 
-1. [`architecture.md`](architecture.md) — system synthesis: Mission Graph, Change Graph, execution history, evidence, and authority.
-2. [`spec/mission-graph.md`](spec/mission-graph.md) — normative Mission Graph semantics.
-3. [`spec/data-model.md`](spec/data-model.md) — storage-independent identities and canonical records.
-4. [`spec/invariants.md`](spec/invariants.md) — safety properties and their verification boundaries.
-5. [`implementation/project-plan.md`](implementation/project-plan.md) — end-to-end Initiative/Atom implementation plan.
-6. [`implementation/issue-index.md`](implementation/issue-index.md) — live map of the 70 temporary GitHub Atoms, causal spine, and first Codex execution cut.
-7. [`protocols/jujutsu-agent-protocol.md`](protocols/jujutsu-agent-protocol.md) — binding between Mission Atoms and Jujutsu execution.
-8. [`knowledge-graph.md`](knowledge-graph.md) — comprehensive research graph and Rust traversal/audit tooling.
-9. [`formal/theorem-catalog.md`](formal/theorem-catalog.md) — theorem statements, assumptions, checker targets, and non-claims.
-10. [`formal/proof-boundary.md`](formal/proof-boundary.md) — what proof can and cannot establish about the real implementation.
+1. [`architecture.md`](architecture.md) synthesizes the Mission Graph, Jujutsu Change Graph, execution history, evidence, provenance, authority, and closed-loop reconciliation model.
+2. [`spec/mission-graph.md`](spec/mission-graph.md) defines the normative Mission Graph semantics.
+3. [`spec/data-model.md`](spec/data-model.md) defines storage-independent identities and canonical records.
+4. [`spec/invariants.md`](spec/invariants.md) defines safety properties and verification boundaries.
+5. [`implementation/project-plan.md`](implementation/project-plan.md) defines the end-to-end Initiative and Atom scope.
+6. [`implementation/execution-order.md`](implementation/execution-order.md) defines the causal implementation spine, parallel work, gates, experiment decisions, and performance qualification.
+7. [`implementation/issue-index.md`](implementation/issue-index.md) maps the current 75 temporary GitHub Atoms into Initiatives without treating issue state as completion evidence.
+8. [`protocols/jujutsu-agent-protocol.md`](protocols/jujutsu-agent-protocol.md) binds Mission Atoms to source execution and exact candidates.
+9. [`protocols/jujutsu-development-environment.md`](protocols/jujutsu-development-environment.md) qualifies and bootstraps the local Jujutsu environment.
+10. [`knowledge-graph.md`](knowledge-graph.md) explains the executable research graph and Rust traversal tooling.
 
 ## Algorithms
 
-- [`algorithms/scheduling.md`](algorithms/scheduling.md) — DAG readiness, critical path, semantic conflict prediction, leases, and scheduling.
-- [`algorithms/evidence-and-admission.md`](algorithms/evidence-and-admission.md) — exact-subject fingerprints, stale-evidence rejection, integration, and accepted-frontier promotion.
-- [`algorithms/reconciliation.md`](algorithms/reconciliation.md) — deterministic event projection, desired/observed state, repair, and replanning.
+- [`algorithms/scheduling.md`](algorithms/scheduling.md) covers DAG readiness, critical path, resource matching, semantic conflict prediction, leases, and scheduling policies.
+- [`algorithms/evidence-and-admission.md`](algorithms/evidence-and-admission.md) covers exact-subject fingerprints, stale-evidence rejection, integration, and accepted-frontier promotion.
+- [`algorithms/reconciliation.md`](algorithms/reconciliation.md) covers deterministic projection, desired-versus-observed delta, repair, and replanning.
 
-## Research
+## Research and acquisition
 
-- [`research/methodology.md`](research/methodology.md) — claim classes, source-version drift, negative evidence, reproducibility, falsification, and Goodhart defenses.
-- [`research/foundations.md`](research/foundations.md) — planning, scheduling, concurrency, workflow, provenance, attestation, replay, Jujutsu, and formal-method foundations.
-- [`research/agent-systems-2026.md`](research/agent-systems-2026.md) — CAID, STORM, AgentRoom, AgenticFlict, CodeTeam, and coding-agent reliability evidence.
-- [`research/evidence-synthesis.md`](research/evidence-synthesis.md) — original evidence synthesis retained as provenance for the architecture's first research pass.
+- [`../knowledge/ontology.md`](../knowledge/ontology.md) defines graph node and relation semantics.
+- [`../knowledge/acquisition.md`](../knowledge/acquisition.md) defines source revision identity, exact claim scope, assumptions, limitations, contradiction handling, formal/experiment records, acquisition lifecycle, and repository coverage.
+- [`research/methodology.md`](research/methodology.md) defines claim classes, negative evidence, reproducibility, falsification, and Goodhart defenses.
+- [`research/foundations.md`](research/foundations.md) surveys planning, scheduling, concurrency, workflow, provenance, attestation, replay, Jujutsu, and formal-method foundations.
+- [`research/agent-systems-2026.md`](research/agent-systems-2026.md) covers CAID, STORM, AgentRoom, AgenticFlict, CodeTeam, and agent-system reliability evidence.
+- [`research/evidence-synthesis.md`](research/evidence-synthesis.md) preserves the architecture's initial evidence synthesis as provenance.
+- [`research/verification-strategy.md`](research/verification-strategy.md) defines the layered proof, model-to-Rust, property, mutation, fuzz, bounded verification, concurrency, fault-injection, benchmark, and experiment strategy.
+
+## Formal methods
+
+- [`formal/theorem-catalog.md`](formal/theorem-catalog.md) lists exact theorem statements, assumptions, checker targets, and non-claims.
+- [`formal/proof-boundary.md`](formal/proof-boundary.md) explains what a proof can and cannot establish about the implementation and external world.
+- [`../formal/`](../formal/) is the isolated Lean development package. Production Gordian has no Lean runtime dependency.
+
+Lean checks:
+
+```bash
+cd formal
+lake build
+```
+
+CI also invokes an independent checker with `sorry` disallowed and audits the compiled environment for disallowed axioms. A theorem is machine checked only for the exact declaration, assumptions, formal sources, toolchain, and successful checker evidence.
 
 ## Validation and experiments
 
-- [`testing/falsification-plan.md`](testing/falsification-plan.md) — experiment and fault-injection program for Gordian-specific hypotheses.
-- [`implementation/project-plan.md`](implementation/project-plan.md) begins with the Foundation and Falsification Initiative, which turns those experiments into implementation prerequisites rather than post-hoc validation.
-- [`implementation/issue-index.md`](implementation/issue-index.md) links every currently planned experiment and implementation Atom to its executable issue contract.
+- [`testing/falsification-plan.md`](testing/falsification-plan.md) defines the architecture-ablation and fault-injection program.
+- [`implementation/execution-order.md`](implementation/execution-order.md) turns experimental qualification into causal prerequisites rather than post-hoc validation.
+- GitHub Experiment Atoms use [`.github/ISSUE_TEMPLATE/experiment.yml`](../.github/ISSUE_TEMPLATE/experiment.yml) to require a predeclared falsification and analysis contract.
+- Ordinary implementation Atoms use [`.github/ISSUE_TEMPLATE/atom.yml`](../.github/ISSUE_TEMPLATE/atom.yml) to require causal dependencies, acceptance predicates, evidence, and benchmark obligations.
 
 ## Executable artifacts
 
@@ -41,19 +60,23 @@ knowledge/graph/*.jsonld
     Sharded canonical research graph.
 
 knowledge/ontology.md
-    Node/relation semantics and completeness rules.
+knowledge/acquisition.md
+    Ontology and acquisition/completeness protocol.
 
 crates/gordian-kg/
-    Rust loader, validator, epistemic auditor, petgraph index, traversal/query CLI, and DOT exporter.
+    Rust loader, validator, epistemic auditor, index, traversal CLI, and DOT exporter.
 
 formal/
-    Isolated Lean development package, toolchain, executable formal models, and proofs.
+    Isolated Lean package, models, proofs, checker configuration, and formal dependencies.
 
 orchestration/
-    Thin Python experiment/process orchestration only.
+    Thin Python experiment, process, acquisition, and temporary Project orchestration.
+
+scripts/bootstrap-jj.sh
+    Safe Jujutsu candidate-baseline installation/configuration without push or rewrite.
 
 scripts/sync_github_project.py
-    Temporary idempotent reconciliation of repository issues into GitHub Project 9.
+    Compatibility entrypoint into the packaged Project reconciliation command.
 ```
 
 ## Research graph commands
@@ -71,39 +94,51 @@ cargo run -p gordian-kg -- theorems
 cargo run -p gordian-kg -- export-dot --out /tmp/gordian.dot
 ```
 
-## Formal verification
-
-Lean is deliberately a development dependency rather than primary application code:
-
-```bash
-cd formal
-lake build
-```
-
-CI additionally invokes an independent Lean type checker with `sorry` disallowed and audits the compiled environment for disallowed axioms.
-
-A theorem is described as machine checked only when those checks pass for the exact repository revision. A theorem's engineering interpretation must remain bounded by its explicit assumptions and formal statement.
+These current commands provide basic structural traversal. Issues #71–#74 expand the schema, ontology enforcement, epistemic queries, source revision refresh, contradiction handling, and downstream-impact analysis.
 
 ## Rust and Python boundary
 
-Rust owns production semantics and performance-sensitive code.
+Rust owns:
 
-Python may launch experiments, datasets, tools, worker processes, and analysis. It must call Rust rather than independently implement Mission Graph safety rules.
+```text
+Mission Graph semantics
+canonical identities and events
+scheduling and leases
+evidence, provenance, and admission
+Jujutsu adapter
+persistence and replay
+capability and authority decisions
+knowledge graph schema, validation, indexes, and queries
+production hot paths
+```
 
-The temporary Project reconciler follows that rule: it coordinates GitHub CLI calls but does not decide readiness, satisfaction, admission, or evidence semantics.
+Python may launch tools, workers, experiments, source acquisition, GitHub projection, and statistical analysis. It must call Rust rather than independently implement readiness, satisfaction, evidence freshness, authorization, lease safety, or acceptance.
 
-See [`../AGENTS.md`](../AGENTS.md) for the full coding-agent contract.
+See [`../AGENTS.md`](../AGENTS.md) for the complete coding-agent contract.
+
+## Temporary GitHub Project 9
+
+After local GitHub CLI authorization:
+
+```bash
+gh auth refresh -s project
+python -m pip install -e ./orchestration
+gordian-project-sync --dry-run
+gordian-project-sync --report artifacts/project-9-reconciliation.json
+```
+
+The command reconciles open issues into Project 9 and verifies the resulting URL set. It does not make the board canonical Gordian state.
 
 ## Epistemic labels
 
 | Label | Meaning |
 | --- | --- |
-| `formal theorem` | Checked proposition under explicit model assumptions. |
-| `established foundation` | Mechanism adopted from mature scientific/engineering work or standards. |
-| `evidence-supported conclusion` | Empirical conclusion whose study/task scope remains attached. |
-| `engineering deduction` | Mechanism-based inference not directly established as an empirical result. |
+| `formal theorem` | Kernel-checked proposition under explicit model assumptions. |
+| `established foundation` | Mechanism adapted from mature scientific or engineering work or a standard. |
+| `evidence-supported conclusion` | Empirical conclusion with study and task scope attached. |
+| `engineering deduction` | Inspectable mechanism-based inference not directly established as an empirical result. |
 | `hypothesis` | Gordian-specific design claim with an experiment capable of forcing revision. |
-| `assumption` | Premise required by an algorithm/proof/experiment. |
-| `unresolved uncertainty` | Material question for which the current evidence cannot justify a stronger conclusion. |
+| `assumption` | Premise required by an algorithm, theorem, or experiment. |
+| `unresolved uncertainty` | Material question for which current evidence cannot justify a stronger conclusion. |
 
 This classification is part of the architecture. Gordian should make unsupported certainty structurally awkward.
