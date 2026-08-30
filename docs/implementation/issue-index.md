@@ -15,20 +15,20 @@ The current implementation Mission contains **75 open Atoms**. The exact objecti
 
 | Initiative | Atom identities | Purpose |
 | --- | --- | --- |
-| Foundation and Falsification | [#1–#8](https://github.com/kmosoti/gordian/issues?q=is%3Aissue+is%3Aopen+label%3A%22%22), #50–#54, #59–#61, #75 | Reproducible toolchains, Jujutsu qualification, workload generators, reference algorithms, benchmark gates, verification qualification, formal/Rust conformance, architecture ablations, and experiment run discipline. |
-| Research Knowledge Substrate | #71–#74 | Rich source-revision/claim/experiment/proof schema, ontology and repository coverage, epistemic traversal, acquisition refresh, and staleness propagation. |
-| Rust Mission Graph Kernel | #9–#13, #58 | Typed identities, immutable specifications, decomposition/dependency rules, attempts/candidates/effects, canonical events, derived state, and Project resources. |
-| Planning and Reconciliation | #55–#57 | Alternative immutable plans, untrusted planner proposals, and desired-versus-observed repair/replanning. |
-| Evidence, Provenance, and Authority | #14–#19 | Content-addressed artifacts, exact evidence fingerprints, verifier manifests, provenance/attestations, capabilities, and accepted-frontier admission. |
-| Scheduling and Coordination | #20–#24 | Ready work, critical path, worker/resource matching, semantic claims, leases/fencing, and benchmark-selected scheduling policies. |
-| Durable Persistence and Replay | #25–#28 | PostgreSQL canonical persistence, disposable projections, transactional transitions, crash/replay fault qualification. |
-| Jujutsu Change Plane | #29–#34 | Bounded Rust adapter, workspace/change lifecycle, exact candidate handoff, integration/conflict repair, exact-revision verification, and the Jujutsu-versus-Git experiment. |
-| Agent Execution and Thin Python Orchestration | #35–#39, #62–#63 | Worker protocol, sandboxing, secret brokerage, process/agent adapters, thin Python experiment control, local coordinator, and coordination ablation. |
-| Distributed Robustness | #40–#43 | Idempotent remote protocol, distributed leases/frontier safety, deterministic fault simulation, and observability. |
-| Human and Programmatic Interfaces | #44–#47 | Rust CLI, typed API/event stream, GitHub import, and Mission/evidence explorer. |
-| Self-Hosting and Acceptance | #48–#49, #68–#69 | Native import, real multi-worker self-hosting Mission, architecture retention report, and release qualification evidence bundle. |
-| Release and Operations | #64–#67 | Immutable release/deployment state, reproducible signed artifacts, migration/recovery, and adversarial security qualification. |
-| Temporary GitHub Bootstrap | #70 | Reconcile repository issues into user Project 9 without treating board status as canonical semantics. |
+| [Foundation and Falsification](https://github.com/kmosoti/gordian/milestone/1) | #1–#8, #50–#54, #59–#61, #75 | Reproducible toolchains, Jujutsu qualification, workload generators, reference algorithms, benchmark gates, verification qualification, formal/Rust conformance, architecture ablations, and experiment run discipline. |
+| [Research Knowledge Substrate](https://github.com/kmosoti/gordian/milestone/2) | #71–#74 | Rich source-revision/claim/experiment/proof schema, ontology and repository coverage, epistemic traversal, acquisition refresh, and staleness propagation. |
+| [Rust Mission Graph Kernel](https://github.com/kmosoti/gordian/milestone/3) | #9–#13, #58 | Typed identities, immutable specifications, decomposition/dependency rules, attempts/candidates/effects, canonical events, derived state, and Project resources. |
+| [Planning and Reconciliation](https://github.com/kmosoti/gordian/milestone/4) | #55–#57 | Alternative immutable plans, untrusted planner proposals, and desired-versus-observed repair/replanning. |
+| [Evidence, Provenance, and Authority](https://github.com/kmosoti/gordian/milestone/5) | #14–#19 | Content-addressed artifacts, exact evidence fingerprints, verifier manifests, provenance/attestations, capabilities, and accepted-frontier admission. |
+| [Scheduling and Coordination](https://github.com/kmosoti/gordian/milestone/6) | #20–#24 | Ready work, critical path, worker/resource matching, semantic claims, leases/fencing, and benchmark-selected scheduling policies. |
+| [Durable Persistence and Replay](https://github.com/kmosoti/gordian/milestone/7) | #25–#28 | PostgreSQL canonical persistence, disposable projections, transactional transitions, crash/replay fault qualification. |
+| [Jujutsu Change Plane](https://github.com/kmosoti/gordian/milestone/8) | #29–#34 | Bounded Rust adapter, workspace/change lifecycle, exact candidate handoff, integration/conflict repair, exact-revision verification, and the Jujutsu-versus-Git experiment. |
+| [Agent Execution and Thin Python Orchestration](https://github.com/kmosoti/gordian/milestone/9) | #35–#39, #62–#63 | Worker protocol, sandboxing, secret brokerage, process/agent adapters, thin Python experiment control, local coordinator, and coordination ablation. |
+| [Distributed Robustness](https://github.com/kmosoti/gordian/milestone/10) | #40–#43 | Idempotent remote protocol, distributed leases/frontier safety, deterministic fault simulation, and observability. |
+| [Human and Programmatic Interface](https://github.com/kmosoti/gordian/milestone/11) | #44–#47 | Rust CLI, typed API/event stream, GitHub import, and Mission/evidence explorer. |
+| [Self-Hosting and Acceptance](https://github.com/kmosoti/gordian/milestone/12) | #48–#49, #68–#69 | Native import, real multi-worker self-hosting Mission, architecture retention report, and release qualification evidence bundle. |
+| [Release, Operations, and Acceptance](https://github.com/kmosoti/gordian/milestone/13) | #64–#67 | Immutable release/deployment state, reproducible signed artifacts, migration/recovery, and adversarial security qualification. |
+| [Temporary GitHub Bootstrap](https://github.com/kmosoti/gordian/milestone/14) | #70 | Reconcile repository issues into user Project 9 without treating board status as canonical semantics. |
 
 GitHub issue search remains the authoritative live list for the temporary substrate:
 
@@ -92,6 +92,56 @@ The command:
 - does not infer readiness, satisfaction, evidence, or acceptance from GitHub fields.
 
 `scripts/sync_github_project.py` is a compatibility entrypoint into the same packaged module, not a second implementation.
+
+The package declares `requires-python = ">=3.14"`. On an interpreter older than 3.14 the
+editable install is refused, but the module has no third-party dependencies and runs
+directly:
+
+```bash
+PYTHONPATH=orchestration/src python3 -m gordian_orchestration.github_project --dry-run
+```
+
+Known limitation: the post-mutation item listing is issued immediately after the last
+`gh project item-add` with no retry, so a large first run can report a false
+`converged: false` because of GitHub read-after-write lag. Re-running the command is
+idempotent and settles the report.
+
+## Initiative milestones and native dependencies
+
+Initiative membership and causal prerequisites are stored in GitHub's own primitives, not
+in parallel bookkeeping.
+
+**Initiative = milestone.** Each of the 14 Initiatives above is a GitHub milestone, and
+every Atom belongs to exactly one. The milestone is the single source of truth for
+Initiative membership, and it gives Initiative-level progress for free. This mapping holds
+for the current single implementation Mission; a second concurrent Mission would require
+Mission-qualified milestone titles.
+
+**Dependencies = native issue relationships.** Every edge declared in an issue's
+`## Dependencies` section is also a native GitHub `blocked by` relationship, created with
+the `addBlockedBy` mutation. GitHub computes blocked/blocking state itself, and
+`issueDependenciesSummary` exposes it without parsing Markdown.
+
+The native relationship graph is authoritative. The `## Dependencies` prose is a
+human-readable mirror, and the two must be re-checked for drift whenever a dependency
+changes.
+
+Project 9 carries two non-default fields. Everything else uses GitHub's native fields.
+
+| Field | Source of truth | Meaning |
+| --- | --- | --- |
+| Milestone | Native | The Initiative the Atom belongs to. |
+| Work Type | `type:*` label | `Atom` is a work contract. `Experiment` is a falsifiable study. |
+| Wave | Derived | Dependency depth over the native relationship graph. |
+| Status | Derived | `Ready` only when every prerequisite is satisfied. Otherwise `Blocked`. |
+
+`Wave` is a derived projection, not an input. It is recomputed from the dependency graph,
+is never edited by hand, and carries no authority. Waves 0-6 are the Foundation exit gate
+of [`execution-order.md`](execution-order.md) §5, which #9 declares as hard dependencies
+so the gate is enforced by the graph instead of by prose.
+
+Sort the board by `Wave`, not by issue number. Issue numbers are arbitrary external
+identities.
 
 ## Atom completion rule
 
