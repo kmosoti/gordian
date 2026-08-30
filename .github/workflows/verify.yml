@@ -44,6 +44,8 @@ jobs:
 
       - name: Build, independently check proofs, and audit axioms
         uses: leanprover/lean-action@v1
+        env:
+          LEAN_NUM_THREADS: "1"
         with:
           lake-package-directory: formal
           auto-config: false
@@ -51,8 +53,8 @@ jobs:
           build: true
           test: false
           lint: false
-          nanoda: true
-          nanoda-allow-sorry: false
+          leanchecker: true
+          nanoda: false
           axiom-audit: true
 
   python:
