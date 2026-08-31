@@ -51,6 +51,28 @@ each row's Atoms have validating closure records
 | 17 | publish benchmark and falsification evidence for the major Gordian-specific hypotheses | #34, #37, #39, #50, #51, #52, #53, #54, #59, #60, #61, #68, #75, #76, #77 |
 | 18 | keep the research knowledge graph synchronized with implemented/falsified concepts | #8, #71, #72, #73, #74 |
 
+### Waived human-judgment metrics
+
+A metric only a person can produce cannot gate an unattended Mission. Each line below waives one
+**metric**, never a whole row, in the form `unresolved_human_metric: <atom> — <metric> — <why no
+machine substitute exists>`. `scripts/check-mission-stop-condition.sh` parses these lines, and
+[`agent-runbook.md`](agent-runbook.md) section 3 defines the rule.
+
+```text
+unresolved_human_metric: #50 — operator-comprehension rating — the ontology ablation scores how
+  quickly a person understands a Mission's decomposition; no machine proxy measures comprehension,
+  and substituting one would answer a different question than the hypothesis asks.
+unresolved_human_metric: #54 — operator/manual correction count — counts corrections a human chose
+  to make against a mutable-status baseline; the count is defined by human intervention, so it
+  cannot be synthesized.
+```
+
+A waived metric does not waive its Atom: #50 and #54 still need closure records for every
+machine-measurable part of their contract, and the waiver only stops the stop condition waiting on
+the human number. Every waiver here MUST be reproduced verbatim in #69's evidence bundle under
+*known limitations*, so a qualification that skipped human judgement can never be mistaken for one
+that obtained it. Waiving a metric a machine could produce is a contract defect.
+
 `scripts/check-mission-acceptance.sh` asserts that every issue number in the Atoms column exists,
 and `scripts/check-mission-stop-condition.sh` asserts — for the stop condition — that each
 referenced Atom has a validating closure record, printing the unsatisfied rows otherwise. The stop

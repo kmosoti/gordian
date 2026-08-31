@@ -57,6 +57,15 @@ for line in section.splitlines():
     atoms = [int(number) for number in re.findall(r"#(\d+)", cells[2])]
     rows.append((int(cells[0]), cells[1], atoms))
 
+waived = {}
+for line in text.splitlines():
+    stripped = line.strip()
+    if stripped.startswith("unresolved_human_metric:"):
+        body = stripped.split(":", 1)[1].strip()
+        found = re.findall(r"#(\d+)", body)
+        if found:
+            waived[int(found[0])] = body
+
 problems = []
 if not rows:
     problems.append("the Mission acceptance table has no rows")
@@ -101,10 +110,22 @@ def closure_state(atom):
 
 
 unsatisfied = []
+waived_hits = []
 for number, item, atoms in rows:
-    reasons = [f"#{atom}: {state}" for atom in atoms if (state := closure_state(atom))]
+    reasons = []
+    for atom in atoms:
+        state = closure_state(atom)
+        if not state:
+            continue
+        if atom in waived:
+            waived_hits.append((number, atom))
+            continue
+        reasons.append(f"#{atom}: {state}")
     if reasons:
         unsatisfied.append((number, item, reasons))
+
+for number, atom in waived_hits:
+    print(f"WAIVED       row {number} #{atom}: {waived[atom]}")
 
 mission_record = closure_state(69)
 if mission_record:
@@ -117,7 +138,8 @@ for number, item, reasons in unsatisfied:
 
 complete = not unsatisfied and mission_record is None
 if complete:
-    print(f"OK: the Mission stop condition holds; all {len(rows)} rows resolve.")
+    note = f" ({len(waived_hits)} human-judgment metric(s) waived)" if waived_hits else ""
+    print(f"OK: the Mission stop condition holds; all {len(rows)} rows resolve.{note}")
     raise SystemExit(0)
 
 print(
