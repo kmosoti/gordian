@@ -409,9 +409,30 @@ exit means either an authentication failure or a closed issue with no validating
 in the second case the readiness printed rests on unevidenced closure, and the fix is the missing
 closure record, not a retry.
 
-`--snapshot artifacts/atoms/issues.json` reads the committed edge snapshot instead of calling
-`gh`, for an offline or rate-limited run. That snapshot is not committed yet: **G-502 is assigned
-to #70**, which produces and refreshes it. Until it exists, run without `--snapshot`.
+#### Working with no network
+
+`artifacts/atoms/issues.json` is committed: every open Atom's contract, milestone, labels and
+native blocked-by edges, with provenance. It is produced by `scripts/snapshot-atoms.sh`, which
+refuses to write a snapshot whose closure does not match the published self-hosting set — a stale
+snapshot would fail `verifier:spec-consistency` for every Atom, so it fails loudly instead.
+
+With it, readiness derives **offline, with no credentials at all**:
+
+```bash
+gordian-derive-status --snapshot artifacts/atoms/issues.json ready
+```
+
+That is the whole of section 6.2 without a network. A sandbox that denies outbound
+connections — Codex's `workspace-write` sandbox does so by default unless
+`[sandbox_workspace_write] network_access = true` is set in `~/.codex/config.toml` — can still
+derive readiness, read every Atom contract, run all five verifiers, and produce a closure record.
+Only three steps genuinely need the network: claiming (6.3), landing (6.7) and the board update
+(6.9). Do the offline work, then hand those three to an environment that has connectivity, or
+restore connectivity first.
+
+The snapshot is a projection, not a source. Regenerate it with `scripts/snapshot-atoms.sh` after
+any issue or edge change; never hand-edit it. When it disagrees with GitHub, GitHub wins and the
+snapshot is stale.
 
 Do not hand-roll a `gh` query for the ready set. Hand-rolled readiness silently drops the
 satisfaction rule, which is the whole point of the command.
