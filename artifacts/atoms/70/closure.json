@@ -1,0 +1,74 @@
+{
+  "record_format": "gordian-closure-v1",
+  "atom_id": "70",
+  "spec_digest": "f7769d1c8cafcb4664c762ab66bf8663917069018224392c228ce0b96453ebaf",
+  "actor": {
+    "id": "gordian-agent/codex/01a058de-9401-70f1-b36e-4d5eb14b308b",
+    "kind": "agent"
+  },
+  "exact_state_id": "b33949a2e038e71a7f8d4b8eeb37f3e79b962263",
+  "logical_change_id": "kmtznokywzopuyvktllkxqnounmmmtmw",
+  "verifiers": [
+    {
+      "verifier_id": "rust-check",
+      "command": "cargo fmt --all -- --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test --locked --workspace",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/70/verifiers/rust-check.log",
+      "artifact_sha256": "4603ca6b0bee71d4b08c636dffbe79a30ce94ad4cc91e9563f210253f8de3a38",
+      "subject_exact_state_id": "b33949a2e038e71a7f8d4b8eeb37f3e79b962263"
+    },
+    {
+      "verifier_id": "kg-audit",
+      "command": "cargo run --locked -p gordian-kg -- validate; cargo run --locked -p gordian-kg -- audit --strict",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/70/verifiers/kg-audit.log",
+      "artifact_sha256": "4603ca6b0bee71d4b08c636dffbe79a30ce94ad4cc91e9563f210253f8de3a38",
+      "subject_exact_state_id": "b33949a2e038e71a7f8d4b8eeb37f3e79b962263"
+    },
+    {
+      "verifier_id": "formal",
+      "command": "bash scripts/verify-formal.sh",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/70/verifiers/formal.log",
+      "artifact_sha256": "4603ca6b0bee71d4b08c636dffbe79a30ce94ad4cc91e9563f210253f8de3a38",
+      "subject_exact_state_id": "b33949a2e038e71a7f8d4b8eeb37f3e79b962263"
+    },
+    {
+      "verifier_id": "python",
+      "command": "ruff check orchestration; python -m compileall -q orchestration/src; python -m unittest discover -s orchestration/tests",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/70/verifiers/python.log",
+      "artifact_sha256": "4603ca6b0bee71d4b08c636dffbe79a30ce94ad4cc91e9563f210253f8de3a38",
+      "subject_exact_state_id": "b33949a2e038e71a7f8d4b8eeb37f3e79b962263"
+    },
+    {
+      "verifier_id": "spec-consistency",
+      "command": "for s in scripts/check-*.sh; do bash \"$s\"; done; shellcheck scripts/*.sh; bash -n scripts/*.sh; python3 -m compileall -q scripts/",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/70/verifiers/spec-consistency.log",
+      "artifact_sha256": "4603ca6b0bee71d4b08c636dffbe79a30ce94ad4cc91e9563f210253f8de3a38",
+      "subject_exact_state_id": "b33949a2e038e71a7f8d4b8eeb37f3e79b962263"
+    },
+    {
+      "verifier_id": "atom-70-acceptance",
+      "command": "PYTHONPATH=orchestration/src python3 -m gordian_orchestration.github_project --dry-run",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/70/verifiers/atom-70-acceptance.log",
+      "artifact_sha256": "6ecc5cd49bf1fbb5fd20e66467ab5174ad6e9ae9de28f43d4c99d47380391558",
+      "subject_exact_state_id": "b33949a2e038e71a7f8d4b8eeb37f3e79b962263"
+    }
+  ],
+  "benchmarks": [],
+  "knowledge_graph_node_ids": [
+    "algorithm:github-claim-log-cas",
+    "algorithm:github-legacy-claim-adoption",
+    "algorithm:differential-conformance",
+    "algorithm:kahn-toposort",
+    "theorem:canonicalization-mismatch-invalidates",
+    "experiment:lean-rust-conformance"
+  ],
+  "known_limitations": [
+    "The independent Lean checker remains CI-only until Atom #2 lands its local invocation."
+  ],
+  "closed_at": "2026-08-31T18:45:17Z"
+}
