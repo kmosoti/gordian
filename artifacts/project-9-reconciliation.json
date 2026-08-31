@@ -1,14 +1,24 @@
 {
   "added_urls": [],
+  "archived_urls_before": [],
   "converged": true,
   "dry_run": false,
   "duplicate_urls_before": [],
   "failed_urls": [],
+  "generated_at": "2026-08-31T20:49:18Z",
   "missing_before": [],
-  "open_issue_count": 75,
+  "open_issue_count": 74,
   "owner": "kmosoti",
-  "project_issue_count_before": 75,
+  "project_issue_count_before": 77,
   "project_number": 9,
   "remaining_after": [],
-  "repository": "kmosoti/gordian"
+  "remaining_archived_after": [],
+  "repository": "kmosoti/gordian",
+  "source_change_id": "ntvzzoklpyyn",
+  "source_commit_id": "161d72511900",
+  "tool_versions": {
+    "gh": "gh version 2.46.0 (2025-01-13 Debian 2.46.0-3)",
+    "jj": "jj 0.44.0"
+  },
+  "unarchived_urls": []
 }
