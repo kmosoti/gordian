@@ -350,6 +350,23 @@ gh project list --owner kmosoti --limit 1 >/dev/null \
                                       || { echo "token lacks project scope";   exit 78; }
 ```
 
+**Why the token is an environment variable and not `gh auth`.** `gh` discovers its credentials
+through `$XDG_CONFIG_HOME/gh/hosts.yml`, falling back to `~/.config/gh/hosts.yml`. Two agents on
+the *same machine* can therefore read two different tokens with different scopes — under WSL,
+`XDG_CONFIG_HOME` is commonly exported from Windows through `WSLENV`, so a shell that inherits it
+and a runner that does not will disagree. The symptom is granting the same scope repeatedly and
+watching it never take effect: `gh auth refresh -s project` writes to whichever config the shell
+that ran it was using, and the other environment keeps its old token.
+
+`GH_TOKEN` overrides both files, so setting it is the only credential step that is deterministic
+across harnesses. Never diagnose a scope failure by re-running `gh auth refresh`; first print
+which file is in play:
+
+```bash
+gh auth status                      # names the hosts.yml actually being read
+echo "XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-<unset>}"
+```
+
 Exit code 78 means *configuration missing* and is the one failure an agent reports without
 recording an attempt: no Atom was claimed, so there is nothing to release. If the token lacks a
 scope, stop and say which one. Never attempt to widen it yourself — `gh auth refresh` is the
