@@ -1,0 +1,64 @@
+subject_exact_state_id=7b11ee451248e8ee0d3d0cbb8188e56984ec8464
+command=ruff check orchestration; python3 -m compileall -q orchestration/src; PYTHONPATH=orchestration/src python3 -m unittest discover -s orchestration/tests
+All checks passed!
+...........................................................................................................................................................................................................................................................................missing project scope
+......https://github.com/kmosoti/gordian/issues/1: archived project item has no item id
+.........missing token
+...................................
+----------------------------------------------------------------------
+Ran 317 tests in 2.298s
+
+OK
+{
+  "added_urls": [],
+  "archived_urls_before": [],
+  "converged": true,
+  "dry_run": true,
+  "duplicate_urls_before": [],
+  "failed_urls": [],
+  "generated_at": "2026-08-30T00:00:00Z",
+  "missing_before": [],
+  "open_issue_count": 1,
+  "owner": "kmosoti",
+  "project_issue_count_before": 1,
+  "project_number": 9,
+  "remaining_after": [],
+  "remaining_archived_after": [],
+  "repository": "kmosoti/gordian",
+  "source_change_id": "qxpvzzmnopqr",
+  "source_commit_id": "4f2a1b0c9d8e",
+  "tool_versions": {
+    "gh": "gh version 2.63.2",
+    "jj": "jj 0.34.0"
+  },
+  "unarchived_urls": []
+}
+{
+  "added_urls": [],
+  "archived_urls_before": [],
+  "converged": false,
+  "dry_run": true,
+  "duplicate_urls_before": [],
+  "failed_urls": [],
+  "generated_at": "2026-08-30T00:00:00Z",
+  "missing_before": [
+    "https://example.invalid/issues/1"
+  ],
+  "open_issue_count": 1,
+  "owner": "kmosoti",
+  "project_issue_count_before": 1,
+  "project_number": 9,
+  "remaining_after": [
+    "https://example.invalid/issues/1"
+  ],
+  "remaining_archived_after": [],
+  "repository": "kmosoti/gordian",
+  "source_change_id": "qxpvzzmnopqr",
+  "source_commit_id": "4f2a1b0c9d8e",
+  "tool_versions": {
+    "gh": "gh version 2.63.2",
+    "jj": "jj 0.34.0"
+  },
+  "unarchived_urls": []
+}
+exit_code=0

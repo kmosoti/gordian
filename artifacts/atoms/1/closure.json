@@ -1,0 +1,78 @@
+{
+  "record_format": "gordian-closure-v1",
+  "atom_id": "1",
+  "spec_digest": "c37937945362831047583bb4824a1c543aabc28138d609db4b7e10519dcd22bd",
+  "actor": {
+    "id": "gordian-agent/codex/01a058de-9401-70f1-b36e-4d5eb14b308b",
+    "kind": "agent"
+  },
+  "exact_state_id": "7b11ee451248e8ee0d3d0cbb8188e56984ec8464",
+  "logical_change_id": "xtrooorpnltskmrwuwsookwrkywpzqtl",
+  "verifiers": [
+    {
+      "verifier_id": "rust-check",
+      "command": "cargo fmt --all -- --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test --locked --workspace",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/1/verifiers/rust-check.log",
+      "artifact_sha256": "18f106671a497d3040dc12d28d23bb7923ce00588e5f6f4eaffd56e52407f342",
+      "subject_exact_state_id": "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
+    },
+    {
+      "verifier_id": "kg-audit",
+      "command": "cargo run --locked -p gordian-kg -- validate; cargo run --locked -p gordian-kg -- audit --strict",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/1/verifiers/kg-audit.log",
+      "artifact_sha256": "54d9157a69bda4716249d383b0d5cf63a019314623fb81f0ca7fc4bd593a9d73",
+      "subject_exact_state_id": "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
+    },
+    {
+      "verifier_id": "formal",
+      "command": "bash scripts/verify-formal.sh",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/1/verifiers/formal.log",
+      "artifact_sha256": "6baff7aa3c8c2e6b4638cbc0750cf0b4c4204b98b5ab157b5bd609fcb858b472",
+      "subject_exact_state_id": "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
+    },
+    {
+      "verifier_id": "python",
+      "command": "ruff check orchestration; python3 -m compileall -q orchestration/src; PYTHONPATH=orchestration/src python3 -m unittest discover -s orchestration/tests",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/1/verifiers/python.log",
+      "artifact_sha256": "4ea6d000117985321d89385f26c0a490e24c41a51111803b343f5e448a8ad55b",
+      "subject_exact_state_id": "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
+    },
+    {
+      "verifier_id": "spec-consistency",
+      "command": "for s in scripts/check-*.sh; do bash \"$s\"; done; shellcheck scripts/*.sh; bash -n scripts/*.sh; python3 -m compileall -q scripts/",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/1/verifiers/spec-consistency.log",
+      "artifact_sha256": "c55b4c4363b9ea4ee1a3f9b657fd609f9b408cfde7e275824b10cdb21c764f8e",
+      "subject_exact_state_id": "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
+    },
+    {
+      "verifier_id": "atom-1-acceptance",
+      "command": "contract positive, injected-negative, and manifest-write-failure paths; committed manifest; registered full benchmark with Holm correction; experiment checks",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/1/verifiers/atom-1-acceptance.log",
+      "artifact_sha256": "f815eb14a9a1c4dd9c76e027c56d5e72d751c51db8e55043d5d463edcff8058b",
+      "subject_exact_state_id": "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
+    }
+  ],
+  "benchmarks": [
+    {
+      "experiment_id": "jj-baseline",
+      "run_id": "atom-1-exact-7b11ee451248",
+      "artifact_sha256": "a4ece89da91a80620dfd777d9039123071db2c0627ab1f5e75af0d5dec707598"
+    }
+  ],
+  "knowledge_graph_node_ids": [
+    "experiment:jj-baseline"
+  ],
+  "known_limitations": [
+    "base_exact_state_id recorded at artifacts/atoms/1/attempts/base_exact_state_id",
+    "The independent Lean checker and axiom audit remain CI-only until Atom #2 lands their local invocation.",
+    "The full benchmark report is stored as artifacts/atoms/1/benchmarks/jj-baseline-full.json.gz; its uncompressed SHA-256 is 7abda99a4ac4ac4902a378132f2d3ab25e781bde522ac0d3091c94497b91b2c7.",
+    "The closure schema permits concept, algorithm, theorem, and experiment node ids but cannot enumerate the changed Tool and SourceRevision nodes."
+  ],
+  "closed_at": "2026-08-31T19:45:42Z"
+}

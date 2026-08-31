@@ -1,0 +1,88 @@
+subject_exact_state_id=7b11ee451248e8ee0d3d0cbb8188e56984ec8464
+command=contract positive, injected-negative, and manifest-write-failure paths; committed manifest; registered full benchmark with Holm correction; experiment checks
+Initialized repo in "."
+Working copy  (@) now at: wotqpvxv 861053f7 (empty) (no description set)
+Parent commit (@-)      : mzlzzwlu a06b91cd base
+Working copy  (@) now at: mzlzzwlu a06b91cd base
+Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
+Working copy  (@) now at: mzlzzwlu 3ceadd60 base rewritten
+Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
+Working copy  (@) now at: uwrtmkvs 10d50fb6 (empty) (no description set)
+Parent commit (@-)      : mzlzzwlu 3ceadd60 base rewritten
+Working copy  (@) now at: ullunlpn 8d1b5bbc (empty) (no description set)
+Parent commit (@-)      : uwrtmkvs 2b206e28 fixture root
+Working copy  (@) now at: tytzxnoz 15e85474 (empty) (no description set)
+Parent commit (@-)      : uwrtmkvs 2b206e28 fixture root
+Working copy  (@) now at: rvlmwtkp 01d72ec4 (empty) (no description set)
+Parent commit (@-)      : tytzxnoz e8d57fec left
+Working copy  (@) now at: kulryquq 253ccbdf (empty) right
+Parent commit (@-)      : uwrtmkvs 2b206e28 fixture root
+Added 0 files, modified 0 files, removed 1 files
+Working copy  (@) now at: ylvxnovm 4ab4d867 (empty) (no description set)
+Parent commit (@-)      : kulryquq c9f4b947 right
+Working copy  (@) now at: krqoyvnz 851ff8ac (empty) child
+Parent commit (@-)      : tytzxnoz e8d57fec left
+Added 1 files, modified 0 files, removed 1 files
+Working copy  (@) now at: zyruuzzz a7df0a85 (empty) (no description set)
+Parent commit (@-)      : krqoyvnz 8172c5d8 child
+Created workspace in "../isolated-workspace"
+Working copy  (@) now at: qssmwxlv 2fdf8eff (empty) (no description set)
+Parent commit (@-)      : uwrtmkvs 2b206e28 fixture root
+Added 2 files, modified 0 files, removed 0 files
+Working copy  (@) now at: mzrrqnwq 1a409d58 (empty) integration
+Parent commit (@-)      : tytzxnoz e8d57fec left
+Parent commit (@-)      : kulryquq c9f4b947 right
+Added 1 files, modified 0 files, removed 1 files
+Working copy  (@) now at: mlyzysvo 4d35e21a (empty) (no description set)
+Parent commit (@-)      : mzrrqnwq 1131f875 (empty) integration
+Initialized repo in "."
+Working copy  (@) now at: rkmqulzv 99ea5197 (empty) (no description set)
+Parent commit (@-)      : yqmymuwm bf89db8f base
+Working copy  (@) now at: ovzwunxo 348f2c2c (empty) left
+Parent commit (@-)      : yqmymuwm bf89db8f base
+Working copy  (@) now at: ltmtlkrn 4686e718 (empty) (no description set)
+Parent commit (@-)      : ovzwunxo 953f3d46 left
+Working copy  (@) now at: sxmznlpv 88d549df (empty) right
+Parent commit (@-)      : yqmymuwm bf89db8f base
+Added 0 files, modified 1 files, removed 0 files
+Working copy  (@) now at: npkrnwws d747cda0 (empty) (no description set)
+Parent commit (@-)      : sxmznlpv 73031737 right
+Working copy  (@) now at: xluyrurm 62159f2d (conflict) (empty) conflict
+Parent commit (@-)      : ovzwunxo 953f3d46 left
+Parent commit (@-)      : sxmznlpv 73031737 right
+Added 0 files, modified 1 files, removed 0 files
+Warning: There are unresolved conflicts at these paths:
+shared.txt    2-sided conflict
+Working copy  (@) now at: xluyrurm 846d3fa6 conflict
+Parent commit (@-)      : ovzwunxo 953f3d46 left
+Parent commit (@-)      : sxmznlpv 73031737 right
+Added 0 files, modified 1 files, removed 0 files
+Working copy  (@) now at: uzymrywp f074f89f (empty) (no description set)
+Parent commit (@-)      : xluyrurm f0ad81f8 repaired
+Initialized repo in "."
+Working copy  (@) now at: wpkykmrn 0179461c (empty) (no description set)
+Parent commit (@-)      : mppqmqmt 1e64604b base
+Created 1 bookmarks pointing to mppqmqmt 1e64604b restore-marker | base
+Working copy  (@) now at: vxymowxs 8676bd39 (empty) mutation
+Parent commit (@-)      : mppqmqmt 1e64604b restore-marker | base
+Working copy  (@) now at: wosvmzws 7196b422 (empty) (no description set)
+Parent commit (@-)      : vxymowxs 2cb96c2b mutation
+Moved 1 bookmarks to vxymowxs 2cb96c2b restore-marker* | mutation
+Restored to operation: af042966db40 (2026-08-31 14:41:22) create bookmark restore-marker pointing to commit 1e64604b1ea6b00790c3ea6b3b82805792b01d61
+Working copy  (@) now at: wpkykmrn 0179461c (empty) (no description set)
+Parent commit (@-)      : mppqmqmt 1e64604b restore-marker | base
+Added 0 files, modified 0 files, removed 1 files
+Initialized repo in "."
+Working copy  (@) now at: mwlkxylt b22da37c (empty) (no description set)
+Parent commit (@-)      : wlnzlqvy 5bc53c00 tagged
+Created 1 tags pointing to wlnzlqvy 5bc53c00 tagged
+Jujutsu contract fixtures passed (jj-baseline-contract/disposable-repository)
+Initialized repo in "."
+Working copy  (@) now at: urxsskun 002108f8 (empty) (no description set)
+Parent commit (@-)      : wkorrvqv 2f427261 base
+contract fixture failed: change-id-rewrite (negative injection requested)
+benchmark_sha256=7abda99a4ac4ac4902a378132f2d3ab25e781bde522ac0d3091c94497b91b2c7
+acceptance assertions passed
+OK: 11 protocol(s) and 0 run(s) valid; baseline_condition and primary_metric resolve; every protocol_digest matches.
+OK: no hedging vocabulary; every experiment names a class.
+exit_code=0

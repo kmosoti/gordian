@@ -1,0 +1,9 @@
+subject_exact_state_id=7b11ee451248e8ee0d3d0cbb8188e56984ec8464
+command=cargo run --locked -p gordian-kg -- validate; cargo run --locked -p gordian-kg -- audit --strict
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/gordian-kg validate`
+valid: 354 nodes, 799 edges
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/gordian-kg audit --strict`
+audit: 0 errors, 0 warnings
+exit_code=0

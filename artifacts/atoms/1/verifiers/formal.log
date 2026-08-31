@@ -1,0 +1,4 @@
+subject_exact_state_id=7b11ee451248e8ee0d3d0cbb8188e56984ec8464
+command=bash scripts/verify-formal.sh
+verifier:formal OK — 49 theorems, axiom closure within {propext, Classical.choice, Quot.sound}
+exit_code=0
