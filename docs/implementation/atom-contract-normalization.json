@@ -1,0 +1,1751 @@
+{
+  "format": "gordian-atom-contract-normalization-v1",
+  "atom": 70,
+  "repository": "kmosoti/gordian",
+  "original_plan_sha256": "3f9cb9a381fc47296c0bc34893037089db1353408f172b0928f998f4a7d44b63",
+  "description": "Committed declarative source for the bounded #70 repair of live Atom contracts; the issue snapshot used to generate this file is not a runtime dependency.",
+  "transforms": [
+    {
+      "issue": 1,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-1-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 2,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-2-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 3,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-3-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 4,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-4-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "The differential test harness is `crates/gordian-reference/tests/differential.rs`.",
+          "new": "The differential test harness is `crates/gordian-core/tests/reference_differential.rs`.",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "issue": 5,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-5-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 6,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-6-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 7,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-7-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 8,
+      "target_crates": [
+        "gordian-kg"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-8-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 9,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-9-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 10,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-10-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Allowed decomposition kinds are enforced independently from dependency edges.\n- Sibling creation/order never implies causal dependency.\n- Hard-dependency depender and prerequisite kinds are both `Atom`, per `docs/spec/data-model.md` \"Global hard dependency target kinds\"; validation rejects any other kind, rejects Quark targets, and rejects cycles over declared **and derived** edges.\n- Plan validation rejects any Atom whose `required_interfaces` or `declared_inputs` are neither provided/produced by another Atom in the plan nor registered as `ExternalProvision` (#58).\n- Plan validation resolves exactly one `ProviderBinding` per `(consumer_atom, requirement)` and rejects an ambiguous plan in which two members provide the same interface without an explicit binding.\n- Validation rejects any `AtomSpec` precondition expression that references a work-object identifier.\n- Extend `formal/Gordian/Graph.lean`: give `RankedDependencyGraph` nodes a `WorkKind`, prove that no dependency edge may target a quark, and expose a computable rank/acyclicity check rather than assuming the `decreases` certificate field.\n- Cycle detection/topological order is deterministic and linear-time for the reference path.\n- Optional rank/topological certificates can be checked against every edge.\n- Generated sparse/dense/wide/deep DAG tests cover edge cases.\n\n",
+          "new": "## Acceptance\n- Allowed decomposition kinds are enforced independently from dependency edges.\n- Sibling creation/order never implies causal dependency.\n- Hard-dependency depender and prerequisite kinds are both `Atom`, per `docs/spec/data-model.md` \"Global hard dependency target kinds\"; validation rejects any other kind, rejects Quark targets, and rejects cycles over declared and derived edges.\n- Plan validation rejects any Atom whose `required_interfaces` or `declared_inputs` are neither provided/produced by another Atom in the plan nor registered as `ExternalProvision` (#58).\n- Plan validation resolves exactly one `ProviderBinding` per `(consumer_atom, requirement)` and rejects an ambiguous plan in which two members provide the same interface without an explicit binding.\n- Validation rejects any `AtomSpec` precondition expression that references a work-object identifier.\n- `RankedDependencyGraph` carries `WorkKind`; `edge_target_globally_dependable` (G-222) rejects every Quark dependency target structurally.\n- Quark ownership is unique (G-232): every Quark belongs to exactly one Atom.\n- Rank computation and cycle detection are deterministic and executable (G-231), and optional rank/topological certificates are checked edge-by-edge (G-233).\n- Containment (`contains`) is distinct from `dependsOn`; containment never adds execution precedence, and dependency edges never arise from sibling creation order. The graph model records this separation (G-249).\n- Generated sparse/dense/wide/deep DAG tests cover edge cases, and the reference path remains linear-time in graph size.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 11,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-11-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- ExecutionAttempt records subject spec revision, actor, exact base, timing/outcome, and the adapter-neutral source identities `logical_change_id` and `exact_state_id`.\n- Attempt failure cannot mutate the Atom specification.\n- Candidate is immutable and references exact producer attempt/base/source identity.\n- Editing after candidate freeze creates a distinct Candidate.\n- Effect classes distinguish pure, hermetic, external read, idempotent write, compensatable write, irreversible, and judgment.\n- Retry/replay policy is explicit per effect class, per `docs/algorithms/reconciliation.md` section 8, and is realized as an exhaustive match with no `_` wildcard.\n- `IntegrationCandidate` is a distinct record with its own identity, `base_frontier`, `parent_candidates`, manifest, and `exact_state_id`.\n\n",
+          "new": "## Acceptance\n- `ExecutionAttempt` records subject `spec_revision`, actor, exact base, timing/outcome, and the adapter-neutral source identities `logical_change_id` and `exact_state_id`.\n- Attempt failure cannot mutate the Atom specification.\n- Candidate is immutable and references its exact producer attempt/base/source identity.\n- Candidate fields include `plan_revision`, `base_exact_state_id`, `base_frontier_seq`, `logical_change_id`, `exact_state_id`, `fencing_token`, and `frozen_at_event` (the `EventSeq` of `CandidateFrozen`).\n- Editing after candidate freeze creates a distinct Candidate and invalidates evidence bound to the previous exact state.\n- Effect classes distinguish pure, hermetic, external read, idempotent write, compensatable write, irreversible, and judgment.\n- Retry/replay policy is explicit per effect class, per `docs/algorithms/reconciliation.md` section 8, and is realized as an exhaustive match with no `_` wildcard.\n- `IntegrationCandidate` is a distinct record with its own identity, `plan_revision`, frozen integration manifest, `base_frontier`, `base_frontier_seq`, `parent_candidates`, `exact_state_id`, and `frozen_at_event`.\n- Integration acyclicity is validated: every parent candidate's `frozen_at_event` is strictly earlier than the IntegrationCandidate's `frozen_at_event`.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 12,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-12-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Event identity, type/schema identity, actor, subject, causal parents, timestamps, payload, and digest are represented, and every event carries a dense `EventSeq` assigned on append.\n- The canonical event set includes `CandidateAdmitted`, `FrontierMoved`, `AtomSatisfied`, `SatisfactionInvalidated`, `AdmissionAborted`, `AdmissionPreempted`, `EvidenceInherited`, `EvidenceRetracted`, and `FrontierDivergenceObserved`.\n- Projector is deterministic from recorded history and has no hidden clock/network/model effects.\n- Derived state can be rebuilt after discarding materialized projections.\n- Duplicate-event semantics are explicit/idempotent where protocol permits.\n- Unknown/invalid event forms reject deterministically rather than being silently ignored.\n- Extend `formal/Gordian/Replay.lean` beyond `replay_same_history` with event idempotency and projection determinism obligations, and differentially test them through #7.\n\n",
+          "new": "## Acceptance\n- Event identity, type/schema identity, actor, subject, causal parents, timestamps, payload, and digest are represented, and every event carries a dense `EventSeq` assigned by the canonical event log on append.\n- The complete canonical event registry and projector contract is the normative registry in `docs/algorithms/reconciliation.md` section 1; this Atom implements that full registry rather than restating a drift-prone closed list here.\n- Rejection, invalidation, restoration, lease, capability, and observation events have explicit schemas and deterministic projector transitions; no event kind is silently ignored.\n- Projector output is deterministic from the recorded history and has no hidden clock/network/model effects.\n- Derived state can be rebuilt after discarding materialized projections, with duplicate-event semantics explicit and idempotent where the protocol permits.\n- Unknown or invalid event forms reject deterministically rather than being silently ignored.\n- G-218 owns the canonical event type and projector, G-224 owns duplicate-event idempotency, and G-261 owns substantive replay theorems beyond history congruence.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 13,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-13-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Acceptance predicates are explicit typed/versioned policy data with bounded evaluator interfaces.\n- `Blocked`, `Enabled`, and `Active` are derived deterministically.\n- `Satisfied(a)` requires an **admitted frontier**: a's Candidate is a transitive parent of the admitted `IntegrationCandidate` and every required verifier is discharged on that integration, or inherited under a `compositional = true` manifest entry.\n- `Satisfied` is produced only by evaluating the acceptance predicate over fresh exact-subject evidence obtained through #15's fingerprint interfaces; no stub implementation of `Satisfied` is permitted, and a missing evidence interface fails closed.\n- The seven readiness sub-predicates are implemented exactly as defined in `docs/spec/mission-graph.md` `## Readiness predicate definitions`, and differential-tested against the Lean through #7.\n- Re-express `AtomFacts` and `Dispatchable` in `formal/Gordian/Scheduler.lean` as `Bool`-valued functions with `Decidable` instances over concrete data instead of opaque `Prop` fields.\n- Initiative satisfaction is evaluated from its own acceptance contract rather than automatically inheriting child completion.\n- No mutable `status = done` field can bypass acceptance.\n\n",
+          "new": "## Acceptance\n- Acceptance predicates are explicit typed/versioned policy data with bounded evaluator interfaces.\n- `Blocked`, `Enabled`, and `Active` are derived deterministically.\n- `Satisfied(a)` requires an admitted frontier: `a`'s Candidate is a transitive parent of the admitted `IntegrationCandidate` and every required verifier is discharged on that integration, or inherited under a `compositional = true` manifest entry.\n- `satisfaction_index` is established only while applying `AtomSatisfied` or a guarded `SatisfactionRestored` event, and is cleared only by `SatisfactionInvalidated`; no cache or evidence-only inference can create satisfaction.\n- `SatisfactionRestored` uses the same `FrontierVersion` and `WitnessGuard` preconditions as admission, requires the Atom Candidate in the transitive parents of the current accepted frontier, and requires fresh passing evidence for every required verifier on that current frontier.\n- `SatisfactionInvalidated` has exactly five reasons, each with an explicit producer and trigger: `spec_revision_superseded` (projector / `PlanSelected` pinning a different revision), `plan_superseded` (projector / `PlanSelected` removing membership), `evidence_retracted` (evidence store / `EvidenceRetracted` naming counted evidence), `verifier_manifest_changed` (projector / `PlanSelected` adding an uncounted required verifier), and `integration_regression` (coordinator / failing `EvidenceRecorded` for an integration containing the Atom Candidate).\n- The invalidation reason, producer, trigger, current accepted frontier, and witness are recorded in canonical history; restoration never creates a new Candidate.\n- `Satisfied` is produced only by evaluating the acceptance predicate over fresh exact-subject evidence obtained through #15's fingerprint interfaces; a missing evidence interface fails closed.\n- The seven readiness sub-predicates are implemented exactly as defined in `docs/spec/mission-graph.md` `## Readiness predicate definitions`, and differential-tested against Lean through #7.\n- Initiative satisfaction is evaluated from its own acceptance contract rather than automatically inheriting child completion; no mutable `status = done` field can bypass acceptance.\n- G-206 defines `dependenciesSatisfied` over the real dependency graph and `Frontier.Satisfied`, not an environment oracle field.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 14,
+      "target_crates": [
+        "gordian-artifacts"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-14-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 15,
+      "target_crates": [
+        "gordian-evidence"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-15-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Required binding\n- specification revision\n- exact candidate commit\n- resolved direct/transitive inputs/dependencies declared relevant\n- relevant environment identity\n- verifier identity/digest\n- canonicalization scheme\n\n",
+          "new": "## Required binding\n`Evidence.binding` is required and non-null and has exactly these seven normative fields:\n\n```text\nspec_revision\nexact_state_id\ninput_digest\ndependency_digest\nenvironment_digest\nverifier_digest\ncanonicalization_scheme\n```\n\nThe same seven fields remain separately queryable and are carried by both `CandidateRef` and `EvidenceRef`; adding, removing, or re-meaning a field changes `canonicalization_scheme` and invalidates prior evidence.\n\n"
+        },
+        {
+          "old": "## Acceptance\n- Canonicalization is deterministic and inspectable.\n- Individual binding constituents remain queryable in addition to the aggregate digest.\n- `Fresh` compares all seven `EvidenceBinding` fields, including `dependency_digest` and `canonicalization_scheme`; any required mismatch makes evidence incompatible, and a canonicalization-scheme change invalidates all prior evidence.\n- Extend `formal/Gordian/Evidence.lean` with the missing canonicalization-scheme binding component and model the verifier's declared-relevant policy instead of unconditional record equality.\n- Historical stale evidence remains addressable but cannot satisfy current acceptance.\n- The dependency-boundary completeness assumption is documented and instrumentable.\n\n",
+          "new": "## Acceptance\n- Canonicalization is deterministic and inspectable.\n- `Evidence.Compatible` is relevance-conditioned: it compares the verifier-declared relevant subset of the seven fields and fails closed on every relevant mismatch, while all seven stored fields remain available for provenance and freshness.\n- `Fresh` compares exactly the seven `EvidenceBinding` fields, including `dependency_digest` and `canonicalization_scheme`; a canonicalization-scheme change invalidates all prior evidence.\n- `CandidateRef` and `EvidenceRef` are distinct types, each carrying exactly the seven normative fields, so a candidate cannot be passed where evidence is expected.\n- Historical stale evidence remains addressable but cannot satisfy current acceptance.\n- The dependency-boundary completeness assumption is documented and instrumentable.\n- G-202 supplies executable `Evidence.isCompatible`; G-214 supplies evidence-compatibility content, G-238 supplies relevance-conditioned compatibility, G-241 supplies the distinct reference types, and G-310 is the binding/fingerprint integration obligation.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 16,
+      "target_crates": [
+        "gordian-evidence"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-16-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 17,
+      "target_crates": [
+        "gordian-evidence"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-17-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 18,
+      "target_crates": [
+        "gordian-coordination"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-18-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Define positive capability grants scoped by actor, action, resource, and optional expiry/fencing context.\n- Implement a minimal internal evaluator/reference policy.\n- Build equivalent representative Cedar policies.\n- Compare expressiveness, analyzability, auditability, latency/throughput, memory, dependency/operational surface, and failure modes.\n- Confirm abstract Worker/Coordinator/DeploymentAuthority separation through runtime enforcement tests.\n- Adoption rule, pre-registered before the measurement runs: adopt Cedar if and only if all four thresholds are met - p99 policy-evaluation latency <= 50 microseconds; binary-size delta <= 3.0 MB; added transitive dependency count <= 40; and at least 3 of the required policy classes are expressible only in Cedar. If any threshold fails, keep the reference evaluator.\n- Extend `formal/Gordian/Authority.lean` to model grant and delegation so that \"by default\" in `coordinator_cannot_deploy_by_default` has formal content.\n\n",
+          "new": "## Acceptance\n- Define positive capability grants scoped by actor, action, resource, and optional expiry/fencing context.\n- `issued_at_event`, `expires_at_event`, and `revoked_at_event` are dense `EventSeq` values. Grant liveness is evaluated only from event order at the named evaluation event; wall-clock timestamps are provenance and never a predicate input.\n- Delegation is explicit and bounded, and `deploy_requires_explicit_grant` is enforced rather than inferred from a role name (G-211).\n- Implement a minimal internal evaluator/reference policy and build equivalent representative Cedar policies.\n- Compare expressiveness, analyzability, auditability, latency/throughput, memory, dependency/operational surface, and failure modes.\n- Confirm abstract Worker/Coordinator/DeploymentAuthority separation through runtime enforcement tests.\n- Adoption rule, pre-registered before the measurement runs: adopt Cedar iff all four thresholds are met — p99 policy-evaluation latency <= 50 microseconds; binary-size delta <= 3.0 MB; added transitive dependency count <= 40; and at least 3 required policy classes are expressible only in Cedar. If any threshold fails, keep the reference evaluator.\n- Extend `formal/Gordian/Authority.lean` to model grant and delegation so that \"by default\" in `coordinator_cannot_deploy_by_default` has formal content.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 19,
+      "target_crates": [
+        "gordian-coordination"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-19-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Admission takes an `IntegrationCandidate` built over the current frontier and a batch; it never admits a bare Candidate.\n- The admission witness is the ten conjuncts of `docs/spec/mission-graph.md` `## Accepted frontier`, including `parents_unadmitted`, `lease_valid_at_freeze`, and `evidence_provenance_valid`; admission rejects candidates failing any of them.\n- Admission requires reconciliation with the expected current frontier, and unresolved structural/source-plane conflict fails closed.\n- The required verifier manifest is complete and every required result passes and freshly matches the exact candidate.\n- The frontier CAS is an expected-version append of `CandidateAdmitted` to the canonical event log, followed by an idempotent bookmark move and a `FrontierMoved` append; crash recovery re-drives unmatched intents and closes an unrecoverable intent with `AdmissionAborted`.\n- The witness is evaluated at a named `ProjectionVersion` and committed under a `WitnessGuard` on that version as well as on `FrontierVersion`; `CandidateAdmitted` records the witness itself, not only its digest.\n- Admission requires a live exclusive lease on `LeaseSubject::Coordinator(project)`; completion is a single conditional transactional append of `FrontierMoved` plus every `AtomSatisfied`.\n- A candidate whose `admission_attempts` (counting `AdmissionPreempted` **and** `IntegrationConflictObserved`) reaches `MAX_ADMISSION_ATTEMPTS` (3) is admitted in an exclusive single-member batch, in FIFO order; after `MAX_EXCLUSIVE_ATTEMPTS` it is closed with `AdmissionRejected`.\n- Every false witness conjunct appends `AdmissionRejected { subject, conjunct, detail }`, releases the batch claims, and returns the Atom to a defined state; admission never fails silently.\n- Define `Acceptable` in `formal/Gordian/Acceptance.lean` in terms of `Conflict.DeclaredNonInterfering`, `Evidence.Compatible` and the `Authority` predicates rather than opaque `Prop` fields.\n\n",
+          "new": "## Acceptance\n- Admission takes an `IntegrationCandidate` built over the current frontier and a batch; it never admits a bare Candidate.\n- The admission witness is exactly these ten ordered conjuncts from `docs/spec/mission-graph.md` `## Accepted frontier`: `CurrentFrontierReconciled`, `ParentsUnadmitted`, `NoUnresolvedConflict`, `VerifierManifestComplete`, `RequiredVerificationPasses`, `EvidenceBoundToExactCandidate`, `EvidenceFresh`, `EvidenceProvenanceValid`, `LeaseValidAtFreeze`, and `AuthorizedPromotion`. Admission rejects a candidate failing any one.\n- `CurrentFrontierReconciled` checks source/frontier agreement, expected frontier ancestry, batch identity, and no unresolved conflict; unresolved structural or source-plane conflict fails closed.\n- The required verifier manifest is complete and every required result freshly matches the exact candidate. Evidence provenance requires a preceding matching verification event.\n- The frontier CAS is an expected-`FrontierVersion` append to the canonical event log, followed by idempotent adapter-observed bookmark move/publish and one atomic completion transaction containing `FrontierMoved`, every `AtomSatisfied`, and `CandidateClaimReleased`; crash recovery re-drives unmatched intents and closes an unrecoverable intent with `AdmissionAborted`.\n- The witness is evaluated at a named `ProjectionVersion` and committed under a `WitnessGuard` on that version as well as on `FrontierVersion`; `CandidateAdmitted` records the witness itself, not only its digest.\n- Admission requires a live exclusive `LeaseSubject::Coordinator(project)` lease; completion is one conditional transactional append of `FrontierMoved`, every `AtomSatisfied`, and `CandidateClaimReleased`.\n- `SatisfactionRestored` is the only post-invalidation restoration path: under the same frontier/witness guards, the Atom Candidate must be in the current frontier's transitive parents and every required verifier must have a fresh pass on that current frontier.\n- A candidate whose `admission_attempts` (counting both `AdmissionPreempted` and `IntegrationConflictObserved`) reaches `MAX_ADMISSION_ATTEMPTS` (3) is admitted in an exclusive single-member batch, in FIFO order; after `MAX_EXCLUSIVE_ATTEMPTS` it is closed with `AdmissionRejected`.\n- Every false conjunct appends `AdmissionRejected { subject, conjunct, detail }` and atomically releases the batch claims with `CandidateClaimReleased`; abort compensation uses `AdmissionAborted` only after `reset_frontier`, and admission never fails silently.\n- Define executable `isAcceptable` and the conflict/evidence predicates in `formal/Gordian/Acceptance.lean` rather than opaque `Prop` fields (G-201, G-207, G-208, G-209, G-220, G-225, T020).\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 20,
+      "target_crates": [
+        "gordian-scheduler"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-20-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 21,
+      "target_crates": [
+        "gordian-scheduler"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-21-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 22,
+      "target_crates": [
+        "gordian-scheduler"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-22-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Semantic resource identities are project-scoped and typed enough to represent crates/modules/types/APIs/schemas/config/services/artifacts.\n- Atom specs can declare read, write, provide, and require claims.\n- Execution observations can record file/module/interface/config/network/resource access without pretending instrumentation is complete.\n- Undeclared writes produce a ScopeExpanded event and force conflict/admission re-evaluation before candidate promotion.\n- File/path overlap remains available as a cheap baseline predictor.\n- `ResourceClaim.confidence` is consumed only as a feature of the #52 conflict predictor; no scheduling, readiness, non-interference, lease, or admission predicate reads it.\n- Extend `formal/Gordian/Conflict.lean` to connect `DeclaredNonInterfering` to the acceptance witness's `conflictFree` field.\n\n",
+          "new": "## Acceptance\n- Semantic resource identities are project-scoped and typed enough to represent crates/modules/types/APIs/schemas/config/services/artifacts.\n- Atom specs can declare read, write, provide, and require claims; the claim expressions are executable data, not opaque predicates.\n- `DeclaredNonInterfering(A, B)` is the executable three-way disjointness contract: `writes(A)` is disjoint from `reads(B)`, `writes(A)` is disjoint from `writes(B)`, and `writes(B)` is disjoint from `reads(A)`.\n- Admission consumes `DeclaredNonInterfering` as its conflict witness (G-246), and the claim evaluator is executable and testable (G-217).\n- Execution observations can record file/module/interface/config/network/resource access without pretending instrumentation is complete.\n- Undeclared writes produce a `ScopeExpanded` event and force conflict/admission re-evaluation before candidate promotion.\n- File/path overlap remains available as a cheap baseline predictor.\n- `ResourceClaim.confidence` is consumed only as a feature of the #52 conflict predictor; no scheduling, readiness, non-interference, lease, or admission predicate reads it.\n- Extend `formal/Gordian/Conflict.lean` to connect `DeclaredNonInterfering` to the acceptance witness's `conflictFree` field.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 23,
+      "target_crates": [
+        "gordian-coordination"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-23-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Leases are keyed on `LeaseSubject`, a sum of `SemanticResource`, `LogicalChange`, and `Coordinator`; at most one live `write_exclusive` lease exists per subject.\n- Liveness is `EventSeq`-denominated (`expires_at_event`, `LeaseExpired`) and never a wall-clock comparison; wall-clock expiry alone is not treated as protection against a paused stale process.\n- A holder self-fences: a `CandidateFrozen` appended under a non-live lease on the logical change is rejected by the log.\n- Shared write grants are permitted only under the `commutative_operations` rule of `docs/spec/data-model.md` `## Lease`; `LogicalChange` subjects are never shared-write leased.\n- Exclusive grants carry monotonically increasing fencing tokens where downstream enforcement is possible.\n- Expiry, revocation, renewal, actor loss, and stale-holder behavior are explicit state transitions.\n- Lease facts are event and provenance visible.\n- Add `formal/Gordian/Lease.lean` carrying lease exclusivity and the fencing transition theorem; `docs/spec/invariants.md` `## One normal-path writer per evolving change` gains its Lean counterpart.\n\n",
+          "new": "## Acceptance\n- Leases are keyed on `LeaseSubject`, a sum of `SemanticResource`, `LogicalChange`, and `Coordinator`; at most one live `write_exclusive` lease exists per subject.\n- `issued_at_event`, `expires_at_event`, and `revoked_at_event` are `EventSeq` values. `live(L, at_event)` is determined by event ordering, and expiry appends `LeaseExpired`; wall-clock expiry is provenance only and never protects a paused stale process.\n- A holder self-fences: a `CandidateFrozen` appended under a non-live `LeaseSubject::LogicalChange` lease is rejected by the canonical event log.\n- Shared write grants are permitted only under the `commutative_operations` rule of `docs/spec/data-model.md` `## Lease`; `LogicalChange` subjects are never shared-write leased.\n- Exclusive grants carry monotonically increasing fencing tokens where downstream enforcement is possible.\n- Expiry, revocation, renewal, actor loss, and stale-holder behavior are explicit event transitions and lease facts are provenance-visible.\n- Add `formal/Gordian/Lease.lean` with the lease transition/exclusivity theorem G-227; `docs/spec/invariants.md` `## One normal-path writer per evolving change` gains its Lean counterpart.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 24,
+      "target_crates": [
+        "gordian-scheduler"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-24-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 25,
+      "target_crates": [
+        "gordian-postgres"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-25-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 26,
+      "target_crates": [
+        "gordian-postgres"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-26-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- The mandatory projection set is closed and enumerated: `atom_state`, `mission_state`, `active_attempts`, `leases`, `fresh_evidence`, `ready_work`, `satisfaction_index`, `frontier_chain`, `admission_claims`, `admission_attempts`, and `observed_project_state`. All are rebuilt deterministically from history, and `satisfaction_index` writes are idempotent per `(atom, frontier_seq)`.\n- Projection rows are never the sole canonical truth for facts derivable from history/immutable records.\n- Rebuild can discard projections and reconstruct canonical fields deterministically.\n- Projection updates and event persistence have an explicit crash-consistency protocol.\n- Rebuild mismatch is a first-class invariant violation with evidence, not a warning log.\n- Replaying a history across a `PlanSelected` reproduces every historical `Fingerprint(I, v)` byte for byte; no predicate or projector reads a wall clock.\n\n",
+          "new": "## Acceptance\n- The mandatory projection set is exactly this closed list: `atom_state`, `mission_state`, `active_attempts`, `leases`, `fresh_evidence`, `ready_queue`, `accepted_frontier`, `frontier_chain`, `satisfaction_index`, `admission_queue`, `admission_claims`, `admission_attempts`, `observed_project_state`, `executor_registry`, `resource_pools`, and `capability_grants`.\n- All sixteen projections are rebuildable deterministically from canonical history and immutable records; `satisfaction_index` writes are idempotent per `(atom, frontier_seq)`.\n- Projection rows are never the sole canonical truth for facts derivable from history or immutable records.\n- Rebuild can discard projections and reconstruct canonical fields deterministically.\n- Projection updates and event persistence have an explicit crash-consistency protocol.\n- Rebuild mismatch is a first-class invariant violation with evidence, not a warning log.\n- Replaying a history across a `PlanSelected` reproduces every historical `Fingerprint(I, v)` byte for byte; no predicate or projector reads a wall clock.\n\n"
+        },
+        {
+          "old": "covering every one of the eleven mandatory projections named in Acceptance",
+          "new": "covering every one of the sixteen mandatory projections named in Acceptance",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "issue": 27,
+      "target_crates": [
+        "gordian-postgres"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-27-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 28,
+      "target_crates": [
+        "gordian-postgres"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-28-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 29,
+      "target_crates": [
+        "gordian-jj",
+        "gordian-source"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-29-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 30,
+      "target_crates": [
+        "gordian-jj"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-30-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 31,
+      "target_crates": [
+        "gordian-jj"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-31-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Candidate handoff records Atom/spec, producer attempt, exact base, `logical_change_id`, `exact_state_id`, and the `fencing_token` held on `LeaseSubject::LogicalChange` at freeze time.\n- Candidate is logically immutable for that verification attempt.\n- A subsequent rewrite preserving the `logical_change_id` creates a new Gordian Candidate and invalidates evidence bound to the previous `exact_state_id`.\n- Candidate metadata can be reconstructed after coordinator restart.\n- Worker cannot silently mutate the verification subject after handoff.\n\n",
+          "new": "## Acceptance\n- Candidate handoff records Atom/spec, producer attempt, exact base, `plan_revision`, `base_frontier_seq`, `logical_change_id`, `exact_state_id`, `fencing_token`, and `frozen_at_event`.\n- Freeze requires a live exclusive `LeaseSubject::LogicalChange(logical_change_id)` lease. At the freeze event the candidate records the highest fencing token held for that subject; a lower or stale token cannot freeze or hand off.\n- Candidate is logically immutable for that verification attempt. A subsequent rewrite preserving `logical_change_id` creates a new Candidate and invalidates evidence bound to the previous `exact_state_id`.\n- Candidate metadata can be reconstructed after coordinator restart, and the worker cannot silently mutate the verification subject after handoff.\n- The candidate-freeze transition and token ordering are the T011 / G-223 obligation.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 32,
+      "target_crates": [
+        "gordian-jj"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-32-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Independent candidates are not linearized merely by finish time.\n- Integration produces an `IntegrationCandidate` with its own identity, manifest, and evidence over the selected parents; a conflicting member is removed from the batch without invalidating the rest, and removal produces a **new** `IntegrationCandidate` rather than mutating the old one.\n- Attribution is unconditional: every conflicted hunk in an integration candidate maps to at least one source candidate. The only exempt conflict kinds are the closed list (a) whole-file delete/modify pairs, demonstrated by the `delete_modify` fixture; (b) binary blobs with no line structure, demonstrated by the `binary_blob` fixture; and (c) generated-file regeneration collisions, demonstrated by the `generated_artifact` fixture. No other exemption exists.\n- Conflict resolution can be executed as a bounded Atom/attempt with explicit provenance.\n- Integrated state receives independent verifier evidence.\n- Unresolved conflict cannot pass candidate admission.\n\n",
+          "new": "## Acceptance\n- Independent candidates are not linearized merely by finish time.\n- Integration produces an `IntegrationCandidate` with its own identity, `plan_revision`-frozen `integration_manifest`, `base_frontier`, `base_frontier_seq`, parent candidates, exact state, and `frozen_at_event`; every parent candidate has `parent.frozen_at_event < I.frozen_at_event`.\n- A conflicting member is removed from the batch without invalidating the rest, and removal produces a new `IntegrationCandidate` rather than mutating the old one.\n- Attribution is unconditional: every conflicted hunk in an integration candidate maps to at least one source candidate. The only exempt conflict kinds are the closed list (a) whole-file delete/modify pairs, demonstrated by the `delete_modify` fixture; (b) binary blobs with no line structure, demonstrated by the `binary_blob` fixture; and (c) generated-file regeneration collisions, demonstrated by the `generated_artifact` fixture. No other exemption exists.\n- Conflict resolution can be executed as a bounded Atom/attempt with explicit provenance.\n- Integrated state receives independent verifier evidence, and unresolved conflict cannot pass candidate admission.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 33,
+      "target_crates": [
+        "gordian-jj"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-33-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 34,
+      "target_crates": [
+        "gordian-source"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-34-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 35,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-35-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 36,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-36-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 37,
+      "target_crates": [
+        "gordian-experiments"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-37-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 38,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-38-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 39,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-39-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 40,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-40-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 41,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-41-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Remote workers/coordinators cannot create two valid exclusive write leases for the same resource under the defined authority model.\n- Stale fencing tokens are rejected where enforcement is available.\n- Accepted-frontier promotion retains expected-frontier/CAS semantics across coordinator failure/retry.\n- Coordinator failover does not grant two independent writers to accepted reality.\n- Lease/frontier state can recover after process loss from canonical persistence/events.\n- No correctness assumption depends on synchronized wall clocks alone.\n\n",
+          "new": "## Acceptance\n- The canonical event log is the authority for lease, candidate, frontier, and admission state; materialized views, local bookmarks, and process state are projections only.\n- Admission and accepted-frontier movement require a live exclusive coordinator lease on `LeaseSubject::Coordinator(project)` and `move_accepted_frontier`; no worker or failover process can exercise that capability implicitly.\n- `FrontierVersion` is the only accepted-frontier CAS target, and the admission witness is guarded by its `WitnessGuard`/`ProjectionVersion` scope.\n- Source-plane move and publish are idempotent adapter effects that are observed and reconciled. Canonical events are `CandidateAdmitted` intent and `FrontierMoved` completion; a failed or permanently unmatched intent performs a compensating `reset_frontier` to the expected frontier, then appends `AdmissionAborted`.\n- Re-drive is idempotent and bounded by `MAX_REDRIVE_ATTEMPTS`; recovery reconstructs the coordinator lease, witness, and intent from the event log without reissuing nondeterministic work.\n- Remote workers/coordinators cannot create two valid exclusive write leases for the same resource under the defined authority model, and stale fencing tokens are rejected where enforcement is available.\n- Coordinator failover does not grant two independent writers to accepted reality; lease/frontier state recovers from canonical persistence/events and no correctness assumption depends on synchronized wall clocks alone.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 42,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-42-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 43,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-43-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 44,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-44-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 45,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-45-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 46,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-46-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 47,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-47-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 48,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-48-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 49,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-49-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Dependency rationale\n#48 imports the native plan this Mission executes over; #38 supplies the local multi-worker coordinator that dispatches it; #33 supplies verification at an exact revision; #28 supplies the crash/duplicate/recovery fault suite the kill-restart acceptance repeats at real-workload scale. These four, transitively, are exactly the 43-Atom minimal self-hosting prerequisite set of [`docs/implementation/execution-order.md`](docs/implementation/execution-order.md) section 15. #43 is this Mission's payload rather than its prerequisite, #34 is an experiment that runs *on* the substrate this Atom produces, and #57 consumes this run's delta report; section 15 places all three outside the minimal set, so none of them blocks this Atom.\n\n",
+          "new": "## Dependency rationale\n#48 supplies the native plan import and #38 supplies the local multi-worker coordinator; #33 supplies exact-revision verification and #28 supplies the crash/duplicate/recovery fault suite. Together these are the bounded prerequisite closure in `docs/implementation/execution-order.md` section 15. Trace and metrics Atoms are outcomes of the runtime Mission, not imported dependencies or admission claims of this Atom; #34 and #57 consume the resulting evidence later.\n\n"
+        },
+        {
+          "old": "## Acceptance\n- The bounded Gordian feature executed by this Mission is **#43** (observability instrumentation). #43 is the work this Mission performs, not a precondition of it, which is why it is not in this Atom's `## Dependencies` and not in the minimal self-hosting set. It is decomposed by the #48 import into two causally independent native Atoms - the #43 tracing spine and the #43 metrics surface - with no dependency edge between them in either direction, and exactly one integration boundary: the `gordian-observability` crate's public surface. Every declared dependency of #43 (namely #38) lies inside this Atom's prerequisite closure, so the payload is executable the moment this Atom is ready.\n- Native Mission Graph derives ready work and dispatches isolated workers from exact bases through the Jujutsu source adapter (#29, #30, #31) behind the source-adapter trait. The Jujutsu-versus-Git comparison (#34) is scored against this run's substrate afterwards and is not a prerequisite of it.\n- Workers coordinate through explicit shared semantic state, not unrestricted shared source mutation.\n- Every candidate is frozen and verified against its exact `exact_state_id`.\n- The integration candidate receives independent verification.\n- The accepted frontier moves only through authorized admission (#19).\n- Kill and restart the coordinator and reconstruct the run from canonical persistence without reissuing nondeterministic work. This is the real-workload repetition of the #38 fixture-worker restart test, and #28's crash/recovery fault suite is its fixture-level counterpart.\n- Produce a complete provenance/evidence bundle and report expected versus observed Mission state as a typed delta set, with coordinator-cost reporting emitted by the #43 instrumentation this Mission itself lands.\n\nSelf-hosting runs only the constrained-local-process sandbox backend; qualified sandbox backends (#62) and secret brokerage (#63) are evidence for #67 and #69, not preconditions of #49.\n\n",
+          "new": "## Acceptance\n- Create a separate native runtime `Mission` and selected `PlanRevision` for self-hosting. Trace and metrics Atoms are outcomes linked to that Mission run; #48 neither imports nor decomposes #43, and this Atom makes no #43 satisfaction claim.\n- Native Mission Graph derives ready work and dispatches isolated workers from exact bases through the Jujutsu source adapter (#29, #30, #31) behind the source-adapter trait. The Jujutsu-versus-Git comparison (#34) is scored against this run's substrate afterwards and is not a prerequisite of it.\n- Workers coordinate through explicit shared semantic state, not unrestricted shared source mutation.\n- Every candidate is frozen and verified against its exact `exact_state_id`.\n- The integration candidate receives independent verification.\n- The accepted frontier moves only through authorized admission (#19).\n- Kill and restart the coordinator and reconstruct the run from canonical persistence without reissuing nondeterministic work. This is the real-workload repetition of the #38 fixture-worker restart test, and #28's crash/recovery fault suite is its fixture-level counterpart.\n- Produce a complete provenance/evidence bundle and report expected versus observed Mission state as a typed delta set, with `gordian-runtime::observability` trace/metrics evidence linked to the run rather than used as a satisfaction shortcut.\n\nSelf-hosting runs only the constrained-local-process sandbox backend; qualified sandbox backends (#62) and secret brokerage (#63) are evidence for #67 and #69, not preconditions of #49.\n\n"
+        },
+        {
+          "old": "the PlanRevision #48 imported",
+          "new": "the selected PlanRevision of the separate runtime Mission",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "issue": 50,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-50-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 51,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-51-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 52,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-52-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 53,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-53-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 54,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-54-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "crates/gordian-mission/tests/fixtures/mutable_status.rs",
+          "new": "crates/gordian-core/tests/fixtures/mutable_status.rs",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "issue": 55,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-55-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 56,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-56-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 57,
+      "target_crates": [
+        "gordian-coordination"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-57-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 58,
+      "target_crates": [
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-58-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 59,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-59-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 60,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-60-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 61,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-61-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 62,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-62-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 63,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-63-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 64,
+      "target_crates": [
+        "gordian-coordination",
+        "gordian-core"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-64-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 65,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-65-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 66,
+      "target_crates": [
+        "gordian-postgres"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-66-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 67,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-67-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "crates/gordian-security/tests/threat_fixtures.rs",
+          "new": "crates/gordian-runtime/tests/threat_fixtures.rs",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "issue": 68,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-68-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 69,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-69-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Out of first qualification\nDistributed lease and accepted-frontier coordination (#41) is not required for this qualification bundle and is qualified in a later release Mission. Remote-worker robustness (#42, #43) and the Mission Graph explorer (#47) **are** in scope here, per the D3 rule that no Atom is orphaned from Mission completion; they are reached through this Atom's blocked-by set.\n\n",
+          "new": "## Out of first qualification\nNo waiver removes #41. Distributed lease and accepted-frontier coordination is transitively included through #42 and remains part of release qualification; remote-worker robustness and the Mission Graph explorer are reached through the native blocked-by graph.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 70,
+      "target_crates": [],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-70-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "## Acceptance\n- Verify `gh` authentication **non-interactively**: `GH_TOKEN=$GORDIAN_GH_TOKEN gh auth status` plus the\n  four scope probes of [`agent-runbook.md` section 6.1 *Credentials*](https://github.com/kmosoti/gordian/blob/main/docs/implementation/agent-runbook.md).\n  `gh auth login` and `gh auth refresh` are FORBIDDEN — they block on a browser and cannot complete\n  unattended. A missing scope exits 78 and is reported, never self-repaired (closes **G-522**).\n- Add every repository issue to user project 9 idempotently with `gh project item-add 9 --owner kmosoti --url <issue-url>`.\n- Reconcile rather than blindly append: list project items, detect missing/duplicate/archive cases, and emit a machine-readable report.\n- Preserve issue URLs/numbers as stable external identities.\n- Do not infer Atom satisfaction from GitHub Project status.\n- The Wave / Status / Fan In / Fan Out projection is the only readiness computation permitted in Python.\n- The projection consumes GitHub's native `blockedBy` node lists, never `issueDependenciesSummary` and never the Markdown `## Dependencies` prose.\n- Reconciling newly created Atoms and recomputing all four derived fields after any issue closes is part of acceptance.\n- This Atom is retired when #48 is accepted; the projection is deleted and the board becomes a projection of native Mission Graph state.\n- Add an optional repository script or workflow for repeated reconciliation, but do not store a personal token in the repository.\n- Verify all current Atoms appear in Project 9 and record the resulting item count/evidence.\n\n",
+          "new": "## Acceptance\n- Preflight maps `GORDIAN_GH_TOKEN -> GH_TOKEN` deterministically, checks identity and required repository/Project capabilities, and reports a configuration failure when the variable is unavailable. The loop never invokes interactive `gh auth login` or `gh auth refresh`; those commands remain outside the loop because browser/configuration state is nondeterministic.\n- Add every repository issue to user project 9 idempotently with `gh project item-add 9 --owner kmosoti --url <issue-url>`.\n- Reconcile rather than blindly append: list project items, detect missing/duplicate/archive cases, and emit a machine-readable report.\n- Preserve issue URLs/numbers as stable external identities.\n- Do not infer Atom satisfaction from GitHub Project status.\n- The Wave / Status / Fan In / Fan Out projection is the only readiness computation permitted in Python.\n- The projection consumes GitHub's native `blockedBy` node lists, never `issueDependenciesSummary` and never the Markdown `## Dependencies` prose.\n- Reconciling newly created Atoms and recomputing all four derived fields after any issue closes is part of acceptance.\n- This Atom is retired when #48 is accepted; the projection is deleted and the board becomes a projection of native Mission Graph state.\n- Add an optional repository script or workflow for repeated reconciliation, but do not store a personal token in the repository.\n- Verify all current Atoms appear in Project 9 and record the resulting item count/evidence.\n\n"
+        }
+      ]
+    },
+    {
+      "issue": 71,
+      "target_crates": [
+        "gordian-kg"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-71-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 72,
+      "target_crates": [
+        "gordian-kg"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-72-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 73,
+      "target_crates": [
+        "gordian-kg"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-73-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 74,
+      "target_crates": [
+        "gordian-kg"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-74-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 75,
+      "target_crates": [
+        "gordian-experiments"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-75-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 76,
+      "target_crates": [
+        "gordian-git"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-76-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      },
+      "replacements": [
+        {
+          "old": "- Implement `SourceAdapter` for Git worktrees in `crates/gordian-source/src/git/`, realizing every",
+          "new": "- Implement `SourceAdapter` for Git worktrees in `crates/gordian-git/src/`, realizing every",
+          "count": 1
+        },
+        {
+          "old": "- The adapter is selected by a single configuration value drawn from the closed set `{jj, git}`; nothing\n  above `gordian-source` reads it.",
+          "new": "- Runtime selects the backend from the closed set `{jj, git}`; domain crates consume the\n  `SourceAdapter` trait and capability flags from `gordian-source` without reading backend selection.",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "issue": 77,
+      "target_crates": [
+        "gordian-runtime"
+      ],
+      "closure_wording": {
+        "kind": "canonical",
+        "atom": "issue",
+        "runbook_sections": [
+          1,
+          2,
+          "6.6"
+        ],
+        "verifier_source": "verification-section",
+        "atom_specific_verifier_ids": [
+          "atom-77-acceptance"
+        ],
+        "record_path": "artifacts/atoms/<N>/closure.json",
+        "verifier_log_path": "artifacts/atoms/<N>/verifiers/<verifier_id>.log"
+      }
+    },
+    {
+      "issue": 78,
+      "add_labels": [
+        "duplicate"
+      ],
+      "expected_title": "[Jujutsu Change Plane] Implement Git worktree source adapter behind the source-adapter trait",
+      "expected_state": "CLOSED"
+    },
+    {
+      "issue": 79,
+      "add_labels": [
+        "duplicate"
+      ],
+      "expected_title": "[Agent Execution] Launch and supervise experiment workers",
+      "expected_state": "CLOSED"
+    }
+  ]
+}

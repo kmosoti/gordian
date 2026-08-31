@@ -179,9 +179,12 @@ authorization grant is invalid.
 
 ### Does not prove
 
-That runtime Rust code computes the same answer as the Lean function. That obligation is the
-differential conformance harness of [`conformance-vectors.md`](conformance-vectors.md), which is
-**G-202** / **G-203** / **G-204**, owned by **#7** and **#13**.
+That runtime Rust code computes the same answer as the Lean function. The foundation conformance
+seed is deliberately narrower than this composite scheduler model: `HardDependenciesAcyclic`
+over raw nodes and edges, compared with #4's deterministic reference cycle-validation/topological
+order algorithm by #7's runner/generator at `crates/gordian-core/tests/conformance.rs`
+(**G-204**, owned by **#7**). Conformance of the full scheduler predicate remains a later Atom's
+obligation.
 
 That `env.satisfied` accurately represents real dependency completion, or that the declared
 semantic resource sets read by `leaseCompatible` match real accesses.
@@ -602,8 +605,8 @@ catalog cannot drift into different backlogs.
 | Gap | Deliverable | Owner |
 | --- | --- | --- |
 | G-201 | an executable `isAcceptable` over `CandidateFacts`, so admission is a computable predicate rather than a witness of opaque `Prop`s | #19 |
-| G-202 | an executable Lean `isCompatible` for the differential harness to call | #7 |
-| G-204 | the Lean/Rust differential conformance harness itself: `formal/conformance/`, `crates/gordian-conformance/`, the seeded generator, and the CI wiring | #7 |
+| G-202 | an executable Lean `Evidence.isCompatible` over `EvidenceRef` / `CandidateRef` for evidence compatibility testing | #15 |
+| G-204 | the Lean/Rust differential conformance harness itself: `formal/conformance/`, the `gordian-core` runner/generator at `crates/gordian-core/tests/conformance.rs`, the seeded `HardDependenciesAcyclic` vectors, the disagreement fixture, and the CI wiring | #7 |
 | G-206 | `dependenciesSatisfied` defined over the real dependency graph and `Frontier.Satisfied`, rather than the `Environment.satisfied` oracle field the readiness definitions currently take as given | #13 |
 | G-207 | `noUnresolvedConflict` defined through an executable conflict model instead of an assumed `Prop` | #19 |
 | G-208 | `evidenceFresh` defined through `Evidence.Compatible` instead of an assumed `Prop` | #19 |
@@ -638,9 +641,10 @@ Closed by this revision and listed here only so a reader does not go looking for
 (`dependency_digest`, `canonicalization_scheme`, and the adapter-neutral `exactStateId`),
 **G-226** (integration non-compositionality, T017), **G-237** / **G-319** (the seven readiness
 predicates are computable), **G-251** (`LeaseSubject` and a real `no_two_live_exclusive`, T018),
-and **G-253** (`retryPolicy` total over `EffectClass`, T019). **G-203** is closed on the Lean
-side — `enabled` and `dispatchable` are `Bool`-valued — and its Rust counterpart with the
-differential test remains part of G-204.
+and **G-253** (`retryPolicy` total over `EffectClass`, T019). **G-203** remains the Lean
+scheduler model's executable Boolean work; it is not the seeded conformance target. The raw-graph
+`HardDependenciesAcyclic` runner and its Rust reference comparison remain **G-204**, owned by
+**#7**.
 
 
 # Planned theorem families

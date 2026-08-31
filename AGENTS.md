@@ -195,17 +195,18 @@ ruff check orchestration
 python -m compileall -q orchestration/src
 python -m unittest discover -s orchestration/tests
 
-(cd formal && lake build)
+scripts/verify-formal.sh
 
 for s in scripts/check-*.sh; do bash "$s"; done
 ```
 
 `--strict` is not optional: a bare `audit` passes on warnings and is therefore not a gate.
 
-CI additionally re-checks the compiled Lean environment with an independent checker and runs an
-**axiom audit**; the audit is what rejects `sorryAx` and any non-allowlisted axiom. Those two are
-**CI-only** until #2 lands `formal/Gordian/Audit.lean` and adds the local invocation here
-(**G-258 and G-239, assigned to #2**). **G-525 is assigned to #2** for `scripts/verify-local.sh`,
+The local `scripts/verify-formal.sh` gate runs `lake build`, the banned-token scan, and the
+axiom-closure audit (including the allowlist check). CI additionally re-checks the compiled Lean
+environment with an **independent checker**. Only that independent checker remains **CI-only**
+until #2 lands `formal/Gordian/Audit.lean` and adds the local invocation here (**G-258 and G-239,
+assigned to #2**). **G-525 is assigned to #2** for `scripts/verify-local.sh`,
 which will make this block and the workflow one script rather than two lists. **G-625 is assigned
 to #2** for the test coverage of the tooling itself: `crates/gordian-kg/tests/` has no integration
 test running every subcommand against `knowledge/graph/` and no positive and negative test per
@@ -336,13 +337,14 @@ never an implementation choice.
 
 ### Actor identity
 
-Every change an agent creates carries the actor string
-`gordian-agent/<harness>/<run-id>` as its author, as a `Gordian-Actor:` commit trailer, as the
-closure record's `actor.id`, and as the first line of the comment claiming the Atom. The four must
-agree. The closure record's `actor` names the record's **author** — whoever held the coordinator
-role when it was written — which in the bootstrap loop is the same agent run; when it is not, the
-worker's identity is recovered from the commit trailer and the claim comment. See the runbook
-sections 2 and 6.1.
+The executing worker carries the actor string `gordian-agent/<harness>/<run-id>` in the Atom claim
+comment's first line, the Atom candidate's author identity and `Gordian-Actor:` trailer, and the
+closure record's `actor.id`; those four executing-worker identities MUST agree. The closure
+bookkeeping change has a separate author identity and matching `Gordian-Actor:` trailer: its actor
+is the coordinator who recorded the closure, named by `closure.recorded_by.id`. `recorded_by` may
+be omitted only when the executing worker also authored the bookkeeping change; in that case it
+defaults to `actor`. `closure.actor` names the worker that executed the Atom and produced the
+candidate, not the author of the bookkeeping record. See the runbook sections 2 and 6.1.
 
 ### Per-file license headers
 
@@ -353,15 +355,16 @@ which decides whether to adopt SPDX headers and, if so, adds the CI grep that en
 
 GitHub issues and Project 9 are temporary external projections while Gordian builds its native planning substrate. The **native `blocked by` graph is authoritative** for dependencies; the `## Dependencies` prose in an issue body is a mirror with no authority. The milestone is authoritative for Initiative membership. `Wave`, `Fan In`, `Fan Out`, `Status = Blocked` and `Status = Ready` are derived projections, never inputs, and are written only by `gordian-derive-status derive --apply`; `In Progress`, `In Review`, and `Accepted` are claim facts the runbook's loop asserts and the derivation never overwrites. No board cell is read back as authority — see [`docs/implementation/issue-index.md`](docs/implementation/issue-index.md) and [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) section 6.9.
 
-Board and issue mutations run non-interactively. `gh auth refresh -s project` is a browser flow an
-unattended agent cannot complete; supply a **classic** personal access token carrying the `repo`
-and `project` scopes through the `GH_TOKEN` environment variable, and never commit it. A
-fine-grained token does not carry the classic `project` scope that `gh project item-add` requires.
+Board and issue mutations use the process-injected `GORDIAN_GH_TOKEN`, copied to `GH_TOKEN` for
+every `gh` subprocess so ambient config files cannot select a different credential. Never commit
+the token. The implemented preflight is authoritative for identity, repository-write permission,
+and Project read/write capability; do not infer those facts from a token label or config file.
 
 ```bash
 python3.14 -m pip install -e './orchestration[dev]'
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --dry-run
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --report artifacts/project-9-reconciliation.json
+gordian-bootstrap preflight
+gordian-project-sync reconcile --check
+gordian-project-sync reconcile --report artifacts/project-9-reconciliation.json
 ```
 
 The reconciler may add missing issue URLs and report duplicates. It must not infer readiness, status, satisfaction, evidence, or acceptance from GitHub fields. #70 owns this projection and is closed or archived once #48 lands; **G-475, G-502, G-507, G-522, G-527, G-530, and G-609 are assigned to #70.** The readiness projection of G-504 and G-516 is already checked in as `gordian-derive-status` — [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) section 6.2 names it as the only sanctioned way to pick the next Atom — and what remains of those two ids is the committed edge snapshot (G-502) and the ordered `ready` output (G-530).

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from . import provenance
-from .gh import GH_AUTH_HINT, run_gh
+from .gh import EX_CONFIG, GH_AUTH_HINT, GitHubConfigurationError, graphql, preflight, run_gh
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +42,7 @@ class IssueRef:
 class ProjectItemRef:
     item_id: str | None
     url: str
+    is_archived: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,10 +62,18 @@ class ReconciliationReport:
     source_change_id: str
     source_commit_id: str
     tool_versions: dict[str, str]
+    archived_urls_before: tuple[str, ...] = ()
+    unarchived_urls: tuple[str, ...] = ()
+    remaining_archived_after: tuple[str, ...] = ()
 
     @property
     def converged(self) -> bool:
-        return not self.remaining_after and not self.failed_urls
+        return (
+            not self.remaining_after
+            and not self.remaining_archived_after
+            and not self.failed_urls
+            and not self.duplicate_urls_before
+        )
 
     def as_json_object(self) -> dict[str, Any]:
         """Emit the report with its source and environment identity.
@@ -78,7 +87,8 @@ class ReconciliationReport:
 def _run_gh(arguments: list[str]) -> str:
     """Run GitHub CLI without a shell and return stdout.
 
-    An unattended agent authenticates by exporting `GH_TOKEN`; see `gh.GH_AUTH_HINT`.
+    An unattended agent authenticates through the fail-closed preflight; see
+    `gh.GH_AUTH_HINT`.
     """
     return run_gh(arguments)
 
@@ -123,79 +133,170 @@ def _open_issues(config: Config) -> list[IssueRef]:
     return sorted(issues, key=lambda issue: issue.number)
 
 
-def _project_items(config: Config) -> list[ProjectItemRef]:
-    payload = _json(
-        [
-            "project",
-            "item-list",
-            str(config.project_number),
-            "--owner",
-            config.owner,
-            "--limit",
-            str(config.limit),
-            "--format",
-            "json",
-        ]
-    )
-    if not isinstance(payload, dict):
-        raise RuntimeError("unexpected `gh project item-list` JSON shape")
-    rows = payload.get("items", [])
-    if not isinstance(rows, list):
-        raise RuntimeError("project JSON has no item list")
+_PROJECT_ITEMS_QUERY = """
+query($owner:String!,$number:Int!,$cursor:String){
+  user(login:$owner){
+    projectV2(number:$number){
+      items(first:100, after:$cursor, archivedStates:[ARCHIVED,NOT_ARCHIVED]){
+        totalCount
+        pageInfo{hasNextPage endCursor}
+        nodes{
+          id
+          isArchived
+          content{... on Issue{url}}
+        }
+      }
+    }
+  }
+}
+"""
 
+
+def _project_items(config: Config) -> list[ProjectItemRef]:
+    """Read all issue items, including archived items, in one paginated query."""
     items: list[ProjectItemRef] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        content = row.get("content")
-        if not isinstance(content, dict):
-            continue
-        url = content.get("url")
-        if not isinstance(url, str) or "/issues/" not in url:
-            continue
-        item_id = row.get("id")
-        items.append(
-            ProjectItemRef(
-                item_id=item_id if isinstance(item_id, str) else None,
-                url=url,
+    cursor = ""
+    seen_cursors: set[str] = set()
+    declared_total: int | None = None
+    retrieved_nodes = 0
+    while True:
+        variables: dict[str, str | int] = {
+            "owner": config.owner,
+            "number": config.project_number,
+        }
+        if cursor:
+            variables["cursor"] = cursor
+        data = graphql(_PROJECT_ITEMS_QUERY, variables)
+        user = data.get("user")
+        project = user.get("projectV2") if isinstance(user, dict) else None
+        connection = project.get("items") if isinstance(project, dict) else None
+        if not isinstance(connection, dict):
+            raise RuntimeError("GitHub GraphQL project item connection is missing")
+
+        total = connection.get("totalCount")
+        if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+            raise RuntimeError("GitHub GraphQL project item totalCount is invalid")
+        if declared_total is None:
+            declared_total = total
+        elif declared_total != total:
+            raise RuntimeError("GitHub GraphQL project item totalCount changed during read")
+
+        nodes = connection.get("nodes")
+        if not isinstance(nodes, list):
+            raise RuntimeError("GitHub GraphQL project item nodes are missing")
+        retrieved_nodes += len(nodes)
+        for row in nodes:
+            if not isinstance(row, dict):
+                continue
+            content = row.get("content")
+            if not isinstance(content, dict):
+                continue
+            url = content.get("url")
+            if not isinstance(url, str) or "/issues/" not in url:
+                continue
+            is_archived = row.get("isArchived")
+            if not isinstance(is_archived, bool):
+                raise RuntimeError(
+                    f"project item {row.get('id', '<unknown>')} has invalid archive state"
+                )
+            item_id = row.get("id")
+            items.append(
+                ProjectItemRef(
+                    item_id=item_id if isinstance(item_id, str) else None,
+                    url=url,
+                    is_archived=is_archived,
+                )
             )
+
+        page = connection.get("pageInfo")
+        if not isinstance(page, dict):
+            raise RuntimeError("GitHub GraphQL project item pageInfo is missing")
+        has_next = page.get("hasNextPage")
+        if type(has_next) is not bool:
+            raise RuntimeError("GitHub GraphQL project item pageInfo is invalid")
+        if not has_next:
+            break
+        next_cursor = page.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
+            raise RuntimeError("GitHub GraphQL project item page has no continuation cursor")
+        if next_cursor in seen_cursors or next_cursor == cursor:
+            raise RuntimeError("GitHub GraphQL project item pagination repeated a cursor")
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+
+    if declared_total is None or retrieved_nodes != declared_total:
+        raise RuntimeError(
+            "GitHub GraphQL project item pagination incomplete: "
+            f"retrieved {retrieved_nodes}, expected {declared_total}"
         )
-    return items
+    return sorted(items, key=lambda item: (item.url, item.item_id or "", item.is_archived))
 
 
 def _missing(issue_urls: set[str], items: list[ProjectItemRef]) -> tuple[str, ...]:
-    return tuple(sorted(issue_urls - {item.url for item in items}))
+    return tuple(
+        sorted(issue_urls - {item.url for item in items if not item.is_archived})
+    )
+
+
+def _archived(issue_urls: set[str], items: list[ProjectItemRef]) -> tuple[str, ...]:
+    active_urls = {item.url for item in items if not item.is_archived}
+    return tuple(
+        sorted(
+            issue_urls
+            & {item.url for item in items if item.is_archived}
+            - active_urls
+        )
+    )
+
+
+def _archived_item(items: list[ProjectItemRef], url: str) -> ProjectItemRef | None:
+    candidates = sorted(
+        (item for item in items if item.url == url and item.is_archived),
+        key=lambda item: item.item_id or "",
+    )
+    return candidates[0] if candidates else None
 
 
 def reconcile(
     config: Config, *, stamp: provenance.Provenance | None = None
 ) -> ReconciliationReport:
-    # This is also a token-scope and project-existence check. The non-interactive
-    # remediation is a classic personal access token with the `repo` and `project`
-    # scopes in `GH_TOKEN`; `gh auth refresh -s project` is the interactive one.
-    _run_gh(
-        [
-            "project",
-            "view",
-            str(config.project_number),
-            "--owner",
-            config.owner,
-            "--format",
-            "json",
-        ]
-    )
-
     issues = _open_issues(config)
     before_items = _project_items(config)
     before_counts = Counter(item.url for item in before_items)
     issue_urls = {issue.url for issue in issues}
     missing_before = _missing(issue_urls, before_items)
-    duplicates = tuple(sorted(url for url, count in before_counts.items() if count > 1))
+    archived_before = _archived(issue_urls, before_items)
+    duplicates = tuple(sorted(url for url in issue_urls if before_counts[url] > 1))
 
     added: list[str] = []
+    unarchived: list[str] = []
     failed: list[str] = []
     if not config.dry_run:
-        for url in missing_before:
+        for url in archived_before:
+            item = _archived_item(before_items, url)
+            if item is None or item.item_id is None:
+                print(f"{url}: archived project item has no item id", file=sys.stderr)
+                failed.append(url)
+                continue
+            try:
+                _run_gh(
+                    [
+                        "project",
+                        "item-archive",
+                        str(config.project_number),
+                        "--owner",
+                        config.owner,
+                        "--id",
+                        item.item_id,
+                        "--undo",
+                    ]
+                )
+            except RuntimeError as error:
+                print(str(error), file=sys.stderr)
+                failed.append(url)
+            else:
+                unarchived.append(url)
+        for url in tuple(sorted(set(missing_before) - set(archived_before))):
             try:
                 _run_gh(
                     [
@@ -215,9 +316,12 @@ def reconcile(
                 failed.append(url)
             else:
                 added.append(url)
-        remaining_after = _missing(issue_urls, _project_items(config))
+        after_items = _project_items(config)
+        remaining_after = _missing(issue_urls, after_items)
+        remaining_archived_after = _archived(issue_urls, after_items)
     else:
         remaining_after = missing_before
+        remaining_archived_after = archived_before
 
     stamp = stamp or provenance.collect()
     return ReconciliationReport(
@@ -236,6 +340,9 @@ def reconcile(
         source_change_id=stamp.source_change_id,
         source_commit_id=stamp.source_commit_id,
         tool_versions=stamp.tool_versions,
+        archived_urls_before=archived_before,
+        unarchived_urls=tuple(unarchived),
+        remaining_archived_after=remaining_archived_after,
     )
 
 
@@ -253,20 +360,39 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Report missing items without adding them.",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Read only; exit nonzero on missing, duplicate, or failed membership.",
+    )
     return parser
 
 
-def main() -> int:
-    arguments = _parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if raw[:1] == ["reconcile"]:
+        raw.pop(0)
+    arguments = _parser().parse_args(raw)
+    if arguments.check and arguments.dry_run:
+        print("--check already implies --dry-run", file=sys.stderr)
+        return 2
     config = Config(
         owner=arguments.owner,
         repository=arguments.repository,
         project_number=arguments.project_number,
-        dry_run=arguments.dry_run,
+        dry_run=arguments.dry_run or arguments.check,
         limit=arguments.limit,
     )
     try:
+        preflight(
+            repository=arguments.repository,
+            project_owner=arguments.owner,
+            project_number=arguments.project_number,
+        )
         report = reconcile(config)
+    except GitHubConfigurationError as error:
+        print(str(error), file=sys.stderr)
+        return EX_CONFIG
     except (OSError, RuntimeError) as error:
         print(str(error), file=sys.stderr)
         print(GH_AUTH_HINT, file=sys.stderr)
@@ -278,6 +404,8 @@ def main() -> int:
         arguments.report.parent.mkdir(parents=True, exist_ok=True)
         arguments.report.write_text(encoded + "\n", encoding="utf-8")
 
+    if arguments.check:
+        return 0 if report.converged else 1
     if report.dry_run:
         return 0
     return 0 if report.converged else 1

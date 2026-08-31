@@ -22,6 +22,8 @@
     "record_format": { "const": "gordian-closure-v1" },
     "atom_id": {
       "type": "string",
+      "minLength": 1,
+      "pattern": "^[1-9][0-9]*$",
       "description": "bootstrap: the GitHub issue number as a string"
     },
     "spec_digest": {
@@ -58,9 +60,16 @@
     },
     "exact_state_id": {
       "type": "string",
-      "description": "the admitted state of the Atom's work; an ancestor of the bookkeeping change this record lives in, so the file never contains its own digest"
+      "minLength": 1,
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "the full 40-hex Jujutsu commit ID of the admitted state; it must resolve uniquely, belong to the named logical change, and be an ancestor of accepted trunk() and the bookkeeping state"
     },
-    "logical_change_id": { "type": "string" },
+    "logical_change_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]{32}$",
+      "description": "the full 32-character lowercase Jujutsu change ID corresponding to exact_state_id"
+    },
     "verifiers": {
       "type": "array",
       "minItems": 1,
@@ -72,31 +81,69 @@
           "command",
           "exit_code",
           "artifact_path",
-          "artifact_sha256"
+          "artifact_sha256",
+          "subject_exact_state_id"
         ],
         "properties": {
-          "verifier_id": { "type": "string" },
-          "command": { "type": "string" },
-          "exit_code": { "type": "integer" },
-          "artifact_path": { "type": "string" },
+          "verifier_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "description": "A non-empty path-safe verifier identity. Slashes, backslashes, whitespace, and dot-segments are forbidden."
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The exact non-empty command used by this verifier."
+          },
+          "exit_code": { "const": 0 },
+          "artifact_path": {
+            "type": "string",
+            "pattern": "^artifacts/atoms/[A-Za-z0-9][A-Za-z0-9._-]*/verifiers/[A-Za-z0-9][A-Za-z0-9._-]*\\.log$",
+            "description": "Exactly artifacts/atoms/<atom_id>/verifiers/<verifier_id>.log; the cross-field equality is checked by the validator."
+          },
           "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          ,"subject_exact_state_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{40}$",
+            "description": "the exact admitted commit subject of this verifier evidence; must equal closure.exact_state_id"
+          }
         }
       }
     },
     "benchmarks": {
       "type": "array",
       "items": {
+        "additionalProperties": false,
         "type": "object",
-        "required": ["experiment_id", "run_id", "artifact_sha256"]
+        "required": ["experiment_id", "run_id", "artifact_sha256"],
+        "properties": {
+          "experiment_id": { "type": "string", "minLength": 1 },
+          "run_id": { "type": "string", "minLength": 1 },
+          "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
       }
     },
-    "knowledge_graph_node_ids": { "type": "array", "items": { "type": "string" } },
+    "knowledge_graph_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(concept|algorithm|theorem|experiment):.+$"
+      }
+    },
     "known_limitations": { "type": "array", "items": { "type": "string" } },
     "formal_evidence": {
       "type": "array",
       "items": {
+        "additionalProperties": false,
         "type": "object",
-        "required": ["theorem", "checker", "status"]
+        "required": ["theorem", "checker", "status"],
+        "properties": {
+          "theorem": { "type": "string", "minLength": 1 },
+          "checker": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "minLength": 1 }
+        }
       }
     },
     "closed_at": { "type": "string", "format": "date-time" }

@@ -329,6 +329,15 @@ Every Experiment additionally carries the `url` of the open issue that runs it, 
 
 The layout `experiments/<experiment-id>/{protocol.json, runs/<run-id>/run.json}` and its two JSON Schemas are specified in `docs/spec/data-model.md` and checked in under `experiments/schema/`.
 
+The foundation Lean/Rust conformance experiment is intentionally seeded with one predicate,
+`HardDependenciesAcyclic`, over raw graph `nodes` and `edges`. Its Rust side compares against the
+deterministic cycle-validation/topological-order reference algorithm from #4 through the
+`gordian-core` runner/generator at `crates/gordian-core/tests/conformance.rs`. This seed is
+evidence of correspondence for that bounded predicate, not a refinement proof and not a claim
+that the composite scheduler predicate is already covered. The evidence-compatibility executable
+`Evidence.isCompatible` is a separate #15 deliverable (G-202); the conformance harness and its
+seed remain #7's G-204.
+
 A completed run maps into the graph by this rule, executed by `cargo run -p gordian-experiments -- ingest <experiment-id>`:
 
 ```text
@@ -495,8 +504,8 @@ The vocabulary above is normative now. The tooling that enforces it is not yet w
 | `experiment-verification-targets-nonexistent` | `#75`, `#37` | the `experiments/` tree the retargeted paths now name |
 | `evidence-predicates-target-non-sources` | `#72` | audit rule S7 and the mutual-pair check |
 | `catalog-covers-8-of-25-theorems`, `formal-target-lists-disagree` | `#72` | the catalog index table with one row per numbered formal target, and the script comparing it to `formal/Gordian/*.lean` and to this corpus |
-| `evidence-ref-missing-canonicalization-scheme`, `evidence-field-names-not-adapter-neutral` | `#15` | `canonicalizationScheme` and `exactStateId` in `formal/Gordian/Evidence.lean`; the Theorem nodes naming those anchors already exist here |
+| `evidence-ref-missing-canonicalization-scheme`, `evidence-field-names-not-adapter-neutral`, `G-202` | `#15` | `Evidence.isCompatible` over `EvidenceRef` / `CandidateRef`, including `canonicalizationScheme` and adapter-neutral `exactStateId`, for evidence compatibility testing |
 | `inv-frontier-linearization-cas-theorem-absent` | `#19` | `cas_rejects_stale` and `frontier_moved_has_intent` in `formal/Gordian/Frontier.lean`, and the Theorem nodes for them |
 | `executable-model-absent-scheduler` | `#13` | `AtomSpec`, `isEnabled`, `isDispatchable` and both `_iff` theorems in `formal/Gordian/Scheduler.lean`, and the two Theorem nodes for them |
-| `lean-rust-bridge-absent` | `#7` | `formal/conformance/` and `crates/gordian-conformance/`, which the retargeted `experiment:lean-rust-conformance` now names |
+| `lean-rust-bridge-absent` (`G-204`) | `#7` | `formal/conformance/` plus the `gordian-core` runner/generator at `crates/gordian-core/tests/conformance.rs`, seeded by `HardDependenciesAcyclic` against #4's deterministic reference algorithm |
 | `nanoda-disabled-but-claimed` | `#2` | either enabling nanoda in `verify.yml` or keeping the corpus's current position, in which `tool:nanoda` is `not-enabled`, carries no `verifiedBy` edge, and is described as not enabled in CI |

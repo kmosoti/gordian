@@ -107,15 +107,12 @@ This prevents the model from accidentally defining dispatch as a weaker predicat
 
 ### Evidence compatibility
 
-Represent evidence/candidate compatibility with equality witnesses for:
-
-- exact candidate commit;
-- specification revision;
-- input digest;
-- environment digest;
-- verifier digest.
-
-Then prove any required mismatch contradicts compatibility.
+The normative evidence boundary is [`data-model.md` `## Evidence`](../spec/data-model.md#evidence):
+`EvidenceBinding` has exactly seven equality components, including the adapter-neutral exact state
+identity, the dependency digest, and the canonicalization scheme. The mismatch theorems in
+[`theorem-catalog.md` T004](theorem-catalog.md#t004--evidence-identity-binding) cover those seven
+components. This document deliberately does not duplicate the field list; the data model and T004
+are the normative definitions.
 
 This proves stale evidence cannot satisfy the formal compatibility predicate.
 
@@ -127,15 +124,13 @@ This is a policy theorem. Runtime credential leakage remains an implementation/s
 
 ### Admission
 
-Represent accepted-frontier admission by a witness containing:
+The normative admission witness has exactly ten conjuncts. Their ordered names, arities, Lean
+fields, and defining anchors are maintained in [`theorem-catalog.md` T006](theorem-catalog.md#t006--admission-witness)
+and evaluated by the admission algorithm's [`admit()` definition](../algorithms/evidence-and-admission.md#the-admission-conjuncts-defined).
+This document deliberately does not restate that list; T006 and the algorithm document are the
+normative definitions.
 
-- frontier reconciliation;
-- conflict freedom;
-- required verification;
-- fresh evidence;
-- authorized promoter.
-
-Then prove every admitted candidate carries each property.
+The formal siblings prove that an admitted candidate carries each required property.
 
 ### Declared non-interference
 

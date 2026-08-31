@@ -9,14 +9,16 @@ jj_version="${JJ_REQUIRED_VERSION:-$DEFAULT_JJ_VERSION}"
 remote_name="${GORDIAN_REMOTE_NAME:-$DEFAULT_REMOTE_NAME}"
 remote_url="${GORDIAN_REMOTE_URL:-$DEFAULT_REMOTE_URL}"
 install=false
+install_only=false
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/bootstrap-jj.sh [--install]
+Usage: ./scripts/bootstrap-jj.sh [--install | --install-only]
 
 Safely configure an existing Gordian Jujutsu repository.
 
   --install  Install the pinned candidate Jujutsu release with Cargo first.
+  --install-only  Install/check Jujutsu without requiring a repository.
 
 Environment overrides:
   JJ_REQUIRED_VERSION   Candidate Jujutsu release to qualify.
@@ -32,6 +34,10 @@ for arg in "$@"; do
   case "$arg" in
     --install)
       install=true
+      ;;
+    --install-only)
+      install=true
+      install_only=true
       ;;
     -h|--help)
       usage
@@ -71,6 +77,11 @@ unsupported Jujutsu candidate: found $actual_version, expected $jj_version
 rerun with --install or set JJ_REQUIRED_VERSION only for qualification work
 EOF
   exit 1
+fi
+
+if [[ "$install_only" == true ]]; then
+  printf 'Jujutsu %s is installed and matches the repository pin.\n' "$actual_version"
+  exit 0
 fi
 
 if [[ ! -d .jj ]]; then

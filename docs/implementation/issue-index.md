@@ -2,17 +2,17 @@
 
 GitHub issues are the temporary execution substrate for Gordian's implementation. Each issue is an **Atom-sized contract**, not evidence of completion. Issue state and GitHub Project status remain external workflow metadata until Gordian imports the plan into its own Mission Graph.
 
-The current implementation Mission contains **77 open Atoms** (#1-#77), after this revision added
-#76, the Git worktree source adapter, and #77, the worker-launch extension split out of #37 (D1).
+The current implementation Mission contains **77 registered Atoms**, as captured from the live
+native registry after excluding explicitly closed duplicates. This includes normally closed Atoms;
+the open-issue search below is only an unfinished-work view.
 The exact objective, dependencies, acceptance predicates, verification methods, benchmark
 obligations, and falsification conditions live in each issue body. This register groups stable
 issue identities by Initiative without duplicating every issue title and contract, which would
 create another manually maintained source of drift.
 
-The count and the membership below are **derived** from the live milestones, not maintained by
-hand. The generator that will emit them between markers, and the CI job that regenerates and
-diffs, are **G-445 and G-413, assigned to #70**; until they land, "Adding or splitting an Atom"
-below is the manual procedure that keeps them true.
+The count and membership below are **derived** from the live milestones, not maintained by hand.
+`gordian-atom-registry check-drift` regenerates the marked block and fails on any difference
+(**G-445 and G-413, assigned to #70**).
 
 ## Canonical planning documents
 
@@ -33,6 +33,8 @@ below is the manual procedure that keeps them true.
 Issue numbers are listed explicitly rather than as ranges, so a new Atom cannot fall into a gap
 between two dashes and go unregistered.
 
+<!-- BEGIN GENERATED: INITIATIVE REGISTER -->
+
 | Initiative | Atom identities | Purpose | Acceptance rule |
 | --- | --- | --- | --- |
 | [Foundation and Falsification](https://github.com/kmosoti/gordian/milestone/1) | #1, #2, #3, #4, #5, #6, #7, #8, #50, #51, #52, #53, #54, #59, #60, #61, #75 | Reproducible toolchains, source-substrate qualification, workload generators, reference algorithms, benchmark gates, verification qualification, formal/Rust conformance, architecture ablations, and experiment run discipline. | all member Atoms have validating closure records. |
@@ -50,6 +52,8 @@ between two dashes and go unregistered.
 | [Release, Operations, and Acceptance](https://github.com/kmosoti/gordian/milestone/13) | #64, #65, #66, #67 | Immutable release/deployment state, reproducible signed artifacts, migration/recovery, and adversarial security qualification. | all member Atoms have validating closure records. |
 | [Temporary GitHub Bootstrap](https://github.com/kmosoti/gordian/milestone/14) | #70 | Reconcile repository issues into user Project 9 without treating board status as canonical semantics. #70 is closed or archived once #48 lands and the native import replaces the board. | all member Atoms have validating closure records. |
 
+<!-- END GENERATED: INITIATIVE REGISTER -->
+
 Fourteen Initiatives, 77 Atoms. Each Atom belongs to exactly one milestone; the milestone is the
 single source of truth for Initiative membership.
 
@@ -60,10 +64,11 @@ private completion rule. The coordinator role that lands an Initiative's final A
 that closes the milestone, and only once the rule holds — see
 [`agent-runbook.md`](agent-runbook.md) section 6.9. Closing a milestone is bookkeeping and
 satisfies nothing on its own. Asserting the milestone descriptions and diffing them against this
-column is part of `check-drift` (**G-527, assigned to #70**); until it exists the two are kept
-equal by the checklist below.
+column is part of `gordian-milestone-contracts check` (**G-527, assigned to #70**), alongside the
+registry checks performed by `gordian-atom-registry check-drift`.
 
-GitHub issue search remains the authoritative live list for the temporary substrate:
+GitHub issue search is an authoritative view only of unfinished work in the temporary substrate;
+the full executable registry above includes normally closed Atoms too:
 
 ```text
 https://github.com/kmosoti/gordian/issues?q=is%3Aissue+is%3Aopen
@@ -103,22 +108,23 @@ python3.14 -m venv .venv
 source .venv/bin/activate
 python3.14 -m pip install -e './orchestration[dev]'
 
-gordian-project-sync --dry-run
-gordian-project-sync --report artifacts/project-9-reconciliation.json
+gordian-project-sync reconcile --check
+gordian-project-sync reconcile --report artifacts/project-9-reconciliation.json
 ```
 
-**Non-interactive authorization.** `gh auth refresh -s project` is an interactive browser flow an
-unattended agent cannot complete. The supported path for an agent is a **classic** personal access
-token carrying the `repo` and `project` scopes, supplied in the `GH_TOKEN` environment variable
-and never committed:
+**Deterministic non-interactive authorization.** Supply `GORDIAN_GH_TOKEN` through the environment
+and never commit it. Every orchestrator copies that value to `GH_TOKEN` for its `gh` subprocesses,
+so neither possible `hosts.yml` location can silently select a different credential:
 
 ```bash
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --dry-run
+gordian-bootstrap preflight
+gordian-project-sync reconcile --check
 ```
 
-A fine-grained token does not carry the classic `project` scope that `gh project item-add`
-requires, so it will fail at the first board mutation. **G-522 is assigned to #70**, which makes
-the error message name `GH_TOKEN` rather than the interactive flow.
+The preflight responses are authoritative for the authenticated identity, repository-write
+permission, and Project read/write capability. **G-522 is assigned to #70**, which makes a
+configuration failure name `GORDIAN_GH_TOKEN` and exit 78 rather than changing credentials inside
+the loop.
 
 The command:
 
@@ -137,7 +143,7 @@ editable install is refused, but the module has no third-party dependencies and 
 directly:
 
 ```bash
-PYTHONPATH=orchestration/src python3 -m gordian_orchestration.github_project --dry-run
+PYTHONPATH=orchestration/src python3 -m gordian_orchestration.github_project reconcile --check
 ```
 
 Known limitation: the post-mutation item listing is issued immediately after the last
@@ -158,7 +164,8 @@ Mission-qualified milestone titles.
 
 **Dependencies = native issue relationships.** Every edge declared in an issue's
 `## Dependencies` section is also a native GitHub `blocked by` relationship, created with
-the `addBlockedBy` mutation.
+the `addBlockedBy` mutation. The current native registry contains 305 edges; the five
+previously proposed mirror-only additions are not part of that graph.
 
 The native `blocked by` graph is **authoritative**. The `## Dependencies` prose is a
 human-readable mirror with no authority, and the two must be re-checked for drift whenever a
@@ -211,14 +218,33 @@ GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status derive --compare-board
 GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status derive --apply     # write Project 9
 ```
 
-It reads edges from `blockedByIssues` node lists only — `issueDependenciesSummary`'s blocking
-counter is wrong for #11, #18, and #44 and is never read — computes `Wave` as longest-path depth
-and `Fan In`/`Fan Out` as in- and out-degree, and applies the bootstrap satisfaction rule below.
+It reads edges from the native `blockedBy` connection only and validates pagination against its
+`totalCount` — `issueDependenciesSummary` is never read because its blocking counter has been
+observed wrong for #11, #18, and #44 — computes `Wave` as longest-path depth and `Fan In`/`Fan Out`
+as in- and out-degree, and applies the bootstrap satisfaction rule below.
 `orchestration/README.md` documents its options. It is a projection of GitHub's own dependency
 edges and is deleted when #48 lands.
 
-`--snapshot artifacts/atoms/issues.json` reads a committed edge snapshot instead of calling `gh`.
-That snapshot does not exist yet: **G-502 is assigned to #70**, which produces and refreshes it.
+A mistakenly created issue leaves the executable Atom corpus only after it is closed and receives
+GitHub's `duplicate` label. The derivation rejects an open duplicate and continues to reject every
+ordinary closed Atom without a validating closure record.
+
+`gordian-atom-registry check` makes the live graph/body/metadata/plan/spine comparison executable.
+After a coherent live change, `gordian-atom-registry capture --output
+artifacts/atoms/issues.json` records the full issue contracts and native edges; capture refuses
+while any mirror drifts. `scripts/check-atom-registry.sh` performs the offline CI comparison once
+that snapshot exists.
+
+`gordian-bootstrap preflight` enforces the unattended classic-token contract and exits 78 on
+missing configuration. Its `claim`, `claims`, and `release` subcommands implement the temporary
+assignee/Project-status/expiry lease with compensation for partial writes; #23 retires it when
+native leases exist.
+
+`--snapshot artifacts/atoms/issues.json` reads a committed registry capture instead of calling
+`gh`, for inspection only. Snapshot-based readiness requires `ready --inspection`, is explicitly
+non-dispatching, and cannot feed claim or apply. **G-502 is assigned to #70**, whose registry
+capture records complete issue bodies, metadata, and native edges only after the live drift audit
+is clean.
 
 Sort the board by `Wave`, not by issue number. Issue numbers are arbitrary external
 identities.
@@ -274,19 +300,20 @@ edit or the exact command:
 | `type:*` label | `type:atom` or `type:experiment`; this is the board's `Work Type`. |
 | Native edges | `addBlockedBy` for every prerequisite, in **both** directions of the change (the new Atom's blockers and anything it now blocks). |
 | `## Dependencies` prose | Rewritten on **both** endpoints of every edge added or removed, to mirror the native graph. |
-| This register | The Initiative row gains the explicit issue number, and the "77 Atoms" count is re-derived. |
+| This register | The Initiative row gains the explicit issue number, and the registered-Atom count is re-derived. |
 | [`project-plan.md`](project-plan.md) | The Initiative's Atom table gains a row, with its target crate from [`crate-map.md`](crate-map.md). |
-| [`execution-order.md`](execution-order.md) | The Atom appears in exactly one phase's ordered list; if it changes the longest path, section 4's spine is re-derived. |
-| [`crate-map.md`](crate-map.md) | If the Atom writes Rust, it appears in the owning-Atoms column of exactly one crate row, and the issue body names that crate path (G-517). |
+| [`execution-order.md`](execution-order.md) | The Atom appears in exactly one phase's `Members` list (unordered); if it changes the longest path, section 4's spine is re-derived. |
+| [`crate-map.md`](crate-map.md) | If the Atom writes Rust, it appears in one or more owning-Atoms crate rows as declared by the target-crate contract, and the issue body names those crate paths (G-517). |
 | Benchmark obligation | If the Atom owns a row of [`execution-order.md`](execution-order.md#17-critical-performance-suite) section 17, its body carries a `## Benchmark obligation` section naming each `EO17-*` id it owns (G-475). |
 | `knowledge/graph/90-project-plan.jsonld` | The Atom node and its relations are added. |
 | Project 9 | The issue is added to the board and the derived fields are recomputed. |
 | Closure check | `closure(#49)` and the orphan-coverage rule of `execution-order.md` section 15 are re-verified by `scripts/check-selfhosting-closure.sh`. |
 
 **G-527 and G-445 are assigned to #70**, which owns the `new-atom`, `add-edge`, and `check-drift`
-subcommands that make this table a command rather than a checklist, and the generator that emits
-the derived registers between markers. Until then the checklist is the procedure, and every
-omission is a drift defect.
+subcommands that make this table a command rather than a checklist, the generator that emits the
+derived registers between markers, and the companion `gordian-milestone-contracts check` and
+`gordian-milestone-contracts sync` commands for Initiative milestone descriptions. Every omission
+is a drift defect.
 
 ## Atom completion rule
 

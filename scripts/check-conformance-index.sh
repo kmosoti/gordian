@@ -205,7 +205,9 @@ for predicate, ids in sorted(on_disk.items()):
             problems.append(
                 f"{path}: vector_id {vector.get('vector_id')!r} does not match its path {vector_id!r}"
             )
-        declared = str(vector.get("predicate", "")).lower()
+        declared = str(vector.get("predicate", ""))
+        declared = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", declared)
+        declared = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", declared).lower()
         if declared and declared != predicate:
             problems.append(
                 f"{path}: predicate {vector.get('predicate')!r} does not match directory {predicate!r}"

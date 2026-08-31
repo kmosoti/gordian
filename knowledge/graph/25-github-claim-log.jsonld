@@ -1,0 +1,151 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "@vocab": "https://gordian.dev/ns/",
+    "source": "https://gordian.dev/id/source/",
+    "sourcerev": "https://gordian.dev/id/source-revision/",
+    "algorithm": "https://gordian.dev/id/algorithm/",
+    "decision": "https://gordian.dev/id/decision/",
+    "artifact": "https://gordian.dev/id/artifact/",
+    "name": "https://schema.org/name",
+    "summary": "https://schema.org/description",
+    "url": {"@id": "https://schema.org/url", "@type": "@id"},
+    "status": "https://gordian.dev/ns/status",
+    "statement": "https://gordian.dev/ns/statement",
+    "source_id": "https://gordian.dev/ns/sourceOf",
+    "source_kind": "https://gordian.dev/ns/sourceKind",
+    "maintainer_or_publisher": "https://gordian.dev/ns/maintainerOrPublisher",
+    "version_or_commit_or_edition": "https://gordian.dev/ns/versionOrCommitOrEdition",
+    "canonical_url": {"@id": "https://gordian.dev/ns/canonicalUrl", "@type": "@id"},
+    "retrieved_at": "https://gordian.dev/ns/retrievedAt",
+    "version_label": "https://gordian.dev/ns/versionLabel",
+    "revision_date": "https://gordian.dev/ns/revisionDate",
+    "immutable_locator": "https://gordian.dev/ns/immutableLocator",
+    "content_digest": "https://gordian.dev/ns/contentDigest",
+    "relations": "https://gordian.dev/ns/relations",
+    "predicate": "https://gordian.dev/ns/predicate",
+    "target": {"@id": "https://gordian.dev/ns/target", "@type": "@id"},
+    "note": "https://gordian.dev/ns/note",
+    "verification": "https://gordian.dev/ns/verification",
+    "Source": "https://gordian.dev/ns/Source",
+    "SourceRevision": "https://gordian.dev/ns/SourceRevision",
+    "Algorithm": "https://gordian.dev/ns/Algorithm",
+    "Decision": "https://gordian.dev/ns/Decision",
+    "ImplementationArtifact": "https://gordian.dev/ns/ImplementationArtifact"
+  },
+  "@graph": [
+    {
+      "@id": "source:github-rest-git-refs",
+      "@type": ["Source", "ImplementationEvidence"],
+      "name": "GitHub REST Git References API",
+      "summary": "Official GitHub REST documentation for creating a reference atomically and updating a reference with a non-forced fast-forward-only operation.",
+      "status": "documentation",
+      "url": "https://docs.github.com/en/rest/git/refs",
+      "source_kind": "documentation",
+      "maintainer_or_publisher": "GitHub",
+      "version_or_commit_or_edition": "REST API documentation, latest",
+      "canonical_url": "https://docs.github.com/en/rest/git/refs",
+      "retrieved_at": "2026-08-31",
+      "relations": [
+        {"predicate": "hasRevision", "target": "sourcerev:github-rest-git-refs-2026-08-31"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "sourcerev:github-rest-git-refs-2026-08-31",
+      "@type": ["SourceRevision"],
+      "name": "GitHub REST Git References documentation, 2026-08-31",
+      "summary": "The retrieved documentation revision covering POST /git/refs creation conflict responses and PATCH /git/refs/{ref} force=false fast-forward semantics.",
+      "status": "current",
+      "url": "https://docs.github.com/en/rest/git/refs",
+      "source_id": "source:github-rest-git-refs",
+      "version_label": "latest documentation retrieved 2026-08-31",
+      "revision_date": "2026-08-31",
+      "retrieved_at": "2026-08-31",
+      "immutable_locator": "REST Git references: create a reference; update a reference; response status codes",
+      "content_digest": "",
+      "relations": [
+        {"predicate": "partOf", "target": "source:github-rest-git-refs", "note": "Current retrieved documentation revision."}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "source:github-rest-git-commits",
+      "@type": ["Source", "ImplementationEvidence"],
+      "name": "GitHub REST Git Commits API",
+      "summary": "Official GitHub REST documentation for creating Git commits with a message, tree, and parent list, and for reading commit committer timestamps.",
+      "status": "documentation",
+      "url": "https://docs.github.com/en/rest/git/commits",
+      "source_kind": "documentation",
+      "maintainer_or_publisher": "GitHub",
+      "version_or_commit_or_edition": "REST API documentation, latest",
+      "canonical_url": "https://docs.github.com/en/rest/git/commits",
+      "retrieved_at": "2026-08-31",
+      "relations": [
+        {"predicate": "hasRevision", "target": "sourcerev:github-rest-git-commits-2026-08-31"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "sourcerev:github-rest-git-commits-2026-08-31",
+      "@type": ["SourceRevision"],
+      "name": "GitHub REST Git Commits documentation, 2026-08-31",
+      "summary": "The retrieved documentation revision covering POST /git/commits and the server-returned commit object used to obtain committer.date.",
+      "status": "current",
+      "url": "https://docs.github.com/en/rest/git/commits",
+      "source_id": "source:github-rest-git-commits",
+      "version_label": "latest documentation retrieved 2026-08-31",
+      "revision_date": "2026-08-31",
+      "retrieved_at": "2026-08-31",
+      "immutable_locator": "Git commits: create a commit; get a commit",
+      "content_digest": "",
+      "relations": [
+        {"predicate": "partOf", "target": "source:github-rest-git-commits", "note": "Current retrieved documentation revision."}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "algorithm:github-claim-log-cas",
+      "@type": ["Algorithm"],
+      "name": "GitHub Claim-Log Compare-and-Swap",
+      "summary": "Append-only claim events represented by empty Git commits and linearized by create-once or force=false fast-forward reference mutation.",
+      "status": "specified",
+      "statement": "A claim or release becomes authoritative only when its event commit is accepted as the next head of refs/heads/gordian-claim-log; readers validate every event to an accepted-main root, and conflicting writers reread and converge or lose without projection writes.",
+      "relations": [
+        {"predicate": "informedBy", "target": "sourcerev:github-rest-git-refs-2026-08-31"},
+        {"predicate": "informedBy", "target": "sourcerev:github-rest-git-commits-2026-08-31"},
+        {"predicate": "implementedBy", "target": "artifact:python-orchestration"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "algorithm:github-legacy-claim-adoption",
+      "@type": ["Algorithm"],
+      "name": "GitHub Legacy Claim Adoption",
+      "summary": "One-time, fail-closed migration of Atom 70's validated legacy claim projection into the canonical claim log.",
+      "status": "specified",
+      "statement": "Adoption is permitted only when GORDIAN_ACTOR exactly matches the sole live server-time legacy comment, the authenticated login is the issue's sole assignee, the issue is OPEN, Project 9 is In Progress, the canonical log has no Atom 70 lease, and the active-lease cap permits a normal CAS claim; the existing comment is then updated in place with canonical identifiers.",
+      "relations": [
+        {"predicate": "uses", "target": "algorithm:github-claim-log-cas"},
+        {"predicate": "implementedBy", "target": "artifact:python-orchestration"},
+        {"predicate": "relatedTo", "target": "decision:bootstrap-claim-log-cas"}
+      ],
+      "verification": []
+    },
+    {
+      "@id": "decision:bootstrap-claim-log-cas",
+      "@type": ["Decision"],
+      "name": "Use a GitHub append-only ref as bootstrap claim authority",
+      "summary": "The temporary bootstrap loop selects one global Git claim log rather than arbitrating leases from issue-comment timestamps, assignees, or Project status.",
+      "status": "adopted",
+      "statement": "Until native leases exist, claim state is the validated canonical JSON at the head of refs/heads/gordian-claim-log; GitHub issue and Project mutations are projections reconciled after the ref CAS. Same-actor idempotence applies only to live leases, stale leases require explicit release, projection cleanup is limited to mutations introduced by the current attempt, and Atom 70's legacy projection may be adopted exactly once under the dedicated fail-closed migration predicates.",
+      "relations": [
+        {"predicate": "uses", "target": "algorithm:github-claim-log-cas"},
+        {"predicate": "informedBy", "target": "sourcerev:github-rest-git-refs-2026-08-31"},
+        {"predicate": "informedBy", "target": "sourcerev:github-rest-git-commits-2026-08-31"},
+        {"predicate": "documents", "target": "artifact:agent-contract"}
+      ],
+      "verification": []
+    }
+  ]
+}

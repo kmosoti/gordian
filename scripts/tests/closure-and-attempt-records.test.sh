@@ -99,3 +99,100 @@ cat > "$closure/artifacts/atoms/42/closure.json" <<'JSON'
 JSON
 expect_fail "a closure record with no verifier and a malformed spec_digest fails" \
   bash "$checker" "$closure"
+
+write_valid_closure() {
+  local root="$1"
+  (cd "$root" && jj git init --colocate >/dev/null && jj commit -m candidate >/dev/null)
+  read -r exact logical <<EOF
+$(cd "$root" && jj log -r @- -n 1 --no-graph -T 'commit_id ++ " " ++ change_id')
+EOF
+  mkdir -p "$root/artifacts/atoms/42/verifiers"
+  python3 - "$root" "$exact" "$logical" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+exact, logical = sys.argv[2:]
+artifact = b"canonical verifier output\n"
+artifact_path = root / "artifacts/atoms/42/verifiers/check.log"
+artifact_path.write_bytes(artifact)
+record = {
+    "record_format": "gordian-closure-v1",
+    "atom_id": "42",
+    "spec_digest": "0" * 64,
+    "actor": {"id": "gordian-agent/claude-code/run-7", "kind": "agent"},
+    "exact_state_id": exact,
+    "logical_change_id": logical,
+    "verifiers": [{
+        "verifier_id": "check",
+        "command": "printf canonical verifier output",
+        "exit_code": 0,
+        "artifact_path": "artifacts/atoms/42/verifiers/check.log",
+        "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
+        "subject_exact_state_id": exact,
+    }],
+    "benchmarks": [],
+    "knowledge_graph_node_ids": [],
+    "known_limitations": [],
+    "closed_at": "2026-08-30T00:00:00Z",
+}
+(root / "artifacts/atoms/42/closure.json").write_text(
+    json.dumps(record, indent=2), encoding="utf-8"
+)
+PY
+  (cd "$root" && jj commit -m bookkeeping >/dev/null && jj bookmark create main -r @- >/dev/null && jj git remote add origin "$root/.git" >/dev/null 2>&1 || true && jj git push --bookmark main >/dev/null)
+}
+
+mutate_closure() {
+  local root="$1"
+  local expression="$2"
+  python3 - "$root/artifacts/atoms/42/closure.json" "$expression" <<'PY'
+import json
+import sys
+
+path, expression = sys.argv[1:]
+record = json.loads(open(path, encoding="utf-8").read())
+verifier = record["verifiers"][0]
+if expression == "empty-id":
+    verifier["verifier_id"] = ""
+elif expression == "unsafe-id":
+    verifier["verifier_id"] = "../check"
+elif expression == "empty-path":
+    verifier["artifact_path"] = ""
+elif expression == "arbitrary-path":
+    verifier["artifact_path"] = "README.md"
+elif expression == "relative-path":
+    verifier["artifact_path"] = "verifiers/check.log"
+elif expression == "self-path":
+    verifier["artifact_path"] = "artifacts/atoms/42/closure.json"
+elif expression == "duplicate":
+    record["verifiers"].append(dict(verifier))
+elif expression == "nonzero":
+    verifier["exit_code"] = 1
+elif expression == "empty-command":
+    verifier["command"] = ""
+elif expression == "empty-digest":
+    verifier["artifact_sha256"] = ""
+elif expression == "missing-artifact":
+    verifier["artifact_path"] = "artifacts/atoms/42/verifiers/missing.log"
+else:
+    raise SystemExit(f"unknown mutation {expression}")
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(record, handle, indent=2)
+PY
+}
+
+canonical="$(new_fixture "${schemas[@]}")"
+write_valid_closure "$canonical"
+expect_ok "a canonical zero-exit verifier log with an exact digest passes" \
+  bash "$checker" "$canonical"
+
+for mutation in empty-id unsafe-id empty-path arbitrary-path relative-path self-path duplicate nonzero \
+  empty-command empty-digest missing-artifact; do
+  adversarial="$(new_fixture "${schemas[@]}")"
+  write_valid_closure "$adversarial"
+  mutate_closure "$adversarial" "$mutation"
+  expect_fail "a closure verifier mutation ($mutation) fails closed" bash "$checker" "$adversarial"
+done

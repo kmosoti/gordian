@@ -213,6 +213,12 @@ stop; fi` is correct. The bare form is the CI and reporting mode: it prints the 
 exits 0 by design, so an incomplete Mission does not fail every build. An agent that tests the
 exit status of the bare form concludes the Mission is complete on its first iteration.
 
+While the coordinator is writing the final bookkeeping record, it may run
+`bash scripts/check-mission-stop-condition.sh --preclose 69`. This is a gate: every acceptance-row
+Atom still needs a fully validating closure record, and any waiver must be propagated once #69's
+record exists. Only #69's own absent final record is permitted in this preclose check; another
+`--preclose` id or combination is invalid.
+
 No other signal terminates the loop: not "all 77 issues closed", because issues are a temporary
 external projection; not "the milestone is closed", because a milestone is bookkeeping.
 
@@ -226,12 +232,12 @@ unreachable by an unattended agent, so those rows carry:
 unresolved_human_metric: <one line naming the metric and why no machine substitute exists>
 ```
 
-A row carrying `unresolved_human_metric` is **out of first qualification**: the stop condition
-does not wait on it, and `check-mission-stop-condition.sh --gate` does not count it as
-unsatisfied. In exchange the waiver is loud — `#69`'s evidence bundle MUST list every waived row
-verbatim under *known limitations*, so a qualification that skipped human judgement can never be
-mistaken for one that obtained it. Adding a waiver to a row whose metric a machine *could*
-produce is a contract defect, not a shortcut.
+A waiver names one human metric; it never waives its Atom or acceptance row. The stop condition
+still requires every referenced Atom's fully validating closure record, including #50 and #54.
+The waiver is loud — #69's evidence bundle MUST list every waiver line verbatim as an item under
+*known limitations*, so a qualification that skipped human judgement can never be mistaken for one
+that obtained it. Adding a waiver to a row whose metric a machine *could* produce is a contract
+defect, not a shortcut.
 
 ## 4. Order of work
 
@@ -247,7 +253,7 @@ Atom:
 ```text
 #70   the temporary GitHub bootstrap projection: the readiness command (6.2), the claim
       subcommands (6.3), the board recompute (6.9), and the new-atom/add-edge/check-drift
-      checklist automation (section 8)  -- G-502, G-504, G-507, G-516, G-527, G-445, G-530, G-609
+      registry automation (section 8)  -- G-502, G-504, G-507, G-516, G-527, G-445, G-530, G-609
 ```
 
 #70 is dispatchable whenever its own blockers are satisfied, even though
@@ -325,8 +331,9 @@ bookmarks in 6.5 and 6.7, and it is defined here so those two sections do not ea
 
 #### Credentials (non-interactive, required before the loop starts)
 
-The loop MUST NOT call an interactive command. `gh auth login` and `gh auth refresh` are
-forbidden inside the loop: they block on a browser and cannot complete unattended.
+The loop MUST NOT call an interactive credential command. `gh auth login` and `gh auth refresh`
+are forbidden inside the loop because config-store mutation is not deterministic across
+harnesses; credential provisioning or repair happens before the loop starts.
 
 ```bash
 # One token, supplied by the environment. Scopes required: repo, project, workflow.
@@ -337,17 +344,6 @@ export GORDIAN_LOG_ROOT="${GORDIAN_LOG_ROOT:-${TMPDIR:-/tmp}/gordian-logs}"
 # Push credential. The same token authenticates the https remote; no separate secret exists.
 git_askpass="$(mktemp)"; printf '#!/bin/sh\necho "$GORDIAN_GH_TOKEN"\n' > "$git_askpass"
 chmod +x "$git_askpass"; export GIT_ASKPASS="$git_askpass"
-```
-
-Preflight, which fails closed rather than prompting:
-
-```bash
-gh auth status >/dev/null 2>&1 || { echo "GORDIAN_GH_TOKEN invalid or unset"; exit 78; }
-gh api user -q .login >/dev/null      || { echo "token cannot read the API";   exit 78; }
-gh api repos/kmosoti/gordian -q .name >/dev/null \
-                                      || { echo "token lacks repo scope";      exit 78; }
-gh project list --owner kmosoti --limit 1 >/dev/null \
-                                      || { echo "token lacks project scope";   exit 78; }
 ```
 
 **Why the token is an environment variable and not `gh auth`.** `gh` discovers its credentials
@@ -367,10 +363,19 @@ gh auth status                      # names the hosts.yml actually being read
 echo "XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-<unset>}"
 ```
 
-Exit code 78 means *configuration missing* and is the one failure an agent reports without
-recording an attempt: no Atom was claimed, so there is nothing to release. If the token lacks a
-scope, stop and say which one. Never attempt to widen it yourself — `gh auth refresh` is the
-interactive command this section exists to avoid.
+Use the implemented command as the authoritative preflight. It checks the authenticated identity,
+repository write permission, and Project 9 read/write API access using the actual responses from
+GitHub, without printing or persisting the token:
+
+```bash
+gordian-bootstrap preflight
+gordian-project-sync reconcile --check
+```
+
+The second command is the exact read-only Project membership check; it does not mutate Project 9.
+Exit code 78 means *configuration missing or insufficient* and is the one failure an agent reports
+without recording an attempt: no Atom was claimed, so there is nothing to release. If the token
+lacks a capability, stop and name it. Never attempt to widen the credential inside the loop.
 
 ### 6.2 Deriving readiness
 
@@ -390,10 +395,15 @@ rule. A closed issue with no validating closure record is not satisfied, and the
 exits non-zero when it finds one.
 
 **`gordian-derive-status ready` is the only sanctioned way to pick the next Atom** (G-504, G-516).
-It reads edges from `blockedByIssues` node lists — never from `issueDependenciesSummary.blocking`,
-which is wrong for #11, #18 and #44 — applies the satisfaction rule above against
+It reads edges from the native `blockedBy` connection and validates pagination against its
+`totalCount` — never from `issueDependenciesSummary`, whose blocking counter has been observed
+wrong for #11, #18 and #44 — applies the satisfaction rule above against
 `artifacts/atoms/*/closure.json`, and prints each ready Atom with its `Wave`, `Fan In`, `Fan Out`
 and derived `Status`:
+
+A mistakenly created issue is outside the executable Atom corpus only when it is both closed and
+explicitly labeled `duplicate`. An open duplicate is a reconciliation error. This narrow rule does
+not weaken the closure-record requirement for any ordinary closed Atom.
 
 ```bash
 python3.14 -m pip install -e './orchestration[dev]'    # once; see 6.6
@@ -403,91 +413,107 @@ GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready --json
 GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready --all      # every open Atom, not only ready
 ```
 
-`GH_TOKEN` carries a **classic** personal access token with the `repo` and `project` scopes; the
-interactive `gh auth refresh -s project` flow is not available to an unattended agent. A non-zero
-exit means either an authentication failure or a closed issue with no validating closure record —
-in the second case the readiness printed rests on unevidenced closure, and the fix is the missing
-closure record, not a retry.
+Run `gordian-bootstrap preflight` before the loop. A non-zero exit means either an authentication
+or capability failure, or a closed issue with no validating closure record — in the second case the
+readiness printed rests on unevidenced closure, and the fix is the missing closure record, not a
+retry.
 
-#### Working with no network
+`--snapshot artifacts/atoms/issues.json` reads the committed registry capture instead of calling
+`gh`, but only for inspection. Snapshot-based `ready` requires `--inspection`, labels its output
+non-dispatching, and never supplies an Atom to claim or apply; without that flag it fails closed.
+Only the live accepted-state invocation above may select work. **G-502 is assigned to #70**, which
+produces and refreshes the snapshot only after the live registry audit is clean. A missing snapshot
+is an incomplete #70 implementation, not permission to invent an offline graph.
 
-`artifacts/atoms/issues.json` is committed: every open Atom's contract, milestone, labels and
-native blocked-by edges, with provenance. It is produced by `scripts/snapshot-atoms.sh`, which
-refuses to write a snapshot whose closure does not match the published self-hosting set — a stale
-snapshot would fail `verifier:spec-consistency` for every Atom, so it fails loudly instead.
-
-With it, readiness derives **offline, with no credentials at all**:
+For offline inspection, with no credentials or network access:
 
 ```bash
-gordian-derive-status --snapshot artifacts/atoms/issues.json ready
+gordian-derive-status --snapshot artifacts/atoms/issues.json ready --inspection
 ```
 
-That is the whole of section 6.2 without a network. A sandbox that denies outbound
-connections — Codex's `workspace-write` sandbox does so by default unless
-`[sandbox_workspace_write] network_access = true` is set in `~/.codex/config.toml` — can still
-derive readiness, read every Atom contract, run all five verifiers, and produce a closure record.
-Only three steps genuinely need the network: claiming (6.3), landing (6.7) and the board update
-(6.9). Do the offline work, then hand those three to an environment that has connectivity, or
-restore connectivity first.
+Before capture or after any issue/edge change, run the core `gordian-atom-registry check`, then the
+EO17 benchmark and target-crate audits. Registry coherence requires all three audits to pass; it
+compares the native graph with every issue-body dependency mirror, Initiative/type metadata, the
+project-plan Atom tables, and the generated maximum-length execution spine. Capture is fail-closed:
 
-The snapshot is a projection, not a source. Regenerate it with `scripts/snapshot-atoms.sh` after
-any issue or edge change; never hand-edit it. When it disagrees with GitHub, GitHub wins and the
-snapshot is stale.
+```bash
+gordian-atom-registry check
+gordian-atom-registry capture --output artifacts/atoms/issues.json
+gordian-atom-registry --snapshot artifacts/atoms/issues.json check
+```
+
+The captured file carries complete issue bodies and native edges, not only issue numbers, so it is
+the repository mirror required by G-502. It remains a snapshot of GitHub authority, not a second
+dependency source. `sync-benchmarks` and `sync-target-crates` may be applied in either order. The
+first successful staged apply may return `coherent:false` with `snapshot_skipped` and leaves the
+prior snapshot untouched; the second successful apply, or an explicit `capture`, writes the
+coherent snapshot.
+
+`gordian-atom-registry check-drift` is the explicit alias for the same drift audit. Capture,
+`render-plan`, and `render-spine` are deterministic for fixed registry and repository inputs, so
+their output can be compared or regenerated offline from the snapshot.
 
 Do not hand-roll a `gh` query for the ready set. Hand-rolled readiness silently drops the
 satisfaction rule, which is the whole point of the command.
 
 ### 6.3 Claiming an Atom
 
-A claim is three facts, all idempotent, and it expires (G-507):
+The canonical claim state is one append-only Git ref:
+`refs/heads/gordian-claim-log`. Each event is an empty Git commit (the same tree as its parent)
+whose commit message is strict canonical JSON with schema `gordian-bootstrap-claim-event-v1`, the
+event, and the complete active-claim set (at most three entries). The first event's parent is the
+accepted `main` commit; later events parent the observed claim-log head. The ref is created once
+with the GitHub Git Database API, or advanced with `force=false` only. A create race returns
+409/422 and an update race is rejected as non-fast-forward; neither path retries with a forced
+update or deletes the ref. The successful ref mutation is the claim's linearization point.
 
-1. **Assignee.** The agent's GitHub identity is assigned to the issue. Assignment is the lock: an
-   issue with an assignee is claimed, an issue with none is not.
-2. **Board Status.** Project 9's `Status` field moves to `In Progress`. `In Progress` is a
-   claim-owned value, not a derived one — 6.9 gives the split — so writing it here contradicts
-   nothing.
-3. **Claim comment.** A comment carrying the actor string, an ISO-8601 UTC timestamp, and the
-   expiry, so a crashed agent's claim is visibly stale rather than permanent.
+An active entry carries `atom`, `actor`, authenticated GitHub `login`, random `lease_id`, and
+`claim_commit`. A creation event uses `claim_commit: "self"`; the next event normalizes that value
+to the observed parent SHA. Readers fetch every active claim commit and use GitHub's server-set
+`commit.committer.date` as display metadata. They obtain the current GitHub response `Date` header
+for expiry checks and fail closed when it is absent or malformed. No local clock, caller-supplied
+time, comment timestamp, or forged commit time authorizes a transition; the displayed lease duration
+of **240 minutes** is evaluated only against that trusted server clock. The owning actor may release
+or abort its claim. An authorized coordinator may instead append the explicit `reclaim` transition
+when a foreign lease is expired; a live foreign lease is exclusive and cannot be deleted or stolen.
 
-**Claim expiry: 240 minutes** from the comment's timestamp — the same 4 hours as the per-Atom
-wall-clock cap of section 7. A claim whose timestamp plus 240 minutes is in the past is **stale**:
-any agent may release it with the section 7 procedure and then claim the Atom itself. A live claim
-by a different actor is never taken over.
+The active state makes the global cap and one-Atom exclusion atomic. Before selection, a live lease
+already owned by the same actor is returned idempotently (the authenticated GitHub login is part
+of the state, so two actor strings using one login remain distinct). A live lease by another actor
+never loses to a later writer; a stale lease must be released or explicitly reclaimed through its
+current log entry before the Atom can be claimed again. Same-actor idempotence is valid only while
+the lease is live.
 
-```bash
-claimed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+Readers walk the entire ref ancestry to the first ordinary accepted-`main` root. Every event commit
+has exactly one parent, preserves one invariant tree, and changes the complete active set by
+exactly one claim, release, abort, or authorized stale reclaim (with the prior event's `self`
+marker normalized to that parent SHA). The root is either the current accepted `main` commit or a verified historical
+ancestor using GitHub's compare `status`, `ahead_by`, `behind_by`, `total_commits`, `base_commit`,
+and `merge_base_commit` fields. Every active `claim_commit` must name an actual claim event on
+that validated ancestry. A malformed document, parent, transition, tree, or ancestry fails
+closed. The log—not an assignee, comment, or Project status—arbitrates selection and readiness;
+those fields are drift-prone projections.
 
-# 1. assignee
-gh issue edit "$N" --repo kmosoti/gordian --add-assignee "@me"
+Only after a successful claim CAS does `gordian-bootstrap` project the lease to the issue assignee,
+Project 9 `In Progress`, and a human-readable comment. The comment includes the lease id, claim-log
+ref, and event id, but is a projection and cannot block a winner or release. Projection writes keep
+a mutation ledger: compensation removes only an assignee added by that attempt and restores only
+a status value that attempt changed; pre-existing assignments are never destructively removed. If
+the conservative issue reread finds the issue closed, or any projection fails, the command appends
+a CAS `abort` event and reconciles only projections that are still guarded by a fresh canonical
+read. A losing CAS never creates projections. Release likewise requires the current canonical
+actor and lease owned by the current actor, appends its CAS release before touching
+projections, and then brackets every assignee/status/comment mutation with canonical rereads. If a
+winner appears—even with the same login—the stale release stops destructive work, restores the
+winner's assignee and `In Progress` status, and verifies the final projection. A canonical release
+of a closed issue is still allowed and skips unsafe projection writes.
 
-# 2. board Status = In Progress
-project_id="$(gh project view 9 --owner kmosoti --format json --jq .id)"
-status_field="$(gh project field-list 9 --owner kmosoti --format json \
-  --jq '.fields[] | select(.name=="Status")')"
-field_id="$(jq -r .id <<<"$status_field")"
-option_id="$(jq -r '.options[] | select(.name=="In Progress") | .id' <<<"$status_field")"
-item_id="$(gh project item-list 9 --owner kmosoti --limit 200 --format json \
-  --jq ".items[] | select(.content.number==$N) | .id")"
-gh project item-edit --project-id "$project_id" --id "$item_id" \
-  --field-id "$field_id" --single-select-option-id "$option_id"
-
-# 3. claim comment
-gh issue comment "$N" --repo kmosoti/gordian --body "$(cat <<EOF
-$GORDIAN_ACTOR
-claimed_at: $claimed_at
-expires_after_minutes: 240
-EOF
-)"
-```
-
-The comment's first line is the actor string of 6.1 and nothing else, so the claim's owner is
-readable by a `head -1`. Two agents that race resolve it by assignee: the later one runs the
-section 7 release and takes the next row of the selection order.
-
-The `claim`, `release`, and `claims` subcommands that make this a command rather than a checklist
-— where `claims` prints each Atom's claim actor and whether the claim is still live, and `claim`
-exits non-zero against a live claim by another actor — are **G-507, assigned to #70**. A lease over
-a `LeaseSubject::LogicalChange` replaces all of it when #23 closes.
+`gordian-bootstrap claim`, `release`, `reclaim`, and `claims` are the executable interface. `claims` reads the
+claim-log head and reports liveness plus projection drift; it never scans comments to find an
+owner. CAS conflict and lost-response retries are bounded and deterministic: after each 409/422
+or uncertain mutation the command rereads the validated ancestry and recognizes its event even if
+later events have appended. A lease over a
+`LeaseSubject::LogicalChange` replaces all of this when #23 closes.
 
 ### 6.4 Spec revision snapshot
 
@@ -667,8 +693,8 @@ projections** of the native blocked-by graph and the on-disk closure records. Re
 every closure rather than editing a cell:
 
 ```bash
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status derive --compare-board   # dry run
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status derive --apply
+gordian-derive-status derive --compare-board   # dry run
+gordian-derive-status derive --apply
 ```
 
 `Wave` is longest-path depth, `Fan In` and `Fan Out` are in-degree and out-degree, and none of the
@@ -679,7 +705,7 @@ three is ever written by hand.
 `gordian_orchestration.derive_status`, and it has five values:
 
 ```text
-Blocked      some blocker is not satisfied under the bootstrap satisfaction rule   derived
+Blocked      some blocker is not satisfied under the readiness closure predicate    derived
 Ready        every blocker is satisfied and the issue has no assignee              derived
 In Progress  every blocker is satisfied and the issue has an assignee              claim-owned
 In Review    a pull request referencing the issue is open                          claim-owned
@@ -692,8 +718,9 @@ and `Accepted` are facts about a claim and its landing that the loop asserts —
 `In Progress`, 6.7 sets `In Review` if the deployment uses pull requests, 6.8 sets `Accepted` —
 and `derive --apply` never overwrites them. No cell is both computed and asserted, so "derived
 projection, never an input" and "the claim step sets `Status`" are not in conflict: nothing reads
-`Status` back as authority. The authority for a claim is the assignee; the authority for
-acceptance is the closure record.
+`Status` back as authority. The authority for a claim is the canonical
+`refs/heads/gordian-claim-log` head; the assignee and Project fields are projections. The authority
+for acceptance is the closure record.
 
 A milestone is bookkeeping, and closing one is the last step of an Initiative, not a gate:
 **the same coordinator role that lands the Initiative's final Atom closes the milestone**, and only
@@ -740,7 +767,9 @@ Concrete values, so an agent does not have to decide them (G-520):
 - **Per-Atom cost cap: USD 25** of model spend.
 
 On any of `verifier_failed`, `timed_out`, `budget_exceeded`, or a deliberate `abandoned` — and on
-releasing another actor's **stale** claim under 6.3 — execute this ordered procedure:
+execute this ordered procedure. The owner uses `release`; when the owner is unavailable, an
+authorized coordinator uses the explicit stale-lease `reclaim` transition. GitHub server time is
+required; a client time or caller-supplied commit timestamp cannot authorize a foreign transition:
 
 ```bash
 # 1. record the attempt
@@ -749,12 +778,10 @@ mkdir -p "artifacts/atoms/$N/attempts"
 # artifacts/schema/attempt-record.schema.json, carrying the outcome below, a reason
 # string, actor = $GORDIAN_ACTOR, and the observed budget.
 
-# 2. release the claim: all three facts of 6.3, in reverse
-gh issue edit "$N" --repo kmosoti/gordian --remove-assignee "@me"
-gh project item-edit --project-id "$project_id" --id "$item_id" \
-  --field-id "$field_id" --single-select-option-id "$ready_or_blocked_option_id"
-gh issue comment "$N" --repo kmosoti/gordian --body "$GORDIAN_ACTOR released this claim at \
-$(date -u +%Y-%m-%dT%H:%M:%SZ): <reason>"
+# 2. release the claim through the canonical CAS log; it reconciles projections afterward
+gordian-bootstrap release "$N" --reason "<reason>"
+# An authorized coordinator may use this instead when the lease is expired:
+# GORDIAN_COORDINATOR=1 gordian-bootstrap reclaim "$N" --reason "<stale-owner reason>"
 
 # 3. discard the workspace (the 6.5 name, from jujutsu-development-environment.md section 6)
 jj workspace forget "atom-$N-$GORDIAN_ACTOR_SLUG"
@@ -792,12 +819,88 @@ specification change; see section 5.
 
 ## 8. Creating or splitting an Atom
 
-A new Atom must appear consistently in the issue body, the native blocked-by graph, the milestone,
-the `type:*` label, and Project 9. The procedure and its drift check are the subject of **G-527,
-assigned to #70** (`new-atom`, `add-edge`, and `check-drift` subcommands under `orchestration/`).
-Until they exist, follow the manual checklist in
-[`issue-index.md`](issue-index.md#adding-or-splitting-an-atom) and run every regeneration step it
-names. Section 4's carve-out is what allows #70 itself to be claimed and closed.
+A new Atom must appear consistently in the complete issue body, native blocked-by graph, milestone,
+`type:atom` or `type:experiment` label, Project 9, target-crate ownership, execution phase, and
+knowledge graph. Atom #70 provides the deterministic, claim-gated workflow. `add-edge` and
+`new-atom` require an already coherent registry and cannot persist a drifting snapshot. Before and
+after a change, use the read-only audits:
+
+```bash
+gordian-atom-registry check-drift
+gordian-atom-registry check-benchmarks
+gordian-atom-registry check-target-crates
+```
+
+Add one prerequisite edge with a dry plan, or apply it after preflight and while holding a live
+claim for #70:
+
+```bash
+gordian-atom-registry add-edge ISSUE BLOCKER
+gordian-atom-registry add-edge ISSUE BLOCKER --apply
+```
+
+Create an Atom with all required registration inputs. The body file must contain the complete Atom
+body; `--target-crate none` is the explicit choice when no Rust crate owns it. Repeat `--blocked-by`
+and `--blocks` for multiple relationships, and provide one JSON object in `--knowledge-node`:
+
+```bash
+gordian-atom-registry new-atom \
+  --title "[Temporary GitHub Bootstrap] Atom title" \
+  --body-file /path/to/complete-atom-body.md \
+  --milestone "Initiative name" \
+  --type-label type:atom \
+  --target-crate none \
+  --phase 13 \
+  --blocked-by BLOCKER \
+  --blocks DOWNSTREAM \
+  --knowledge-node /path/to/knowledge-node.json
+gordian-atom-registry new-atom ... --apply
+```
+
+Dry plans (no `--apply`) validate and print the proposed deterministic projections without
+mutating GitHub or repository files. Every `--apply` operation requires live GitHub state, runs
+`gordian-bootstrap preflight` using the required `GORDIAN_GH_TOKEN` to `GH_TOKEN` override, and
+requires the current actor to hold a live claim for #70. A snapshot cannot be used with an apply
+operation. Section 4's carve-out is what allows #70 itself to be claimed and closed.
+
+Benchmark obligations use the same dry/apply boundary:
+
+```bash
+gordian-atom-registry check-benchmarks
+gordian-atom-registry sync-benchmarks
+gordian-atom-registry sync-benchmarks --apply
+```
+
+`check-benchmarks` is read-only. `sync-benchmarks` without `--apply` only prints a plan; its apply
+form is live, preflighted, and claim-gated as above.
+
+Target-crate contracts have the same boundary. `check-target-crates` audits that every crate-owning
+Atom body names the generated target-crate contract and is read-only. Existing plan rows may name
+multiple crate owners; each `new-atom` invocation accepts exactly one target-crate value (or `none`).
+`sync-target-crates` prints a deterministic plan by default; `--apply` requires live GitHub state,
+`gordian-bootstrap preflight`, and a live claim held by the current actor for #70:
+
+```bash
+gordian-atom-registry check-target-crates
+gordian-atom-registry --snapshot artifacts/atoms/issues.json check-target-crates
+gordian-atom-registry sync-target-crates
+gordian-atom-registry sync-target-crates --apply
+```
+
+Milestone descriptions are reconciled by `gordian-milestone-contracts`. Its `check` command is
+read-only and returns `0` when clean, `1` on drift, or `2` on an operational error. Configuration
+preflight for `sync --apply` returns `78` when authentication is unavailable. The exact
+`Acceptance: ...` line is derived from the generated Initiative register;
+the milestone description is not an independent contract. `sync` is a deterministic dry plan, while
+`sync --apply` requires noninteractive preflight and the current actor's live #70 claim. If a later
+milestone update or verification fails, the command compensates partial milestone-description
+writes:
+
+```bash
+gordian-milestone-contracts check
+gordian-milestone-contracts sync
+gordian-milestone-contracts sync --apply
+```
 
 ## 9. Experiment execution policy
 

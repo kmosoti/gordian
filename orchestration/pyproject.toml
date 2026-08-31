@@ -16,6 +16,9 @@ dev = ["ruff==0.16.5"]
 [project.scripts]
 gordian-project-sync = "gordian_orchestration.github_project:main"
 gordian-derive-status = "gordian_orchestration.derive_status:main"
+gordian-atom-registry = "gordian_orchestration.atom_registry:main"
+gordian-bootstrap = "gordian_orchestration.bootstrap_claims:main"
+gordian-milestone-contracts = "gordian_orchestration.milestone_contracts:main"
 
 [tool.ruff]
 target-version = "py314"

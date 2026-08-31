@@ -108,11 +108,14 @@ A Lean theorem proves the formal proposition under its assumptions. It does **no
 The current Lean sources cover rank-certified dependency acyclicity, scheduling witness implications, evidence identity mismatch, authority separation, acceptance witnesses, declared non-interference symmetry, and deterministic replay identity. They are **proposition-level models, not executable oracles**: nothing in Rust is differentially tested against them today, and a theorem here constrains the model, not an implementation.
 
 ```bash
-cd formal
-lake build
+scripts/verify-formal.sh
 ```
 
-CI re-checks the compiled environment with an independent checker and runs an **axiom audit**; the audit is what rejects `sorryAx` and any non-allowlisted axiom. Locally, `lake build` alone does not reject `sorry` — **G-258 and G-239 are assigned to #2**, which adds `formal/Gordian/Audit.lean`, makes warnings errors, and adds the audit invocation to the documented local check list.
+The local `scripts/verify-formal.sh` gate runs `lake build`, the banned-token scan, and the
+axiom-closure audit (including the allowlist check). CI additionally re-checks the compiled
+environment with an **independent checker**. Only that independent checker remains **CI-only**
+until #2 lands `formal/Gordian/Audit.lean` and adds the local invocation (**G-258 and G-239,
+assigned to #2**).
 
 ## Source plane and the Jujutsu Change Graph
 
@@ -307,12 +310,13 @@ ruff check orchestration
 python -m compileall -q orchestration/src
 python -m unittest discover -s orchestration/tests
 
-(cd formal && lake build)
+scripts/verify-formal.sh
 
 for s in scripts/check-*.sh; do bash "$s"; done
 ```
 
-The independent Lean checker and the axiom audit are **CI-only** until #2 lands
+The local `scripts/verify-formal.sh` command already runs the Lean build, banned-token scan, and
+axiom-closure audit. The independent Lean checker remains **CI-only** until #2 lands
 `formal/Gordian/Audit.lean` and adds the local invocation to this block. `--strict` is not
 optional: a bare `audit` passes on warnings and is not a gate.
 

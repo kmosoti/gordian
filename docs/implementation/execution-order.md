@@ -4,17 +4,17 @@ This document turns the Atom backlog into an execution strategy. GitHub issue nu
 
 The implementation plan is not a linear ticket queue. Work should run concurrently only when interfaces and verification boundaries make the concurrency credible.
 
-**The native GitHub `blocked by` graph is the single authority for dependencies.** Every ordered
-list and every arrow in this document is a projection of that graph, not a second source. Where a
-list and the graph disagree, the graph is right and the list is a defect. The generator that will
-emit these blocks between explicit markers, and the CI job that will regenerate and diff them, are
-**G-518 and G-433, assigned to #70**; until they land, an editor who changes an edge re-derives
-the affected blocks by hand and says so in the closure record.
+**The native GitHub `blocked by` graph is the single authority for dependencies.** The maximum-path
+arrows are generated from that graph, and phase membership is deliberately unordered. Where a
+view and the graph disagree, the graph is right and `gordian-atom-registry check` fails.
+`gordian-atom-registry render-spine --write` owns the marked block below; this is the executable
+implementation of **G-518 and G-433, assigned to #70**.
 
 Sections 5-15 are **phases of the causal spine**, not Initiatives. An Initiative is a GitHub
 milestone ([`issue-index.md`](issue-index.md)); a phase groups Atoms by when their prerequisites
-are discharged, and routinely spans milestones. No Atom appears in more than one phase's ordered
-list.
+are discharged, and routinely spans milestones. No Atom appears in more than one phase membership
+list. Those lists are sets, not schedules: the only executable order is the native
+graph projected by `gordian-derive-status ready`.
 
 ## 1. Mission
 
@@ -80,47 +80,25 @@ The spine is the set of Atoms lying on at least one **maximum-length** blocker p
 post-revision graph. That path is 18 edges long, and every arrow drawn below is a real native
 `blocked by` edge — nothing here is a reading preference.
 
+<!-- BEGIN GENERATED: MAXIMUM-LENGTH SPINE -->
+
 ```text
-#1 -> #2 -> #8 -> #71 -> #72 -> #9 -> #11 -> #12 -> #58 -> #10
-                                                            |
-                                +---------------------------+
-                                |                           |
-                                v                           v
-                               #13                         #25
-                                |                           |
-                                v                           v
-                               #20                         #26
-                                |                           |
-                                v                           v
-                               #21                         #44
-                                |                           |
-                                v                           v
-                               #24                         #45
-                                |                           |
-                                v                           v
-                               #38                         #46
-                                |                           |
-                                v                           v
-                               #40                         #48
-                                |                           |
-                                v                           v
-                               #41                         #49
-                                |                           |
-                                v                           v
-                               #42                         #68
-                                |                           |
-                                +----------> #69 <----------+
+#2 -> #8 -> #71 -> #72 -> #9 -> #11 -> #12 -> #58 -> #10 -> #13 -> #19 -> #26 -> #44 -> #45 -> #46 -> #48 -> #49 -> #68 -> #69
+#2 -> #8 -> #71 -> #72 -> #9 -> #11 -> #12 -> #58 -> #10 -> #13 -> #19 -> #32 -> #44 -> #45 -> #46 -> #48 -> #49 -> #68 -> #69
+#2 -> #8 -> #71 -> #72 -> #9 -> #11 -> #12 -> #58 -> #10 -> #13 -> #20 -> #26 -> #44 -> #45 -> #46 -> #48 -> #49 -> #68 -> #69
 ```
 
-Twenty-seven Atoms, in two chains that separate at #10 and rejoin at #69. The left chain is
-distributed robustness reaching #69 through the release evidence bundle; the right chain is the
-self-hosting Mission. Everything not drawn is off the longest path and can therefore be scheduled
-concurrently with it — which is the only claim a spine is entitled to make.
+<!-- END GENERATED: MAXIMUM-LENGTH SPINE -->
 
-The spine deliberately does **not** show the evidence and source planes (#14-#19, #29-#33), the
-persistence tail (#27, #28), or the experiments. They are prerequisites of Atoms in the spine but
-sit on shorter paths, so drawing them here would state a false ordering. Their order is in the
-phase sections below.
+Twenty-one unique Atoms across three maximum-length paths. The paths branch at #13 and rejoin at
+#44 before reaching the self-hosting and qualification tail. Everything not drawn is off the
+longest path and can therefore be scheduled concurrently when its own prerequisites permit it —
+which is the only claim a spine is entitled to make.
+
+The spine deliberately does **not** show the off-path evidence and source work (#14-#18, #29-#31,
+#33), persistence work #25, #27 and #28, or the experiments. They are prerequisites of Atoms in
+the spine but sit on shorter paths, so drawing them here would state a false ordering. Their order
+is in the phase sections below.
 
 ## 5. Qualification before dependence
 
@@ -149,12 +127,14 @@ These do **not** gate #9. D1 re-attached each where it is actually consumed, so 
 held behind qualification work that no kernel Atom reads:
 
 - #1 qualify and pin Jujutsu — consumed by #29 and #33;
-- #5 benchmark and regression discipline — consumed by #24;
-- #6 verification-technique pilot on #4 — consumed by #7 and #62;
-- #7 Lean/Rust differential conformance — consumed by #13;
+- #5 benchmark and regression discipline — consumed directly by #10, #14, #24 and experiment work;
+- #6 verification-technique pilot on #4 — consumed directly by #7, #18, #60 and #62;
+- #7 Lean/Rust differential conformance — consumed directly by the kernel, evidence, scheduling,
+  persistence and formal-method work that names it;
 - #73 epistemic traversal and impact queries — consumed by #68;
 - #74 reproducible acquisition and staleness propagation — consumed by #68;
-- #75 experiment run ledger and statistical contract — consumed by #37.
+- #75 experiment run ledger and statistical contract — consumed by #34, #37, #39 and the
+  experiment Atoms #50-#54 and #59-#61.
 
 ### The D1 split of #37 uses two real issue numbers
 
@@ -164,13 +144,13 @@ in the native blocked-by graph that D3 makes authoritative, and
 never see it. The split is therefore:
 
 ```text
-#37   retained as the foundation subset:  experiment manifest validation and the run ledger
+#37   retained as the foundation subset:  subprocess runner, seed matrix, raw artifact capture
 #77   new issue, the worker-launch extension:  launching and supervising experiment workers
 ```
 
-with `#37 blocked_by #75` (the pre-revision edge #75 -> #37 is reversed), `#77 blocked_by #37`,
-and `#39 blocked_by #77`. Every reference that read `#37a` now reads `#37`; every reference to
-"the later worker-launch extension" now reads `#77`.
+The complete current native edges are `#37 blocked_by #2, #3, #75`, `#77 blocked_by #2, #5, #35,
+#36, #37`, and `#39 blocked_by #3, #37, #38, #75, #77`. Every reference that read `#37a` now
+reads `#37`; every reference to "the later worker-launch extension" now reads `#77`.
 
 ### Parallelism
 
@@ -232,17 +212,17 @@ Do not treat the foundation as complete until:
 
 ## 6. Typed kernel of the Mission Graph
 
-### Order
+### Members
 
-1. #9 typed identities and immutable specification revisions;
-2. #58 Project resource registry and external identities;
-3. #10 decomposition/dependency validation;
-4. #11 attempts, candidates, and effect classes;
-5. #12 canonical events and deterministic projection;
-6. #13 acceptance predicates and derived state;
-7. #55 PlanRevision lifecycle;
-8. #56 planner proposal/validation interface;
-9. #57 desired-versus-observed reconciliation and repair planning.
+- #9 typed identities and immutable specification revisions;
+- #11 attempts, candidates, and effect classes;
+- #12 canonical events and deterministic projection;
+- #58 Project resource registry and external identities;
+- #10 decomposition/dependency validation;
+- #13 acceptance predicates and derived state;
+- #55 PlanRevision lifecycle;
+- #56 planner proposal/validation interface;
+- #57 desired-versus-observed reconciliation and repair planning.
 
 ### Design gate
 
@@ -273,14 +253,14 @@ Measure:
 
 ## 7. Exact evidence, provenance, and authority
 
-### Order
+### Members
 
-1. #14 content-addressed artifacts;
-2. #15 exact evidence fingerprints;
-3. #16 verifier manifests/exact-subject execution;
-4. #17 provenance and attestations;
-5. #18 capability policy and Cedar evaluation;
-6. #19 accepted-frontier admission/CAS.
+- #14 content-addressed artifacts;
+- #15 exact evidence fingerprints;
+- #16 verifier manifests/exact-subject execution;
+- #17 provenance and attestations;
+- #18 capability policy and Cedar evaluation;
+- #19 accepted-frontier admission/CAS.
 
 #14 and #18 can begin in parallel after the identity model stabilizes. #19 cannot precede all evidence and authority semantics it is meant to enforce. The stale-evidence and formal-method experiments that consume this phase (#59, #60) are listed once, in the decision matrix of section 16.
 
@@ -303,14 +283,14 @@ Use mutation testing to remove or invert each admission check. The suite must fa
 
 ## 8. Scheduling and semantic coordination
 
-### Order
+### Members
 
-1. #20 ready queue and critical-path analysis;
-2. #21 worker capability/resource compatibility;
-3. #22 semantic claims and observed scope;
-4. #23 leases and fencing;
-5. #24 scheduler policy comparison;
-6. #52 semantic conflict predictor experiment.
+- #20 ready queue and critical-path analysis;
+- #21 worker capability/resource compatibility;
+- #22 semantic claims and observed scope;
+- #23 leases and fencing;
+- #24 scheduler policy comparison;
+- #52 semantic conflict predictor experiment.
 
 ### Scheduler separation
 
@@ -348,12 +328,12 @@ Use exact or brute-force solvers for small generated instances to measure heuris
 
 ## 9. Persistence and replay
 
-### Order
+### Members
 
-1. #25 PostgreSQL canonical persistence;
-2. #26 materialized projections/rebuild;
-3. #27 transactional frontier, lease, and plan-selection transitions;
-4. #28 crash/duplicate/recovery fault suite.
+- #25 PostgreSQL canonical persistence;
+- #26 materialized projections/rebuild;
+- #27 transactional frontier, lease, and plan-selection transitions;
+- #28 crash/duplicate/recovery fault suite.
 
 Backup, restore, and migration qualification (#66) reads this phase's persistence but is listed
 once, in section 14.
@@ -383,15 +363,15 @@ The plane is adapter-neutral. [`../protocols/source-adapter-contract.md`](../pro
 is the trait; Jujutsu and Git are two realizations of it, which is what makes #34 a controlled
 comparison rather than a rewrite.
 
-### Order
+### Members
 
-1. #29 bounded Rust adapter over the source-adapter trait, plus a disposable fixture repo;
-2. #30 workspace/change lifecycle;
-3. #31 candidate freeze/exact handoff;
-4. #32 sibling integration/conflict repair;
-5. #33 exact-revision verification;
-6. #76 Git worktree adapter behind the same trait;
-7. #34 Jujutsu versus Git experiment.
+- #29 bounded Rust adapter over the source-adapter trait, plus a disposable fixture repo;
+- #30 workspace/change lifecycle;
+- #31 candidate freeze/exact handoff;
+- #32 sibling integration/conflict repair;
+- #33 exact-revision verification;
+- #76 Git worktree adapter behind the same trait;
+- #34 Jujutsu versus Git experiment.
 
 The pinned-baseline qualification this phase depends on (#1) is listed once, in section 5 under
 "Concurrent with the kernel".
@@ -426,18 +406,17 @@ Do not spread shell commands across the runtime. Each adapter owns:
 
 ## 11. Agent execution and thin Python orchestration
 
-### Order
+### Members
 
-1. #35 worker protocol and capability envelope;
-2. #62 sandbox backend qualification;
-3. #63 secret/credential brokerage;
-4. #36 generic process/agent adapter;
-5. #37 experiment manifest validation and the run ledger — the D1 foundation subset, blocked by
-   #75;
-6. #77 the worker-launch extension split out of #37: launching and supervising experiment
-   workers, blocked by #37 and blocking #39;
-7. #38 local multi-worker coordinator;
-8. #39 isolation/coordination ablation.
+- #37 subprocess runner, seed matrix, and raw artifact capture — the D1 foundation subset;
+- #35 worker protocol and capability envelope;
+- #36 generic process/agent adapter;
+- #62 sandbox backend qualification;
+- #63 secret/credential brokerage;
+- #77 the worker-launch extension split out of #37: launching and supervising experiment
+   workers after #35 and #36, and blocking #39;
+- #38 local multi-worker coordinator;
+- #39 isolation/coordination ablation.
 
 The snapshot-versus-rebase experiment (#53) consumes this phase and is listed once, in section 16.
 
@@ -482,12 +461,12 @@ Before remote workers:
 
 ## 12. Robustness across processes
 
-### Order
+### Members
 
-1. #40 remote transport/idempotent commands;
-2. #41 distributed lease/frontier coordination;
-3. #42 deterministic fault simulation;
-4. #43 OpenTelemetry-compatible observability.
+- #40 remote transport/idempotent commands;
+- #41 distributed lease/frontier coordination;
+- #42 deterministic fault simulation;
+- #43 OpenTelemetry-compatible observability.
 
 Adversarial security and authority qualification (#67) depends on this phase and is listed once,
 in section 14.
@@ -505,13 +484,13 @@ Remote execution is not required for the first useful Gordian. Do not add it unt
 
 ## 13. Interfaces and the temporary GitHub projection
 
-### Order
+### Members
 
-1. #44 CLI;
-2. #45 typed API/event stream;
-3. #46 GitHub import adapter;
-4. #47 Mission/evidence explorer;
-5. #70 reconcile issues into GitHub Project 9.
+- #44 CLI;
+- #45 typed API/event stream;
+- #46 GitHub import adapter;
+- #47 Mission/evidence explorer;
+- #70 reconcile issues into GitHub Project 9.
 
 The CLI should precede the API/UI because it exercises domain commands with the least transport/UI surface.
 
@@ -519,96 +498,55 @@ GitHub issues and Project 9 are external planning projections. Their status is n
 
 ## 14. Release, operations, and security qualification
 
-### Order
+### Members
 
-1. #64 immutable release/deployment records;
-2. #65 reproducible signed artifacts;
-3. #66 backup/restore/migration;
-4. #67 adversarial security qualification.
+- #64 immutable release/deployment records;
+- #65 reproducible signed artifacts;
+- #66 backup/restore/migration;
+- #67 adversarial security qualification.
 
 Lean sources/checkers and large experiment corpora remain development artifacts. Runtime distributions should not accidentally ship them.
 
 ## 15. Self-hosting and architecture retention
 
-### Order
+### Members
 
-1. #48 import Gordian's own plan;
-2. #49 execute a real bounded multi-worker Mission;
-3. #68 publish retain/revise/reject decisions, once the experiments of section 16 have run;
-4. #69 produce the end-to-end qualification evidence bundle.
+- #48 import Gordian's own plan;
+- #49 execute a real bounded multi-worker Mission;
+- #68 publish retain/revise/reject decisions, once the experiments of section 16 have run;
+- #69 produce the end-to-end qualification evidence bundle.
 
 ### Minimal self-hosting prerequisite set
 
-The Atoms that MUST be closed before #49 can execute are exactly:
+The Atoms that MUST be closed before #49 can execute are generated from the native dependency
+graph. Identity coverage is computed over the actual registry keys, never an assumed contiguous
+number range; closed duplicates may consume GitHub issue numbers without becoming Atoms.
+
+<!-- BEGIN GENERATED: SELF-HOSTING CLOSURE -->
+
+`closure(#49)` contains **43 Atoms**:
 
 ```text
-1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
 21 22 23 24 25 26 27 28 29 30 31 32 33 35 36 38 44 45 46 48
 58 71 72
 ```
 
-**43 Atoms**, computed from the post-edit graph rather than adjusted by hand. The arithmetic, in
-full, because a hand-maintained number is exactly what went wrong before:
+Registered Atoms orphaned from `closure(#49)`, `closure(#68)`, and `closure(#69)`: none.
 
-```text
-45   baseline closure(#49)   [1-16, 18-27, 29-33, 35-38, 44, 45, 46, 48, 61, 71-75]
-+ 3  #17, #58, #28           from the three edges this revision adds
-- 5  #37, #61, #73, #74, #75 the D1 narrowing removed their only path into closure(#49),
-                             which ran through #9
-= 43
-```
+<!-- END GENERATED: SELF-HOSTING CLOSURE -->
 
-The three added edges:
-
-```text
-#19 blocked_by #17    admission's EvidenceProvenanceValid conjunct reads provenance records
-#10 blocked_by #58    plan validation reads ExternalProvision.provider_resource
-#49 blocked_by #28    self-hosting acceptance requires coordinator kill/restart and replay
-```
-
-The five departures are a direct consequence of D1: `deps[#9]` was
-`[1,2,3,4,5,6,7,8,71,72,73,74,75]`, and removing `#9 blocked_by #73, #74, #75` removed the only
-route from #49 to #73/#74/#75, hence to #61 (reachable only via #73) and to #37 (reachable only
-via #74/#75 inside this closure). Claiming 48 while publishing a graph that computes 43 would fail
-the spec-consistency job on the first CI run after this revision lands.
-
-**#37, #61, #73, #74, #75 are re-attached outside the minimal set**, where they are actually
-consumed: `#37 blocked_by #75`, `#77 blocked_by #37`, `#39 blocked_by #77`, `#68 blocked_by #73,
-#74`, and #61 through `#73`/`#68`. All five are in `closure(#68)`, so none is orphaned; none is
-required before #49 can execute, which is what D1 decided when it narrowed the foundation gate.
-
-Not in the set, and deliberately so: #34, #37, #39, #50-#54, #59, #60, #61, #73, #74, #75, #76,
-#77 (experiments, the knowledge-graph query and acquisition layers, the experiment runner, and the
-second adapter — all of which run *on* a self-hosting Gordian), #40-#43 (distributed robustness),
-#47 (explorer UI), #55-#57 (planner lifecycle), #62-#67 (sandboxing, secrets, release, security),
-#68, #69, #70.
-
-The remaining coverage rule: **every issue in 1..77 that is neither in this set nor in
-`{49, 68, 69, 70}` MUST be in the transitive closure of #68 or of #69**, so that no Atom is
-orphaned from the Mission's own completion criterion. Before this revision the issues in neither
-closure were exactly `[28, 41, 42, 43, 47, 55, 56, 57, 70]`; #28 now enters through
-`#49 blocked_by #28`, #70 is in the excluded set, and the rest are closed by adding:
-
-```text
-#69 blocked_by #42, #43, #47, #57
-```
-
-with #41, #55, and #56 arriving transitively. With every edit in this revision applied, the
-computed orphan set is empty.
-
-`scripts/check-selfhosting-closure.sh` recomputes both closures from the live graph and asserts
-set equality with the list above; it fails on any orphan, and it fails if `closure(#49)` is not
-exactly the 43 numbers listed. **On failure it prints the computed set and the symmetric
-difference**, so the published list is corrected from the computation rather than the computation
-being argued with.
+`scripts/check-selfhosting-closure.sh` recomputes the closure and orphan set from
+`artifacts/atoms/issues.json` and compares this generated block byte-for-byte. On failure the
+generator output is the repair; no historical arithmetic or issue-number range is authoritative.
 
 During bootstrap, [`agent-runbook.md`](agent-runbook.md) section 4 restricts dispatch to this set
 until #49 closes, **plus #70**. The exception is deliberate: this set states what #49 requires,
 not what an agent may claim, and #70 owns the readiness command, the claim subcommands, and the
 board recompute that the bootstrap loop itself runs on. Excluding it from dispatch would make the
-loop unable to build the commands it depends on, and #1 and #70 are the only Wave-0 Atoms in the
-current graph. #48 imports exactly these 43 Atoms; #70 is not among them and is closed or archived
-when #48 lands.
+loop unable to build the commands it depends on. #1, #2 and #70 are the three Wave-0 Atoms in the
+current graph, and the sanctioned selection order ranks them #2, #1, #70 by Fan Out. #48 imports
+exactly these 43 Atoms; #70 is not among them and is closed or archived when #48 lands.
 
 ### Self-hosting acceptance
 
@@ -709,8 +647,9 @@ restates none of their prose, so the set it cites equals the set of `yes` rows a
 `scripts/check-benchmark-obligations.sh` is the checker that asserts (a) every `EO17-*` id occurs
 exactly once in the table, (b) every owner of a `yes` row is in #69's transitive closure computed
 from GitHub's `blockedBy` node lists, (c) every owner issue body contains a `## Benchmark
-obligation` section naming each id it owns, and (d) the ids cited in #69 equal the `yes` set. It
-does not exist yet, and neither do the issue-body sections: both are the remaining half of
+obligation` section naming each id it owns, and (d) the ids cited in #69 equal the `yes` set. The
+checker reads the committed native snapshot, so a missing snapshot is an explicit failure rather
+than a silently skipped check. The issue-body sections and live synchronization remain part of
 **G-475, assigned to #70**, which already owns the issue-body and drift automation of
 [`issue-index.md`](issue-index.md#adding-or-splitting-an-atom). Until it lands, the table above is
 maintained by the "Adding or splitting an Atom" checklist and every omission is a drift defect.

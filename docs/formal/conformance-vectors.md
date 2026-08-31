@@ -7,8 +7,10 @@ format from #7" as a foundation interface. This document is that format. Without
 serialized subject and `docs/research/verification-strategy.md` step 1 ("define canonical
 serialized inputs") has no referent.
 
-Per D1, #7 is scoped to the harness plus **one seeded predicate**: `Dispatchable`. Additional
-predicates are added by later Atoms against this unchanged format.
+Per D1, #7 is scoped to the harness plus **one seeded predicate**: `HardDependenciesAcyclic`.
+The seed consumes raw graph nodes and edges and compares the Lean predicate with #4's
+deterministic reference cycle-validation/topological-order algorithm. Additional predicates are
+added by later Atoms against this unchanged format.
 
 ## 1. Layout
 
@@ -44,10 +46,29 @@ formal/conformance/
   "properties": {
     "vector_format":   { "const": "gordian-conformance-v1" },
     "vector_id":       { "type": "string", "pattern": "^[a-z0-9-]+/[0-9]{6}$" },
-    "predicate":       { "enum": ["Dispatchable"] },
-    "input":           { "type": "object" },
+    "predicate":       { "enum": ["HardDependenciesAcyclic"] },
+    "input":           {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": { "type": "array", "items": { "type": "string" } },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["depender", "prerequisite"],
+            "properties": {
+              "depender": { "type": "string" },
+              "prerequisite": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "evaluation_point":{ "type": "integer", "minimum": 0,
-                         "description": "the EventSeq the predicate is evaluated at; lease and capability liveness are decided against it, so a clock-induced Lean/Rust divergence is representable as a vector" },
+                         "description": "the EventSeq at which an event-sensitive predicate is evaluated; the HardDependenciesAcyclic seed uses 0 and reads no event state" },
     "expected":        { "type": "object",
                          "required": ["result"],
                          "properties": {
@@ -88,46 +109,34 @@ implementations. Regenerating vectors after a toolchain bump is an explicit, rev
 ```json
 {
   "vector_format": "gordian-conformance-v1",
-  "vector_id": "dispatchable/000017",
-  "predicate": "Dispatchable",
+  "vector_id": "hard-dependencies-acyclic/000017",
+  "predicate": "HardDependenciesAcyclic",
   "input": {
-    "valid_spec": true,
-    "blocked": false,
-    "preconditions_hold": true,
-    "compatible_executor_available": true,
-    "required_resources_available": true,
-    "grant": { "issued_at_event": 4100, "expires_at_event": 4400, "revoked_at_event": null },
-    "leases": [
-      { "subject": "semantic_resource:rust-crate://core/model",
-        "mode": "write_exclusive",
-        "held_by_other": true,
-        "issued_at_event": 4180,
-        "expires_at_event": 4300,
-        "revoked_at_event": null }
+    "nodes": ["atom:a", "atom:b", "atom:c"],
+    "edges": [
+      { "depender": "atom:b", "prerequisite": "atom:a" },
+      { "depender": "atom:c", "prerequisite": "atom:b" }
     ]
   },
-  "evaluation_point": 4211,
-  "expected": { "result": false, "reason": "lease_compatible" },
+  "evaluation_point": 0,
+  "expected": { "result": true, "reason": null },
   "seed": 17,
   "lean_toolchain": "leanprover/lean4:v4.33.1",
   "rust_toolchain": "1.98.0",
   "source_commit": "0000000000000000000000000000000000000000",
   "canonicalization_scheme": "gordian-canon-v1",
-  "generator": "crates/gordian-core/tests/conformance/generate.rs"
+  "generator": "crates/gordian-core/tests/conformance.rs"
 }
 ```
 
-`reason` names the first false conjunct in the order fixed by
-`docs/spec/mission-graph.md` `## Logical state predicates`. Both implementations MUST evaluate
-conjuncts in that order, so `reason` is deterministic and a divergence in *which* conjunct failed
-is caught even when the boolean agrees.
+The `nodes` and `edges` arrays are the complete raw predicate input; implementations MUST NOT
+silently derive or inject additional graph facts. The #4 reference algorithm supplies a
+deterministic topological order for an acyclic input and a deterministic cycle result otherwise.
+`reason` is optional diagnostic output and, when present, MUST be rendered identically by both
+implementations.
 
-`evaluation_point` is a required field because `AuthorizationValid` and `LeaseCompatible` decide
-liveness by comparing `EventSeq` values, and a vector that carried only seven booleans could not
-express — and therefore could not catch — a Lean/Rust divergence caused by a lease or grant that
-one side considered live and the other did not. Vectors carry the raw `issued_at_event` /
-`expires_at_event` / `revoked_at_event` values rather than a pre-computed `lease_compatible`
-boolean, so the liveness arithmetic itself is under test. No vector may contain a wall-clock
+`evaluation_point` remains part of the versioned envelope for predicates that later read recorded
+event state; the graph seed fixes it to `0` and does not use it. No vector may contain a wall-clock
 timestamp.
 
 ## 5. Harness contract
@@ -149,16 +158,17 @@ binaries. The work is assigned as follows, and no other Atom may claim it closed
 
 | Gap | Deliverable | Owner |
 | --- | --- | --- |
-| G-202 | an executable Lean `isCompatible` over `EvidenceRef` / `CandidateRef` for the Rust side to differentially test | #7 |
-| G-204 | `formal/conformance/`, `crates/gordian-conformance/`, the seeded generator, the `injected_disagreement_is_detected` test, and the CI wiring | #7 |
+| G-202 | an executable Lean `Evidence.isCompatible` over `EvidenceRef` / `CandidateRef` for the evidence implementation to test | #15 |
+| G-204 | `formal/conformance/`, the `gordian-core` runner/generator at `crates/gordian-core/tests/conformance.rs`, the seeded `HardDependenciesAcyclic` vectors, the `injected_disagreement_is_detected` test, and the CI wiring | #7 |
 | G-201 | an executable `isAcceptable` so admission itself becomes a conformance predicate rather than a witness of opaque `Prop`s | #19 |
 | G-206 | `dependenciesSatisfied` defined over the real dependency graph and `Frontier.Satisfied` rather than the `Environment.satisfied` oracle field | #13 |
 
-The Lean side of the seeded predicate already exists: `enabled` and `dispatchable` in
-`formal/Gordian/Scheduler.lean` are `Bool`-valued functions over concrete records (G-203), and
-`Satisfied` / `Blocked` / `Active` in `formal/Gordian/Frontier.lean` are defined (G-205). What is
-missing is the Rust counterpart, the vectors, and the runner that compares them.
+The seed's Lean-side deliverable is an executable `HardDependenciesAcyclic` predicate over raw
+nodes and edges in `formal/Gordian/Graph.lean`; the Rust side is #4's deterministic reference
+implementation, exercised through `gordian-core`. This Atom does not implement the composite
+readiness/dispatch predicate or evidence compatibility; those extensions remain owned by their
+respective Atoms.
 
-`predicate` is a single-member enum today (`Dispatchable`) precisely because #7 is scoped to the
-harness plus one seeded predicate. Widening it is a deliberate schema edit by the Atom that lands
-the second predicate, not a side effect of adding vectors.
+`predicate` is a single-member enum today (`HardDependenciesAcyclic`) precisely because #7 is
+scoped to the harness plus one seeded predicate. Widening it is a deliberate schema edit by the
+Atom that lands the second predicate, not a side effect of adding vectors.

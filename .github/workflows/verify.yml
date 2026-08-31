@@ -114,6 +114,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Closure validation resolves immutable subjects through JJ. Install and configure it
+      # from the single pinned bootstrap source; no JJ release literal belongs in this workflow.
+      - name: Bootstrap Jujutsu
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      - name: Configure Jujutsu
+        run: |
+          set -euo pipefail
+          bash scripts/bootstrap-jj.sh --install-only
+          jj git init --colocate
+          bash scripts/bootstrap-jj.sh
+
       # A loop over scripts/check-*.sh means adding a checker requires no workflow edit,
       # so a checker that is added but not wired is impossible. scripts/check-checker-tests.sh
       # is itself in that loop and runs scripts/tests/, so the checkers whose subject does not

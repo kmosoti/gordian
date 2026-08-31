@@ -1087,10 +1087,21 @@ keyed by `FrontierSeq`, and is what `frontier_seq(exact_state_id)` reads.
 
 `satisfaction_index` is the projection `AtomId -> Option<SatisfactionRecord>` derived by the rule
 in [`mission-graph.md` `## Logical state predicates`](mission-graph.md#logical-state-predicates).
-It is written **only** while applying an `AtomSatisfied` event, and the write is **idempotent per
-`(atom, frontier_seq)`**: applying a second `AtomSatisfied` for a pair already present is a no-op,
-and applying one for the same Atom at a different `frontier_seq` while an unsuperseded record
-exists is a hard projection error rather than an overwrite.
+It is established only while applying an `AtomSatisfied` event or a guarded
+`SatisfactionRestored` event, and it is cleared only while applying a
+`SatisfactionInvalidated` event. `AtomSatisfied` is appended only inside a successful admission;
+`SatisfactionRestored` is permitted only under the same `FrontierVersion` and `WitnessGuard`
+preconditions as admission, after an invalidation, when the Atom's Candidate is in the transitive
+parents of the **current** frontier and every required verifier has a fresh passing result on
+that current frontier. Restoration therefore records no stale frontier witness and requires no
+new Candidate. No other event may create, replace, or clear a record.
+
+Writes are idempotent per `(atom, frontier_seq)`: applying a second `AtomSatisfied` or guarded
+`SatisfactionRestored` for a pair already present is a no-op, and applying either event for the
+same Atom at a different `frontier_seq` while an unsuperseded record exists is a hard projection
+error rather than an overwrite. Applying a valid `SatisfactionInvalidated` event removes the
+unsuperseded record under that event's precondition; it never writes a replacement, so `Satisfied`
+is never inferred from a mutable cache or from evidence alone.
 
 `admission_claims` is the projection `CandidateId -> Option<(IntegrationBatchId, ActorId)>`
 derived from `CandidateClaimed` / `CandidateClaimReleased` events. A candidate carries at most one

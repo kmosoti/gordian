@@ -18,18 +18,18 @@ dependency is permitted if and only if it appears in that crate's row.
 
 | Crate | Path | May depend on (complete list) | Owning Atoms |
 | --- | --- | --- | --- |
-| `gordian-core` | `crates/gordian-core` | (none) | #9, #10, #11, #12, #13, #55, #56, #58 |
+| `gordian-core` | `crates/gordian-core` | (none) | #4 (test/dev), #7 (test/dev), #9, #10, #11, #12, #13, #54 (test-only), #55, #56, #58, #64 (domain records) |
 | `gordian-kg` | `crates/gordian-kg` | (none) | #8, #71, #72, #73, #74 |
 | `gordian-evidence` | `crates/gordian-evidence` | `gordian-core` | #15, #16, #17 |
 | `gordian-artifacts` | `crates/gordian-artifacts` | `gordian-core` | #14 |
 | `gordian-scheduler` | `crates/gordian-scheduler` | `gordian-core` | #20, #21, #22, #24 |
 | `gordian-source` | `crates/gordian-source` | `gordian-core` | #29 (trait), #34 |
-| `gordian-experiments` | `crates/gordian-experiments` | `gordian-core` | #37, #77, #75 |
+| `gordian-experiments` | `crates/gordian-experiments` | `gordian-core` | #37, #75 |
 | `gordian-jj` | `crates/gordian-jj` | `gordian-core`, `gordian-source` | #29, #30, #31, #32, #33 |
 | `gordian-git` | `crates/gordian-git` | `gordian-core`, `gordian-source` | #76 |
-| `gordian-postgres` | `crates/gordian-postgres` | `gordian-core`, `gordian-evidence` | #25, #26, #27 |
-| `gordian-coordination` | `crates/gordian-coordination` | `gordian-core`, `gordian-evidence`, `gordian-scheduler`, `gordian-source` | #18, #19, #23, #41 |
-| `gordian-runtime` | `crates/gordian-runtime` | `gordian-core`, `gordian-evidence`, `gordian-artifacts`, `gordian-scheduler`, `gordian-source`, `gordian-jj`, `gordian-git`, `gordian-postgres`, `gordian-coordination`, `gordian-experiments` | #35, #36, #38, #44, #45, #46 |
+| `gordian-postgres` | `crates/gordian-postgres` | `gordian-core`, `gordian-evidence` | #25, #26, #27, #28 (test-only), #66 |
+| `gordian-coordination` | `crates/gordian-coordination` | `gordian-core`, `gordian-evidence`, `gordian-scheduler`, `gordian-source` | #18, #19, #23, #57, #64 |
+| `gordian-runtime` | `crates/gordian-runtime` | `gordian-core`, `gordian-evidence`, `gordian-artifacts`, `gordian-scheduler`, `gordian-source`, `gordian-jj`, `gordian-git`, `gordian-postgres`, `gordian-coordination`, `gordian-experiments` | #35, #36, #38, #40, #41, #42, #43, #44, #45, #46, #62, #63, #67, #77 |
 
 Rules:
 
@@ -51,20 +51,20 @@ and (d) the permitted-dependency relation is acyclic and each row is transitivel
 architectural drift discovered later.
 
 One conjunct of G-517 is outside this document: **each implementation Atom body must name its
-target crate path**, which is an issue-body edit carried by the "Adding or splitting an Atom"
-checklist of [`issue-index.md`](issue-index.md#adding-or-splitting-an-atom) and automated by
-`check-drift` (**G-527, assigned to #70**).
+target crate path**, which is an issue-body contract checked by
+`gordian-atom-registry check-target-crates` and synchronized by
+`gordian-atom-registry sync-target-crates` (**G-517, assigned to #70**). The general
+`check-drift` procedure remains the registry-wide projection check; it does not implicitly
+replace this focused target-crate check.
 
 ## Atoms outside the crate map
 
 Atoms that write no Rust crate code are deliberately absent from the table: the Jujutsu
 qualification suite (#1), CI and toolchain stabilisation (#2), workload and benchmark harnesses
-(#3, #4, #5), verification-technique and conformance work (#6, #7), sandbox and secret brokerage
-qualification (#62, #63), distributed robustness (#40, #42, #43), the explorer UI (#47), release
-and operations (#64-#67), the experiment and retention reports (#39, #48, #49, #50-#54, #59-#61,
-#68, #69), reconciliation and repair planning (#57), and the temporary GitHub bootstrap (#70).
-When one of those Atoms does introduce a crate, it adds a row here in the same change; a crate
-without a row fails `scripts/check-crate-map.sh`.
+(#3, #5), verification-technique work (#6), the explorer UI (#47), operations qualification
+(#65), the experiment and retention reports (#39, #48, #49, #50-#53, #59-#61, #68, #69), and the
+temporary GitHub bootstrap (#70). When one of those Atoms does introduce a crate, it adds an owner
+here in the same change; a crate without a row fails `scripts/check-crate-map.sh`.
 
 #34 is in the table under `gordian-source` because the comparison harness drives both adapters
 through that trait; the experiment report it produces is not crate code.

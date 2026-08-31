@@ -1,0 +1,20 @@
+{
+  "record_format": "gordian-attempt-v1",
+  "attempt_id": "20260831T172100Z-codex",
+  "atom_id": "70",
+  "actor": {
+    "id": "gordian-agent/codex/01a0557b-4089-7353-b170-70794d24d708",
+    "kind": "agent"
+  },
+  "outcome": "abandoned",
+  "reason": "The snapshot-compatibility packet was stopped when the accepted 305-edge snapshot proved inconsistent with five already-normalized dependency mirrors, so continuing within the named file set would have encoded live drift.",
+  "started_at": "2026-08-31T17:21:00Z",
+  "finished_at": "2026-08-31T17:27:56Z",
+  "logical_change_id": "kmtznokywzop",
+  "budget": {
+    "wall_clock_seconds": 416
+  },
+  "known_limitations": [
+    "Partial strict-read guards remain in the working copy but have not received their named tests or an Initiative-verifier verdict."
+  ]
+}

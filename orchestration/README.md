@@ -49,6 +49,7 @@ orchestration/
     runner.py            external process execution
     gh.py                the single GitHub CLI entry point
     provenance.py        source and environment identity for every report
+    normalization_journal.py  manifest-bound live Atom contract repair journal
     github_project.py    Project 9 membership reconciliation
     derive_status.py     Project 9 derived-field projection (deleted at #48)
   tests/
@@ -84,19 +85,30 @@ python3.14 -m pip install -e './orchestration[dev]'
 
 ## Authenticating without a human
 
-Every GitHub call in this tree goes through `gh.run_gh`. An unattended agent authenticates by exporting a **classic** personal access token carrying the `repo` and `project` scopes (`G-522`):
+Every GitHub-backed entry point runs the same fail-closed preflight. An unattended agent must
+provide the non-empty `GORDIAN_GH_TOKEN` environment variable:
 
 ```bash
-export GH_TOKEN=<classic token with repo, project>
+export GORDIAN_GH_TOKEN="$CI_GH_TOKEN"
+gordian-bootstrap preflight
 ```
 
-Fine-grained tokens do not carry the classic `project` scope that `gh project item-add` and the Project v2 field mutations require, so they will fail with `HTTP 403` no matter how their repository permissions are set. The token is never committed, never written to a report, and never echoed in an error message. `gh auth refresh -s project` is the interactive alternative and is available to a human only.
+The value is copied to `GH_TOKEN` for every `gh` subprocess, overriding any ambient `GH_TOKEN`, and
+is never committed, written to a report, or printed. An installed `gh` credential-store login (or
+any other ambient token variable) is not a fallback. Preflight checks the authenticated identity,
+repository write permission, and Project 9 read/write API access using actual GitHub responses.
+Unattended commands never invoke an interactive authentication flow; repair credentials outside the
+unattended run.
 
 Mechanical check that the non-interactive path works:
 
 ```bash
-GH_CONFIG_DIR=$(mktemp -d) GH_TOKEN=<token> gordian-project-sync --dry-run
+gordian-project-sync reconcile --check
 ```
+
+This is read-only and does not add Project items. Mutating bootstrap commands run the same
+preflight themselves and exit `78` when `GORDIAN_GH_TOKEN` is absent or lacks one of the required
+capabilities.
 
 ## Temporary GitHub Project projection
 
@@ -104,17 +116,17 @@ GitHub issues and Project 9 are temporary external planning projections while Go
 
 ### Membership: `gordian-project-sync`
 
-The local reconciler lists repository issues and Project items once, reports missing or duplicate issue URLs, and adds missing issues idempotently. It owns membership only; it writes no derived field.
+The local reconciler lists repository issues and all Project items once, reports missing or duplicate issue URLs, and idempotently unarchives archive-only open issues or adds truly missing issues. It owns membership only; it writes no derived field.
 
 ```bash
-gordian-project-sync --dry-run     # preview
-gordian-project-sync               # apply
+gordian-project-sync reconcile --check  # read-only convergence gate
+gordian-project-sync reconcile          # add missing items and verify
 ```
 
 Equivalent module form:
 
 ```bash
-python -m gordian_orchestration.github_project --dry-run
+python -m gordian_orchestration.github_project reconcile --check
 ```
 
 The command emits a machine-readable JSON report carrying `generated_at`, `source_change_id`, `source_commit_id`, and `tool_versions`, so a report is never mistaken for a fresh one. It never interprets issue closure or Project status as Mission Graph evidence.
@@ -132,7 +144,195 @@ The command emits a machine-readable JSON report carrying `generated_at`, `sourc
 
 `In Progress`, `In Review`, and `Accepted` are set by a human against a claim, a pull request, and a closure record. The command never derives them and never writes over them.
 
-Edges come from `blockedByIssues` node lists, paginated to completion. The `issueDependenciesSummary.blocking` counter is never read: it is wrong for #11, #18, and #44. The `blockedBy` counter is read for exactly one purpose, to assert that pagination retrieved every edge; a short read is an error, not a smaller graph.
+Edges come from the native `blockedBy` connection, paginated to completion. Its `totalCount` proves that every edge was retrieved; a short read is an error, not a smaller graph. `issueDependenciesSummary` is never read because its blocking counter has been observed wrong for #11, #18, and #44.
+
+A mistakenly created issue is removed from the executable Atom corpus only by closing it and applying GitHub's `duplicate` label. An open duplicate is a reconciliation error, and an ordinary closed Atom without a validating closure record remains a hard readiness error.
+
+### Registry drift: `gordian-atom-registry`
+
+The registry auditor closes the gap between the live native graph and its human-readable
+mirrors. It checks every issue body's `## Dependencies` section, Initiative milestone, `type:*`
+label, the Atom tables in `project-plan.md`, and the generated maximum-length spine in
+`execution-order.md` against the native `blockedBy` connections:
+
+```bash
+gordian-atom-registry check
+gordian-atom-registry check-drift
+gordian-atom-registry check --json
+gordian-atom-registry render-plan --write
+gordian-atom-registry render-spine --write
+```
+
+No mirror becomes authoritative: disagreement fails and reports the exact drift. The registry is
+coherent only when the core, EO17 benchmark, and target-crate audits all pass. Once those three
+audits pass, #70 may capture the complete issue bodies, metadata, and native edges for offline
+verification. Capture and rendering are deterministic for a given registry and repository inputs:
+
+```bash
+gordian-atom-registry capture --output artifacts/atoms/issues.json
+gordian-atom-registry --snapshot artifacts/atoms/issues.json check
+gordian-atom-registry --snapshot artifacts/atoms/issues.json render-plan
+gordian-atom-registry --snapshot artifacts/atoms/issues.json render-spine
+```
+
+Capture refuses to write a drifting registry. Benchmark and target-crate synchronization may run
+in either order: the first successful staged apply may report `coherent:false` and
+`snapshot_skipped`, while preserving the prior snapshot; the second successful apply, or an
+explicit capture, writes the coherent snapshot. `scripts/check-atom-registry.sh` reruns the core
+audit offline after the snapshot exists.
+
+### Benchmark obligations
+
+The benchmark audit checks every EO17 row, owner, owner issue body, native transitive closure, and
+first-qualification owner reachability. It is read-only and may run against live GitHub state or a
+snapshot:
+
+```bash
+gordian-atom-registry check-benchmarks
+gordian-atom-registry --snapshot artifacts/atoms/issues.json check-benchmarks
+```
+
+Target-crate contracts are audited and synchronized separately; the normative
+`crate-map.md` ownership table is reversed to Atom → one-or-more Rust targets and
+the project-plan target cells must match it exactly. An Atom may own one or
+multiple targets, or explicitly own `none`. The check is read-only; the sync
+without `--apply` prints a plan. Applying requires live GitHub state, preflight,
+and a live #70 claim:
+
+```bash
+gordian-atom-registry check-target-crates
+gordian-atom-registry --snapshot artifacts/atoms/issues.json check-target-crates
+gordian-atom-registry sync-target-crates
+gordian-atom-registry sync-target-crates --apply
+```
+
+The audit also checks every literal `crates/gordian-*` path and `cargo ... -p
+gordian-*` package in an issue body. The only cross-owner references currently
+allowed are explicit shared test/conformance references for Atoms #7 and #34;
+their crate names must still be real rows in `crate-map.md`. Unknown packages
+and paths are always errors, never aliases.
+
+`sync-benchmarks` renders deterministic issue-body join keys. Without `--apply` it prints a plan
+and does not mutate anything. Applying it requires live GitHub state, a successful preflight, and
+a live claim held by the current actor for Atom #70:
+
+```bash
+gordian-atom-registry sync-benchmarks
+gordian-atom-registry sync-benchmarks --apply
+```
+
+### Creating and connecting Atoms
+
+### Bounded live contract normalization
+
+`gordian-atom-registry normalize` reads the committed
+[`atom-contract-normalization.json`](../docs/implementation/atom-contract-normalization.json)
+manifest and emits a deterministic plan by default. `--apply` and `--recover` are live,
+claim-gated operations that persist an atomically-written journal before any issue or edge
+write. A fresh body read must match the journal's exact UTF-8 SHA-256 precondition before a
+PATCH, and a fresh read must verify the proposed body afterward. Native dependency
+entries and manifest-declared labels are additive intents and are never removed during
+recovery or compensation. Label additions carry exact issue title/state preconditions and
+verify labels through a single-issue read, including issues filtered from the registry after
+becoming duplicates. Body
+compensation restores an old body only when a fresh read still matches this journal's proposed
+digest; an external edit is recorded as a conflict and is not overwritten.
+
+```bash
+gordian-atom-registry normalize
+gordian-atom-registry normalize --apply --journal artifacts/atoms/normalization-journal.json
+gordian-atom-registry normalize --recover --journal artifacts/atoms/normalization-journal.json
+```
+
+Snapshot capture is a separate final step after all live registry audits pass; a snapshot is
+never used as an input to an apply or recovery operation.
+
+`add-edge` plans one native `blockedBy` edge and all of its deterministic projections. `new-atom`
+plans (or creates) a fully registered Atom, including its complete issue body, milestone,
+`type:atom` or `type:experiment` label, one target crate (or `none`), execution phase, prerequisite
+blockers, downstream `--blocks` links, and one JSON-LD knowledge node. Both commands require an
+already coherent registry, never persist a drifting snapshot, and are dry-run by default;
+`--apply` requires live GitHub state, a successful preflight, and a live #70 claim.
+
+```bash
+gordian-atom-registry add-edge ISSUE BLOCKER
+gordian-atom-registry add-edge ISSUE BLOCKER --apply
+
+gordian-atom-registry new-atom \
+  --title "[Temporary GitHub Bootstrap] Atom title" \
+  --body-file /path/to/complete-atom-body.md \
+  --milestone "Initiative name" \
+  --type-label type:atom \
+  --target-crate gordian-core \
+  --phase 13 \
+  --blocked-by BLOCKER \
+  --blocks DOWNSTREAM \
+  --knowledge-node /path/to/knowledge-node.json
+gordian-atom-registry new-atom ... --apply
+```
+
+`--blocked-by` and `--blocks` may be repeated. Use `--target-crate none` when no Rust crate owns
+the Atom. Existing plan rows may name multiple crate owners, but `new-atom` accepts exactly one
+target-crate value. The body file and knowledge-node JSON are required even for a dry plan; dry plans never
+mutate GitHub or repository projections.
+
+### Milestone contracts
+
+`gordian-milestone-contracts check` is read-only: it returns `0` when clean, `1` for contract drift,
+or `2` for an operational error. Configuration preflight for `sync --apply` returns `78` when
+authentication is unavailable. The exact `Acceptance: ...`
+line is derived from the generated Initiative register, so milestone descriptions do not define a
+separate completion rule. `sync` is a deterministic dry plan; `sync --apply` requires noninteractive
+preflight and the current actor's live #70 claim, and compensates partial milestone-description
+writes if a later update or verification fails.
+
+```bash
+gordian-milestone-contracts check
+gordian-milestone-contracts sync
+gordian-milestone-contracts sync --apply
+```
+
+### Credentials and claims: `gordian-bootstrap`
+
+The bootstrap loop never opens an interactive authentication flow. Its preflight requires
+`GORDIAN_GH_TOKEN`, copies it to `GH_TOKEN` for each `gh` subprocess, and verifies the authenticated
+login, repository write permission, and Project 9 read/write API access:
+
+```bash
+gordian-bootstrap preflight
+```
+
+Missing or insufficient configuration exits `78`; the command never calls `gh auth login` or
+`gh auth refresh`. Repair credentials interactively outside an unattended run.
+Claims use the sanctioned Ready ordering and first append an empty commit to the
+`refs/heads/gordian-claim-log` ref through a create-or-fast-forward-only (`force=false`) CAS.
+The commit message is strict canonical `gordian-bootstrap-claim-event-v1` JSON containing the
+event and complete active state, capped at three leases. GitHub's commit `committer.date` is the
+lease start and the response `Date` header is the expiry clock; missing headers fail closed. The
+assignee, Project Status `In Progress`, and structured comment are projections written only after
+the CAS succeeds. A losing race cannot write projections, and projection failure/closed-issue
+recovery appends a CAS `abort` event. Historical comments, assignees, and Project status do not
+arbitrate claims or readiness. Readers validate every event back to the accepted-main root,
+including one-parent/invariant-tree/one-step-transition rules and the requirement that each active
+`claim_commit` is an actual claim event on that ancestry. A historical root is accepted only when
+GitHub compare reports the expected `status`, commit counts, `base_commit`, and `merge_base_commit`.
+Same-actor retries are idempotent only for live leases; stale leases require an explicit release.
+
+```bash
+gordian-bootstrap claim          # first unclaimed Ready Atom
+gordian-bootstrap claim 2        # succeeds only if #2 is that Atom (or already held by this actor)
+gordian-bootstrap claims         # actor and live/stale expiry for every assigned Atom
+gordian-bootstrap release 2 --reason "verifier failed twice"
+```
+
+`release` requires the current canonical lease owned by the current actor, appends its CAS release
+before touching projections, and then reconciles the assignee and derived `Ready`/`Blocked`
+board value. A closed issue can still be canonically released; projection writes are skipped. Every
+release projection mutation is bracketed by canonical rereads so a later winner—even one sharing
+the login—keeps its assignee and `In Progress` status. `claims` reads the log and reports liveness
+and projection drift; it does not infer an owner from comments or assignees. A lost response is
+resolved by rereading the validated ancestry (including events followed by later appends), never
+by guessing from a client timestamp.
 
 ```bash
 gordian-derive-status ready                     # the ready set, in selection order
@@ -141,8 +341,13 @@ gordian-derive-status ready --json              # the same, machine-readable
 gordian-derive-status derive                    # the full projection as JSON
 gordian-derive-status derive --compare-board    # the pending board changes, unwritten
 gordian-derive-status derive --apply            # write the four fields to Project 9
-gordian-derive-status --snapshot artifacts/atoms/issues.json ready   # offline, no token
+gordian-derive-status --snapshot artifacts/atoms/issues.json ready --inspection
+                                                             # offline inspection; never dispatch
 ```
+
+Snapshot readiness without `--inspection` fails closed. Inspection output carries
+`dispatchable:false` and must never feed `claim`, selection, or a Project mutation; dispatch always
+re-reads live GitHub state and accepted-revision closure evidence.
 
 `--apply` is idempotent: it writes only where the board's stored value differs from the derived one, so a second run reports `"applied": 0` and an empty `changes` list. Issues absent from the board are reported under `absent_from_board` rather than created, and `--apply` or `--compare-board` then exits `1`: an Atom the board does not carry has no derived fields at all, and silence there would read as "everything is projected". `gordian-project-sync` adds the missing items.
 

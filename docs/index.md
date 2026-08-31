@@ -152,17 +152,20 @@ See [`../AGENTS.md`](../AGENTS.md) for the complete coding-agent contract.
 
 ## Temporary GitHub Project 9
 
-After local GitHub CLI authorization:
+After the runbook's deterministic GitHub credential injection:
 
 ```bash
 python3.14 -m pip install -e './orchestration[dev]'
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --dry-run
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-project-sync --report artifacts/project-9-reconciliation.json
+gordian-bootstrap preflight
+gordian-project-sync reconcile --check
+gordian-project-sync reconcile --report artifacts/project-9-reconciliation.json
 ```
 
-`GH_TOKEN` carries a **classic** personal access token with the `repo` and `project` scopes; the
-interactive `gh auth refresh -s project` flow is not available to an unattended agent, and a
-fine-grained token does not carry the classic `project` scope that `gh project item-add` requires.
+`GORDIAN_GH_TOKEN` is copied to `GH_TOKEN` for every `gh` subprocess and therefore overrides both
+possible `hosts.yml` locations. The preflight responses, not the credential's label or storage
+location, establish whether it has the required repository and Project capabilities. Interactive
+credential changes are outside the unattended loop because they are not deterministic across
+harnesses.
 
 The command reconciles open issues into Project 9 and verifies the resulting URL set. It does not make the board canonical Gordian state.
 
