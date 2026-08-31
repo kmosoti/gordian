@@ -29,7 +29,18 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
 # A jj good enough to clone with. No version literal appears here on purpose: the next
 # block re-installs jj at the repository's pinned version.
 cargo install --locked --bin jj jj-cli
+
+# The two linters section 6.6 runs. Their versions are pinned to what CI installs, so a
+# local verifier run and the CI job reach the same verdict; an unpinned ruff will disagree.
+python3 -m pip install --disable-pip-version-check --user ruff==0.16.5
+command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
 ```
+
+`verifier:python` and `verifier:spec-consistency` invoke `ruff` and `shellcheck` by name. A
+missing linter is a **configuration** failure, not a verifier failure: it means the verifier did
+not run, which is not the same as passing. Section 6.6 preflights both and exits 78 — the same
+"configuration missing" code as the credential probes in 6.1 — rather than reporting a check
+result it never obtained.
 
 Then the acquisition block:
 
