@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gordian.dev/schema/workload-v1.json",
+  "title": "GordianWorkload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workload_id", "distribution_id", "seed", "generator", "origin", "dimensions", "nodes", "edges", "workers", "events", "evidence", "resources"],
+  "properties": {
+    "schema_version": { "const": "gordian.workload.v1" },
+    "workload_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "distribution_id": { "$ref": "#/$defs/distribution" },
+    "seed": { "$ref": "#/$defs/u64" },
+    "generator": { "$ref": "#/$defs/generator" },
+    "origin": { "oneOf": [{ "$ref": "#/$defs/synthetic_origin" }, { "$ref": "#/$defs/repository_origin" }] },
+    "dimensions": { "$ref": "#/$defs/dimensions" },
+    "nodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/node" } },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+    "workers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/worker" } },
+    "events": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/event" } },
+    "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } },
+    "resources": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/resource" } }
+  },
+  "$defs": {
+    "u64": { "type": "integer", "minimum": 0, "maximum": 18446744073709551615 },
+    "distribution": { "enum": ["rep-small", "rep-wide", "adv-deep", "adv-contended"] },
+    "generator": {
+      "type": "object", "additionalProperties": false, "required": ["name", "version", "parameters"],
+      "properties": {
+        "name": { "const": "gordian-workload-generator" }, "version": { "type": "string", "minLength": 1 },
+        "parameters": {
+          "oneOf": [
+            { "$ref": "#/$defs/synthetic_generator_parameters" },
+            { "$ref": "#/$defs/repository_generator_parameters" }
+          ]
+        }
+      }
+    },
+    "ppm_range": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "integer", "minimum": 0, "maximum": 1000000 } },
+    "synthetic_generator_parameters": {
+      "type": "object", "additionalProperties": false,
+      "required": ["distribution_id", "requested_node_count", "layer_width", "depth", "worker_count", "semantic_overlap_range_ppm", "resource_contention_range_ppm", "edge_rule", "node_count", "dag_width", "dag_depth", "semantic_overlap_numerator", "resource_contention_numerator", "event_count", "evidence_count", "capability_count"],
+      "properties": {
+        "distribution_id": { "$ref": "#/$defs/distribution" },
+        "requested_node_count": { "type": ["integer", "null"], "minimum": 0, "maximum": 18446744073709551615 },
+        "layer_width": { "$ref": "#/$defs/u64" }, "depth": { "$ref": "#/$defs/u64" }, "worker_count": { "$ref": "#/$defs/u64" },
+        "semantic_overlap_range_ppm": { "$ref": "#/$defs/ppm_range" }, "resource_contention_range_ppm": { "$ref": "#/$defs/ppm_range" },
+        "edge_rule": { "type": "string", "minLength": 1 }, "node_count": { "$ref": "#/$defs/u64" }, "dag_width": { "$ref": "#/$defs/u64" }, "dag_depth": { "$ref": "#/$defs/u64" },
+        "semantic_overlap_numerator": { "$ref": "#/$defs/u64" }, "resource_contention_numerator": { "$ref": "#/$defs/u64" },
+        "event_count": { "$ref": "#/$defs/u64" }, "evidence_count": { "$ref": "#/$defs/u64" }, "capability_count": { "$ref": "#/$defs/u64" }
+      }
+    },
+    "repository_generator_parameters": {
+      "type": "object", "additionalProperties": false,
+      "required": ["distribution_id", "source_node_count", "source_edge_count", "worker_count", "edge_rule", "source_schema_version", "node_count", "dag_width", "dag_depth", "semantic_overlap_numerator", "resource_contention_numerator", "event_count", "evidence_count", "capability_count"],
+      "properties": {
+        "distribution_id": { "$ref": "#/$defs/distribution" }, "source_node_count": { "$ref": "#/$defs/u64" }, "source_edge_count": { "$ref": "#/$defs/u64" },
+        "worker_count": { "$ref": "#/$defs/u64" }, "edge_rule": { "type": "string", "minLength": 1 }, "source_schema_version": { "type": "string", "minLength": 1 },
+        "node_count": { "$ref": "#/$defs/u64" }, "dag_width": { "$ref": "#/$defs/u64" }, "dag_depth": { "$ref": "#/$defs/u64" },
+        "semantic_overlap_numerator": { "$ref": "#/$defs/u64" }, "resource_contention_numerator": { "$ref": "#/$defs/u64" },
+        "event_count": { "$ref": "#/$defs/u64" }, "evidence_count": { "$ref": "#/$defs/u64" }, "capability_count": { "$ref": "#/$defs/u64" }
+      }
+    },
+    "synthetic_origin": { "type": "object", "additionalProperties": false, "required": ["kind"], "properties": { "kind": { "const": "synthetic" } } },
+    "repository_origin": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "repository", "revision", "source_sha256"],
+      "properties": { "kind": { "const": "repository-derived" }, "repository": { "type": "string", "minLength": 1 }, "revision": { "type": "string", "minLength": 1 }, "source_sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" } }
+    },
+    "text_array": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "rank", "reference_duration_ticks", "cost_units", "required_capabilities", "semantic_claims", "resource_claims", "fan_in", "fan_out"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }, "rank": { "$ref": "#/$defs/u64" }, "reference_duration_ticks": { "$ref": "#/$defs/u64" }, "cost_units": { "$ref": "#/$defs/u64" },
+        "required_capabilities": { "$ref": "#/$defs/text_array" }, "semantic_claims": { "$ref": "#/$defs/text_array" }, "resource_claims": { "$ref": "#/$defs/text_array" }, "fan_in": { "$ref": "#/$defs/u64" }, "fan_out": { "$ref": "#/$defs/u64" }
+      }
+    },
+    "edge": { "type": "object", "additionalProperties": false, "required": ["from", "to"], "properties": { "from": { "type": "string", "minLength": 1 }, "to": { "type": "string", "minLength": 1 } } },
+    "worker": {
+      "type": "object", "additionalProperties": false, "required": ["id", "capabilities", "cost_units_per_second", "duration_scale_ppm"],
+      "properties": { "id": { "type": "string", "minLength": 1 }, "capabilities": { "$ref": "#/$defs/text_array" }, "cost_units_per_second": { "$ref": "#/$defs/u64" }, "duration_scale_ppm": { "type": "integer", "minimum": 1, "maximum": 1000000 } }
+    },
+    "resource": { "type": "object", "additionalProperties": false, "required": ["id", "capacity_units"], "properties": { "id": { "type": "string", "minLength": 1 }, "capacity_units": { "$ref": "#/$defs/u64" } } },
+    "event": { "type": "object", "additionalProperties": false, "required": ["id", "sequence", "node_id", "kind"], "properties": { "id": { "type": "string", "minLength": 1 }, "sequence": { "$ref": "#/$defs/u64" }, "node_id": { "type": "string", "minLength": 1 }, "kind": { "type": "string", "minLength": 1 } } },
+    "evidence": { "type": "object", "additionalProperties": false, "required": ["id", "sequence", "node_id", "kind", "subject"], "properties": { "id": { "type": "string", "minLength": 1 }, "sequence": { "$ref": "#/$defs/u64" }, "node_id": { "type": "string", "minLength": 1 }, "kind": { "type": "string", "minLength": 1 }, "subject": { "type": "string", "minLength": 1 } } },
+    "histogram": { "type": "object", "patternProperties": { "^[0-9]+$": { "$ref": "#/$defs/u64" } }, "additionalProperties": false },
+    "dimensions": {
+      "type": "object", "additionalProperties": false,
+      "required": ["node_count", "edge_count", "density_numerator", "density_denominator", "density_ppm", "dag_width", "dag_depth", "critical_path_nodes", "critical_path_duration_ticks", "total_duration_ticks", "critical_path_ratio_ppm", "max_fan_in", "max_fan_out", "semantic_overlap_numerator", "semantic_overlap_denominator", "semantic_claim_overlap_ppm", "resource_contention_numerator", "resource_contention_denominator", "resource_contention_ppm", "worker_count", "capability_count", "event_count", "evidence_count", "min_worker_cost_units_per_second", "max_worker_cost_units_per_second", "min_worker_duration_scale_ppm", "max_worker_duration_scale_ppm", "fan_in_histogram", "fan_out_histogram"],
+      "properties": {
+        "node_count": { "$ref": "#/$defs/u64" }, "edge_count": { "$ref": "#/$defs/u64" }, "density_numerator": { "$ref": "#/$defs/u64" }, "density_denominator": { "$ref": "#/$defs/u64" }, "density_ppm": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "dag_width": { "$ref": "#/$defs/u64" }, "dag_depth": { "$ref": "#/$defs/u64" }, "critical_path_nodes": { "$ref": "#/$defs/u64" }, "critical_path_duration_ticks": { "$ref": "#/$defs/u64" }, "total_duration_ticks": { "$ref": "#/$defs/u64" }, "critical_path_ratio_ppm": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "max_fan_in": { "$ref": "#/$defs/u64" }, "max_fan_out": { "$ref": "#/$defs/u64" }, "semantic_overlap_numerator": { "$ref": "#/$defs/u64" }, "semantic_overlap_denominator": { "$ref": "#/$defs/u64" }, "semantic_claim_overlap_ppm": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "resource_contention_numerator": { "$ref": "#/$defs/u64" }, "resource_contention_denominator": { "$ref": "#/$defs/u64" }, "resource_contention_ppm": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "worker_count": { "$ref": "#/$defs/u64" }, "capability_count": { "$ref": "#/$defs/u64" }, "event_count": { "$ref": "#/$defs/u64" }, "evidence_count": { "$ref": "#/$defs/u64" }, "min_worker_cost_units_per_second": { "$ref": "#/$defs/u64" }, "max_worker_cost_units_per_second": { "$ref": "#/$defs/u64" }, "min_worker_duration_scale_ppm": { "$ref": "#/$defs/u64" }, "max_worker_duration_scale_ppm": { "$ref": "#/$defs/u64" }, "fan_in_histogram": { "$ref": "#/$defs/histogram" }, "fan_out_histogram": { "$ref": "#/$defs/histogram" }
+      }
+    }
+  }
+}

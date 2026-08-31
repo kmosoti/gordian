@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gordian.dev/schema/repository-workload-source-v1.json",
+  "title": "RepositoryWorkloadSource",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "revision", "nodes", "edges"],
+  "properties": {
+    "schema_version": { "const": "gordian.repository-workload-source.v1" },
+    "repository": { "type": "string", "minLength": 1 },
+    "revision": { "type": "string", "minLength": 1 },
+    "nodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/node" } },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
+  },
+  "$defs": {
+    "u64": { "type": "integer", "minimum": 0, "maximum": 18446744073709551615 },
+    "text_array": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "reference_duration_ticks", "cost_units", "required_capabilities", "semantic_claims", "resource_claims"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "reference_duration_ticks": { "$ref": "#/$defs/u64" },
+        "cost_units": { "$ref": "#/$defs/u64" },
+        "required_capabilities": { "$ref": "#/$defs/text_array" },
+        "semantic_claims": { "$ref": "#/$defs/text_array" },
+        "resource_claims": { "$ref": "#/$defs/text_array" },
+        "event_count": { "$ref": "#/$defs/u64" },
+        "evidence_count": { "$ref": "#/$defs/u64" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

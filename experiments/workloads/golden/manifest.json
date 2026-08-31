@@ -1,0 +1,47 @@
+{
+  "entries": [
+    {
+      "distribution_id": "adv-contended",
+      "kind": "synthetic",
+      "node_count": 300,
+      "path": "experiments/workloads/golden/adv-contended-seed-1.json",
+      "seed": 1,
+      "sha256": "aadf938b5ee6271ad8161efe0556d1a52f7d236fedb70b00d3f01ab265c7932a"
+    },
+    {
+      "distribution_id": "adv-deep",
+      "kind": "synthetic",
+      "node_count": 200,
+      "path": "experiments/workloads/golden/adv-deep-seed-1.json",
+      "seed": 1,
+      "sha256": "e84624f9194bb1c5fab92c119380d990c791cb2e887189effb0ec744a7c1b1e4"
+    },
+    {
+      "distribution_id": "rep-small",
+      "kind": "synthetic",
+      "node_count": 50,
+      "path": "experiments/workloads/golden/rep-small-seed-1.json",
+      "seed": 1,
+      "sha256": "6c294d364ce6e134953804d739c6aa7aea4011ba35f7ac201a76bfe57d10f7fe"
+    },
+    {
+      "distribution_id": "rep-wide",
+      "kind": "synthetic",
+      "node_count": 500,
+      "path": "experiments/workloads/golden/rep-wide-seed-1.json",
+      "seed": 1,
+      "sha256": "0d0b6f6fcdb9e6e48edc3adfcd53dd25aa257c83c6a995e72730ad1fafb557c7"
+    },
+    {
+      "distribution_id": "rep-small",
+      "kind": "repository-derived",
+      "manifest_relative_path": "gordian-workload-source.json",
+      "path": "experiments/workloads/golden/repository-rep-small-seed-1.json",
+      "repository_path": "experiments/workloads/fixtures/repository-small",
+      "revision": "fixture-revision-001",
+      "seed": 1,
+      "sha256": "66927991ace8fff81f5946e51fe708edafcb642708bd728fd67a5de4450743e2"
+    }
+  ],
+  "schema_version": "gordian.workload-golden-manifest.v1"
+}

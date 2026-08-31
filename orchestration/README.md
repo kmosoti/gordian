@@ -49,6 +49,7 @@ orchestration/
     runner.py            external process execution
     gh.py                the single GitHub CLI entry point
     provenance.py        source and environment identity for every report
+    workloads.py         deterministic synthetic/repository workload generation and checking
     normalization_journal.py  manifest-bound live Atom contract repair journal
     github_project.py    Project 9 membership reconciliation
     derive_status.py     Project 9 derived-field projection (deleted at #48)
@@ -60,6 +61,11 @@ orchestration/
     test_provenance.py
     test_runner.py
 ```
+
+The workload module emits the versioned format specified by
+[`docs/testing/workload-format.md`](../docs/testing/workload-format.md). It is a dataset generator
+and checker only; graph, scheduler, evidence, persistence, and Mission Graph semantics remain in
+the Rust substrate. The fixed corpus acceptance command is `bash scripts/check-workloads.sh`.
 
 The implementation should remain standard-library-heavy. Add scientific or data dependencies only when an experiment actually requires them.
 

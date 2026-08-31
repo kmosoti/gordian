@@ -19,6 +19,7 @@ gordian-derive-status = "gordian_orchestration.derive_status:main"
 gordian-atom-registry = "gordian_orchestration.atom_registry:main"
 gordian-bootstrap = "gordian_orchestration.bootstrap_claims:main"
 gordian-milestone-contracts = "gordian_orchestration.milestone_contracts:main"
+gordian-workload = "gordian_orchestration.workloads:main"
 
 [tool.ruff]
 target-version = "py314"
