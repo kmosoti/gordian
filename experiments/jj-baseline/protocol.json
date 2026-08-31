@@ -1,0 +1,95 @@
+{
+  "protocol_format": "gordian-experiment-protocol-v1",
+  "experiment_id": "jj-baseline",
+  "class": "benchmark",
+  "issue": 1,
+  "hypothesis": {
+    "h0": "The lower bound of the Jujutsu-to-Git median read-time ratio remains below 1.05 in every registered repository shape.",
+    "h1": "At least one registered repository shape establishes Jujutsu machine-readable read overhead of five percent or more against the equivalent Git revision-set read."
+  },
+  "falsification": "A shape establishes a Jujutsu read-overhead constraint only when its deterministic BCa 95% interval has a lower bound at or above 1.05 and its one-sided bootstrap probability rejects the threshold under Holm-Bonferroni correction across the five-shape family. The constraint blocks claims of latency equivalence and requires latency-sensitive adapter work to retain the Git measurement as its regression control. It does not overturn the independently tested behavioral baseline. The benchmark is repeated only after a documented environment change.",
+  "conditions": [
+    {
+      "id": "git-log",
+      "description": "Git machine-readable commit-id log from the colocated fixture repository"
+    },
+    {
+      "id": "jj-log",
+      "description": "Jujutsu machine-readable commit-id log with the working copy ignored"
+    }
+  ],
+  "baseline_condition": "git-log",
+  "population": {
+    "workloads": [
+      "linear-16: linear history with 16 changes",
+      "linear-128: linear history with 128 changes",
+      "wide-32: 32 sibling changes sharing one parent",
+      "merge-32: two 16-change branches joined by one multi-parent revision",
+      "workspaces-8: one history with eight disposable workspaces"
+    ],
+    "sampling": "paired on each repository shape; condition order is randomized by the registered seed after fixture construction, and fixture construction is outside every timed read",
+    "strata": [
+      {
+        "id": "linear-change-count",
+        "boundary": "linear-16 and linear-128 vary only the number of changes"
+      },
+      {
+        "id": "topology",
+        "boundary": "wide-32 and merge-32 vary sibling and multi-parent topology"
+      },
+      {
+        "id": "workspace-count",
+        "boundary": "workspaces-8 varies the number of registered workspaces"
+      }
+    ],
+    "seeds": [20260831]
+  },
+  "metrics": [
+    {
+      "id": "median_read_wall_clock",
+      "unit": "seconds",
+      "direction": "lower_is_better"
+    },
+    {
+      "id": "successful_read_count",
+      "unit": "reads",
+      "direction": "higher_is_better"
+    }
+  ],
+  "analysis_plan": {
+    "primary_metric": "median_read_wall_clock",
+    "effect_size": {
+      "measure": "ratio of paired condition medians (jj-log / git-log)",
+      "minimum_relevant": 1.05,
+      "unit": "ratio"
+    },
+    "min_n": 30,
+    "multiplicity": "holm",
+    "uncertainty": "deterministic BCa bootstrap 95% ratio interval plus one-sided threshold probability, 10000 resamples, seed 20260831; Holm-Bonferroni across the five registered shapes",
+    "stopping_rule": "fixed_n"
+  },
+  "exclusion_rule": "A measured read is retained in raw measurements and excluded from ratio analysis only when its command exits nonzero, exceeds the registered timeout, or produces no machine-readable stdout. A shape with fewer than 30 successful paired measurements is an invalid cell and the run exits nonzero. Fixture-construction failures are retained in the report and invalidate the run. The rule is applied before the primary metric is inspected and never by judgement.",
+  "environment": {
+    "source_commit": "exact source commit recorded by the runner at execution time",
+    "toolchains": [
+      "Jujutsu release from DEFAULT_JJ_VERSION in scripts/bootstrap-jj.sh",
+      "Git release recorded by the runner",
+      "Python release recorded by the runner"
+    ],
+    "hardware_class": "reference-linux-x86_64"
+  },
+  "artifacts": [
+    "--output JSON report containing every warmup and measured raw read",
+    "fixture repository manifests with exact JJ and Git source states",
+    "per-shape median and BCa ratio summaries"
+  ],
+  "threats": [
+    "Process startup and filesystem-cache state can dominate short reads; warmups are fixed at 10 and measured reads are run in paired order.",
+    "The colocated Git backend may share storage with JJ; the report records both binary identities and exact fixture states.",
+    "The benchmark measures machine-readable read commands only; it does not qualify an adapter parser or semantic completion behavior.",
+    "Workspace fixture creation is excluded from timing and therefore does not estimate workspace-add latency.",
+    "The #33 Atom owns jj-run semantics; this benchmark does not qualify jj-run behavior."
+  ],
+  "registered_at": "2026-08-31T00:00:00Z",
+  "registered_by": "gordian-agent/codex/01a058de-9401-70f1-b36e-4d5eb14b308b"
+}

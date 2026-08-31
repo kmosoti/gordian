@@ -105,7 +105,7 @@ the threshold are pre-registered rather than chosen once the numbers are in.
 | `compositional-verifier-inheritance` | classification | #75 | yes |
 | `scheduler-benchmarks` | benchmark | #24 | no |
 | `mission-ontology` | agent-trial | #50 | no |
-| `jj-baseline` | fault-injection | #1 | no |
+| `jj-baseline` | benchmark | #1 | yes |
 | `integration-composition` | fault-injection | #32 | no |
 | `lease-faults` | fault-injection | #23 | no |
 | `frontier-races` | fault-injection | #27 | no |

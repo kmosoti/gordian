@@ -1,19 +1,58 @@
 # Supported Jujutsu Baseline Qualification
 
-Graph node: `experiment:jj-baseline`
-Intended class: `fault-injection` (see [`../../docs/testing/statistical-contract.md`](../../docs/testing/statistical-contract.md) section 2)
-Owning issue: #1
+Graph node: `experiment:jj-baseline`  
+Class: `benchmark`  
+Owning issue: #1  
+Benchmark obligation: `EO17-JJ-5`
 
-Establish the minimum supported Jujutsu release and verify the required workspace, change, commit, conflict, tag, and run semantics against executable fixtures before the adapter is built.
+This benchmark qualifies scaling of machine-readable revision reads across disposable colocated
+Jujutsu/Git fixtures. It declares five shapes: two linear change counts, wide siblings, a
+multi-parent merge topology, and eight registered workspaces. Each shape has ten warmups and thirty
+measured reads per condition in the full run. Fixture construction and workspace creation happen
+before timing begins. Every raw observation, including failures and timeouts, remains in the JSON
+report.
 
-## Status
+## Baseline rationale
 
-**Not pre-registered.** This directory exists so the graph node's `verification[].target` resolves
-on disk and so `gordian-kg audit --strict` rule S4 can pass; it does not yet contain a protocol.
+The minimum supported release is `DEFAULT_JJ_VERSION` in
+[`../../scripts/bootstrap-jj.sh`](../../scripts/bootstrap-jj.sh), the repository's single source
+of the pin. Upstream release history shows that `jj run` preceded the required
+`--ignore-changes` safety option used by exact-revision verification. This directory does not copy
+the pin as an independent source; the runner records the installed binary's exact version output,
+path, and SHA-256 digest.
 
-Registration means adding `protocol.json` here, validating against
-[`../schema/experiment-protocol.schema.json`](../schema/experiment-protocol.schema.json), and
-filling `analysis_plan` with the five required fields from the class row of the statistical
-contract. Nothing in this directory may be written after the first run is recorded: the run's
-`protocol_digest` is what makes the pre-registration checkable, and a protocol edited after a run
-is a detectable post-hoc change, not a correction.
+## Contract and benchmark commands
+
+Validate the registered protocol and all experiment manifests with:
+
+```bash
+bash scripts/check-experiment-manifests.sh
+bash scripts/check-statistical-contract.sh
+```
+
+Run the bounded test mode:
+
+```bash
+python3 experiments/jj-baseline/benchmark.py \
+  --smoke --output /tmp/jj-baseline-smoke.json
+```
+
+Run the registered benchmark (10 warmups and 30 measured iterations per shape and condition):
+
+```bash
+python3 experiments/jj-baseline/benchmark.py \
+  --output experiments/jj-baseline/runs/<run-id>.json
+```
+
+The required output is one JSON report containing the protocol digest, source JJ/Git states,
+Python/platform identity, JJ and Git binary digests, fixture manifests, every raw measurement, and
+per-shape medians with deterministic 10,000-resample BCa 95% intervals for the paired `jj-log /
+git-log` ratios. Smoke output can validate the harness but sets `registered_analysis_valid` to
+false because it does not satisfy the fixed-n analysis.
+
+## Constraints
+
+The qualification does not promise migration from old 0.23 installations, an adapter parser
+contract, or `jj-run` semantic qualification. The #33 Atom owns `jj run` semantics. The benchmark
+times only machine-readable `git log` and `jj log` reads; it does not estimate workspace-add cost,
+adapter completion rate, or semantic equivalence.

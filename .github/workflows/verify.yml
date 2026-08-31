@@ -15,6 +15,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  jj-baseline:
+    name: Jujutsu baseline contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # This job intentionally starts without actions/checkout.  It executes the two
+      # acquisition blocks from docs/implementation/agent-runbook.md on a clean runner.
+      - name: Install acquisition prerequisites
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --no-modify-path
+          . "$HOME/.cargo/env"
+          cargo install --locked --bin jj jj-cli
+          python3 -m pip install --disable-pip-version-check --user ruff==0.16.5
+          command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
+
+      - name: Acquire repository and pinned Jujutsu
+        env:
+          GORDIAN_ROOT: ${{ runner.temp }}/gordian
+        run: |
+          set -euo pipefail
+          . "$HOME/.cargo/env"
+          jj git clone https://github.com/kmosoti/gordian "${GORDIAN_ROOT:-$HOME/gordian}"
+          cd "${GORDIAN_ROOT:-$HOME/gordian}"
+          bash scripts/bootstrap-jj.sh --install
+          git --git-dir "$(jj git root)" fetch origin "$GITHUB_SHA"
+          jj git import
+          jj new "$GITHUB_SHA"
+
+      - name: Verify acquired source frontier
+        env:
+          GORDIAN_ROOT: ${{ runner.temp }}/gordian
+        run: |
+          set -euo pipefail
+          cd "${GORDIAN_ROOT:-$HOME/gordian}"
+          test "$(jj log -r '@-' --no-graph -T 'commit_id')" = "$GITHUB_SHA"
+          jj log -r 'trunk()' -n 1
+
+      - name: Run Jujutsu contract suite
+        env:
+          GORDIAN_ROOT: ${{ runner.temp }}/gordian
+        run: |
+          set -euo pipefail
+          cd "${GORDIAN_ROOT:-$HOME/gordian}"
+          bash experiments/jj-baseline/contract.sh
+
   rust:
     name: Rust substrate
     runs-on: ubuntu-latest

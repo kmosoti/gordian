@@ -1,0 +1,109 @@
+{
+  "argv": [],
+  "completed_at": "2026-08-31T19:38:11Z",
+  "exit_code": 0,
+  "expected_jj_version": "0.44.0",
+  "filesystem": {
+    "path": "/tmp/gordian-atom1.hVSS5O/workspace/experiments/jj-baseline",
+    "statvfs": {
+      "block_size": 4096,
+      "blocks": 2040401,
+      "files": 1048576,
+      "fragment_size": 4096,
+      "free_blocks": 1348715,
+      "free_files": 1018528
+    }
+  },
+  "fixture_identity": "jj-baseline-contract/disposable-repository",
+  "git_version_output": "git version 2.47.3",
+  "host": "KenRazerL",
+  "identities": {
+    "change_ids": [
+      "lqqpmzrtsqntpslvvpylnryznmxuwwwv",
+      "lqqpmzrtsqntpslvvpylnryznmxuwwwv"
+    ],
+    "commit_ids": [
+      "c330bf025d4cafd6e3aefed10f99a5877254fb37",
+      "f10bfb60af6a1ea6283061fae6086d340e04557e",
+      "bab265ddb69987ea5f35367e869432d62484d691",
+      "86077baa75f23b187126d46d229b2dd159d23f90",
+      "f355e9f0ca8dace0f0c4c14b39f624bd364f7f5c",
+      "f695d626cafe9cdcd28f806a6ab9305ee066bd8e",
+      "e582dfc7662a3609103ff2b886dec01c12d4d24d",
+      "d68bf747e77dd01543cbc3de2b5f4b7ce6c7c9a4"
+    ],
+    "operation_ids": [
+      "8f199f4dde6f3cfd163f2893eedc4dddc9b298da2b23ac925235b9371b6b22d32b3886c7c32c0766994ce1b18dbc70f414019aad2bfded910043fceb43b5398a"
+    ]
+  },
+  "jj_binary": {
+    "path": "/home/kmosoti/.cargo/bin/jj",
+    "sha256": "b40555905cbcfb03056a2a8926de86e1876e33ce7f5c9c9c2b4eff197aae54fa"
+  },
+  "jj_version_output": "jj 0.44.0",
+  "os": {
+    "machine": "x86_64",
+    "name": "Linux",
+    "release": "6.18.33.2-microsoft-standard-WSL2"
+  },
+  "pass_results": [
+    {
+      "detail": "pass",
+      "name": "version-and-run-capabilities",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "machine-readable-commit-id",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "machine-readable-change-id",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "change-id-rewrite",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "sibling-topology",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "causal-parent-child-topology",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "workspace-isolation",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "multi-parent-integration",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "conflict-persistence-and-repair",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "operation-log-restore",
+      "passed": true
+    },
+    {
+      "detail": "pass",
+      "name": "local-tags",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "schema_version": 1,
+  "started_at": "2026-08-31T19:38:10Z"
+}

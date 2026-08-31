@@ -121,7 +121,8 @@ assigned to #2**).
 
 The source plane is adapter-neutral. [`docs/protocols/source-adapter-contract.md`](docs/protocols/source-adapter-contract.md) is the trait; Jujutsu (#29-#33) and Git worktrees (#76) are two realizations of it, and #34 compares them with everything else held constant. Canonical records name a `logical_change_id` and an `exact_state_id`, never a backend's own vocabulary.
 
-Jujutsu is Gordian's preferred source-state adapter, subject to that comparison.
+Jujutsu is Gordian's development-baseline source-state adapter, subject to that comparison. This
+bounded adoption does not claim superiority over Git; issue #34 is the experiment for that claim.
 
 | Gordian concept | Jujutsu representation |
 | --- | --- |

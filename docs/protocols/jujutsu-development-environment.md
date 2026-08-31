@@ -1,15 +1,17 @@
 # Jujutsu Development Environment
 
-Gordian uses Jujutsu as its preferred development and candidate-source substrate, subject to the
-Git comparison experiment in issue #34. Jujutsu is one implementation of the adapter-neutral
+Gordian uses Jujutsu as its development baseline and candidate-source substrate, subject to the
+Git comparison experiment in issue #34. This is a bounded tooling choice for the development
+environment, not a claim that Jujutsu is superior to Git. Jujutsu is one implementation of the adapter-neutral
 [`source-adapter-contract.md`](source-adapter-contract.md); the semantics it serves are stated
 there and in [`jujutsu-agent-protocol.md`](jujutsu-agent-protocol.md), not here.
 
 The pinned candidate release is `DEFAULT_JJ_VERSION` in
 [`scripts/bootstrap-jj.sh`](../../scripts/bootstrap-jj.sh), which is the **single source** of the
 baseline; this document deliberately does not restate a version number that could drift from it.
-At the time of writing that value is the current upstream release (`jj run` arrived in `0.43.0`,
-and the measured local toolchain on 2026-08-30 matched the pin). It is a **candidate
+Upstream release history records that `jj run` arrived before its required read-only
+`--ignore-changes` mode. The script remains the sole version authority; this explanatory history
+does not define a second pin. It is a **candidate
 qualification baseline**, not an eternally supported version: issue #1 must prove the required
 behaviors through disposable-repository contract tests before the adapter declares support.
 
@@ -278,21 +280,22 @@ mutate another worker workspace
 
 ## 9. Contract qualification
 
-Issue #1 should build disposable repositories and test:
+Issue #1 builds disposable repositories and tests its bounded baseline contract:
 
-1. initial clone/fetch/tracking;
-2. logical change ID persistence after rewrite;
-3. exact commit ID change after rewrite;
-4. workspace isolation and stale-workspace recovery;
-5. sibling and causal parent/child topology;
-6. multi-parent integration;
-7. conflict materialization, persistence, and repair;
-8. operation-log recovery;
-9. tag fetch/push behavior needed for releases;
-10. `jj run` exact-revision isolation, bounded parallelism, failure behavior, and `--ignore-changes` semantics;
-11. machine-readable template/revset outputs used by the Rust adapter;
-12. migration of a fixture repository created by the `0.23.0` release that the project's first
-    local environment historically ran, without source loss.
+1. logical change ID persistence and exact commit ID change after rewrite;
+2. workspace isolation;
+3. sibling, causal parent/child, and multi-parent topology;
+4. conflict materialization, persistence, and repair;
+5. operation-log recovery;
+6. local tag identity;
+7. machine-readable change, commit, and operation identities;
+8. presence of `jj run` and its read-only flag, without claiming execution semantics.
+
+Initial clone/fetch/tracking remains the bootstrap acquisition check. Atom #33 owns `jj run`
+exact-revision isolation, bounded parallelism, failure behavior, and read-only semantics. Atom #29
+owns the adapter parser and its broader machine-output contract. Migration from unsupported
+repositories, including the historical 0.23 environment, is not supported: tooling fails closed
+before mutation until a later Atom explicitly qualifies a migration path.
 
 The suite records:
 
