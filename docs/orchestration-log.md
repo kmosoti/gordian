@@ -11,3 +11,9 @@
 - reasoning spent that did not change the outcome: whole-file conflict-side selection had to be undone once it proved broader than the marked overlap, and an early verifier run repeated setup before the Python package was installed in its fresh environment
 - any hallucinated API, file, flag, or command, and what would have caught it earlier: the stale attempt used unsupported `jj diff --check`; the first formal evidence repair also assumed an empty-child `@-` verification topology and its negative probe triggered JJ auto-snapshotting; exercising the evidence writer in the real JJ workspace before freeze caught both identity errors
 - one rule to apply next time: after any source-bound evidence change, run its success and failure paths in both Git-style and JJ-style state models before accepting fixture-only verification
+
+## Atom #3
+- tier used / tier that should have been used: coordination for contract and landing, write workers for bounded implementation packets, and one deep Initiative verifier; the split was right, but deep contract normalization should have preceded the first write dispatch
+- reasoning spent that did not change the outcome: several rework rounds rediscovered canonical JSON, schema, manifest-containment, and semantic-negative requirements that a single field-level contract table could have fixed before implementation
+- any hallucinated API, file, flag, or command, and what would have caught it earlier: none; the avoidable defects were incomplete cross-contract checks rather than invented interfaces
+- one rule to apply next time: before dispatch, mechanically cross-check every generated field and accepted path against the normative format, checked-in schema, golden manifest, and an identity-refreshed negative oracle

@@ -1,0 +1,8 @@
+subject_exact_state_id=771a2bd7ea3979ead73d86a969a6a6b0d98854be
+command=scripts/verify-local.sh kg-audit
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/gordian-kg validate`
+valid: 357 nodes, 812 edges
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/gordian-kg audit --strict`
+audit: 0 errors, 0 warnings

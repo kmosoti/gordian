@@ -1,0 +1,18 @@
+subject_exact_state_id=771a2bd7ea3979ead73d86a969a6a6b0d98854be
+command=scripts/verify-local.sh formal
+OK: runtime toolchain matches repository pins (lean)
+✔ [2/14] Built Gordian.Ids (1.5s)
+✔ [3/14] Built Gordian.Replay (1.5s)
+✔ [4/14] Built Gordian.Authority (1.6s)
+✔ [5/14] Built Gordian.Conflict (1.5s)
+✔ [6/14] Built Gordian.Graph (1.6s)
+✔ [7/14] Built Gordian.EffectClass (1.6s)
+✔ [8/14] Built Gordian.Evidence (616ms)
+✔ [9/14] Built Gordian.Lease (612ms)
+✔ [10/14] Built Gordian.Scheduler (789ms)
+✔ [11/14] Built Gordian.Frontier (678ms)
+✔ [12/14] Built Gordian.Acceptance (360ms)
+✔ [13/14] Built Gordian (277ms)
+Build completed successfully (14 jobs).
+Gordian axiom audit checked 254 theorems
+verifier:formal OK — build, leanchecker, and allowlisted axiom audit passed

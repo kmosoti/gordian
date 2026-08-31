@@ -27,3 +27,10 @@ verifier_failures_caught_late: 3 — foreign-namespace axiom bypass, caller-forg
 hallucinated_reference: `jj diff --check` (unsupported flag; exit 2)
 tier_mismatch: deep review continued after the scoped P1 findings had stabilized
 rule: Verify the exact tool interface and refresh compiled test artifacts before trusting a negative test.
+
+## Atom #3 — 2026-08-31
+tokens_est: not instrumented   wall: ~2 h   retries: 5 bounded packet rework rounds
+verifier_failures_caught_late: 6 — permissive duplicate/noncanonical JSON, open repository manifests, one schema-invalid seed, golden-directory escape, partial seed-matrix coverage, and stale-identity semantic negatives
+hallucinated_reference: none
+tier_mismatch: field-level canonicalization, schema bounds, and negative-oracle requirements should have been fixed by a deep contract pass before the first write packet
+rule: Before dispatch, compile the normative format, checked-in schema, generated record, golden manifest, and independent negative oracle into one field-level contract table.

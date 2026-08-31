@@ -1,0 +1,70 @@
+{
+  "record_format": "gordian-closure-v1",
+  "atom_id": "3",
+  "spec_digest": "65c8ddcfd2bd910d307b5cd8dcef3bbda4609289f91660e60ce9c74c1fa5d328",
+  "actor": {
+    "id": "gordian-agent/codex/01a058de-9401-70f1-b36e-4d5eb14b308b",
+    "kind": "agent"
+  },
+  "exact_state_id": "771a2bd7ea3979ead73d86a969a6a6b0d98854be",
+  "logical_change_id": "urvwxrnzulpnnkpvootkzlvswmzztkqk",
+  "verifiers": [
+    {
+      "verifier_id": "rust-check",
+      "command": "scripts/verify-local.sh rust-check",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/3/verifiers/rust-check.log",
+      "artifact_sha256": "a52da1bbd43774530b41593532d4a0d7eacbe1db7c5706cd7faf807dcb258fef",
+      "subject_exact_state_id": "771a2bd7ea3979ead73d86a969a6a6b0d98854be"
+    },
+    {
+      "verifier_id": "kg-audit",
+      "command": "scripts/verify-local.sh kg-audit",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/3/verifiers/kg-audit.log",
+      "artifact_sha256": "bd7aeb8963425737fee9aef2ae506ef72b1e2b8fba1aec225e594c3648bd6de4",
+      "subject_exact_state_id": "771a2bd7ea3979ead73d86a969a6a6b0d98854be"
+    },
+    {
+      "verifier_id": "formal",
+      "command": "scripts/verify-local.sh formal",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/3/verifiers/formal.log",
+      "artifact_sha256": "155bce9aabf25df0cd53ae33889497fb99896e0a2bdb7f671295cdd091985b9b",
+      "subject_exact_state_id": "771a2bd7ea3979ead73d86a969a6a6b0d98854be"
+    },
+    {
+      "verifier_id": "python",
+      "command": "scripts/verify-local.sh python",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/3/verifiers/python.log",
+      "artifact_sha256": "e0082a60810d4615c82ca791f30f1fe4eb4410c070d02aeafb150bac224147a0",
+      "subject_exact_state_id": "771a2bd7ea3979ead73d86a969a6a6b0d98854be"
+    },
+    {
+      "verifier_id": "spec-consistency",
+      "command": "scripts/verify-local.sh spec-consistency",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/3/verifiers/spec-consistency.log",
+      "artifact_sha256": "928ab62cfaf57c6105d294c778ade5d0c0754034f37eac5c24400541b41798eb",
+      "subject_exact_state_id": "771a2bd7ea3979ead73d86a969a6a6b0d98854be"
+    },
+    {
+      "verifier_id": "atom-3-acceptance",
+      "command": "bash scripts/check-workloads.sh",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/3/verifiers/atom-3-acceptance.log",
+      "artifact_sha256": "8bb51557fd9718469e2a3f0ee33bb6a8d5fd58cf8023da19edda6b699d275e5f",
+      "subject_exact_state_id": "771a2bd7ea3979ead73d86a969a6a6b0d98854be"
+    }
+  ],
+  "benchmarks": [],
+  "knowledge_graph_node_ids": [],
+  "known_limitations": [
+    "base_exact_state_id recorded at artifacts/atoms/3/attempts/base_exact_state_id",
+    "The checked-in workload corpus is deterministic benchmark input, not a benchmark result; Atom #5 owns the first benchmark harness and measurements.",
+    "The closure schema cannot enumerate the changed artifact:workload-generator, artifact:workload-format, artifact:workload-corpus, or artifact:python-orchestration knowledge-graph nodes because knowledge_graph_node_ids accepts only concept, algorithm, theorem, and experiment identifiers.",
+    "Histogram bucket-order wording is tracked in docs/backlog.md; canonical bytes and validation already use lexicographic JSON object-key order."
+  ],
+  "closed_at": "2026-08-31T22:53:55Z"
+}
