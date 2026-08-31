@@ -106,7 +106,8 @@ The connected repository integration can create issues but does not expose GitHu
 ```bash
 python3.14 -m venv .venv
 source .venv/bin/activate
-python3.14 -m pip install -e './orchestration[dev]'
+scripts/install-toolchains.sh python-package
+# add the printed virtual-environment bin directory to PATH
 
 gordian-project-sync reconcile --check
 gordian-project-sync reconcile --report artifacts/project-9-reconciliation.json

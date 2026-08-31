@@ -20,3 +20,10 @@ rule: Prove the accepted graph and every generated mirror agree before delegatin
 - reasoning spent that did not change the outcome: the snapshot rework worker repeatedly re-read the same diff and spent far beyond the stable 305-edge decision; the coordinator also inspected a failed CLI invocation whose only defect was global-option placement.
 - hallucinated API, file, flag, or command, and what would have caught it earlier: the first snapshot packet treated the rejected 310-edge artifact as authority, the coordinator initially transcribed an unobserved base exact-state id, and the manifest retained the rejected plan digest; a pre-dispatch live native-edge count plus machine-computed base and plan digests would have caught all three.
 - one rule to apply next time: before dispatch, freeze and print the authoritative graph count, exact base id, and manifest plan digest; stop any write worker once those facts conflict with its premise.
+
+## Attempt #2-design-1 — 2026-08-31
+tokens_est: coordination ~4k / deep ~231k / write ~35k   wall: ~35 min   retries: 1
+verifier_failures_caught_late: 3 — foreign-namespace axiom bypass, caller-forged evidence subject, and missing `ruff` in the worker PATH
+hallucinated_reference: `jj diff --check` (unsupported flag; exit 2)
+tier_mismatch: deep review continued after the scoped P1 findings had stabilized
+rule: Verify the exact tool interface and refresh compiled test artifacts before trusting a negative test.

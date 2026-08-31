@@ -242,7 +242,7 @@ Jujutsu supports multiple working copies backed by one repository, each with its
 
 ### 9.3 `jj run`
 
-Jujutsu 0.43.0 introduced `jj run`, which can run commands over a set of changes with private working copies and parallel execution.
+Jujutsu introduced `jj run`, which can run commands over a set of changes with private working copies and parallel execution.
 
 **Gordian consequence:** revision-scoped verification can be built around a native Jujutsu primitive instead of only around push-triggered CI.
 

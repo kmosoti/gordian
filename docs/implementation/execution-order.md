@@ -197,7 +197,7 @@ hand. It is lifted when #38 closes.
 Do not treat the foundation as complete until:
 
 - Rust CI is green (#2);
-- Lean build, the independent checker, and the axiom audit are green, with `sorryAx` and
+- Lean build, the separate compiled-environment replay, and the axiom audit are green, with `sorryAx` and
   non-allowlisted axioms rejected by the axiom audit (#2);
 - Jujutsu disposable-repository contract tests pass on the pinned release (#1);
 - benchmark workload generators are seed-reproducible (#3);

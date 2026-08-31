@@ -7,3 +7,6 @@ package Gordian where
 @[default_target]
 lean_lib Gordian where
   srcDir := "."
+  leanOptions := #[
+    ⟨`warningAsError, true⟩
+  ]

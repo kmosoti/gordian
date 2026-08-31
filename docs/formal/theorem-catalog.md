@@ -12,14 +12,15 @@ whether a checker ran, not what the theorem says.
 | State | Meaning |
 | --- | --- |
 | `proof-source-present` | Lean source exists but this document is not claiming a successful checker run for the current revision yet. |
-| `machine-checked` | Pinned Lean build and independent checker pass in CI with `sorry` disallowed. |
+| `machine-checked` | Pinned Lean build, compiled-environment replay, and allowlisted axiom audit pass for the exact CI revision. |
 | `model-only` | Formal statement exists but implementation correspondence is not proved. |
 | `planned` | Theorem has been identified but not yet encoded. |
 
-No entry in this catalog is `machine-checked` today. Promotion to that state requires the
-per-revision CI evidence artifact specified in [`proof-boundary.md`](proof-boundary.md); building
-that artifact is **G-259**, owned by **#2**. Until it exists, a `machine-checked` claim here would
-be unbacked, so the state is withheld.
+No entry in this catalog is promoted to `machine-checked` merely because proof source exists.
+The formal CI job emits `formal-evidence-<exact-state-id>` after the warning-free build,
+`leanchecker` replay, and allowlisted axiom audit all pass. Promotion requires that exact-revision
+artifact; the current catalog keeps `proof-source-present` until such evidence is linked for the
+revision being described.
 
 ## Theorem classes
 

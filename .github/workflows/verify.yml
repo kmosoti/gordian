@@ -29,8 +29,6 @@ jobs:
             | sh -s -- -y --profile minimal --no-modify-path
           . "$HOME/.cargo/env"
           cargo install --locked --bin jj jj-cli
-          python3 -m pip install --disable-pip-version-check --user ruff==0.16.5
-          command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
 
       - name: Acquire repository and pinned Jujutsu
         env:
@@ -75,30 +73,11 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
 
-      - name: Assert the toolchain matches the pin
-        run: |
-          set -euo pipefail
-          channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
-          declared=$(sed -n 's/^rust-version *= *"\(.*\)"/\1/p' Cargo.toml)
-          actual=$(rustc --version | cut -d' ' -f2)
-          echo "rust-toolchain.toml: $channel; Cargo.toml: $declared; rustc: $actual"
-          test "$actual" = "$channel"
-          test "$declared" = "${channel%.*}"
+      - name: Install pinned cargo-deny
+        run: cargo install cargo-deny --locked --version "$(cat .cargo-deny-version)"
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Lint
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
-
-      - name: Test
-        run: cargo test --locked --workspace
-
-      - name: Validate research graph
-        run: cargo run --locked -p gordian-kg -- validate
-
-      - name: Audit research graph
-        run: cargo run --locked -p gordian-kg -- audit --strict
+      - name: Run Rust and supply-chain verification
+        run: scripts/verify-local.sh rust
 
   formal:
     name: Formal models and proofs
@@ -108,7 +87,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Build, independently check proofs, and audit axioms
+      - name: Install the pinned Lean toolchain
         uses: leanprover/lean-action@50fcf42d2e460296f1a34b402e990d1b24f8b596 # v1.6.0
         env:
           LEAN_NUM_THREADS: "1"
@@ -116,12 +95,25 @@ jobs:
           lake-package-directory: formal
           auto-config: false
           use-github-cache: false
-          build: true
+          build: false
           test: false
           lint: false
-          leanchecker: true
+          leanchecker: false
           nanoda: false
-          axiom-audit: true
+          axiom-audit: false
+
+      - name: Build, replay-check proofs, and audit axioms
+        run: scripts/verify-local.sh formal
+
+      - name: Write exact-revision formal evidence
+        run: scripts/write-formal-evidence.sh "$GITHUB_SHA" "$RUNNER_TEMP/formal-evidence.json"
+
+      - name: Publish exact-revision formal evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: formal-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/formal-evidence.json
+          if-no-files-found: error
 
   python:
     name: Thin Python orchestration
@@ -134,19 +126,13 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.14"
+          python-version-file: ".python-version"
 
       - name: Install package and pinned linter
-        run: python -m pip install --disable-pip-version-check -e ./orchestration ruff==0.16.5
+        run: python -m pip install --disable-pip-version-check -e './orchestration[dev]'
 
-      - name: Lint
-        run: ruff check orchestration
-
-      - name: Compile
-        run: python -m compileall -q orchestration/src
-
-      - name: Test
-        run: python -m unittest discover -s orchestration/tests
+      - name: Run Python verification
+        run: scripts/verify-local.sh python
 
   spec-consistency:
     name: Specification consistency
@@ -172,20 +158,5 @@ jobs:
           jj git init --colocate
           bash scripts/bootstrap-jj.sh
 
-      # A loop over scripts/check-*.sh means adding a checker requires no workflow edit,
-      # so a checker that is added but not wired is impossible. scripts/check-checker-tests.sh
-      # is itself in that loop and runs scripts/tests/, so the checkers whose subject does not
-      # exist yet are held to the empty-subject / malformed-subject distinction.
-      - name: Run consistency checkers
-        run: |
-          set -euo pipefail
-          for s in scripts/check-*.sh; do
-            echo "== $s"; bash "$s"
-          done
-
-      - name: Lint the shell and Python scripts
-        run: |
-          set -euo pipefail
-          shellcheck scripts/*.sh scripts/tests/*.sh
-          bash -n scripts/*.sh scripts/tests/*.sh
-          python3 -m compileall -q scripts/
+      - name: Run specification-consistency verification
+        run: scripts/verify-local.sh spec-consistency

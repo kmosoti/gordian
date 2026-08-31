@@ -30,9 +30,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
 # block re-installs jj at the repository's pinned version.
 cargo install --locked --bin jj jj-cli
 
-# The two linters section 6.6 runs. Their versions are pinned to what CI installs, so a
-# local verifier run and the CI job reach the same verdict; an unpinned ruff will disagree.
-python3 -m pip install --disable-pip-version-check --user ruff==0.16.5
+# shellcheck is the host linter used by section 6.6. Ruff is installed from the repository's
+# pyproject pin by scripts/install-toolchains.sh after the checkout is acquired.
 command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
 ```
 
@@ -62,12 +61,17 @@ After both blocks, `jj log -r 'trunk()' -n 1` must exit 0. That is the acceptanc
 section 0.
 
 `cargo` invoked inside the clone reads `rust-toolchain.toml` and installs the pinned Rust channel
-and its components on first use, so no Rust version literal belongs here either. The remaining
-per-tool installs — Lean via `elan`, Python 3.14, and `gh` — have no single pinned command yet.
-**G-528 is assigned to #2**, which owns `scripts/check-toolchain.sh` and the per-tool pinned
-install commands; until it closes, an agent installs the versions named in
-`formal/lean-toolchain` and `orchestration/pyproject.toml` by hand and records the observed
-versions in the closure record's `known_limitations`.
+and its components on first use. Install the remaining exact pins and verify the runtime with:
+
+```bash
+scripts/install-toolchains.sh all
+scripts/check-toolchain.sh --runtime
+```
+
+The installer reads Lean, Python, GitHub CLI, cargo-deny, and Ruff versions from their owning pin
+files, verifies downloaded Python and GitHub CLI archives against committed SHA-256 digests, and
+installs beneath `${GORDIAN_TOOL_ROOT:-$HOME/.local/gordian-tools}` where applicable. Add the
+printed `bin` directories to `PATH`; no version literal is duplicated in this runbook.
 
 **G-510's remaining conjunct is a CI job and is assigned to #1**: a job on a clean
 `ubuntu-latest` runner with no pre-existing checkout that executes the two blocks above verbatim,
@@ -406,7 +410,8 @@ explicitly labeled `duplicate`. An open duplicate is a reconciliation error. Thi
 not weaken the closure-record requirement for any ordinary closed Atom.
 
 ```bash
-python3.14 -m pip install -e './orchestration[dev]'    # once; see 6.6
+scripts/install-toolchains.sh python-package            # once; see 6.6
+# add the printed virtual-environment bin directory to PATH
 
 GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready
 GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready --json
@@ -589,52 +594,37 @@ runs the same commands; where the two could drift, landing.md section 3 and the 
 authorities and this block is the copy.
 
 The Python verifier needs the package installed first — the tests import `gordian_orchestration`
-from a src layout, so `python -m unittest discover` fails with `ModuleNotFoundError` without it:
+from a src layout, so `python -m unittest discover` fails with `ModuleNotFoundError` without it.
+Use the installer so externally managed Python distributions are not modified:
 
 ```bash
-python3.14 -m pip install -e './orchestration[dev]'
+scripts/install-toolchains.sh python-package
+# add the printed virtual-environment bin directory to PATH
 ```
 
-That is the single bootstrap string used by [`../../AGENTS.md`](../../AGENTS.md) and
-[`../index.md`](../index.md), and the `dev` extra carries the pinned `ruff`. On an interpreter
-older than 3.14 the editable install is refused and the fallback of
+The `dev` extra carries the pinned `ruff`. On an interpreter older than 3.14 the editable install
+is refused and the fallback of
 [`issue-index.md`](issue-index.md#temporary-project-9-reconciliation) applies:
 `PYTHONPATH=orchestration/src python3 -m unittest discover -s orchestration/tests`.
 
 ```bash
-# verifier:rust-check
-cargo fmt --all -- --check
-cargo clippy --locked --workspace --all-targets -- -D warnings
-cargo test --locked --workspace
-
-# verifier:kg-audit
-cargo run --locked -p gordian-kg -- validate
-cargo run --locked -p gordian-kg -- audit --strict
-
-# verifier:formal
-bash scripts/verify-formal.sh
-
-# verifier:python
-ruff check orchestration
-python -m compileall -q orchestration/src
-python -m unittest discover -s orchestration/tests
-
-# verifier:spec-consistency
-for s in scripts/check-*.sh; do bash "$s"; done
-shellcheck scripts/*.sh
-bash -n scripts/*.sh
-python3 -m compileall -q scripts/
+scripts/verify-local.sh rust-check
+scripts/verify-local.sh kg-audit
+scripts/verify-local.sh formal
+scripts/verify-local.sh python
+scripts/verify-local.sh spec-consistency
 ```
 
 `verifier:formal` is `lake build; leanchecker; axiom-audit` in landing.md section 3, and the
-workflow's formal job runs all three (`leanchecker: true`, `axiom-audit: true`). The independent
-checker and the axiom audit — the check that rejects `sorryAx` and any non-allowlisted axiom —
-have **no local invocation yet**: they arrive with `formal/Gordian/Audit.lean` under **G-258 and
-G-239, assigned to #2**. Until then a bootstrap Atom's `verifier:formal` evidence is `lake build`
-only, and the closure record records that in `known_limitations`.
+workflow's formal job runs the same three through `scripts/verify-local.sh formal`. The pinned Lean
+toolchain supplies `leanchecker`, which replays the compiled environment using Lean's kernel; it is
+a separate pass, not an independent kernel implementation. `formal/Gordian/Audit.lean` rejects
+`sorryAx`, project axioms, and every theorem dependency outside the explicit allowlist.
+`--self-test` injects both defects and requires non-zero results, so the gate cannot pass merely
+because its subject disappeared.
 
-The `check-*.sh` loop is that job's first step and the last three lines are its second step.
-Omitting either lets an Atom pass this list and still fail CI.
+The grouped script also keeps every `check-*.sh` plus shell/Python syntax checks in the
+spec-consistency group. Omitting either would let a local run and CI disagree.
 
 An Atom with stronger acceptance predicates runs those too, with its own `verifier_id`. Passing
 this list is necessary and is not automatically sufficient.

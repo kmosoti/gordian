@@ -1074,6 +1074,80 @@ mod tests {
     }
 
     #[test]
+    fn every_audit_rule_has_a_clean_and_failing_case() {
+        let sandbox = Sandbox::new("theorem no_dependency_cycle : True := trivial\n");
+        let context = sandbox.context();
+        let clean = fixture();
+
+        let mut missing_summary = fixture();
+        missing_summary.nodes[0].summary.clear();
+
+        let mut unsourced_foundation = fixture();
+        unsourced_foundation.nodes[3].relations.clear();
+
+        let mut missing_locator = fixture();
+        missing_locator.nodes[1].url = None;
+
+        let mut evidence_cycle = fixture();
+        evidence_cycle.nodes[1]
+            .relations
+            .push(relation("qualifiedBy", "claim:a"));
+
+        let mut bad_status = fixture();
+        bad_status.nodes[2].status = Some("invented".into());
+
+        let mut missing_target = fixture();
+        missing_target.nodes[2].verification[0].target =
+            "formal/Gordian/Missing.lean#missing".into();
+
+        let mut untested_hypothesis = fixture();
+        untested_hypothesis
+            .nodes
+            .push(node("hypothesis:untested", "Hypothesis"));
+
+        let mut incomplete_theorem = fixture();
+        let mut bare_theorem = node("theorem:incomplete", "Theorem");
+        bare_theorem.status = Some("proof-source-present".into());
+        incomplete_theorem.nodes.push(bare_theorem);
+
+        let mut untargeted_experiment = fixture();
+        untargeted_experiment
+            .nodes
+            .push(node("experiment:untargeted", "Experiment"));
+
+        let mut unsupported_claim = fixture();
+        unsupported_claim
+            .nodes
+            .push(node("claim:unsupported", "Claim"));
+
+        let cases = [
+            (RULE_MISSING_SUMMARY, missing_summary),
+            (RULE_FOUNDATION_UNSOURCED, unsourced_foundation),
+            (RULE_SOURCE_LOCATOR, missing_locator),
+            (RULE_EVIDENCE_CYCLE, evidence_cycle),
+            (RULE_STATUS_VOCABULARY, bad_status),
+            (RULE_VERIFICATION_TARGET, missing_target),
+            (RULE_HYPOTHESIS_UNTESTED, untested_hypothesis),
+            (RULE_THEOREM_INCOMPLETE, incomplete_theorem),
+            (RULE_EXPERIMENT_UNTARGETED, untargeted_experiment),
+            (RULE_CLAIM_UNSUPPORTED, unsupported_claim),
+        ];
+
+        assert_eq!(cases.len(), AUDIT_RULES.len());
+        for (rule, failing_graph) in cases {
+            assert_eq!(
+                rules_fired(&clean.audit(&context), rule),
+                0,
+                "clean case unexpectedly fired {rule}"
+            );
+            assert!(
+                rules_fired(&failing_graph.audit(&context), rule) > 0,
+                "negative case did not fire {rule}"
+            );
+        }
+    }
+
+    #[test]
     fn foundation_without_a_source_edge_is_an_error() {
         let sandbox = Sandbox::new("theorem no_dependency_cycle : True := trivial\n");
         let mut graph = fixture();

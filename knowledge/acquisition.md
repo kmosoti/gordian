@@ -28,7 +28,7 @@ Gordian keeps different kinds of statements distinct.
 | Layer | Meaning | Validating method |
 | --- | --- | --- |
 | Definition | stipulated vocabulary | internal consistency and use |
-| Formal theorem | proposition derived in a formal model | Lean kernel plus independent checker and axiom audit |
+| Formal theorem | proposition derived in a formal model | Lean kernel plus separate compiled-environment replay and axiom audit |
 | Established foundation | mature result adapted from an external field | primary literature, standards, textbooks, production evidence |
 | Empirical observation | measured result in a stated experiment | reproducible data and analysis |
 | Evidence-supported conclusion | bounded inference from observations | source quality, scope, alternatives, confounders |

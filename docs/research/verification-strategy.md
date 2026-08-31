@@ -27,7 +27,7 @@ This is not equivalent to proving Gordian correct in the real world.
 
 | Claim class | Primary method | Additional methods | What remains unresolved |
 | --- | --- | --- | --- |
-| Logical invariant of a finite model | Lean proof | independent checker, axiom audit | adequacy of the model |
+| Logical invariant of a finite model | Lean proof | separate compiled-environment replay, axiom audit | adequacy of the model |
 | Rust function refines executable model | differential randomized testing | property tests, bounded verification | completeness of tested domain unless refinement is formally proved |
 | Unsafe state unrepresentable | Rust type system | compile-fail tests, API review | FFI/external-system behavior |
 | Bounded memory safety/correctness | Kani | unit/property tests | behavior outside configured bounds and unsupported features |
@@ -53,7 +53,7 @@ A theorem is counted as checked only when:
 source compiles
 and no sorry/admit is present
 and axiom audit passes
-and independent checker passes where supported
+and separate compiled-environment replay passes where supported
 and theorem declaration is linked from the knowledge graph
 and assumptions are enumerated
 ```
@@ -378,11 +378,13 @@ benchmark smoke and regression comparison
 Jujutsu disposable-repository contracts
 ```
 
-This tier is **not yet implemented**: `.github/workflows/verify.yml` is the only workflow in the
-repository and it covers the per-change tier alone, so no command set exists behind any line
-above. **#2** implements the tier and the local-parity script that lets an agent reproduce every
-CI `run:` step before pushing (G-525); the checks that run only through the Lean action, the
-independent checker and the axiom audit, are named there as CI-only.
+This tier is **not yet implemented as one misleading placeholder job**. Each line becomes runnable
+only with the Atom that owns its real harness: #1 for Jujutsu contracts, #5 for benchmark gates,
+and the verification-technique Atoms for mutation, fuzzing, bounded, and concurrency checks. #2
+provides `scripts/verify-local.sh`, the single command source for every current per-change CI
+`run:` verifier step. Its formal group includes the pinned toolchain's `leanchecker` environment
+replay and the local axiom audit; neither remains a CI-only assertion. The replay is a separate
+pass using Lean's kernel over the compiled environment, not an independently implemented kernel.
 
 Benchmark evidence additionally has no comparable environment identity while every job runs on a
 shared `ubuntu-latest` runner. Until a benchmark workflow pins a fixed runner label, benchmark

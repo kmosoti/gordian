@@ -48,7 +48,7 @@ cd formal
 lake build
 ```
 
-CI re-checks the compiled environment with an independent checker and runs an **axiom audit**. The audit is what rejects `sorryAx` and any non-allowlisted axiom; the independent checker re-verifies the environment rather than policing `sorry`. A theorem is machine checked only for the exact declaration, assumptions, formal sources, toolchain, and successful checker evidence.
+CI re-checks the compiled environment with a separate replay pass and runs an **axiom audit**. The audit is what rejects `sorryAx` and any non-allowlisted axiom; the replay pass re-verifies the environment using Lean's kernel rather than policing `sorry`. It is not an independently implemented kernel. A theorem is machine checked only for the exact declaration, assumptions, formal sources, toolchain, and successful checker evidence.
 
 ## Validation and experiments
 

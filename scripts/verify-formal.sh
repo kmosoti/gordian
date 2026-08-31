@@ -1,68 +1,68 @@
 #!/usr/bin/env bash
-# verifier:formal — the local, runnable form of the formal gate.
+# verifier:formal — the local and CI entrypoint for the complete formal gate.
 #
-# CI runs lean-action with leanchecker and axiom-audit. Those are not installable as a
-# local command, so an agent could not execute verifier:formal as previously declared.
-# This script is the local equivalent and is what runbook section 6.6 invokes:
-#
-#   1. lake build must succeed;
-#   2. no `sorry`, `admit`, `native_decide`, or project-declared `axiom` in the sources;
-#   3. every theorem's axiom closure must lie inside the allowlist, checked by asking
-#      Lean itself via `#print axioms` — the same question axiom-audit asks.
-#
-# Exit 0 only if all three hold.
+# The pinned Lean toolchain ships `leanchecker`, so all three checks are locally runnable:
+# warning-free build, compiled-environment replay, and the Lean-native allowlisted axiom audit.
+# Exit 0 only if all three hold. `--self-test` additionally proves that `sorry`, a
+# non-allowlisted axiom in a foreign namespace, and a caller-forged exact-state evidence subject
+# are rejected.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
-FORMAL="formal"
-ALLOWED_RE='^(propext|Classical\.choice|Quot\.sound)$'
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SELF_TEST=0
+if [ "${1:-}" = "--self-test" ]; then
+  SELF_TEST=1
+elif [ "$#" -ne 0 ]; then
+  echo "usage: scripts/verify-formal.sh [--self-test]" >&2
+  exit 64
+fi
+
+FORMAL="$ROOT/formal"
 
 fail() { printf 'verifier:formal FAIL — %s\n' "$1" >&2; exit 1; }
 
-# ---------------------------------------------------------------- 1. build
-( cd "$FORMAL" && lake build ) >/dev/null || fail "lake build failed"
+command -v lake >/dev/null || { echo "MISSING TOOL: lake" >&2; exit 78; }
 
-# ---------------------------------------------------------------- 2. banned tokens
-# Strip line comments before matching so prose mentioning `sorry` does not trip this.
-banned=$(
-  find "$FORMAL/Gordian" "$FORMAL" -maxdepth 1 -name '*.lean' -o -path "$FORMAL/Gordian/*.lean" \
-  | sort -u \
-  | while read -r f; do
-      sed 's|--.*$||' "$f" \
-        | grep -nE '(^|[^A-Za-z_])(sorry|admit|native_decide)([^A-Za-z_]|$)|^[[:space:]]*axiom[[:space:]]' \
-        | sed "s|^|$f:|" || true
-    done
-)
-[ -z "$banned" ] || { printf '%s\n' "$banned" >&2; fail "banned token in formal sources"; }
+(cd "$FORMAL" && lake build) || fail "lake build failed"
+(cd "$FORMAL" && lake env leanchecker) || fail "leanchecker environment replay failed"
+(cd "$FORMAL" && lake env lean Gordian/Audit.lean) || fail "axiom audit failed"
 
-# ---------------------------------------------------------------- 3. axiom closure
-# Collect every declared theorem/lemma and ask Lean to print its axiom closure.
-mapfile -t decls < <(
-  grep -rhoE '^[[:space:]]*(theorem|lemma)[[:space:]]+[A-Za-z_][A-Za-z0-9_'"'"'.]*' "$FORMAL/Gordian" \
-  | awk '{print $2}' | sort -u
-)
-[ "${#decls[@]}" -gt 0 ] || fail "no theorems found — the audit would be vacuous"
+if [ "$SELF_TEST" -eq 1 ]; then
+  sorry_probe='import Gordian\nset_option warningAsError true\ntheorem rejectedSorry : True := by sorry\n'
+  if printf '%b' "$sorry_probe" | (cd "$FORMAL" && lake env lean --stdin) >/dev/null 2>&1; then
+    fail "negative test: warningAsError accepted sorry"
+  fi
 
-probe="$FORMAL/AxiomAudit.lean"
-trap 'rm -f "$probe"' EXIT
-{
-  echo "import Gordian"
-  for d in "${decls[@]}"; do echo "#print axioms Gordian.$d"; done
-} > "$probe"
+  foreign_probe="$FORMAL/Gordian/AuditForeignNamespaceNegative.lean"
+  [ ! -e "$foreign_probe" ] || fail "negative-test probe path already exists: $foreign_probe"
+  trap 'rm -f "$foreign_probe"' EXIT
+  (cd "$FORMAL" && lake env lean -o .lake/build/lib/lean/Gordian/Audit.olean \
+    Gordian/Audit.lean) >/dev/null || fail "could not compile audit module for negative test"
+  cat > "$foreign_probe" <<'LEAN'
+import Gordian.Audit
 
-out=$( cd "$FORMAL" && lake env lean AxiomAudit.lean 2>&1 ) || {
-  printf '%s\n' "$out" >&2; fail "axiom probe did not elaborate"; }
+namespace ForeignNamespace
+axiom forbiddenAuditAxiom : False
+theorem forbiddenAuditUse : False := forbiddenAuditAxiom
+end ForeignNamespace
 
-# Lean prints either "'X' does not depend on any axioms" or "'X' depends on axioms: [a, b]".
-bad=$(
-  printf '%s\n' "$out" | grep 'depends on axioms' | while read -r line; do
-    axioms=${line#*depends on axioms: }
-    printf '%s' "${axioms//[\[\]]/}" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | while read -r a; do
-      [ -z "$a" ] && continue
-      printf '%s\n' "$a" | grep -qE "$ALLOWED_RE" || printf '%s :: %s\n' "$line" "$a"
-    done
-  done
-)
-[ -z "$bad" ] || { printf '%s\n' "$bad" >&2; fail "axiom outside allowlist"; }
+run_cmd Gordian.auditAxioms
+LEAN
+  if (cd "$FORMAL" && lake env lean Gordian/AuditForeignNamespaceNegative.lean) \
+      >/dev/null 2>&1; then
+    fail "negative test: axiom audit accepted a repository axiom in a foreign namespace"
+  fi
+  # Remove the repository-visible probe before the forged-state check invokes JJ.
+  # Otherwise JJ auto-snapshots this temporary source and rewrites the exact
+  # Candidate that the outer evidence writer is trying to verify.
+  rm -f "$foreign_probe"
 
-printf 'verifier:formal OK — %d theorems, axiom closure within {propext, Classical.choice, Quot.sound}\n' "${#decls[@]}"
+  fake_state=ffffffffffffffffffffffffffffffffffffffff
+  if "$ROOT/scripts/write-formal-evidence.sh" \
+      "$fake_state" \
+      "${TMPDIR:-/tmp}/gordian-invalid-formal-evidence.json" >/dev/null 2>&1; then
+    fail "negative test: formal evidence accepted a caller-controlled fake exact state"
+  fi
+fi
+
+echo "verifier:formal OK — build, leanchecker, and allowlisted axiom audit passed"

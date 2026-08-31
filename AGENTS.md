@@ -185,35 +185,18 @@ Use the strongest applicable method for each claim. A tool belongs only when it 
 ### Required everyday checks
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --locked --workspace --all-targets -- -D warnings
-cargo test --locked --workspace
-cargo run --locked -p gordian-kg -- validate
-cargo run --locked -p gordian-kg -- audit --strict
-
-ruff check orchestration
-python -m compileall -q orchestration/src
-python -m unittest discover -s orchestration/tests
-
-scripts/verify-formal.sh
-
-for s in scripts/check-*.sh; do bash "$s"; done
+scripts/verify-local.sh all
 ```
 
 `--strict` is not optional: a bare `audit` passes on warnings and is therefore not a gate.
 
-The local `scripts/verify-formal.sh` gate runs `lake build`, the banned-token scan, and the
-axiom-closure audit (including the allowlist check). CI additionally re-checks the compiled Lean
-environment with an **independent checker**. Only that independent checker remains **CI-only**
-until #2 lands `formal/Gordian/Audit.lean` and adds the local invocation here (**G-258 and G-239,
-assigned to #2**). **G-525 is assigned to #2** for `scripts/verify-local.sh`,
-which will make this block and the workflow one script rather than two lists. **G-625 is assigned
-to #2** for the test coverage of the tooling itself: `crates/gordian-kg/tests/` has no integration
-test running every subcommand against `knowledge/graph/` and no positive and negative test per
-audit rule, so the checker that gates the corpus is itself unguarded. **G-612 is assigned to #2**
-for CI supply-chain and hygiene: a `cargo deny check` step with a committed `deny.toml`, and a
-`.github/dependabot.yml` covering the cargo, pip, and github-actions ecosystems. Pinned action
-SHAs, per-job `timeout-minutes`, and the top-level `concurrency:` group are already in place.
+`scripts/verify-local.sh` is the command source for both local runs and CI's four separately
+reported jobs. The formal group builds with warnings denied, replays the compiled environment with
+the pinned toolchain's `leanchecker`, audits the axiom closure through
+`formal/Gordian/Audit.lean`, and negative-tests both controls. `leanchecker` is a separate pass
+through Lean's kernel, not an independently implemented kernel. The Rust group runs the graph CLI
+integration/audit-rule tests and `cargo deny check`. Supply-chain update policy is
+`.github/dependabot.yml`; exact tool versions are checked by `scripts/check-toolchain.sh`.
 
 ### As applicable
 
@@ -348,8 +331,9 @@ candidate, not the author of the bookkeeping record. See the runbook sections 2 
 
 ### Per-file license headers
 
-Per-file license headers are not required; `LICENSE` alone governs. **G-617 is assigned to #2**,
-which decides whether to adopt SPDX headers and, if so, adds the CI grep that enforces them.
+Per-file license headers are not required; `LICENSE` and Cargo package metadata govern. Requiring
+headers would add a mechanical edit and checker without improving license identification for this
+single-license repository; `cargo deny check licenses` verifies dependency license policy instead.
 
 ## Temporary GitHub substrate
 

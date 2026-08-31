@@ -108,14 +108,15 @@ A Lean theorem proves the formal proposition under its assumptions. It does **no
 The current Lean sources cover rank-certified dependency acyclicity, scheduling witness implications, evidence identity mismatch, authority separation, acceptance witnesses, declared non-interference symmetry, and deterministic replay identity. They are **proposition-level models, not executable oracles**: nothing in Rust is differentially tested against them today, and a theorem here constrains the model, not an implementation.
 
 ```bash
-scripts/verify-formal.sh
+scripts/verify-local.sh formal
 ```
 
-The local `scripts/verify-formal.sh` gate runs `lake build`, the banned-token scan, and the
-axiom-closure audit (including the allowlist check). CI additionally re-checks the compiled
-environment with an **independent checker**. Only that independent checker remains **CI-only**
-until #2 lands `formal/Gordian/Audit.lean` and adds the local invocation (**G-258 and G-239,
-assigned to #2**).
+The formal verifier builds with warnings treated as errors, replays the compiled environment with
+the pinned toolchain's `leanchecker`, and runs [`formal/Gordian/Audit.lean`](formal/Gordian/Audit.lean).
+`leanchecker` is a separate environment-replay pass through Lean's kernel, not an independently
+implemented kernel.
+The audit rejects `sorryAx`, project-declared axioms, and every transitive theorem dependency
+outside `{propext, Classical.choice, Quot.sound}`. The same script is CI's command source.
 
 ## Source plane and the Jujutsu Change Graph
 
@@ -182,7 +183,8 @@ cargo run -p gordian-kg -- path concept:atom theorem:dispatch-requires-dependenc
 cargo run -p gordian-kg -- export-dot --out /tmp/gordian.dot
 ```
 
-**G-618 is assigned to #2**: a Rust test in `crates/gordian-kg`, run by `cargo test --workspace` in `.github/workflows/verify.yml`, parses this block, asserts every subcommand listed is accepted by the clap parser and that every clap subcommand appears here, and fails otherwise. Until it lands this block is kept true by hand.
+`crates/gordian-kg/tests/cli.rs` runs every command above against the canonical graph and asserts
+that this block and clap expose the same complete subcommand set.
 
 Traversal is not entailment. Edge type determines the epistemic meaning.
 
@@ -298,28 +300,20 @@ Planned trees, created by the Atom named beside them: `benches/` (#5), `experime
 
 Read [`AGENTS.md`](AGENTS.md) before implementation. It is the repository's sole coding-agent instruction file.
 
-Baseline checks:
+Install the exact development toolchain pins, then run the complete local/CI gate:
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --locked --workspace --all-targets -- -D warnings
-cargo test --locked --workspace
-cargo run --locked -p gordian-kg -- validate
-cargo run --locked -p gordian-kg -- audit --strict
-
-ruff check orchestration
-python -m compileall -q orchestration/src
-python -m unittest discover -s orchestration/tests
-
-scripts/verify-formal.sh
-
-for s in scripts/check-*.sh; do bash "$s"; done
+scripts/install-toolchains.sh all
+# add the installer-reported bin directories to PATH
+scripts/check-toolchain.sh --runtime
+scripts/verify-local.sh all
 ```
 
-The local `scripts/verify-formal.sh` command already runs the Lean build, banned-token scan, and
-axiom-closure audit. The independent Lean checker remains **CI-only** until #2 lands
-`formal/Gordian/Audit.lean` and adds the local invocation to this block. `--strict` is not
-optional: a bare `audit` passes on warnings and is not a gate.
+The installer reads every version and source digest from its owning pin file; it does not restate
+them. `verify-local.sh` exposes the five evidence groups (`rust-check`, `kg-audit`, `formal`,
+`python`, and `spec-consistency`) plus the aggregate `rust` group used by CI, so local evidence and
+CI share one command source. The Rust checks include `cargo deny check`; `--strict` remains
+mandatory for the graph audit.
 
 Targeted validation layers include property testing, mutation testing, fuzzing, Kani, Loom/Shuttle, Turmoil, differential Lean/Rust testing, benchmark regression gates, and fault injection. Each tool must protect a named risk; Gordian does not collect verification tooling as ornaments.
 

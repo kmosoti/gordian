@@ -52,7 +52,8 @@ A theorem may be labeled `machine checked` only when all of the following hold f
 
 1. The Lean source contains no `sorry` or admitted placeholder relevant to the theorem.
 2. `lake build` succeeds under the pinned Lean toolchain.
-3. CI runs an independent Lean type checker with `sorry` disallowed.
+3. A separate `leanchecker` pass replays the compiled environment, and the allowlisted axiom audit
+   rejects `sorryAx` and project-declared axioms.
 4. The theorem statement and its assumptions are documented in the theorem catalog.
 5. The theorem is not presented as proving a stronger real-world claim than its formal statement.
 
@@ -71,9 +72,20 @@ For the initial kernel this includes, at minimum:
 - the theorem definitions themselves;
 - the build environment that selects the intended source revision.
 
-Independent checking reduces implementation-risk in the primary checker but does not magically eliminate every hardware, compiler, or specification assumption.
+The bundled `leanchecker` reruns Lean's kernel over the compiled environment. This protects the
+environment-replay boundary, but it is not an independently implemented kernel and therefore does
+not remove common-mode kernel risk. Gordian records that distinction rather than overstating the
+claim.
 
-## 4. The current theorem strategy
+## 4. Exact-revision formal evidence
+
+The formal CI job publishes `formal-evidence-<exact-state-id>` only after the warning-free build,
+environment replay, and allowlisted axiom audit succeed. The JSON payload records the repository
+state, pinned Lean toolchain and version, the checker binary digest, the audit source digest, and
+the workflow run identity. Evidence for one state cannot promote a theorem claim for a rewritten
+state.
+
+## 5. The current theorem strategy
 
 The current formal model intentionally focuses on propositions that are both important and crisp.
 
@@ -144,7 +156,7 @@ Prove that the same event history passed to the same pure projector yields the s
 
 This is nearly tautological, and that is useful: it locates the real engineering obligation at the purity/determinism boundary of the projector and event capture rather than pretending event sourcing itself creates determinism.
 
-## 5. Proof obligations we should add later
+## 6. Proof obligations we should add later
 
 ### Reachability and readiness
 
@@ -170,7 +182,7 @@ Model attestation identity and policy, then prove an attestation can satisfy an 
 
 State carefully which properties are compositional and which require a fresh integration verifier. We should expect many useful software properties to be non-compositional.
 
-## 6. Methods beyond proof
+## 7. Methods beyond proof
 
 Formal proof is one instrument in a larger verification stack.
 
@@ -205,7 +217,7 @@ Kill workers, rewrite candidates after verification, corrupt evidence references
 
 A design that succeeds only on the happy path is not a reliable coordination substrate.
 
-## 7. Rule for claims
+## 8. Rule for claims
 
 Use this sentence test:
 

@@ -71,7 +71,8 @@ The interpreter is pinned to 3.14 by `.python-version` at the repository root an
 python3.14 -m pip install -e './orchestration[dev]'
 ```
 
-That extra pins `ruff==0.16.5`, which is the only pinned lint version in the repository. `pyproject.toml` is the single place the version is written; nothing else may spell `ruff==`.
+That extra pins Ruff exactly. `pyproject.toml` is the single place the version is written; no
+workflow, installer, or document may duplicate it.
 
 If you prefer a virtual environment, create it first and then run the identical bootstrap string:
 
