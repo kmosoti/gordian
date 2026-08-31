@@ -1,0 +1,70 @@
+{
+  "record_format": "gordian-closure-v1",
+  "atom_id": "2",
+  "spec_digest": "50adb2ab17c94407649bb2afcb17f77186663b9fd67250074274e7a63aaff198",
+  "actor": {
+    "id": "gordian-agent/codex/01a058de-9401-70f1-b36e-4d5eb14b308b",
+    "kind": "agent"
+  },
+  "exact_state_id": "da6a8c34282791ccf6654c6f181c4e5869b5d51b",
+  "logical_change_id": "kktynpwkmvwvssulwxptnytumtwuyoyl",
+  "verifiers": [
+    {
+      "verifier_id": "rust-check",
+      "command": "scripts/verify-local.sh rust-check",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/2/verifiers/rust-check.log",
+      "artifact_sha256": "1ed76650cf5aff88ad7a7505bdbc38f55a93952586a748c32bdd1a67cf453cda",
+      "subject_exact_state_id": "da6a8c34282791ccf6654c6f181c4e5869b5d51b"
+    },
+    {
+      "verifier_id": "kg-audit",
+      "command": "scripts/verify-local.sh kg-audit",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/2/verifiers/kg-audit.log",
+      "artifact_sha256": "69db15c78412a60578dcaa1a782bb11668d8047ab29a46763dfbe0ce3efb94f2",
+      "subject_exact_state_id": "da6a8c34282791ccf6654c6f181c4e5869b5d51b"
+    },
+    {
+      "verifier_id": "formal",
+      "command": "scripts/verify-local.sh formal",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/2/verifiers/formal.log",
+      "artifact_sha256": "3d1f4b6e6bedbf762997ccdb23198e150aac5933e3c07f783aef190b465988b0",
+      "subject_exact_state_id": "da6a8c34282791ccf6654c6f181c4e5869b5d51b"
+    },
+    {
+      "verifier_id": "python",
+      "command": "scripts/verify-local.sh python",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/2/verifiers/python.log",
+      "artifact_sha256": "e96aae90a12bf17efff221f39032bb90238980b63feff4469ebd5a0c24ee8b9f",
+      "subject_exact_state_id": "da6a8c34282791ccf6654c6f181c4e5869b5d51b"
+    },
+    {
+      "verifier_id": "spec-consistency",
+      "command": "scripts/verify-local.sh spec-consistency",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/2/verifiers/spec-consistency.log",
+      "artifact_sha256": "14841fd300c6f48e500b156285d201f456d0fdd73b48262e34c5d96fdcde302b",
+      "subject_exact_state_id": "da6a8c34282791ccf6654c6f181c4e5869b5d51b"
+    },
+    {
+      "verifier_id": "atom-2-acceptance",
+      "command": "fresh exact-state workspace; pinned Python package setup; Jujutsu baseline job command; scripts/verify-local.sh all",
+      "exit_code": 0,
+      "artifact_path": "artifacts/atoms/2/verifiers/atom-2-acceptance.log",
+      "artifact_sha256": "0b91c382f079d566a2867893a28c9f011c36fa7890b08ac441e6320d8a92c568",
+      "subject_exact_state_id": "da6a8c34282791ccf6654c6f181c4e5869b5d51b"
+    }
+  ],
+  "benchmarks": [],
+  "knowledge_graph_node_ids": [],
+  "known_limitations": [
+    "base_exact_state_id recorded at artifacts/atoms/2/attempts/base_exact_state_id",
+    "leanchecker replays the compiled environment through Lean's kernel; it is a separate pass, not an independently implemented kernel.",
+    "The closure schema cannot enumerate the changed artifact:formal-kernel knowledge-graph node.",
+    "The pinned GitHub CLI installer asset targets Linux x86_64; architecture-aware selection is recorded in docs/backlog.md."
+  ],
+  "closed_at": "2026-08-31T20:41:30Z"
+}

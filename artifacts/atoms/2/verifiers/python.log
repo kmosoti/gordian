@@ -1,0 +1,65 @@
+subject_exact_state_id=da6a8c34282791ccf6654c6f181c4e5869b5d51b
+command=scripts/verify-local.sh python
+OK: runtime toolchain matches repository pins (python ruff)
+All checks passed!
+...........................................................................................................................................................................................................................................................................missing project scope
+......https://github.com/kmosoti/gordian/issues/1: archived project item has no item id
+.........missing token
+...................................
+----------------------------------------------------------------------
+Ran 317 tests in 2.308s
+
+OK
+{
+  "added_urls": [],
+  "archived_urls_before": [],
+  "converged": true,
+  "dry_run": true,
+  "duplicate_urls_before": [],
+  "failed_urls": [],
+  "generated_at": "2026-08-30T00:00:00Z",
+  "missing_before": [],
+  "open_issue_count": 1,
+  "owner": "kmosoti",
+  "project_issue_count_before": 1,
+  "project_number": 9,
+  "remaining_after": [],
+  "remaining_archived_after": [],
+  "repository": "kmosoti/gordian",
+  "source_change_id": "qxpvzzmnopqr",
+  "source_commit_id": "4f2a1b0c9d8e",
+  "tool_versions": {
+    "gh": "gh version 2.63.2",
+    "jj": "jj 0.34.0"
+  },
+  "unarchived_urls": []
+}
+{
+  "added_urls": [],
+  "archived_urls_before": [],
+  "converged": false,
+  "dry_run": true,
+  "duplicate_urls_before": [],
+  "failed_urls": [],
+  "generated_at": "2026-08-30T00:00:00Z",
+  "missing_before": [
+    "https://example.invalid/issues/1"
+  ],
+  "open_issue_count": 1,
+  "owner": "kmosoti",
+  "project_issue_count_before": 1,
+  "project_number": 9,
+  "remaining_after": [
+    "https://example.invalid/issues/1"
+  ],
+  "remaining_archived_after": [],
+  "repository": "kmosoti/gordian",
+  "source_change_id": "qxpvzzmnopqr",
+  "source_commit_id": "4f2a1b0c9d8e",
+  "tool_versions": {
+    "gh": "gh version 2.63.2",
+    "jj": "jj 0.34.0"
+  },
+  "unarchived_urls": []
+}
+exit_code=0
