@@ -137,7 +137,7 @@ def _valid(workload: dict) -> None:
 def _rejected(workload: dict) -> None:
     try:
         result = validate_workload(workload)
-    except WorkloadError, ValueError, TypeError, KeyError:
+    except (WorkloadError, ValueError, TypeError, KeyError):
         return
     if result is not False:
         raise AssertionError("tampered workload was accepted")
