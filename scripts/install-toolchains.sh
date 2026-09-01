@@ -88,18 +88,57 @@ install_python_package() {
   echo "installed Python tooling at $environment; add $environment/bin to PATH"
 }
 
+# Tools the agent loop and the pre-push gate depend on. None of these are needed to build
+# or test the substrate, which is why they were never pinned; they are needed to *inspect*
+# it correctly. Their absence was itself a defect: with no YAML parser on the machine, the
+# workflow that broke CI three times could only be read by hand, and hand-reading YAML is
+# how a backslash continuation escaped a block scalar and shipped.
+install_agent_tools() (
+  local scratch
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/gordian-tools-XXXXXX")"
+  trap 'rm -rf "$scratch"' EXIT
+  mkdir -p "$tool_root/bin"
+
+  fetch_pinned() {
+    local name url asset version digest
+    name="$1"; url="$2"
+    version="$(tr -d '\r\n' < "$root/.$name-version")"
+    digest="$(tr -d '\r\n' < "$root/.$name-sha256")"
+    asset="$scratch/$name.asset"
+    curl --proto '=https' --tlsv1.2 -fsSL "${url//@VERSION@/$version}" -o "$asset"
+    printf '%s  %s\n' "$digest" "$asset" | sha256sum -c -
+  }
+
+  fetch_pinned jq https://github.com/jqlang/jq/releases/download/jq-@VERSION@/jq-linux-amd64
+  install -m 0755 "$scratch/jq.asset" "$tool_root/bin/jq"
+
+  fetch_pinned yq https://github.com/mikefarah/yq/releases/download/v@VERSION@/yq_linux_amd64
+  install -m 0755 "$scratch/yq.asset" "$tool_root/bin/yq"
+
+  fetch_pinned shfmt https://github.com/mvdan/sh/releases/download/v@VERSION@/shfmt_v@VERSION@_linux_amd64
+  install -m 0755 "$scratch/shfmt.asset" "$tool_root/bin/shfmt"
+
+  fetch_pinned actionlint https://github.com/rhysd/actionlint/releases/download/v@VERSION@/actionlint_@VERSION@_linux_amd64.tar.gz
+  tar -C "$scratch" -xzf "$scratch/actionlint.asset" actionlint
+  install -m 0755 "$scratch/actionlint" "$tool_root/bin/actionlint"
+
+  echo "installed jq, yq, shfmt and actionlint at $tool_root/bin; add it to PATH"
+)
+
 case "${1:-all}" in
   lean) install_lean ;;
   python) install_python ;;
   github) install_github ;;
   cargo-deny) install_cargo_deny ;;
+  agent-tools) install_agent_tools ;;
   python-package) install_python_package ;;
   all)
     install_lean
     install_python
     install_github
     install_cargo_deny
+    install_agent_tools
     install_python_package
     ;;
-  *) echo "usage: scripts/install-toolchains.sh [lean|python|github|cargo-deny|python-package|all]" >&2; exit 64 ;;
+  *) echo "usage: scripts/install-toolchains.sh [lean|python|github|cargo-deny|agent-tools|python-package|all]" >&2; exit 64 ;;
 esac

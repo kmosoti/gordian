@@ -38,7 +38,16 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
             | sh -s -- -y --profile minimal --no-modify-path
           . "$HOME/.cargo/env"
-          cargo install --locked --bin jj jj-cli
+          # A restored cache already put `jj` in ~/.cargo/bin, and `cargo install`
+          # refuses to overwrite an existing binary ("binary `jj` already exists in
+          # destination", exit 101). This step only needs *a* jj to clone with; the
+          # pin is enforced by bootstrap-jj.sh --install after the clone, which does
+          # pass --force. So skip the build when the cache supplied one.
+          if command -v jj >/dev/null 2>&1; then
+            echo "jj from cache: $(jj --version); bootstrap-jj.sh enforces the pin after clone"
+          else
+            cargo install --locked --bin jj jj-cli
+          fi
 
       - name: Acquire repository and pinned Jujutsu
         env:

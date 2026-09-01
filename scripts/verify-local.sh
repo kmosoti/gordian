@@ -44,7 +44,15 @@ verify_python() {
   scripts/check-toolchain.sh --runtime python ruff
   ruff check orchestration
   python3.14 -m compileall -q orchestration/src
-  python3.14 -m unittest discover -s orchestration/tests
+  # Import the package from *this* checkout. CI reaches it via `pip install -e`, which
+  # nothing does locally, so this group failed on eleven ModuleNotFoundErrors the first
+  # time it was run outside CI. An editable install would be worse than no install: it
+  # binds to one directory, and the Atom workspaces mean verification usually runs
+  # somewhere else, so the tests would silently exercise another workspace's source while
+  # reporting on this one. Every scripts/check-*.sh already uses exactly this idiom.
+  # The package declares no runtime dependencies, so the path is all the install provided.
+  PYTHONPATH="$root/orchestration/src${PYTHONPATH:+:$PYTHONPATH}" \
+    python3.14 -m unittest discover -s orchestration/tests
 }
 
 verify_spec() {
