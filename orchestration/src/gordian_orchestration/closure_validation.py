@@ -2,8 +2,8 @@
 
 The repository checker and readiness projection must agree about what a validating
 closure is.  This module contains the small JSON-Schema subset used by the checked-in
-schemas plus the cross-field/path and artifact-digest checks that are intentionally not
-expressible in those schemas.
+schemas plus the cross-field/path, artifact-digest, and evidence-binding checks that are
+intentionally not expressible in those schemas.
 
 The module has no Mission Graph semantics.  It validates records and, when supplied a
 reader, can validate bytes from an exact source revision without reading the mutable
@@ -37,6 +37,15 @@ _JSON_TYPES = frozenset(("object", "array", "string", "integer", "number", "bool
 _JJ_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _JJ_CHANGE = re.compile(r"^[a-z0-9]{32}$")
 _ATOM_ID = re.compile(r"^[1-9][0-9]*$")
+_LINE_BREAK = re.compile(r"[\r\n]")
+
+# The first two lines of every verifier artifact.  A digest alone proves that a file
+# exists; it does not say which state was verified or which command wrote the bytes.
+# Atom #70 cited one 32,772-byte formal-verifier capture as the artifact of five different
+# commands and every digest matched.  This header is the subject-to-predicate binding of
+# an in-toto attestation, spelled in two lines so `head -2` can audit it.
+EVIDENCE_SUBJECT_KEY = "subject_exact_state_id"
+EVIDENCE_COMMAND_KEY = "command"
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +141,35 @@ def jj_source_resolver(repository_root: Path, trunk_commit: str) -> JJResolver:
             return result.stdout if result.returncode == 0 else None
         return SourceBinding(exact, logical, read, True, True)
     return resolve
+
+
+def evidence_header(exact_state: str, command: str) -> bytes:
+    """Return the exact bytes a verifier artifact must open with to be evidence."""
+    return (
+        f"{EVIDENCE_SUBJECT_KEY}={exact_state}\n{EVIDENCE_COMMAND_KEY}={command}\n"
+    ).encode()
+
+
+def evidence_binding_problems(artifact: bytes, exact_state: Any, command: str) -> list[str]:
+    """Return why ``artifact`` is not bound to the state and command it is cited for.
+
+    The artifact must begin with ``evidence_header(exact_state, command)``.  The two
+    lines are checked separately so the failure names the line that lies.  A record
+    whose ``exact_state_id`` is not a commit id cannot bind anything, and says so.
+    """
+    if not isinstance(exact_state, str) or _JJ_COMMIT.fullmatch(exact_state) is None:
+        return ["artifact cannot be bound: closure.exact_state_id is not a commit id"]
+    subject_line = f"{EVIDENCE_SUBJECT_KEY}={exact_state}\n".encode()
+    if not artifact.startswith(subject_line):
+        found = artifact.split(b"\n", 1)[0][:120].decode("utf-8", "replace")
+        return [
+            f"artifact line 1 must be {EVIDENCE_SUBJECT_KEY}={exact_state}; found {found!r}"
+        ]
+    command_line = f"{EVIDENCE_COMMAND_KEY}={command}\n".encode()
+    if not artifact.startswith(subject_line + command_line):
+        found = artifact[len(subject_line):].split(b"\n", 1)[0][:120].decode("utf-8", "replace")
+        return [f"artifact line 2 must be {EVIDENCE_COMMAND_KEY}={command}; found {found!r}"]
+    return []
 
 
 def parse_rfc3339(value: Any) -> datetime | None:
@@ -399,6 +437,7 @@ def closure_problems(
         return problems
 
     seen_verifier_ids: set[str] = set()
+    seen_digests: dict[str, int] = {}
     for position, verifier in enumerate(verifiers):
         if not isinstance(verifier, dict):
             continue
@@ -421,9 +460,17 @@ def closure_problems(
             seen_verifier_ids.add(verifier_id)
 
         command = verifier.get("command")
-        if not isinstance(command, str) or not command:
+        command_is_bindable = isinstance(command, str) and bool(command)
+        if not command_is_bindable:
             problems.append(
                 f"{label}.verifiers[{position}]: command must be a non-empty string"
+            )
+        elif _LINE_BREAK.search(command) is not None:
+            # The command is bound into one artifact header line; a line break inside
+            # it would let a second command hide behind the first.
+            command_is_bindable = False
+            problems.append(
+                f"{label}.verifiers[{position}]: command must not contain line breaks"
             )
 
         exit_code = verifier.get("exit_code")
@@ -441,6 +488,14 @@ def closure_problems(
                 f"{label}.verifiers[{position}]: artifact_sha256 must be 64 lowercase "
                 "hex characters"
             )
+        elif digest in seen_digests:
+            # Distinct verifiers are distinct runs; one capture cannot witness two commands.
+            problems.append(
+                f"{label}.verifiers[{position}]: artifact_sha256 duplicates "
+                f"verifiers[{seen_digests[digest]}]; one artifact cannot witness two verifiers"
+            )
+        else:
+            seen_digests[digest] = position
 
         if not expected_atom_is_safe or not verifier_id_is_safe:
             expected_path = None
@@ -470,8 +525,7 @@ def closure_problems(
         if (
             not verifier_id_is_safe
             or duplicate_verifier_id
-            or not isinstance(command, str)
-            or not command
+            or not command_is_bindable
             or not exit_code_is_zero
             or not digest_is_valid
         ):
@@ -495,6 +549,11 @@ def closure_problems(
                 f"{label}.verifiers[{position}]: {expected_path} hashes to {actual}, "
                 f"record says {digest!r}"
             )
+            continue
+        # The bytes are the ones the record names.  Now: are they evidence for *this*
+        # state and *this* command, or a file that merely exists?
+        for problem in evidence_binding_problems(resolved, exact_state, command):
+            problems.append(f"{label}.verifiers[{position}]: {problem}")
 
     return problems
 
@@ -674,8 +733,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"FAIL: {problem}")
         return 1
     print(
-        f"OK: {closure_count} closure record(s) valid with every artifact digest matching, "
-        f"and {attempt_count} attempt record(s) valid."
+        f"OK: {closure_count} closure record(s) valid with every artifact digest matching "
+        f"and bound to its subject state and command, and {attempt_count} attempt "
+        "record(s) valid."
     )
     return 0
 

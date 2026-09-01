@@ -178,6 +178,23 @@ Atom-specific verifier. `scripts/check-closure-records.sh` resolves `artifact_pa
 repository root or from the record's own directory and recomputes its SHA-256, so an invented path
 or a stale digest is a build failure rather than a silent one.
 
+**`verifiers[].artifact_path` names bound evidence, not a file.** A digest proves that bytes
+exist; it does not say which state they were produced on or by which command. Every verifier log
+therefore opens with exactly two lines that the checker compares byte-for-byte against the record:
+
+```text
+subject_exact_state_id=<closure.exact_state_id>
+command=<verifiers[].command>
+```
+
+followed by the command's output and, when written by `scripts/capture-verifier.sh`, an
+`exit_code=<N>` trailer. `command` is one line: a line break inside it cannot be bound. Within one
+record every `artifact_sha256` is distinct, because distinct verifiers are distinct runs and one
+capture cannot witness two commands. A log that lacks the header, names another state, names
+another command, or is cited twice fails `scripts/check-closure-records.sh` with the offending line
+in the message. Atom #70's first record cited one formal-verifier capture as the artifact of five
+different commands with every digest matching; this rule is what that record could not satisfy.
+
 **`benchmarks` is required and an empty array is only correct with a stated reason.** An Atom
 whose issue body carries a `## Benchmark obligation` section MUST either carry one entry per
 obligation, with `experiment_id`, `run_id`, and `artifact_sha256` drawn from the experiment ledger
@@ -583,13 +600,30 @@ the change and candidate lifecycle inside the workspace.
 
 ### 6.6 Verification
 
-Run the whole list against the workspace state and write each verifier's log to
-`$GORDIAN_LOG_ROOT/atom-$N/<verifier_id>.log`, where `GORDIAN_LOG_ROOT` defaults to
-`${TMPDIR:-/tmp}/gordian-logs` and MUST resolve OUTSIDE the workspace. Writing a verifier log
-inside the workspace would be auto-snapshotted by Jujutsu and change `exact_state_id`, breaking
-the section 1 step 5 freeze the verifiers are evidence for. Copy the logs into the bookkeeping
-change at section 6.8, after the candidate is frozen, at
-`artifacts/atoms/$N/verifiers/<verifier_id>.log` (section 2).
+Run the whole list against the workspace state through the capture helper, one call per
+verifier, with the exact command string that section 2 will record:
+
+```bash
+scripts/capture-verifier.sh --atom "$N" --id rust-check -- 'scripts/verify-local.sh rust-check'
+```
+
+The command string is the `scripts/verify-local.sh <group>` invocation for each of the five
+groups below, not a hand-copied chain: the script is the single source CI runs, so the record's
+`command`, the local run, and the workflow step are one string. An expanded chain in the record
+(Atom #1's) is admissible but binds only itself, and drifts the moment the group changes.
+
+It writes `$GORDIAN_LOG_ROOT/atom-$N/<verifier_id>.log` in the section 2 shape — the subject
+line, the command line, the output, an `exit_code` trailer — and exits with the command's status.
+The subject is read from the workspace (`@`, or `@-` when `@` is an empty child), never from an
+argument, so a log can only claim the state it ran on; the working copy is snapshotted before and
+after, and a command that changed the candidate has its log discarded (exit 70). The command runs
+under `bash -e -o pipefail`, so a red `cargo fmt` cannot hide behind a green `cargo test` in a
+`;`-chain. `GORDIAN_LOG_ROOT` defaults to `${TMPDIR:-/tmp}/gordian-logs` and MUST resolve OUTSIDE
+the workspace; the helper refuses a root inside it. Writing a verifier log inside the workspace
+would be auto-snapshotted by Jujutsu and change `exact_state_id`, breaking the section 1 step 5
+freeze the verifiers are evidence for. Copy the logs into the bookkeeping change at section 6.8,
+after the candidate is frozen, at `artifacts/atoms/$N/verifiers/<verifier_id>.log` (section 2),
+and record each file's SHA-256 as `artifact_sha256`.
 
 The list is the five members of `project_integration_verifiers` named in
 [`../protocols/landing.md`](../protocols/landing.md) section 3, so a bootstrap Atom's evidence and
@@ -679,6 +713,22 @@ Write `artifacts/atoms/<N>/closure.json` per section 2, in a change that is **no
 verified candidate, with the verifier logs of 6.6 written into that same change first. Link it
 from the closing issue comment, and close the issue. Closing without a validating record is not
 closure and `scripts/check-closure-records.sh` fails the build.
+
+**A closure record is write-once after its `exact_state_id`.** The checker reads the record and
+its artifacts from the one commit after `exact_state_id` that touches
+`artifacts/atoms/<N>/closure.json`, and requires the on-disk record to equal that commit's copy;
+a second commit touching the file — a correction, a re-capture, a typo fix — makes the record
+unresolvable and fails the build. To correct a record, do not edit it in place: re-run the
+verifiers at a state at or after the current frontier through 6.6, and write the record for
+**that** `exact_state_id` (the earlier bookkeeping commit precedes it and is out of scope), or
+withdraw the record — delete it and its logs, reopen the issue — and close the Atom again later.
+Atom #70 is the worked example of the second path: when its first record failed the section 2
+binding rule, only five of its six verifiers could be re-run by the coordinator — the sixth,
+`atom-70-acceptance`, needs the owner's project-scoped `GH_TOKEN` — and a record binding five
+artifacts and not the sixth is no closure, so the record and its logs were deleted and the issue
+reopened. When it is closed again, all six verifiers run at one state at or after the withdrawal,
+and the new record carries that `exact_state_id`, new logs, and `recorded_by` naming the
+coordinator that wrote it.
 
 ### 6.9 Board update
 

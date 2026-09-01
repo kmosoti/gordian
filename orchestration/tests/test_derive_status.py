@@ -18,7 +18,11 @@ from unittest.mock import call, patch
 
 from fixture_graph import BLOCKED_BY, EXPECTED_WAVE
 
-from gordian_orchestration.closure_validation import SourceBinding, closure_problems
+from gordian_orchestration.closure_validation import (
+    SourceBinding,
+    closure_problems,
+    evidence_header,
+)
 from gordian_orchestration.derive_status import (
     _BLOCKED_BY_PAGE_QUERY,
     _ISSUES_QUERY,
@@ -408,7 +412,7 @@ class BootstrapSatisfactionTests(unittest.TestCase):
         self.assertEqual(unevidenced, (1,))
 
     def test_exact_accepted_atom_closure_and_digest_satisfy(self) -> None:
-        artifact = b"actual"
+        artifact = evidence_header(self.EXACT, "true") + b"actual\n"
         schema = {
             "required": ["atom_id", "logical_change_id", "exact_state_id", "verifiers"],
             "properties": {
@@ -456,7 +460,7 @@ class BootstrapSatisfactionTests(unittest.TestCase):
         self.assertEqual(unevidenced, ())
 
     def test_adversarial_verifier_records_do_not_satisfy_readiness(self) -> None:
-        artifact = b"actual"
+        artifact = evidence_header(self.EXACT, "true") + b"actual\n"
         schema = {
             "required": ["atom_id", "logical_change_id", "exact_state_id", "verifiers"],
             "properties": {

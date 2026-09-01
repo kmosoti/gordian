@@ -44,7 +44,12 @@ write_record() {
   record="$fixture/artifacts/atoms/$atom/closure.json"
   artifact="$fixture/$path_override"
   mkdir -p "$(dirname "$record")" "$(dirname "$artifact")"
-  printf 'canonical verifier output\n' > "$artifact"
+  read -r exact logical <<EOF
+$(cd "$fixture" && jj log -r @- -n 1 --no-graph -T 'commit_id ++ " " ++ change_id')
+EOF
+  # The shape scripts/capture-verifier.sh writes; an unbound log is not evidence.
+  printf 'subject_exact_state_id=%s\ncommand=true\ncanonical verifier output\nexit_code=0\n' \
+    "$exact" > "$artifact"
   actual_digest="$(python3 - "$artifact" <<'PY'
 import hashlib
 import sys
@@ -54,9 +59,6 @@ PY
   if [ -z "$digest_override" ]; then
     digest_override="$actual_digest"
   fi
-  read -r exact logical <<EOF
-$(cd "$fixture" && jj log -r @- -n 1 --no-graph -T 'commit_id ++ " " ++ change_id')
-EOF
   python3 - "$record" "$atom" "$limitations_json" "$path_override" "$digest_override" "$exit_code" "$exact" "$logical" <<'PY'
 import json
 import sys

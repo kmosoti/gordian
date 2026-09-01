@@ -10,10 +10,15 @@ from pathlib import Path
 from gordian_orchestration.closure_validation import (
     attempt_problems,
     closure_problems,
+    evidence_binding_problems,
+    evidence_header,
     parse_rfc3339,
     schema_problems,
     validate,
 )
+
+EXACT = "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
+BOUND_ARTIFACT = evidence_header(EXACT, "true") + b"canonical verifier output\nexit_code=0\n"
 
 VERIFIER_SCHEMA = {
     "type": "object",
@@ -38,7 +43,7 @@ VERIFIER_SCHEMA = {
 
 class ClosureEvidenceTests(unittest.TestCase):
     def _payload(self, **changes):
-        artifact = b"canonical verifier output\n"
+        artifact = BOUND_ARTIFACT
         verifier = {
             "verifier_id": "check",
             "command": "true",
@@ -47,11 +52,11 @@ class ClosureEvidenceTests(unittest.TestCase):
             "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
         }
         verifier.update(changes.pop("verifier", {}))
-        payload = {"atom_id": "42", "verifiers": [verifier]}
+        payload = {"atom_id": "42", "exact_state_id": EXACT, "verifiers": [verifier]}
         payload.update(changes)
         return payload, artifact
 
-    def _problems(self, payload, artifact=b"canonical verifier output\n"):
+    def _problems(self, payload, artifact=BOUND_ARTIFACT):
         reads = []
 
         def reader(relative):
@@ -116,6 +121,72 @@ class ClosureEvidenceTests(unittest.TestCase):
         payload["verifiers"].append(duplicate)
         problems, _ = self._problems(payload, artifact)
         self.assertTrue(any("duplicate verifier_id 'check'" in problem for problem in problems))
+
+    def test_an_artifact_that_merely_exists_is_not_evidence(self):
+        # Atom #70's shape: the digest matches, the bytes name no state and no command.
+        unbound = b"verifier:formal OK\n   Compiling proc-macro2 v1.0.107\n"
+        payload, _ = self._payload(
+            verifier={"artifact_sha256": hashlib.sha256(unbound).hexdigest()}
+        )
+        problems, _ = self._problems(payload, artifact=unbound)
+        self.assertEqual(len(problems), 1)
+        self.assertIn(f"artifact line 1 must be subject_exact_state_id={EXACT}", problems[0])
+
+    def test_an_artifact_bound_to_another_state_is_not_evidence(self):
+        foreign = evidence_header("f" * 40, "true") + b"canonical verifier output\n"
+        payload, _ = self._payload(
+            verifier={"artifact_sha256": hashlib.sha256(foreign).hexdigest()}
+        )
+        problems, _ = self._problems(payload, artifact=foreign)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("artifact line 1 must be", problems[0])
+
+    def test_an_artifact_bound_to_another_command_is_not_evidence(self):
+        foreign = evidence_header(EXACT, "true; rm -rf x") + b"canonical verifier output\n"
+        payload, _ = self._payload(
+            verifier={"artifact_sha256": hashlib.sha256(foreign).hexdigest()}
+        )
+        problems, _ = self._problems(payload, artifact=foreign)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("artifact line 2 must be command=true; found", problems[0])
+
+    def test_header_prefix_is_not_enough(self):
+        # The subject line must be exactly the id: a longer id or a missing newline fails.
+        for artifact in (
+            f"subject_exact_state_id={EXACT}0\ncommand=true\n".encode(),
+            f"subject_exact_state_id={EXACT}".encode(),
+            f"subject_exact_state_id={EXACT}\ncommand=truex\n".encode(),
+            f"subject_exact_state_id={EXACT}\ncommand=true".encode(),
+        ):
+            with self.subTest(artifact=artifact):
+                self.assertTrue(evidence_binding_problems(artifact, EXACT, "true"))
+        self.assertEqual(evidence_binding_problems(BOUND_ARTIFACT, EXACT, "true"), [])
+
+    def test_unbindable_exact_state_cannot_be_evidenced(self):
+        self.assertTrue(evidence_binding_problems(BOUND_ARTIFACT, "abc", "true"))
+        self.assertTrue(evidence_binding_problems(BOUND_ARTIFACT, None, "true"))
+
+    def test_one_artifact_cannot_witness_two_verifiers(self):
+        payload, artifact = self._payload()
+        second = dict(payload["verifiers"][0])
+        second["verifier_id"] = "other"
+        second["artifact_path"] = "artifacts/atoms/42/verifiers/other.log"
+        payload["verifiers"].append(second)
+        problems, _ = self._problems(payload, artifact)
+        self.assertTrue(
+            any("artifact_sha256 duplicates verifiers[0]" in problem for problem in problems),
+            problems,
+        )
+
+    def test_a_multi_line_command_cannot_be_bound(self):
+        for command in ("true\nfalse", "true\r\nfalse", "true\n"):
+            with self.subTest(command=command):
+                payload, _ = self._payload(verifier={"command": command})
+                problems, reads = self._problems(payload)
+                self.assertTrue(
+                    any("must not contain line breaks" in problem for problem in problems)
+                )
+                self.assertEqual(reads, [])
 
     def test_missing_or_mismatched_artifact_fails(self):
         payload, artifact = self._payload()
