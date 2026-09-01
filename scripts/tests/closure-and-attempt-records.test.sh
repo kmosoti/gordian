@@ -108,6 +108,10 @@ expect_fail "a closure record with no verifier and a malformed spec_digest fails
 write_valid_closure() {
   local root="$1"
   local mutation="${2:-}"
+  # The candidate carries the verifier the record cites: a command has to name something
+  # that exists at the subject state, not a description of a run.
+  mkdir -p "$root/scripts"
+  printf '#!/usr/bin/env bash\nprintf canonical verifier output\n' > "$root/scripts/check.sh"
   (cd "$root" && jj git init --colocate >/dev/null && jj commit -m candidate >/dev/null)
   read -r exact logical <<EOF
 $(cd "$root" && jj log -r @- -n 1 --no-graph -T 'commit_id ++ " " ++ change_id')
@@ -121,7 +125,7 @@ import sys
 
 root = pathlib.Path(sys.argv[1])
 exact, logical = sys.argv[2:]
-command = "printf canonical verifier output"
+command = "scripts/check.sh"
 # The shape scripts/capture-verifier.sh writes: subject line, command line, output, trailer.
 artifact = (
     f"subject_exact_state_id={exact}\ncommand={command}\n".encode()
@@ -215,6 +219,19 @@ elif expression == "duplicate-digest":
     record["verifiers"].append(twin)
 elif expression == "multi-line-command":
     verifier["command"] = verifier["command"] + "\ntrue"
+elif expression == "prose-command":
+    verifier["command"] = "contract positive, injected-negative, and manifest-write-failure paths"
+elif expression == "absent-script":
+    verifier["command"] = "scripts/absent.sh"
+elif expression == "bookkeeping-only-script":
+    # Written after the candidate commit, so it exists at the bookkeeping state that
+    # carries the record and not at the subject state where the verifier ran.
+    (root / "scripts/late.sh").write_text("#!/usr/bin/env bash\ntrue\n", encoding="utf-8")
+    verifier["command"] = "scripts/late.sh"
+elif expression == "absolute-script":
+    verifier["command"] = "/usr/bin/env true"
+elif expression == "no-op-command":
+    verifier["command"] = "true"
 elif expression == "empty-id":
     verifier["verifier_id"] = ""
 elif expression == "unsafe-id":
@@ -268,9 +285,14 @@ empty-digest|artifact_sha256 must be 64 lowercase hex characters
 missing-artifact|must be exactly 'artifacts/atoms/42/verifiers/check.log'
 unbound-artifact|artifact line 1 must be subject_exact_state_id=
 foreign-subject|artifact line 1 must be subject_exact_state_id=
-foreign-command|artifact line 2 must be command=printf canonical verifier output; found 'command=true'
+foreign-command|artifact line 2 must be command=scripts/check.sh; found 'command=true'
 duplicate-digest|artifact_sha256 duplicates verifiers[0]
 multi-line-command|command must not contain line breaks
+prose-command|command must start with an executable; 'contract' is not a pinned tool, a shell word, or a repository-relative path
+absent-script|command starts with 'scripts/absent.sh', which does not exist at the subject state
+bookkeeping-only-script|command starts with 'scripts/late.sh', which does not exist at the subject state
+absolute-script|command must start with a repository-relative path, not '/usr/bin/env'
+no-op-command|command must start with an executable; 'true' is not a pinned tool, a shell word, or a repository-relative path
 CASES
 
 # And the check that the pre-commit path is the one being tested: a record edited on disk

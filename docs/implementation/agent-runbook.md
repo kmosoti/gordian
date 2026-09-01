@@ -195,6 +195,17 @@ another command, or is cited twice fails `scripts/check-closure-records.sh` with
 in the message. Atom #70's first record cited one formal-verifier capture as the artifact of five
 different commands with every digest matching; this rule is what that record could not satisfy.
 
+**`verifiers[].command` is a command, not a description of one.** Its first word, after any
+leading `NAME=value` assignments, MUST be a shell word (`for`, `if`, `cd`, `!`, `[`, …), one of
+the pinned tools (`bash`, `cargo`, `lake`, `lean`, `python3.14`, `ruff`, `shellcheck`, `jj`,
+`gh`, …), or a normalized repository-relative path that exists at `exact_state_id`. The rule is
+decided from the record and the subject state alone — it never consults `PATH` — so `true`,
+`:`, and `echo` are deliberately not commands, an absolute path binds nothing, and a script added
+in the bookkeeping change does not exist at the state it claims to have verified. Atom #1's first
+record wrote its acceptance as prose (`fresh exact-state workspace; contract.sh green; …`): every
+digest matched and nothing could have re-run it. Put the procedure in a script under the
+repository and record the script's invocation.
+
 **`benchmarks` is required and an empty array is only correct with a stated reason.** An Atom
 whose issue body carries a `## Benchmark obligation` section MUST either carry one entry per
 obligation, with `experiment_id`, `run_id`, and `artifact_sha256` drawn from the experiment ledger
@@ -218,11 +229,22 @@ Closing a GitHub issue without a validating closure record is not closure.
 ## 3. Stop condition
 
 The Mission loop terminates when artifacts/atoms/69/closure.json validates against the closure
-schema and every row of the Mission acceptance table resolves to a validating closure record.
+schema and carries every row's witness, and every row of the Mission acceptance table resolves to
+a validating closure record.
 
 That is the whole stop condition. The Mission acceptance table is in
-[`project-plan.md`](project-plan.md#mission-acceptance), and the agent asks the repository whether
-it is done with:
+[`project-plan.md`](project-plan.md#mission-acceptance). Each row names the Atoms that build the
+capability and one **witness** — the id of a demonstration in `scripts/mission-witness.sh` that
+exercises the capability end to end. A row resolves when every Atom it cites has a validating
+closure record AND #69's record carries a verifier whose `verifier_id` is the row's witness and
+whose `command` is exactly `bash scripts/mission-witness.sh <witness>`; the section 2 binding
+rule then guarantees that verifier's log is a green run of the witness at #69's `exact_state_id`.
+`bash scripts/mission-witness.sh --list` prints each witness as `implemented` or
+`pending #<N>` — pending names an open Atom of the row that the demonstration is waiting on, and
+`scripts/check-mission-acceptance.sh` fails the build once that Atom closes while the witness is
+still pending. Every Atom in the backlog except #69 is cited by some row, so no Atom can close
+without an executable claim about what its closure contributed. The agent asks the repository
+whether it is done with:
 
 ```bash
 bash scripts/check-mission-stop-condition.sh --gate
@@ -237,8 +259,11 @@ exit status of the bare form concludes the Mission is complete on its first iter
 While the coordinator is writing the final bookkeeping record, it may run
 `bash scripts/check-mission-stop-condition.sh --preclose 69`. This is a gate: every acceptance-row
 Atom still needs a fully validating closure record, and any waiver must be propagated once #69's
-record exists. Only #69's own absent final record is permitted in this preclose check; another
-`--preclose` id or combination is invalid.
+record exists. The witnesses are the one thing it defers — it lists the ids #69 must carry, and
+the coordinator captures each through section 6.6
+(`scripts/capture-verifier.sh --atom 69 --id <witness> -- 'bash scripts/mission-witness.sh <witness>'`)
+before writing the record. Only #69's own absent final record is permitted in this preclose
+check; another `--preclose` id or combination is invalid.
 
 No other signal terminates the loop: not "all 77 issues closed", because issues are a temporary
 external projection; not "the milestone is closed", because a milestone is bookkeeping.
@@ -653,8 +678,9 @@ scripts/verify-local.sh python
 scripts/verify-local.sh spec-consistency
 ```
 
-`verifier:formal` is `lake build; leanchecker; axiom-audit` in landing.md section 3, and the
-workflow's formal job runs the same three through `scripts/verify-local.sh formal`. The pinned Lean
+`verifier:formal` is `scripts/verify-local.sh formal` in landing.md section 3, which runs
+`lake build`, `leanchecker`, and the axiom audit, and the workflow's formal job runs the same
+string. The pinned Lean
 toolchain supplies `leanchecker`, which replays the compiled environment using Lean's kernel; it is
 a separate pass, not an independent kernel implementation. `formal/Gordian/Audit.lean` rejects
 `sorryAx`, project axioms, and every theorem dependency outside the explicit allowlist.
@@ -729,6 +755,15 @@ artifacts and not the sixth is no closure, so the record and its logs were delet
 reopened. When it is closed again, all six verifiers run at one state at or after the withdrawal,
 and the new record carries that `exact_state_id`, new logs, and `recorded_by` naming the
 coordinator that wrote it.
+
+**Implement the row's witness before closing its last Atom.** Every Atom sits in a row of the
+Mission acceptance table whose `Witness` cell names a function in `scripts/mission-witness.sh`.
+When the Atom being closed is the one a `pending #<N>` witness names, the same change that
+closes it MUST replace the registry entry with `implemented` and add the `witness_<id>` function
+that demonstrates the row's capability — otherwise `scripts/check-mission-acceptance.sh` fails
+the build, because a row whose Atoms are all closed and whose witness cannot run is a claim with
+no demonstration. A witness is not a re-run of the Atoms' own verifiers; it is the user-visible
+check that the row's sentence is true of the repository.
 
 ### 6.9 Board update
 

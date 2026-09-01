@@ -28,33 +28,52 @@ states no second list. Previously project-plan.md carried 18 items, execution-or
 carried 13 different ones, neither referenced the other, and project-plan.md contained no issue
 reference at all, so no item could be traced to work.
 
-The Mission is satisfied when a clean installation can demonstrate the following end to end, and
-each row's Atoms have validating closure records
-([`../../artifacts/schema/closure-record.schema.json`](../../artifacts/schema/closure-record.schema.json)):
+The Mission is satisfied when a clean installation can demonstrate the following end to end. Each
+row is satisfied by two kinds of evidence, both required: every Atom it cites has a validating
+closure record
+([`../../artifacts/schema/closure-record.schema.json`](../../artifacts/schema/closure-record.schema.json)),
+which says the parts were built; and the row's **witness** — the executable check
+`bash scripts/mission-witness.sh <witness>` — has a green, bound log in #69's closure record,
+which says the row holds on the installation being qualified. Every Atom of the backlog appears
+in some row, so no closed Atom is outside the acceptance contract.
 
-| # | Acceptance item | Atoms |
-| --- | --- | --- |
-| 1 | define a Project/Mission/PlanRevision/Initiative/Atom graph through a typed interface | #9, #55, #58, #44, #45 |
-| 2 | reject structurally invalid decomposition/dependency state | #10 |
-| 3 | persist canonical work/events and rebuild derived state deterministically | #12, #25, #26 |
-| 4 | derive ready/blocked work without mutable workflow-status truth | #13 |
-| 5 | schedule compatible Atoms across one or more heterogeneous workers | #20, #21, #24 |
-| 6 | create isolated workspaces from exact base states | #29, #30 |
-| 7 | associate evolving implementations with logical change ids and frozen candidates with exact state ids | #31 |
-| 8 | coordinate declared/observed semantic resource claims and leases | #22, #23 |
-| 9 | run verifiers against exact candidates and store provenance-bound evidence | #16, #17, #33 |
-| 10 | invalidate stale evidence when relevant identity changes | #15 |
-| 11 | integrate independent candidates explicitly and re-verify composition | #32 |
-| 12 | prevent Worker authority from moving accepted or deployed frontiers | #18 |
-| 13 | promote an accepted frontier with race-safe compare-and-swap semantics | #19, #27 |
-| 14 | replay after process failure without repeating nondeterministic effects | #11, #26, #28 |
-| 15 | expose CLI/API surfaces usable by humans and agent harnesses | #44, #45, #46 |
-| 16 | run the project's own Atom workflow through Gordian as a self-hosting proof | #48, #49 |
-| 17 | publish benchmark and falsification evidence for the major Gordian-specific hypotheses | #34, #37, #39, #50, #51, #52, #53, #54, #59, #60, #61, #68, #75, #76, #77 |
-| 18 | keep the research knowledge graph synchronized with implemented/falsified concepts | #8, #71, #72, #73, #74 |
+| # | Acceptance item | Atoms | Witness |
+| --- | --- | --- | --- |
+| 1 | define a Project/Mission/PlanRevision/Initiative/Atom graph through a typed interface | #9, #55, #58, #44, #45 | typed-graph-interface |
+| 2 | reject structurally invalid decomposition/dependency state | #10 | invalid-decomposition-rejected |
+| 3 | persist canonical work/events and rebuild derived state deterministically | #12, #25, #26 | deterministic-rebuild |
+| 4 | derive ready/blocked work without mutable workflow-status truth | #13 | derived-readiness |
+| 5 | schedule compatible Atoms across one or more heterogeneous workers | #20, #21, #24 | heterogeneous-scheduling |
+| 6 | create isolated workspaces from exact base states | #29, #30 | isolated-workspaces |
+| 7 | associate evolving implementations with logical change ids and frozen candidates with exact state ids | #31 | change-and-state-identity |
+| 8 | coordinate declared/observed semantic resource claims and leases | #22, #23 | resource-claims-and-leases |
+| 9 | run verifiers against exact candidates and store provenance-bound evidence in content-addressed storage | #14, #16, #17, #33 | provenance-bound-evidence |
+| 10 | invalidate stale evidence when relevant identity changes | #15 | stale-evidence-invalidation |
+| 11 | integrate independent candidates explicitly and re-verify composition | #32 | explicit-integration |
+| 12 | prevent Worker authority from moving accepted or deployed frontiers | #18 | worker-authority-bounded |
+| 13 | promote an accepted frontier with race-safe compare-and-swap semantics | #19, #27 | frontier-promotion-cas |
+| 14 | replay after process failure without repeating nondeterministic effects | #11, #26, #28 | replay-without-repeats |
+| 15 | expose CLI/API surfaces and a Mission Graph and evidence explorer usable by humans and agent harnesses | #44, #45, #46, #47 | cli-api-surfaces |
+| 16 | run the project's own Atom workflow through Gordian as a self-hosting proof | #48, #49 | self-hosting-proof |
+| 17 | publish benchmark and falsification evidence for the major Gordian-specific hypotheses | #34, #37, #39, #50, #51, #52, #53, #54, #59, #60, #61, #68, #75, #76, #77 | hypothesis-evidence |
+| 18 | keep the research knowledge graph synchronized with implemented/falsified concepts | #8, #71, #72, #73, #74 | knowledge-graph-sync |
+| 19 | qualify and pin the Jujutsu, Rust, Lean, Python, and CI baselines that every verifier runs on | #1, #2 | toolchain-baseline |
+| 20 | generate deterministic workloads and hold reference baselines and regression gates against them | #3, #4, #5 | workload-baselines |
+| 21 | qualify the verification technique stack, including Lean/Rust differential conformance | #6, #7 | verification-stack |
+| 22 | run untrusted workers under a sandboxed worker protocol with capability-scoped credentials | #35, #36, #38, #62, #63 | sandboxed-workers |
+| 23 | coordinate remote workers through leases and an accepted frontier under simulated faults, with observability | #40, #41, #42, #43 | distributed-robustness |
+| 24 | ingest planner proposals and reconcile desired against observed state | #56, #57 | planning-reconciliation |
+| 25 | produce immutable releases, signed distribution, backup/restore/migration, and adversarial security qualification | #64, #65, #66, #67 | release-qualification |
+| 26 | mirror the Atom backlog into GitHub Project 9 during bootstrap | #70 | bootstrap-mirror |
 
 The Atoms column uses only an issue-reference list: one `#N` or comma-separated `#N, #N`
-reference per Atom. Aliases, decimal forms, and other text are not issue references.
+reference per Atom. Aliases, decimal forms, and other text are not issue references. The Witness
+column is one id, `[a-z][a-z0-9-]*`, unique across rows, that
+[`scripts/mission-witness.sh`](../../scripts/mission-witness.sh) knows: `--list` prints every
+witness as `implemented` or `pending #N`, where #N is an Atom of that row with no closure record
+yet. A witness must be implemented before its last Atom closes; until then it exits 3 and can
+produce no evidence. #69 is the only Atom no row cites: its record is where the witnesses' logs
+live, and `scripts/check-mission-acceptance.sh` requires every other Atom to be cited.
 
 ### Waived human-judgment metrics
 
@@ -75,9 +94,13 @@ skipped human judgement can never be mistaken for one that obtained it. Waiving 
 could produce is a contract defect.
 
 `scripts/check-mission-acceptance.sh` asserts that every issue number in the Atoms column exists,
-and `scripts/check-mission-stop-condition.sh` asserts — for the stop condition — that each
-referenced Atom has a validating closure record, printing the unsatisfied rows otherwise. The stop
-condition itself is one sentence, in [`agent-runbook.md`](agent-runbook.md) section 3.
+that every issue but #69 is cited, that the Witness column and `scripts/mission-witness.sh
+--list` name the same witnesses, and that no witness is still pending on an Atom that has a
+closure record. `scripts/check-mission-stop-condition.sh` asserts — for the stop
+condition — that each referenced Atom has a validating closure record and that #69's record
+carries each row's witness as a verifier whose command is `bash scripts/mission-witness.sh
+<witness>`, printing the unsatisfied rows otherwise. The stop condition itself is one sentence, in
+[`agent-runbook.md`](agent-runbook.md) section 3.
 
 ## Engineering constraints
 

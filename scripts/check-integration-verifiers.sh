@@ -44,10 +44,28 @@ while IFS= read -r member; do
     fail=1
     continue
   fi
-  first=${command%% *}
-  first=${first%%;*}
-  if ! printf '%s' "$first" | grep -qE '^[a-z][a-z0-9_.-]*$'; then
-    echo "FAIL: $id does not begin with an executable command word: $command"
+  # One rule for what counts as a command, shared with closure_validation.py: a shell word, a
+  # pinned tool, or a repository-relative path that exists here. `every scripts/check-*.sh` and
+  # `true` are not commands under it.
+  if ! problem=$(PYTHONPATH="orchestration/src${PYTHONPATH:+:$PYTHONPATH}" python3 - "$command" <<'PY'
+import sys
+from pathlib import Path
+
+from gordian_orchestration.closure_validation import executable_command_problem
+
+
+def read(relative):
+    path = Path(relative)
+    return path.read_bytes() if path.is_file() else None
+
+
+problem = executable_command_problem(sys.argv[1], read)
+if problem is not None:
+    print(problem)
+    raise SystemExit(1)
+PY
+  ); then
+    echo "FAIL: $id: ${problem:-command rule could not be evaluated}: $command"
     fail=1
   fi
   while IFS= read -r job; do

@@ -661,5 +661,6 @@ The definition of done is the normative Mission acceptance table in
 is [`agent-runbook.md`](agent-runbook.md) section 3. This document does not restate them; two
 divergent prose lists is what this revision removes.
 
-Until every row of that table resolves to a validating closure record, Gordian is an increasingly
-rigorous experiment, not a completed autonomous development system.
+Until every row of that table resolves to a validating closure record and #69's record carries
+every row's witness — a green, state-bound run of `bash scripts/mission-witness.sh <witness>` —
+Gordian is an increasingly rigorous experiment, not a completed autonomous development system.

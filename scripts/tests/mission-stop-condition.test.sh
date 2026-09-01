@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # check-mission-stop-condition.sh: waivers are metric metadata, not Atom exemptions. Every
-# referenced Atom needs a fully validating closure record, and #69 must propagate waiver lines.
+# referenced Atom needs a fully validating closure record, #69 must propagate waiver lines, and
+# #69 must carry every row's witness as a verifier bound to `bash scripts/mission-witness.sh <id>`.
 set -euo pipefail
 # shellcheck source=scripts/tests/harness.sh
 # shellcheck disable=SC1091
@@ -21,19 +22,27 @@ make_plan() {
 
 ## Mission acceptance
 
-| # | Acceptance item | Atoms |
-| --- | --- | --- |
-| 1 | ontology evidence | #50 |
-| 2 | correction evidence | #54 |
+| # | Acceptance item | Atoms | Witness |
+| --- | --- | --- | --- |
+| 1 | ontology evidence | #50 | ontology-evidence |
+| 2 | correction evidence | #54 | correction-evidence |
 
 ### Waived human metrics
 
 $waiver50
 $waiver54
 EOF
+  # The Atom verifier is a script committed in the candidate, so the record's command names an
+  # executable that exists at the subject state (the closure validator's command rule).
+  mkdir -p "$1/scripts"
+  printf '#!/usr/bin/env bash\nprintf "canonical verifier output\\n"\n' > "$1/scripts/check.sh"
+  chmod +x "$1/scripts/check.sh"
   (cd "$1" && jj git init --colocate >/dev/null && jj commit -m candidate >/dev/null)
 }
 
+# write_record FIXTURE ATOM LIMITATIONS_JSON [ARTIFACT_PATH] [DIGEST] [EXIT_CODE] [WITNESS...]
+# Each WITNESS adds a verifier `<id>` bound to `bash scripts/mission-witness.sh <id>`; the form
+# `<id>:<command>` binds it to another command instead, to show that the id alone is not enough.
 write_record() {
   fixture="$1"
   atom="$2"
@@ -48,7 +57,7 @@ write_record() {
 $(cd "$fixture" && jj log -r @- -n 1 --no-graph -T 'commit_id ++ " " ++ change_id')
 EOF
   # The shape scripts/capture-verifier.sh writes; an unbound log is not evidence.
-  printf 'subject_exact_state_id=%s\ncommand=true\ncanonical verifier output\nexit_code=0\n' \
+  printf 'subject_exact_state_id=%s\ncommand=scripts/check.sh\ncanonical verifier output\nexit_code=0\n' \
     "$exact" > "$artifact"
   actual_digest="$(python3 - "$artifact" <<'PY'
 import hashlib
@@ -59,11 +68,40 @@ PY
   if [ -z "$digest_override" ]; then
     digest_override="$actual_digest"
   fi
-  python3 - "$record" "$atom" "$limitations_json" "$path_override" "$digest_override" "$exit_code" "$exact" "$logical" <<'PY'
+  python3 - "$fixture" "$record" "$atom" "$limitations_json" "$path_override" "$digest_override" "$exit_code" "$exact" "$logical" "${@:7}" <<'PY'
+import hashlib
 import json
 import sys
+from pathlib import Path
 
-record, atom, limitations, artifact_path, digest, exit_code, exact, logical = sys.argv[1:]
+fixture, record, atom, limitations, artifact_path, digest, exit_code, exact, logical = sys.argv[1:10]
+verifiers = [{
+    "verifier_id": "check",
+    "command": "scripts/check.sh",
+    "exit_code": int(exit_code),
+    "artifact_path": artifact_path,
+    "artifact_sha256": digest,
+    "subject_exact_state_id": exact,
+}]
+for spec in sys.argv[10:]:
+    witness, _, command = spec.partition(":")
+    command = command or f"bash scripts/mission-witness.sh {witness}"
+    log_path = f"artifacts/atoms/{atom}/verifiers/{witness}.log"
+    log_bytes = (
+        f"subject_exact_state_id={exact}\ncommand={command}\nOK: witness {witness} holds\n"
+        "exit_code=0\n"
+    ).encode()
+    log_file = Path(fixture) / log_path
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file.write_bytes(log_bytes)
+    verifiers.append({
+        "verifier_id": witness,
+        "command": command,
+        "exit_code": 0,
+        "artifact_path": log_path,
+        "artifact_sha256": hashlib.sha256(log_bytes).hexdigest(),
+        "subject_exact_state_id": exact,
+    })
 payload = {
     "record_format": "gordian-closure-v1",
     "atom_id": atom,
@@ -71,14 +109,7 @@ payload = {
     "actor": {"id": "gordian-agent/codex/mission-stop-test", "kind": "agent"},
     "exact_state_id": exact,
     "logical_change_id": logical,
-    "verifiers": [{
-        "verifier_id": "check",
-        "command": "true",
-        "exit_code": int(exit_code),
-        "artifact_path": artifact_path,
-        "artifact_sha256": digest,
-        "subject_exact_state_id": exact,
-    }],
+    "verifiers": verifiers,
     "benchmarks": [],
     "knowledge_graph_node_ids": [],
     "known_limitations": json.loads(limitations),
@@ -135,17 +166,57 @@ write_record "$preclose" 50 "[]"
 write_record "$preclose" 54 "[]"
 expect_status_contains 0 "PRE-CLOSE" "preclose permits only absent #69 after all row closures pass" \
   bash "$checker" --preclose 69 "$preclose"
-expect_status_contains nonzero "no closure record" "final gate still requires #69" \
+expect_status_contains 0 "'bash scripts/mission-witness.sh <witness>': ontology-evidence, correction-evidence" \
+  "preclose lists the witnesses #69 must carry, in row order" \
+  bash "$checker" --preclose 69 "$preclose"
+expect_status_contains nonzero "witness ontology-evidence: #69 has no closure record to carry it" \
+  "final gate still requires #69, which carries the witnesses" \
   bash "$checker" --gate "$preclose"
+expect_status_contains 0 "witness correction-evidence: #69 has no closure record to carry it" \
+  "bare mode reports the unresolved witnesses and exits 0" \
+  bash "$checker" "$preclose"
 
 canonical="$(new_fixture "${schema[@]}")"
 make_plan "$canonical"
 limits="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$waiver50" "$waiver54")"
 write_record "$canonical" 50 "[]"
 write_record "$canonical" 54 "[]"
-write_record "$canonical" 69 "$limits"
+write_record "$canonical" 69 "$limits" "" "" 0 ontology-evidence correction-evidence
 expect_status_contains 0 "OK: the Mission stop condition holds" "canonical records and exact waiver propagation pass" \
   bash "$checker" --gate "$canonical"
+expect_status_contains 0 "#69 carries their 2 witnesses" "the passing verdict counts the witnesses" \
+  bash "$checker" --gate "$canonical"
+
+no_witness="$(new_fixture "${schema[@]}")"
+make_plan "$no_witness"
+write_record "$no_witness" 50 "[]"
+write_record "$no_witness" 54 "[]"
+write_record "$no_witness" 69 "$limits"
+expect_status_contains nonzero "witness ontology-evidence: #69's record has no verifier 'ontology-evidence' with command 'bash scripts/mission-witness.sh ontology-evidence'" \
+  "closed Atoms without the row's witness in #69 leave the row unsatisfied" \
+  bash "$checker" --gate "$no_witness"
+expect_status_contains nonzero "UNSATISFIED  row 2: correction evidence" \
+  "every row without its witness is named" \
+  bash "$checker" --gate "$no_witness"
+
+one_witness="$(new_fixture "${schema[@]}")"
+make_plan "$one_witness"
+write_record "$one_witness" 50 "[]"
+write_record "$one_witness" 54 "[]"
+write_record "$one_witness" 69 "$limits" "" "" 0 ontology-evidence
+expect_status_contains nonzero "Mission incomplete: 1 of 2 acceptance rows unsatisfied" \
+  "a row whose witness #69 carries resolves; the other does not" \
+  bash "$checker" --gate "$one_witness"
+
+wrong_command="$(new_fixture "${schema[@]}")"
+make_plan "$wrong_command"
+write_record "$wrong_command" 50 "[]"
+write_record "$wrong_command" 54 "[]"
+write_record "$wrong_command" 69 "$limits" "" "" 0 \
+  "ontology-evidence:bash scripts/mission-witness.sh --list" correction-evidence
+expect_status_contains nonzero "witness ontology-evidence: #69's record has no verifier 'ontology-evidence' with command" \
+  "a verifier with the witness id but another command is not the witness" \
+  bash "$checker" --gate "$wrong_command"
 
 valid_list="$(new_fixture "${schema[@]}")"
 make_plan "$valid_list"
@@ -153,12 +224,16 @@ python3 - "$valid_list/docs/implementation/project-plan.md" <<'PY'
 import sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
-text = text.replace("| 1 | ontology evidence | #50 |", "| 1 | ontology evidence | #50, #54 |", 1)
+text = text.replace(
+    "| 1 | ontology evidence | #50 | ontology-evidence |",
+    "| 1 | ontology evidence | #50, #54 | ontology-evidence |",
+    1,
+)
 open(path, "w", encoding="utf-8").write(text)
 PY
 write_record "$valid_list" 50 "[]"
 write_record "$valid_list" 54 "[]"
-write_record "$valid_list" 69 "$limits"
+write_record "$valid_list" 69 "$limits" "" "" 0 ontology-evidence correction-evidence
 expect_status_contains 0 "OK: the Mission stop condition holds" \
   "documented comma-separated Atom list syntax is accepted" \
   bash "$checker" --gate "$valid_list"
@@ -167,7 +242,8 @@ propagation="$(new_fixture "${schema[@]}")"
 make_plan "$propagation"
 write_record "$propagation" 50 "[]"
 write_record "$propagation" 54 "[]"
-write_record "$propagation" 69 "$(python3 -c 'import json; print(json.dumps([]))')"
+write_record "$propagation" 69 "$(python3 -c 'import json; print(json.dumps([]))')" "" "" 0 \
+  ontology-evidence correction-evidence
 expect_status_contains nonzero "missing waiver line verbatim" "missing #69 waiver propagation fails" \
   bash "$checker" --gate "$propagation"
 
@@ -225,7 +301,8 @@ printf '%s\n' 'unresolved_human_metric: #999 — invented metric — no machine 
 expect_status_contains nonzero "not in the table" "waiver for an Atom absent from the table fails" \
   bash "$checker" "$out_of_table"
 
-for invalid_table in atom_alias atom_residue atom_decimal atom_text row_duplicate row_gap atom_duplicate; do
+for invalid_table in atom_alias atom_residue atom_decimal atom_text row_duplicate row_gap atom_duplicate \
+  three_cells witness_invalid witness_duplicate cites_69; do
   invalid="$(new_fixture "${schema[@]}")"
   make_plan "$invalid"
   case "$invalid_table" in
@@ -244,7 +321,7 @@ PY
 import sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
-text = text.replace("| 1 | ontology evidence | #50 |", "| 1 | ontology evidence | #50foo |", 1)
+text = text.replace("| ontology evidence | #50 |", "| ontology evidence | #50foo |", 1)
 open(path, "w", encoding="utf-8").write(text)
 PY
       expected="invalid Atom reference list"
@@ -254,7 +331,7 @@ PY
 import sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
-text = text.replace("| 1 | ontology evidence | #50 |", "| 1 | ontology evidence | #50.0 |", 1)
+text = text.replace("| ontology evidence | #50 |", "| ontology evidence | #50.0 |", 1)
 open(path, "w", encoding="utf-8").write(text)
 PY
       expected="invalid Atom reference list"
@@ -264,7 +341,7 @@ PY
 import sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
-text = text.replace("| 1 | ontology evidence | #50 |", "| 1 | ontology evidence | all atoms |", 1)
+text = text.replace("| ontology evidence | #50 |", "| ontology evidence | all atoms |", 1)
 open(path, "w", encoding="utf-8").write(text)
 PY
       expected="invalid Atom reference list"
@@ -294,10 +371,50 @@ PY
 import sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
-text = text.replace("| 1 | ontology evidence | #50 |", "| 1 | ontology evidence | #50, #50 |", 1)
+text = text.replace("| ontology evidence | #50 |", "| ontology evidence | #50, #50 |", 1)
 open(path, "w", encoding="utf-8").write(text)
 PY
       expected="repeats an Atom"
+      ;;
+    three_cells)
+      python3 - "$invalid/docs/implementation/project-plan.md" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+text = text.replace("| #50 | ontology-evidence |", "| #50 |", 1)
+open(path, "w", encoding="utf-8").write(text)
+PY
+      expected="expected 4"
+      ;;
+    witness_invalid)
+      python3 - "$invalid/docs/implementation/project-plan.md" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+text = text.replace("| ontology-evidence |", "| Ontology_Evidence |", 1)
+open(path, "w", encoding="utf-8").write(text)
+PY
+      expected="invalid witness id"
+      ;;
+    witness_duplicate)
+      python3 - "$invalid/docs/implementation/project-plan.md" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+text = text.replace("| correction-evidence |", "| ontology-evidence |", 1)
+open(path, "w", encoding="utf-8").write(text)
+PY
+      expected="reuses witness"
+      ;;
+    cites_69)
+      python3 - "$invalid/docs/implementation/project-plan.md" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+text = text.replace("| #50 | ontology-evidence |", "| #50, #69 | ontology-evidence |", 1)
+open(path, "w", encoding="utf-8").write(text)
+PY
+      expected="cannot witness itself"
       ;;
   esac
   expect_status_contains nonzero "$expected" "rejects $invalid_table in every gate input" \

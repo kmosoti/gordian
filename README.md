@@ -333,6 +333,8 @@ intended to replace that workflow.
 
 Closing a GitHub issue is bookkeeping. An Atom is closed when
 [`artifacts/schema/closure-record.schema.json`](artifacts/schema/closure-record.schema.json)
-validates its `artifacts/atoms/<N>/closure.json`.
+validates its `artifacts/atoms/<N>/closure.json`, and every Atom but #69 sits in an acceptance
+row whose `Witness` names the demonstration in `scripts/mission-witness.sh` that its closure
+must make runnable.
 
 The first Initiative is deliberately **Foundation and Falsification**: stabilize the toolchain and CI, build the benchmark corpus and reference algorithms, and make the research corpus mechanically auditable. Only #2, #3, #4, #8, #71, and #72 gate the Mission Graph kernel; Jujutsu qualification, benchmark gates, the verification pilot, conformance testing, and the acquisition layers run concurrently with it and are consumed where `execution-order.md` section 5 says they are.

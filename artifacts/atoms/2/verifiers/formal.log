@@ -1,7 +1,0 @@
-subject_exact_state_id=da6a8c34282791ccf6654c6f181c4e5869b5d51b
-command=scripts/verify-local.sh formal
-OK: runtime toolchain matches repository pins (lean)
-Build completed successfully (14 jobs).
-Gordian axiom audit checked 254 theorems
-verifier:formal OK — build, leanchecker, and allowlisted axiom audit passed
-exit_code=0

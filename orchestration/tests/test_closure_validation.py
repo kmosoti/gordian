@@ -8,17 +8,21 @@ import unittest
 from pathlib import Path
 
 from gordian_orchestration.closure_validation import (
+    SourceBinding,
     attempt_problems,
     closure_problems,
     evidence_binding_problems,
     evidence_header,
+    executable_command_problem,
     parse_rfc3339,
     schema_problems,
     validate,
 )
 
 EXACT = "7b11ee451248e8ee0d3d0cbb8188e56984ec8464"
-BOUND_ARTIFACT = evidence_header(EXACT, "true") + b"canonical verifier output\nexit_code=0\n"
+LOGICAL = "orunzpqurynwmyvmzyqlqpzwmxwvpzmz"
+COMMAND = "cargo test --locked"
+BOUND_ARTIFACT = evidence_header(EXACT, COMMAND) + b"canonical verifier output\nexit_code=0\n"
 
 VERIFIER_SCHEMA = {
     "type": "object",
@@ -46,7 +50,7 @@ class ClosureEvidenceTests(unittest.TestCase):
         artifact = BOUND_ARTIFACT
         verifier = {
             "verifier_id": "check",
-            "command": "true",
+            "command": COMMAND,
             "exit_code": 0,
             "artifact_path": "artifacts/atoms/42/verifiers/check.log",
             "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
@@ -133,7 +137,7 @@ class ClosureEvidenceTests(unittest.TestCase):
         self.assertIn(f"artifact line 1 must be subject_exact_state_id={EXACT}", problems[0])
 
     def test_an_artifact_bound_to_another_state_is_not_evidence(self):
-        foreign = evidence_header("f" * 40, "true") + b"canonical verifier output\n"
+        foreign = evidence_header("f" * 40, COMMAND) + b"canonical verifier output\n"
         payload, _ = self._payload(
             verifier={"artifact_sha256": hashlib.sha256(foreign).hexdigest()}
         )
@@ -142,29 +146,29 @@ class ClosureEvidenceTests(unittest.TestCase):
         self.assertIn("artifact line 1 must be", problems[0])
 
     def test_an_artifact_bound_to_another_command_is_not_evidence(self):
-        foreign = evidence_header(EXACT, "true; rm -rf x") + b"canonical verifier output\n"
+        foreign = evidence_header(EXACT, COMMAND + "; rm -rf x") + b"canonical verifier output\n"
         payload, _ = self._payload(
             verifier={"artifact_sha256": hashlib.sha256(foreign).hexdigest()}
         )
         problems, _ = self._problems(payload, artifact=foreign)
         self.assertEqual(len(problems), 1)
-        self.assertIn("artifact line 2 must be command=true; found", problems[0])
+        self.assertIn(f"artifact line 2 must be command={COMMAND}; found", problems[0])
 
     def test_header_prefix_is_not_enough(self):
         # The subject line must be exactly the id: a longer id or a missing newline fails.
         for artifact in (
-            f"subject_exact_state_id={EXACT}0\ncommand=true\n".encode(),
+            f"subject_exact_state_id={EXACT}0\ncommand={COMMAND}\n".encode(),
             f"subject_exact_state_id={EXACT}".encode(),
-            f"subject_exact_state_id={EXACT}\ncommand=truex\n".encode(),
-            f"subject_exact_state_id={EXACT}\ncommand=true".encode(),
+            f"subject_exact_state_id={EXACT}\ncommand={COMMAND}x\n".encode(),
+            f"subject_exact_state_id={EXACT}\ncommand={COMMAND}".encode(),
         ):
             with self.subTest(artifact=artifact):
-                self.assertTrue(evidence_binding_problems(artifact, EXACT, "true"))
-        self.assertEqual(evidence_binding_problems(BOUND_ARTIFACT, EXACT, "true"), [])
+                self.assertTrue(evidence_binding_problems(artifact, EXACT, COMMAND))
+        self.assertEqual(evidence_binding_problems(BOUND_ARTIFACT, EXACT, COMMAND), [])
 
     def test_unbindable_exact_state_cannot_be_evidenced(self):
-        self.assertTrue(evidence_binding_problems(BOUND_ARTIFACT, "abc", "true"))
-        self.assertTrue(evidence_binding_problems(BOUND_ARTIFACT, None, "true"))
+        self.assertTrue(evidence_binding_problems(BOUND_ARTIFACT, "abc", COMMAND))
+        self.assertTrue(evidence_binding_problems(BOUND_ARTIFACT, None, COMMAND))
 
     def test_one_artifact_cannot_witness_two_verifiers(self):
         payload, artifact = self._payload()
@@ -179,7 +183,7 @@ class ClosureEvidenceTests(unittest.TestCase):
         )
 
     def test_a_multi_line_command_cannot_be_bound(self):
-        for command in ("true\nfalse", "true\r\nfalse", "true\n"):
+        for command in (COMMAND + "\nfalse", COMMAND + "\r\nfalse", COMMAND + "\n"):
             with self.subTest(command=command):
                 payload, _ = self._payload(verifier={"command": command})
                 problems, reads = self._problems(payload)
@@ -187,6 +191,104 @@ class ClosureEvidenceTests(unittest.TestCase):
                     any("must not contain line breaks" in problem for problem in problems)
                 )
                 self.assertEqual(reads, [])
+
+    def test_prose_is_not_a_command(self):
+        # Atom #1's record: a description of what was verified, bound as if it were the
+        # command that verified it.  Nothing a shell could run, so no artifact is read.
+        for command in (
+            "contract positive, injected-negative, and manifest-write-failure paths",
+            "fresh exact-state workspace; pinned Python package setup",
+            "true",
+            ":",
+            "echo verified",
+            "FOO=bar",
+            "/usr/bin/cargo test",
+            "../scripts/check.sh",
+            "scripts//check.sh",
+            "scripts/./check.sh",
+        ):
+            with self.subTest(command=command):
+                payload, _ = self._payload(verifier={"command": command})
+                problems, reads = self._problems(payload)
+                self.assertTrue(
+                    any("command must start with" in problem or "only assignments" in problem
+                        for problem in problems),
+                    problems,
+                )
+                self.assertEqual(reads, [])
+
+    def test_pinned_tools_shell_words_and_repository_scripts_are_commands(self):
+        scripts = {"scripts/verify-local.sh": b"#!/usr/bin/env bash\n"}
+        for command in (
+            "cargo test --locked",
+            "PYTHONPATH=orchestration/src python3.14 -m gordian_orchestration.github_project",
+            "for s in scripts/check-*.sh; do bash \"$s\"; done",
+            "cd formal && lake build",
+            "! cargo test",
+            "[ -f manifest.json ]",
+            "scripts/verify-local.sh all",
+            "./scripts/verify-local.sh all",
+            "GORDIAN_LOG_ROOT=/tmp/logs A=1 bash scripts/verify-local.sh all",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(executable_command_problem(command, scripts.get))
+        # Existence is only checked when a reader is given: schema-only callers still
+        # reject prose without a repository to look in.
+        self.assertIsNone(executable_command_problem("scripts/absent.sh", None))
+        self.assertIn(
+            "does not exist at the subject state",
+            executable_command_problem("scripts/absent.sh", scripts.get),
+        )
+
+    def test_a_script_must_exist_at_the_subject_state_not_the_bookkeeping_state(self):
+        # The bookkeeping change that carries the record may add a script; the verifier
+        # ran at the subject state, where it has to exist.
+        script = "scripts/check.sh"
+        artifact = evidence_header(EXACT, script) + b"canonical verifier output\nexit_code=0\n"
+        verifier = {
+            "verifier_id": "check",
+            "command": script,
+            "exit_code": 0,
+            "artifact_path": "artifacts/atoms/42/verifiers/check.log",
+            "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
+            "subject_exact_state_id": EXACT,
+        }
+        payload = {
+            "atom_id": "42",
+            "exact_state_id": EXACT,
+            "logical_change_id": LOGICAL,
+            "verifiers": [verifier],
+        }
+        record_bytes = json.dumps(payload).encode()
+        bookkeeping = {
+            "artifacts/atoms/42/closure.json": record_bytes,
+            "artifacts/atoms/42/verifiers/check.log": artifact,
+            script: b"#!/usr/bin/env bash\n",
+        }
+        subject_with, subject_without = {script: b"#!/usr/bin/env bash\n"}, {}
+
+        def problems_with(subject):
+            return closure_problems(
+                payload,
+                VERIFIER_SCHEMA,
+                label="closure.json",
+                expected_atom="42",
+                record_path="artifacts/atoms/42/closure.json",
+                read_artifact=bookkeeping.get,
+                resolve_source=lambda *_: SourceBinding(
+                    EXACT, LOGICAL, bookkeeping.get, True, True, subject.get
+                ),
+                source_binding_required=True,
+            )
+
+        self.assertEqual(problems_with(subject_with), [])
+        self.assertEqual(
+            problems_with(subject_without),
+            [
+                "closure.json.verifiers[0]: command starts with 'scripts/check.sh', which "
+                "does not exist at the subject state"
+            ],
+        )
 
     def test_missing_or_mismatched_artifact_fails(self):
         payload, artifact = self._payload()

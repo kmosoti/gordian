@@ -412,7 +412,7 @@ class BootstrapSatisfactionTests(unittest.TestCase):
         self.assertEqual(unevidenced, (1,))
 
     def test_exact_accepted_atom_closure_and_digest_satisfy(self) -> None:
-        artifact = evidence_header(self.EXACT, "true") + b"actual\n"
+        artifact = evidence_header(self.EXACT, "cargo test --locked") + b"actual\n"
         schema = {
             "required": ["atom_id", "logical_change_id", "exact_state_id", "verifiers"],
             "properties": {
@@ -439,7 +439,7 @@ class BootstrapSatisfactionTests(unittest.TestCase):
                     "artifact_path": "artifacts/atoms/1/verifiers/check.log",
                     "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
                     "verifier_id": "check",
-                    "command": "true",
+                    "command": "cargo test --locked",
                     "exit_code": 0,
                     "subject_exact_state_id": self.EXACT,
                 }
@@ -460,7 +460,7 @@ class BootstrapSatisfactionTests(unittest.TestCase):
         self.assertEqual(unevidenced, ())
 
     def test_adversarial_verifier_records_do_not_satisfy_readiness(self) -> None:
-        artifact = evidence_header(self.EXACT, "true") + b"actual\n"
+        artifact = evidence_header(self.EXACT, "cargo test --locked") + b"actual\n"
         schema = {
             "required": ["atom_id", "logical_change_id", "exact_state_id", "verifiers"],
             "properties": {
@@ -480,7 +480,7 @@ class BootstrapSatisfactionTests(unittest.TestCase):
         }
         verifier = {
             "verifier_id": "check",
-            "command": "true",
+            "command": "cargo test --locked",
             "exit_code": 0,
             "artifact_path": "artifacts/atoms/1/verifiers/check.log",
             "artifact_sha256": hashlib.sha256(artifact).hexdigest(),

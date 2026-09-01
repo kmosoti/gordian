@@ -47,6 +47,27 @@ _LINE_BREAK = re.compile(r"[\r\n]")
 EVIDENCE_SUBJECT_KEY = "subject_exact_state_id"
 EVIDENCE_COMMAND_KEY = "command"
 
+# A verifier's command is what a shell ran at the subject state, and the artifact header
+# repeats it verbatim.  Atom #1 recorded "contract positive, injected-negative, and
+# manifest-write-failure paths; committed manifest; ..." as a command: a description of
+# a run, not a run, and the checker bound it because any non-empty string binds.  The
+# first word after optional NAME=value assignments must therefore be a shell word that
+# opens a compound command, an interpreter or a tool the repository pins
+# (scripts/check-toolchain.sh, scripts/verify-local.sh), or a repository-relative path
+# that exists at the subject state.  Deterministic on purpose: it never consults PATH,
+# so a workspace and CI agree on what counts, and `true`, `:` and `echo` are absent
+# because they verify nothing.
+_COMMAND_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=\S*$")
+_SHELL_COMPOUND_WORDS = frozenset((
+    "for", "while", "until", "if", "case", "(", "{", "!", "time", "cd", "set", "export",
+    "eval", "exec", "test", "[", "[[", ".", "source",
+))
+_PINNED_TOOL_WORDS = frozenset((
+    "bash", "sh", "env", "cargo", "cargo-deny", "rustc", "rustfmt", "lake", "lean",
+    "leanchecker", "elan", "python", "python3", "python3.14", "ruff", "shellcheck", "jj",
+    "gh",
+))
+
 
 @dataclass(frozen=True, slots=True)
 class SourceBinding:
@@ -57,6 +78,9 @@ class SourceBinding:
     read: BytesReader
     in_trunk: bool
     before_bookkeeping: bool
+    # Reads the subject state itself (where the verifiers ran); ``read`` serves the
+    # bookkeeping state that carries the record.  ``None`` falls back to ``read``.
+    read_subject: BytesReader | None = None
 
 
 def jj_source_resolver(repository_root: Path, trunk_commit: str) -> JJResolver:
@@ -127,19 +151,23 @@ def jj_source_resolver(repository_root: Path, trunk_commit: str) -> JJResolver:
             return None
         if before.returncode != 0 or before.stdout.strip() != bookkeeping[0]:
             return None
-        def read(path: str) -> bytes | None:
-            try:
-                result = subprocess.run(
-                    [
-                        "jj", "file", "show", "-r", bookkeeping[0],
-                        "--ignore-working-copy", "--", path,
-                    ],
-                    cwd=repository_root, check=False, capture_output=True, timeout=30,
-                )
-            except (OSError, subprocess.SubprocessError):
-                return None
-            return result.stdout if result.returncode == 0 else None
-        return SourceBinding(exact, logical, read, True, True)
+        def reader_for(revision: str) -> BytesReader:
+            def read(path: str) -> bytes | None:
+                try:
+                    result = subprocess.run(
+                        [
+                            "jj", "file", "show", "-r", revision,
+                            "--ignore-working-copy", "--", path,
+                        ],
+                        cwd=repository_root, check=False, capture_output=True, timeout=30,
+                    )
+                except (OSError, subprocess.SubprocessError):
+                    return None
+                return result.stdout if result.returncode == 0 else None
+            return read
+        return SourceBinding(
+            exact, logical, reader_for(bookkeeping[0]), True, True, reader_for(exact)
+        )
     return resolve
 
 
@@ -148,6 +176,37 @@ def evidence_header(exact_state: str, command: str) -> bytes:
     return (
         f"{EVIDENCE_SUBJECT_KEY}={exact_state}\n{EVIDENCE_COMMAND_KEY}={command}\n"
     ).encode()
+
+
+def executable_command_problem(command: str, read_subject: BytesReader | None) -> str | None:
+    """Say why ``command`` is not something a shell can run at the subject state.
+
+    ``None`` means the first word after any ``NAME=value`` assignments is a shell word
+    that opens a compound command, a pinned tool, or a normalized repository-relative
+    path that ``read_subject`` can read.  Existence is not checked when no reader is
+    given, so schema-only callers still reject prose without touching a repository.
+    """
+    words = command.split()
+    while words and _COMMAND_ASSIGNMENT.fullmatch(words[0]) is not None:
+        del words[0]
+    if not words:
+        return "command names no executable, only assignments"
+    word = words[0]
+    if word in _SHELL_COMPOUND_WORDS or word in _PINNED_TOOL_WORDS:
+        return None
+    if "/" not in word:
+        return (
+            f"command must start with an executable; {word!r} is not a pinned tool, a "
+            "shell word, or a repository-relative path"
+        )
+    if word.startswith("/"):
+        return f"command must start with a repository-relative path, not {word!r}"
+    relative = word[2:] if word.startswith("./") else word
+    if any(part in ("", ".", "..") for part in relative.split("/")):
+        return f"command must start with a normalized repository-relative path, not {word!r}"
+    if read_subject is not None and read_subject(relative) is None:
+        return f"command starts with {word!r}, which does not exist at the subject state"
+    return None
 
 
 def evidence_binding_problems(artifact: bytes, exact_state: Any, command: str) -> list[str]:
@@ -400,8 +459,10 @@ def closure_problems(
                 problems.append(f"{label}: exact state does not precede closure bookkeeping")
 
     artifact_reader = read_artifact
+    subject_reader = read_artifact
     if binding is not None:
         artifact_reader = binding.read
+        subject_reader = binding.read_subject or binding.read
         if record_path is None:
             problems.append(f"{label}: source binding requires the canonical record path")
         elif record_path != f"artifacts/atoms/{expected_atom}/closure.json":
@@ -472,6 +533,11 @@ def closure_problems(
             problems.append(
                 f"{label}.verifiers[{position}]: command must not contain line breaks"
             )
+        else:
+            executable_problem = executable_command_problem(command, subject_reader)
+            if executable_problem is not None:
+                command_is_bindable = False
+                problems.append(f"{label}.verifiers[{position}]: {executable_problem}")
 
         exit_code = verifier.get("exit_code")
         exit_code_is_zero = type(exit_code) is int and exit_code == 0

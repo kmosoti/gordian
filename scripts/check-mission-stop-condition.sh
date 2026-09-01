@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # Evaluate the Mission stop condition and print the unsatisfied rows.
 #
+# A row of the Mission acceptance table is satisfied when every Atom it cites has a validating
+# closure record AND #69's closure record carries the row's witness: a verifier whose id is the
+# row's Witness cell and whose command is exactly `bash scripts/mission-witness.sh <witness>`.
+# The closure validator has already bound that verifier's log to #69's exact state and to that
+# command, so its presence in a validating record is a green run of the row's demonstration.
+#
 # The stop condition is a query in its bare form: an incomplete Mission is reported and exits 0.
 # --gate is the final completion gate.  --preclose 69 is the coordinator's one permitted
-# preclose check while the #69 closure record is written last.
+# preclose check while the #69 closure record is written last: rows are judged on their Atoms,
+# and the witnesses #69 must carry are listed.
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "$0")" && pwd -P)"
@@ -75,7 +82,7 @@ if [ ! -f "$runbook" ]; then
   echo "FAIL: $runbook is missing; the stop condition has no runbook definition." >&2
   exit 1
 fi
-sentence='The Mission loop terminates when artifacts/atoms/69/closure.json validates against the closure schema and every row of the Mission acceptance table resolves to a validating closure record.'
+sentence='The Mission loop terminates when artifacts/atoms/69/closure.json validates against the closure schema and carries every row'"'"'s witness, and every row of the Mission acceptance table resolves to a validating closure record.'
 runbook_sentence="$(tr '\n' ' ' < "$runbook" | sed -E 's/[[:space:]]+/ /g')"
 if ! grep -qF "$sentence" <<<"$runbook_sentence"; then
   echo "FAIL: $runbook does not state the stop condition verbatim" >&2
@@ -163,17 +170,20 @@ if section is None:
     raise SystemExit(1)
 
 
-rows: list[tuple[int, str, list[int]]] = []
+rows: list[tuple[int, str, list[int], str]] = []
 atom_list_pattern = re.compile(r"#[1-9][0-9]*(?:, #[1-9][0-9]*)*")
+witness_pattern = re.compile(r"[a-z][a-z0-9-]*")
+WITNESS_RUNNER = "scripts/mission-witness.sh"
+MISSION_RECORD = 69
 for line_number, line in enumerate(section.splitlines(), start=1):
     if not line.startswith("|"):
         continue
     cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
     if cells and cells[0] in {"#", "---"}:
         continue
-    if len(cells) != 3:
+    if len(cells) != 4:
         table_problems.append(
-            f"Mission acceptance line {line_number} has {len(cells)} cells; expected 3"
+            f"Mission acceptance line {line_number} has {len(cells)} cells; expected 4"
         )
         continue
     if not cells[0].isdigit():
@@ -202,12 +212,26 @@ for line_number, line in enumerate(section.splitlines(), start=1):
         table_problems.append(
             f"Mission acceptance line {line_number} repeats an Atom reference"
         )
-    rows.append((int(cells[0]), cells[1], atoms))
+    witness = cells[3]
+    if witness_pattern.fullmatch(witness) is None:
+        table_problems.append(
+            f"Mission acceptance line {line_number} has invalid witness id {witness!r}; "
+            "expected [a-z][a-z0-9-]*"
+        )
+    rows.append((int(cells[0]), cells[1], atoms, witness))
 
 if not rows:
     table_problems.append("the Mission acceptance table has no rows")
 
-row_numbers = [number for number, _, _ in rows]
+witness_rows: dict[str, int] = {}
+for number, _, _, witness in rows:
+    if witness in witness_rows:
+        table_problems.append(
+            f"row {number} reuses witness {witness!r} of row {witness_rows[witness]}"
+        )
+    witness_rows.setdefault(witness, number)
+
+row_numbers = [number for number, _, _, _ in rows]
 if len(row_numbers) != len(set(row_numbers)):
     table_problems.append("Mission acceptance row numbers must be unique")
 expected_row_numbers = list(range(1, len(rows) + 1))
@@ -217,12 +241,17 @@ if row_numbers != expected_row_numbers:
         f"(found {row_numbers!r})"
     )
 
-for number, item, atoms in rows:
+for number, item, atoms, _ in rows:
     if not atoms:
         table_problems.append(f"row {number} ({item}) names no Atom")
     for atom in atoms:
         if atom < 1:
             table_problems.append(f"row {number} names a non-issue id #{atom}")
+        if atom == MISSION_RECORD:
+            table_problems.append(
+                f"row {number} cites #{MISSION_RECORD}, whose record carries the witnesses; "
+                "it cannot witness itself"
+            )
 
 
 # The optional GitHub snapshot is deliberately not an authority for the stop condition.  If
@@ -234,7 +263,7 @@ for number, item, atoms in rows:
 # A waiver is metadata about one human metric. It is intentionally never consulted when deciding
 # whether an Atom or an acceptance row has a closure record.
 waiver_lines: list[str] = []
-table_atoms = {atom for _, _, atoms in rows for atom in atoms if atom > 0}
+table_atoms = {atom for _, _, atoms, _ in rows for atom in atoms if atom > 0}
 waiver_pattern = re.compile(r"^unresolved_human_metric: (#([0-9]+)) — ([^—]+) — ([^—]+)$")
 plan_lines = plan_text.splitlines()
 waiver_metrics: dict[str, int] = {}
@@ -349,22 +378,57 @@ if structural_problems:
     raise SystemExit(1)
 
 
+mission_record_path = root / "artifacts/atoms/69/closure.json"
+mission_record = records.get(MISSION_RECORD)
+mission_missing = mission_record is None
+
+
+def recorded_witnesses() -> set[str]:
+    """Witness ids #69's validating record carries with the exact runner command.
+
+    The validator has bound each verifier's artifact to #69's exact state and to this command,
+    so an id here is a green run of `bash scripts/mission-witness.sh <id>` at that state.
+    """
+    if mission_record is None:
+        return set()
+    found: set[str] = set()
+    for verifier in mission_record.get("verifiers", []):
+        if not isinstance(verifier, dict):
+            continue
+        witness = verifier.get("verifier_id")
+        if (
+            isinstance(witness, str)
+            and verifier.get("command") == f"bash {WITNESS_RUNNER} {witness}"
+        ):
+            found.add(witness)
+    return found
+
+
+witnesses_recorded = recorded_witnesses()
+
+
 def missing_rows() -> list[tuple[int, str, list[str]]]:
     unsatisfied: list[tuple[int, str, list[str]]] = []
-    for number, item, atoms in rows:
+    for number, item, atoms, witness in rows:
         reasons: list[str] = []
         for atom in atoms:
             if atom not in records:
                 reasons.append(f"#{atom}: no closure record at artifacts/atoms/{atom}/closure.json")
+        # In preclose mode #69 is being written; its witnesses are listed below, not counted.
+        if mode != "preclose" and witness not in witnesses_recorded:
+            if mission_missing:
+                reasons.append(f"witness {witness}: #69 has no closure record to carry it")
+            else:
+                reasons.append(
+                    f"witness {witness}: #69's record has no verifier {witness!r} with command "
+                    f"'bash {WITNESS_RUNNER} {witness}'"
+                )
         if reasons:
             unsatisfied.append((number, item, reasons))
     return unsatisfied
 
 
 unsatisfied = missing_rows()
-mission_record_path = root / "artifacts/atoms/69/closure.json"
-mission_record = records.get(69)
-mission_missing = mission_record is None
 
 if mission_missing and mode != "preclose":
     print(
@@ -375,6 +439,10 @@ elif mission_missing:
     print(
         "PRE-CLOSE    #69 closure record is absent (permitted only for --preclose 69; "
         "waiver propagation will be checked when it is written)"
+    )
+    print(
+        "PRE-CLOSE    #69 must carry one verifier per row, id = witness, command = "
+        f"'bash {WITNESS_RUNNER} <witness>': " + ", ".join(witness for _, _, _, witness in rows)
     )
 elif waiver_lines:
     limitations = mission_record.get("known_limitations")
@@ -411,12 +479,15 @@ if unsatisfied:
 
 if mission_missing:
     print(
-        f"Mission incomplete: all {len(rows)} acceptance rows resolve, but #69 has no closure "
-        "record."
+        f"Mission incomplete: all {len(rows)} acceptance rows resolve at the Atom level, but #69 "
+        "has no closure record to carry their witnesses."
     )
     raise SystemExit(1 if mode == "gate" else 0)
 
 note = f" ({len(waiver_lines)} human metric waiver(s) recorded)" if waiver_lines else ""
-print(f"OK: the Mission stop condition holds; all {len(rows)} rows resolve.{note}")
+print(
+    f"OK: the Mission stop condition holds; all {len(rows)} rows resolve and #69 carries "
+    f"their {len(rows)} witnesses.{note}"
+)
 raise SystemExit(0)
 PY

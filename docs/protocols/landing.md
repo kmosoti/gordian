@@ -108,12 +108,21 @@ is a `stage` ref, and never becomes the frontier.
 verifiers**, not GitHub Actions job names:
 
 ```text
-verifier:rust-check        cargo fmt --check; cargo clippy -D warnings; cargo test --locked
-verifier:kg-audit          cargo run --locked -p gordian-kg -- validate; ... -- audit --strict
-verifier:formal            lake build; leanchecker; axiom-audit
-verifier:python            ruff; python -m compileall; python -m unittest
-verifier:spec-consistency  every scripts/check-*.sh
+verifier:rust-check        scripts/verify-local.sh rust-check
+verifier:kg-audit          scripts/verify-local.sh kg-audit
+verifier:formal            scripts/verify-local.sh formal
+verifier:python            scripts/verify-local.sh python
+verifier:spec-consistency  scripts/verify-local.sh spec-consistency
 ```
+
+Each command is the string a closure record's `verifiers[].command` carries and the string the
+workflow step runs, so the list, the record, and CI cannot drift apart by abbreviation. The
+groups expand inside `scripts/verify-local.sh`: `rust-check` is `cargo fmt --check`, `cargo
+clippy -D warnings`, `cargo test --locked`, and `cargo deny check`; `kg-audit` is `cargo run -p
+gordian-kg -- validate` and `-- audit --strict`; `formal` is `lake build`, `leanchecker`, and the
+axiom audit through `scripts/verify-formal.sh --self-test`; `python` is `ruff`, `compileall`, and
+`unittest`; `spec-consistency` is every `scripts/check-*.sh`, `shellcheck`, and shell/Python
+syntax checks.
 
 Each runs through `verify(state, manifest)` against `I.exact_state_id` in an isolated workspace at
 step 0, before step 1, and each produces an `Evidence` record bound to that exact state. A
@@ -135,8 +144,9 @@ genuinely wants an external runner can fetch the staged ref and report back as a
 external verifier, still before step 1.
 
 `scripts/check-integration-verifiers.sh` asserts that every member of
-`project_integration_verifiers` names an adapter-executable command and that no member is a
-workflow job name.
+`project_integration_verifiers` names an adapter-executable command — under the same rule the
+closure validator applies to `verifiers[].command`: a shell word, a pinned tool, or a
+repository-relative path that exists — and that no member is a workflow job name.
 
 ## 4. Pull requests
 
