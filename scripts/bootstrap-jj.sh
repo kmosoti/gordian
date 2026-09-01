@@ -106,6 +106,17 @@ EOF
   fi
 fi
 
+# An actor identity is required before Jujutsu will create a commit: without it,
+# `jj git push` refuses with "no author and/or committer set", which is how CI's
+# specification-consistency job failed while every local run passed. Only set it when
+# absent, so a developer's own identity is never overwritten.
+if ! jj config get user.name >/dev/null 2>&1; then
+  jj config set --repo user.name "${GORDIAN_ACTOR:-gordian-agent/ci/unattended}"
+fi
+if ! jj config get user.email >/dev/null 2>&1; then
+  jj config set --repo user.email "${GORDIAN_ACTOR_EMAIL:-agents@gordian.invalid}"
+fi
+
 # Current Jujutsu stores repository-scoped configuration outside tracked source.
 jj config set --repo git.fetch "[\"$remote_name\"]"
 jj config set --repo git.push "$remote_name"
