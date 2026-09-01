@@ -161,7 +161,7 @@ gordian-project-sync reconcile --check
 gordian-project-sync reconcile --report artifacts/project-9-reconciliation.json
 ```
 
-`GORDIAN_GH_TOKEN` is copied to `GH_TOKEN` for every `gh` subprocess and therefore overrides both
+`GH_TOKEN` is copied to `GH_TOKEN` for every `gh` subprocess and therefore overrides both
 possible `hosts.yml` locations. The preflight responses, not the credential's label or storage
 location, establish whether it has the required repository and Project capabilities. Interactive
 credential changes are outside the unattended loop because they are not deterministic across

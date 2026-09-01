@@ -113,7 +113,7 @@ gordian-project-sync reconcile --check
 gordian-project-sync reconcile --report artifacts/project-9-reconciliation.json
 ```
 
-**Deterministic non-interactive authorization.** Supply `GORDIAN_GH_TOKEN` through the environment
+**Deterministic non-interactive authorization.** Supply `GH_TOKEN` through the environment
 and never commit it. Every orchestrator copies that value to `GH_TOKEN` for its `gh` subprocesses,
 so neither possible `hosts.yml` location can silently select a different credential:
 
@@ -124,7 +124,7 @@ gordian-project-sync reconcile --check
 
 The preflight responses are authoritative for the authenticated identity, repository-write
 permission, and Project read/write capability. **G-522 is assigned to #70**, which makes a
-configuration failure name `GORDIAN_GH_TOKEN` and exit 78 rather than changing credentials inside
+configuration failure name `GH_TOKEN` and exit 78 rather than changing credentials inside
 the loop.
 
 The command:
@@ -214,9 +214,9 @@ four fields is `gordian-derive-status`, the `gordian_orchestration.derive_status
 `orchestration/src/gordian_orchestration/` (G-504, G-516):
 
 ```bash
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready              # the ready set
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status derive --compare-board
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status derive --apply     # write Project 9
+GH_TOKEN="$GH_TOKEN" gordian-derive-status ready              # the ready set
+GH_TOKEN="$GH_TOKEN" gordian-derive-status derive --compare-board
+GH_TOKEN="$GH_TOKEN" gordian-derive-status derive --apply     # write Project 9
 ```
 
 It reads edges from the native `blockedBy` connection only and validates pagination against its

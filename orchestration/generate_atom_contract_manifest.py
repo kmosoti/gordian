@@ -344,7 +344,7 @@ semantic[70] = [
     section_replacement(
         70,
         "Acceptance",
-        """- Preflight maps @@GORDIAN_GH_TOKEN -> GH_TOKEN@@ deterministically, checks identity and required repository/Project capabilities, and reports a configuration failure when the variable is unavailable. The loop never invokes interactive @@gh auth login@@ or @@gh auth refresh@@; those commands remain outside the loop because browser/configuration state is nondeterministic.
+        """- Preflight maps @@GH_TOKEN -> GH_TOKEN@@ deterministically, checks identity and required repository/Project capabilities, and reports a configuration failure when the variable is unavailable. The loop never invokes interactive @@gh auth login@@ or @@gh auth refresh@@; those commands remain outside the loop because browser/configuration state is nondeterministic.
 - Add every repository issue to user project 9 idempotently with @@gh project item-add 9 --owner kmosoti --url <issue-url>@@.
 - Reconcile rather than blindly append: list project items, detect missing/duplicate/archive cases, and emit a machine-readable report.
 - Preserve issue URLs/numbers as stable external identities.

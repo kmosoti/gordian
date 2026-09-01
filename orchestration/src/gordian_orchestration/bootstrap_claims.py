@@ -313,14 +313,11 @@ def _safe_reason(reason: str) -> str:
     if any(ord(char) < 0x20 and char not in "\t" for char in reason):
         raise ValueError("claim event reason contains a control character")
     # A caller can accidentally paste either credential spelling into a reason.
-    # Redact both the explicit orchestration credential and the child-process
-    # override before the value can enter a commit message, comment, or result.
-    redacted = reason
-    for variable in ("GORDIAN_GH_TOKEN", "GH_TOKEN"):
-        token = os.environ.get(variable, "")
-        if token:
-            redacted = redacted.replace(token, "<redacted>")
-    return redacted
+    # Redact the credential before its value can enter a commit message, comment, or
+    # result. Redaction is by value, not by name, so anything the token happens to equal
+    # is scrubbed wherever it appears in the reason.
+    token = os.environ.get("GH_TOKEN", "")
+    return reason.replace(token, "<redacted>") if token else reason
 
 
 def _canonical_json(value: dict[str, Any]) -> str:

@@ -4,8 +4,8 @@ Orchestration only. Nothing here interprets issue state, Project state, or depen
 edges as Mission Graph evidence; callers own that reading and Rust owns the semantics.
 
 Authentication is non-interactive by design. Preflight requires the process-local
-``GORDIAN_GH_TOKEN`` credential and copies it to ``GH_TOKEN`` for every child ``gh`` process.
-It never falls back to a token in the environment or to the ``gh`` credential store. No token
+``GH_TOKEN`` credential and passes it explicitly to every child ``gh`` process.
+It never falls back to the ``gh`` credential store. No token
 is committed, reported, or printed, and no interactive authentication command is ever invoked.
 """
 
@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Any
 
 GH_AUTH_HINT = (
-    "Unattended GitHub authentication requires a non-empty GORDIAN_GH_TOKEN; ambient GH_TOKEN "
+    "Unattended GitHub authentication requires a non-empty GH_TOKEN; ambient GH_TOKEN "
     "and the gh credential store are not used. It is copied to GH_TOKEN for every gh "
     "subprocess. Preflight requires an authenticated identity, repository write access, and "
     "Project 9 read/write API access. Repair credentials interactively outside an unattended "
@@ -83,12 +83,18 @@ def _redact_token(message: str, token: str) -> str:
 
 
 def _require_token() -> str:
-    """Return the sole supported credential, rejecting all ambient fallbacks."""
-    token = os.environ.get("GORDIAN_GH_TOKEN", "")
+    """Return the sole supported credential.
+
+    GH_TOKEN must be provided by the caller and non-empty. The gh credential store is
+    never consulted from inside the loop, and `gh auth login`/`refresh` are never invoked:
+    an unattended run must fail on a missing credential rather than block on a browser.
+    Provision it once, outside the loop — see agent-runbook.md section 6.1.
+    """
+    token = os.environ.get("GH_TOKEN", "")
     if not token.strip():
         raise GitHubConfigurationError(
-            "GitHub authentication is unavailable: GORDIAN_GH_TOKEN must be set to a "
-            "non-empty token; ambient GH_TOKEN and the gh credential store are not used"
+            "GitHub authentication is unavailable: GH_TOKEN must be set to a "
+            "non-empty token; the gh credential store is not consulted"
         )
     return token
 
@@ -103,9 +109,9 @@ def _child_environment(token: str) -> dict[str, str]:
 def _run_process(arguments: Sequence[str]) -> subprocess.CompletedProcess[str]:
     """Run ``gh`` with the explicit credential and no shell."""
     token = _require_token()
-    # Keep the parent process and every later child on the same explicit credential. This
-    # overwrites an ambient GH_TOKEN, while the child environment also makes the contract
-    # visible at each subprocess boundary rather than relying on inherited process state.
+    # Pin the parent process and every later child to the same credential, and pass it
+    # explicitly at each subprocess boundary rather than relying on inherited state, so a
+    # child can never authenticate as something the caller did not choose.
     os.environ["GH_TOKEN"] = token
     try:
         return subprocess.run(
@@ -173,7 +179,7 @@ def run_gh_response(
     if "--include" not in api_arguments:
         api_arguments.append("--include")
     completed = _run_process(api_arguments)
-    token = os.environ.get("GORDIAN_GH_TOKEN", "")
+    token = os.environ.get("GH_TOKEN", "")
     output = completed.stdout
     try:
         response = _parse_included_response(output)
@@ -213,7 +219,7 @@ def run_gh_json_response(
     try:
         payload = json.loads(response.body)
     except json.JSONDecodeError as error:
-        token = os.environ.get("GORDIAN_GH_TOKEN", "")
+        token = os.environ.get("GH_TOKEN", "")
         detail = _redact_token(str(error), token)
         raise RuntimeError(f"GitHub API returned invalid JSON: {detail}") from error
     return payload, response
@@ -229,7 +235,7 @@ def run_gh(arguments: Sequence[str]) -> str:
     """Run the GitHub CLI without a shell and return stdout.
 
     The raised error preserves stderr while avoiding command-string interpolation, and
-    never echoes the environment, so a token in `GORDIAN_GH_TOKEN` cannot leak into a report.
+    never echoes the environment, so a token in `GH_TOKEN` cannot leak into a report.
     """
     token = _require_token()
     completed = _run_process(arguments)
@@ -246,7 +252,7 @@ def run_gh_json(arguments: Sequence[str]) -> Any:
     try:
         return json.loads(output)
     except json.JSONDecodeError as error:
-        token = os.environ.get("GORDIAN_GH_TOKEN", "")
+        token = os.environ.get("GH_TOKEN", "")
         detail = _redact_token(str(error), token)
         raise RuntimeError(f"GitHub CLI returned invalid JSON: {detail}") from error
 
@@ -262,7 +268,7 @@ def graphql(query: str, variables: dict[str, str | int] | None = None) -> Any:
         raise RuntimeError("unexpected `gh api graphql` response shape")
     errors = payload.get("errors")
     if errors:
-        token = os.environ.get("GORDIAN_GH_TOKEN", "")
+        token = os.environ.get("GH_TOKEN", "")
         detail = _redact_token(json.dumps(errors), token)
         raise RuntimeError(f"GitHub GraphQL error: {detail}")
     data = payload.get("data")
@@ -291,7 +297,7 @@ def preflight(
 ) -> PreflightReport:
     """Fail closed unless the configured GitHub credential has bootstrap capabilities.
 
-    ``GORDIAN_GH_TOKEN`` is the only accepted credential. It is installed into this process
+    ``GH_TOKEN`` is the only accepted credential. It is installed into this process
     environment and explicitly passed to every ``gh`` subprocess. No interactive login or
     scope-widening command is ever invoked.
     """
@@ -363,7 +369,7 @@ def preflight(
     return PreflightReport(
         login=user["login"],
         capabilities=BOOTSTRAP_CAPABILITIES,
-        credential_source="GORDIAN_GH_TOKEN",
+        credential_source="GH_TOKEN",
         repository=repository,
         project_owner=project_owner,
         project_number=project_number,

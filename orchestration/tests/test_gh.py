@@ -25,8 +25,7 @@ class RunGhTests(unittest.TestCase):
             patch.dict(
                 "os.environ",
                 {
-                    "GORDIAN_GH_TOKEN": TOKEN,
-                    "GH_TOKEN": "ambient-token",
+                    "GH_TOKEN": TOKEN,
                     "GH_CONFIG_DIR": "/tmp/ambient-gh-config",
                 },
                 clear=True,
@@ -42,7 +41,7 @@ class RunGhTests(unittest.TestCase):
 
     def test_failure_preserves_stderr_and_names_the_command(self) -> None:
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(1, "", "HTTP 403")),
             self.assertRaises(RuntimeError) as raised,
         ):
@@ -53,7 +52,7 @@ class RunGhTests(unittest.TestCase):
 
     def test_failure_without_stderr_still_reports(self) -> None:
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(1)),
             self.assertRaises(RuntimeError) as raised,
         ):
@@ -63,7 +62,7 @@ class RunGhTests(unittest.TestCase):
     def test_failure_redacts_explicit_token_from_diagnostic(self) -> None:
         secret = "diagnostic-secret"
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": secret}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": secret}, clear=True),
             patch(
                 "subprocess.run",
                 return_value=_completed(1, stderr=f"token {secret} was rejected"),
@@ -77,7 +76,7 @@ class RunGhTests(unittest.TestCase):
 
     def test_json_decoding_failure_is_explicit(self) -> None:
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(0, "not json")),
             self.assertRaises(RuntimeError) as raised,
         ):
@@ -95,7 +94,7 @@ class StructuredApiResponseTests(unittest.TestCase):
             '{"ref":"refs/heads/gordian-claim-log"}'
         )
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(0, output)) as runner,
         ):
             response = gh.run_gh_response(
@@ -114,7 +113,7 @@ class StructuredApiResponseTests(unittest.TestCase):
             '{"message":"Reference update failed"}'
         )
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(1, output)),
         ):
             response = gh.run_gh_response(
@@ -130,7 +129,7 @@ class StructuredApiResponseTests(unittest.TestCase):
             "\r\n"
         )
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(0, output)),
             self.assertRaises(gh.GitHubApiError) as raised,
         ):
@@ -148,7 +147,7 @@ class StructuredApiResponseTests(unittest.TestCase):
             '{"message":"forbidden"}'
         )
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(1, output)),
             self.assertRaises(gh.GitHubApiError) as raised,
         ):
@@ -190,7 +189,7 @@ class GraphqlTests(unittest.TestCase):
     def test_variables_are_typed_by_flag(self) -> None:
         payload = '{"data": {"repository": {"name": "gordian"}}}'
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(0, payload)) as runner,
         ):
             data = gh.graphql("query{x}", {"owner": "kmosoti", "number": 9})
@@ -203,7 +202,7 @@ class GraphqlTests(unittest.TestCase):
     def test_graphql_errors_are_raised_not_returned(self) -> None:
         payload = '{"data": null, "errors": [{"message": "Field does not exist"}]}'
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(0, payload)),
             self.assertRaises(RuntimeError) as raised,
         ):
@@ -212,7 +211,7 @@ class GraphqlTests(unittest.TestCase):
 
     def test_missing_data_object_is_an_error(self) -> None:
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": TOKEN}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": TOKEN}, clear=True),
             patch("subprocess.run", return_value=_completed(0, "{}")),
             self.assertRaises(RuntimeError),
         ):
@@ -220,17 +219,17 @@ class GraphqlTests(unittest.TestCase):
 
 
 class PreflightTests(unittest.TestCase):
-    def test_stored_gh_credential_is_rejected_without_explicit_token(self) -> None:
+    def test_credential_store_is_not_consulted(self) -> None:
         with (
             patch.dict(
                 "os.environ",
-                {"GH_TOKEN": "stored", "GH_CONFIG_DIR": "/tmp/ambient-gh-config"},
+                {"GH_CONFIG_DIR": "/tmp/ambient-gh-config"},
                 clear=True,
             ),
             patch("gordian_orchestration.gh.run_gh") as runner,
             self.assertRaisesRegex(
                 gh.GitHubConfigurationError,
-                "GORDIAN_GH_TOKEN must be set to a non-empty token",
+                "GH_TOKEN must be set to a non-empty token",
             ),
         ):
             gh.preflight()
@@ -253,8 +252,7 @@ class PreflightTests(unittest.TestCase):
             patch.dict(
                 "os.environ",
                 {
-                    "GORDIAN_GH_TOKEN": secret,
-                    "GH_TOKEN": "ambient-token",
+                    "GH_TOKEN": secret,
                     "GH_CONFIG_DIR": "/tmp/ambient-gh-config",
                 },
                 clear=True,
@@ -264,7 +262,7 @@ class PreflightTests(unittest.TestCase):
             report = gh.preflight()
 
         self.assertEqual(report.login, "agent")
-        self.assertEqual(report.credential_source, "GORDIAN_GH_TOKEN")
+        self.assertEqual(report.credential_source, "GH_TOKEN")
         self.assertEqual(runner.call_count, 4)
         for call in runner.call_args_list:
             self.assertEqual(call.kwargs["env"]["GH_TOKEN"], secret)
@@ -276,25 +274,25 @@ class PreflightTests(unittest.TestCase):
                 with (
                     patch.dict(
                         "os.environ",
-                        {"GORDIAN_GH_TOKEN": value, "GH_TOKEN": "ambient-token"},
+                        {"GH_TOKEN": value},
                         clear=True,
                     ),
                     patch("subprocess.run") as runner,
                     self.assertRaisesRegex(
                         gh.GitHubConfigurationError,
-                        "GORDIAN_GH_TOKEN must be set to a non-empty token",
+                        "GH_TOKEN must be set to a non-empty token",
                     ),
                 ):
                     gh.preflight()
                 runner.assert_not_called()
 
-    def test_explicit_token_replaces_ambient_gh_token_without_printing_it(self) -> None:
+    def test_token_is_never_printed(self) -> None:
         secret = "override-secret"
         observed_token = None
         with (
             patch.dict(
                 "os.environ",
-                {"GH_TOKEN": "stored", "GORDIAN_GH_TOKEN": secret},
+                {"GH_TOKEN": secret},
                 clear=True,
             ),
             patch(
@@ -312,7 +310,7 @@ class PreflightTests(unittest.TestCase):
         secret = "override-secret"
         responses = ["authenticated", '{"login":"agent"}', '{"permissions":{"push":true}}']
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": secret}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": secret}, clear=True),
             patch("gordian_orchestration.gh.run_gh", side_effect=responses),
             patch(
                 "gordian_orchestration.gh.graphql",
@@ -324,13 +322,13 @@ class PreflightTests(unittest.TestCase):
             ),
         ):
             report = gh.preflight()
-        self.assertEqual(report.credential_source, "GORDIAN_GH_TOKEN")
+        self.assertEqual(report.credential_source, "GH_TOKEN")
         self.assertNotIn(secret, repr(report))
 
     def test_repository_write_refusal_is_a_configuration_error(self) -> None:
         responses = ["authenticated", '{"login":"agent"}', '{"permissions":{"push":false}}']
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": "stored"}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": "stored"}, clear=True),
             patch("gordian_orchestration.gh.run_gh", side_effect=responses),
             patch("gordian_orchestration.gh.graphql") as project_probe,
             self.assertRaisesRegex(gh.GitHubConfigurationError, "repository write permission"),
@@ -341,7 +339,7 @@ class PreflightTests(unittest.TestCase):
     def test_project_write_refusal_is_a_configuration_error(self) -> None:
         responses = ["authenticated", '{"login":"agent"}', '{"permissions":{"push":true}}']
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": "stored"}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": "stored"}, clear=True),
             patch("gordian_orchestration.gh.run_gh", side_effect=responses),
             patch(
                 "gordian_orchestration.gh.graphql",
@@ -358,7 +356,7 @@ class PreflightTests(unittest.TestCase):
     def test_project_graphql_refusal_is_a_configuration_error(self) -> None:
         responses = ["authenticated", '{"login":"agent"}', '{"permissions":{"push":true}}']
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": "stored"}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": "stored"}, clear=True),
             patch("gordian_orchestration.gh.run_gh", side_effect=responses),
             patch(
                 "gordian_orchestration.gh.graphql",
@@ -369,12 +367,15 @@ class PreflightTests(unittest.TestCase):
             gh.preflight()
 
     def test_no_configured_credential_fails_at_authentication_probe(self) -> None:
+        # No credential at all. Previously this set an "ambient" GH_TOKEN and relied on a
+        # second, bespoke variable being the real one; with a single credential the honest
+        # expression of "no configured credential" is an environment without it.
         with (
-            patch.dict("os.environ", {"GH_TOKEN": "ambient-token"}, clear=True),
+            patch.dict("os.environ", {}, clear=True),
             patch("gordian_orchestration.gh.run_gh") as runner,
             self.assertRaisesRegex(
                 gh.GitHubConfigurationError,
-                "GORDIAN_GH_TOKEN must be set to a non-empty token",
+                "GH_TOKEN must be set to a non-empty token",
             ),
         ):
             gh.preflight()
@@ -382,7 +383,7 @@ class PreflightTests(unittest.TestCase):
 
     def test_probe_failure_is_reclassified_as_configuration(self) -> None:
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": "secret"}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": "secret"}, clear=True),
             patch("gordian_orchestration.gh.run_gh", side_effect=RuntimeError("HTTP 403")),
             self.assertRaisesRegex(gh.GitHubConfigurationError, "HTTP 403"),
         ):
@@ -391,7 +392,7 @@ class PreflightTests(unittest.TestCase):
     def test_preflight_never_invokes_interactive_authentication(self) -> None:
         responses = ["authenticated", '{"login":"agent"}', '{"permissions":{"push":true}}']
         with (
-            patch.dict("os.environ", {"GORDIAN_GH_TOKEN": "stored"}, clear=True),
+            patch.dict("os.environ", {"GH_TOKEN": "stored"}, clear=True),
             patch("gordian_orchestration.gh.run_gh", side_effect=responses) as runner,
             patch(
                 "gordian_orchestration.gh.graphql",

@@ -341,12 +341,16 @@ harnesses; credential provisioning or repair happens before the loop starts.
 
 ```bash
 # One token, supplied by the environment. Scopes required: repo, project, workflow.
-: "${GORDIAN_GH_TOKEN:?set GORDIAN_GH_TOKEN before starting the loop}"
-export GH_TOKEN="$GORDIAN_GH_TOKEN"     # gh and gh api graphql read this
+# Derive the credential from the gh credential store, which is the only place a token
+# actually exists on this machine. An earlier revision required a bespoke
+# credential variable that was never provisioned anywhere, so every unattended run failed
+# preflight on a name no one had ever set. Never require a name nothing supplies.
+export GH_TOKEN="${GH_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+: "${GH_TOKEN:?no GitHub token: run \`gh auth login\` once, interactively, outside the loop}"
 export GORDIAN_LOG_ROOT="${GORDIAN_LOG_ROOT:-${TMPDIR:-/tmp}/gordian-logs}"
 
 # Push credential. The same token authenticates the https remote; no separate secret exists.
-git_askpass="$(mktemp)"; printf '#!/bin/sh\necho "$GORDIAN_GH_TOKEN"\n' > "$git_askpass"
+git_askpass="$(mktemp)"; printf '#!/bin/sh\necho "$GH_TOKEN"\n' > "$git_askpass"
 chmod +x "$git_askpass"; export GIT_ASKPASS="$git_askpass"
 ```
 
@@ -413,9 +417,9 @@ not weaken the closure-record requirement for any ordinary closed Atom.
 scripts/install-toolchains.sh python-package            # once; see 6.6
 # add the printed virtual-environment bin directory to PATH
 
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready --json
-GH_TOKEN="$GORDIAN_GH_TOKEN" gordian-derive-status ready --all      # every open Atom, not only ready
+GH_TOKEN="$GH_TOKEN" gordian-derive-status ready
+GH_TOKEN="$GH_TOKEN" gordian-derive-status ready --json
+GH_TOKEN="$GH_TOKEN" gordian-derive-status ready --all      # every open Atom, not only ready
 ```
 
 Run `gordian-bootstrap preflight` before the loop. A non-zero exit means either an authentication
@@ -849,7 +853,7 @@ gordian-atom-registry new-atom ... --apply
 
 Dry plans (no `--apply`) validate and print the proposed deterministic projections without
 mutating GitHub or repository files. Every `--apply` operation requires live GitHub state, runs
-`gordian-bootstrap preflight` using the required `GORDIAN_GH_TOKEN` to `GH_TOKEN` override, and
+`gordian-bootstrap preflight` using the required `GH_TOKEN` to `GH_TOKEN` override, and
 requires the current actor to hold a live claim for #70. A snapshot cannot be used with an apply
 operation. Section 4's carve-out is what allows #70 itself to be claimed and closed.
 

@@ -93,10 +93,10 @@ python3.14 -m pip install -e './orchestration[dev]'
 ## Authenticating without a human
 
 Every GitHub-backed entry point runs the same fail-closed preflight. An unattended agent must
-provide the non-empty `GORDIAN_GH_TOKEN` environment variable:
+provide the non-empty `GH_TOKEN` environment variable:
 
 ```bash
-export GORDIAN_GH_TOKEN="$CI_GH_TOKEN"
+export GH_TOKEN="$CI_GH_TOKEN"
 gordian-bootstrap preflight
 ```
 
@@ -114,7 +114,7 @@ gordian-project-sync reconcile --check
 ```
 
 This is read-only and does not add Project items. Mutating bootstrap commands run the same
-preflight themselves and exit `78` when `GORDIAN_GH_TOKEN` is absent or lacks one of the required
+preflight themselves and exit `78` when `GH_TOKEN` is absent or lacks one of the required
 capabilities.
 
 ## Temporary GitHub Project projection
@@ -302,7 +302,7 @@ gordian-milestone-contracts sync --apply
 ### Credentials and claims: `gordian-bootstrap`
 
 The bootstrap loop never opens an interactive authentication flow. Its preflight requires
-`GORDIAN_GH_TOKEN`, copies it to `GH_TOKEN` for each `gh` subprocess, and verifies the authenticated
+`GH_TOKEN`, copies it to `GH_TOKEN` for each `gh` subprocess, and verifies the authenticated
 login, repository write permission, and Project 9 read/write API access:
 
 ```bash

@@ -225,7 +225,7 @@ A seven-node adversarial review of this repository found eleven blocking items. 
 
 - **The GitHub plan is applied**: 77 Atoms, 305 native edges, acyclic, 0 body↔graph mismatches,
   77 board items, 77/77 milestones. `check-selfhosting-closure.sh` reports 43 Atoms, no orphan.
-- **Credentials are non-interactive** (`agent-runbook.md` §6.1 *Credentials*): `GORDIAN_GH_TOKEN`,
+- **Credentials are non-interactive** (`agent-runbook.md` §6.1 *Credentials*): `GH_TOKEN`,
   `GIT_ASKPASS`, and four scope probes that exit 78 rather than prompt. `gh auth login` and
   `gh auth refresh` are forbidden inside the loop.
 - **Landing is executable** (`landing.md` §2.1): a bootstrap sequence of concrete `jj` commands

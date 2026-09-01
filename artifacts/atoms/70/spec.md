@@ -20,7 +20,7 @@ None
 None. This Atom operates on the current repository issue corpus, which is an external substrate rather than a prerequisite Atom.
 
 ## Acceptance
-- Verify `gh` authentication **non-interactively**: `GH_TOKEN=$GORDIAN_GH_TOKEN gh auth status` plus the
+- Verify `gh` authentication **non-interactively**: `GH_TOKEN=$GH_TOKEN gh auth status` plus the
   four scope probes of [`agent-runbook.md` section 6.1 *Credentials*](https://github.com/kmosoti/gordian/blob/main/docs/implementation/agent-runbook.md).
   `gh auth login` and `gh auth refresh` are FORBIDDEN — they block on a browser and cannot complete
   unattended. A missing scope exits 78 and is reported, never self-repaired (closes **G-522**).

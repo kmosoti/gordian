@@ -32,7 +32,7 @@ gh_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/gordian-gh-config.XXXXXX")"
 trap 'rm -rf -- "$gh_config_dir"' EXIT
 
 set +e
-message="$({ env -u GORDIAN_GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN \
+message="$({ env -u GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN \
   GH_CONFIG_DIR="$gh_config_dir" PYTHONPATH=orchestration/src \
   python3 -m gordian_orchestration.bootstrap_claims preflight; } 2>&1)"
 code=$?
@@ -42,7 +42,7 @@ if [ "$code" -ne 78 ]; then
   echo "$message"
   exit 1
 fi
-if [[ "$message" != *"GORDIAN_GH_TOKEN must be set to a non-empty token"* ]]; then
+if [[ "$message" != *"GH_TOKEN must be set to a non-empty token"* ]]; then
   echo "FAIL: isolated-credential preflight did not report the required credential"
   echo "$message"
   exit 1

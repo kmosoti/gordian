@@ -339,7 +339,7 @@ single-license repository; `cargo deny check licenses` verifies dependency licen
 
 GitHub issues and Project 9 are temporary external projections while Gordian builds its native planning substrate. The **native `blocked by` graph is authoritative** for dependencies; the `## Dependencies` prose in an issue body is a mirror with no authority. The milestone is authoritative for Initiative membership. `Wave`, `Fan In`, `Fan Out`, `Status = Blocked` and `Status = Ready` are derived projections, never inputs, and are written only by `gordian-derive-status derive --apply`; `In Progress`, `In Review`, and `Accepted` are claim facts the runbook's loop asserts and the derivation never overwrites. No board cell is read back as authority — see [`docs/implementation/issue-index.md`](docs/implementation/issue-index.md) and [`docs/implementation/agent-runbook.md`](docs/implementation/agent-runbook.md) section 6.9.
 
-Board and issue mutations use the process-injected `GORDIAN_GH_TOKEN`, copied to `GH_TOKEN` for
+Board and issue mutations use the process-injected `GH_TOKEN`, copied to `GH_TOKEN` for
 every `gh` subprocess so ambient config files cannot select a different credential. Never commit
 the token. The implemented preflight is authoritative for identity, repository-write permission,
 and Project read/write capability; do not infer those facts from a token label or config file.

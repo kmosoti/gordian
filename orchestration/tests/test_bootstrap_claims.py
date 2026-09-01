@@ -62,7 +62,7 @@ AUTH = PreflightReport(
         "project_read",
         "project_write",
     ),
-    credential_source="GORDIAN_GH_TOKEN",
+    credential_source="GH_TOKEN",
     repository="kmosoti/gordian",
     project_owner="kmosoti",
     project_number=9,
@@ -145,10 +145,10 @@ def _append_result(lease: ClaimLease, state: ClaimLogState | None = None) -> _Ap
 
 
 class ClaimMessageTests(unittest.TestCase):
-    def test_reason_redacts_both_credential_spellings(self) -> None:
+    def test_reason_redacts_the_credential(self) -> None:
         with patch.dict(
             os.environ,
-            {"GORDIAN_GH_TOKEN": "explicit-secret", "GH_TOKEN": "child-secret"},
+            {"GH_TOKEN": "explicit-secret"},
             clear=True,
         ):
             event = _event_object(
@@ -158,15 +158,15 @@ class ClaimMessageTests(unittest.TestCase):
                 actor=OTHER_ACTOR,
                 login=OTHER_LOGIN,
                 lease_id=LEASE_ID,
-                reason="explicit-secret child-secret",
+                reason="explicit-secret in the reason",
             )
             comment = claims._release_comment(
                 ACTOR,
                 event_id=EVENT_ID,
                 lease_id=LEASE_ID,
-                reason="explicit-secret child-secret",
+                reason="explicit-secret in the reason",
             )
-        self.assertEqual(event["reason"], "<redacted> <redacted>")
+        self.assertEqual(event["reason"], "<redacted> in the reason")
         self.assertNotIn("explicit-secret", comment)
         self.assertNotIn("child-secret", comment)
 
