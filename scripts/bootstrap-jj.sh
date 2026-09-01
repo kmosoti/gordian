@@ -110,11 +110,14 @@ fi
 # `jj git push` refuses with "no author and/or committer set", which is how CI's
 # specification-consistency job failed while every local run passed. Only set it when
 # absent, so a developer's own identity is never overwritten.
+# Scope matters: checker tests create their own repositories in temp fixtures, and a
+# --repo identity does not reach them. When no identity exists at all, set it at --user
+# scope so fixtures inherit it; never overwrite an identity that is already present.
 if ! jj config get user.name >/dev/null 2>&1; then
-  jj config set --repo user.name "${GORDIAN_ACTOR:-gordian-agent/ci/unattended}"
+  jj config set --user user.name "${GORDIAN_ACTOR:-gordian-agent/ci/unattended}"
 fi
 if ! jj config get user.email >/dev/null 2>&1; then
-  jj config set --repo user.email "${GORDIAN_ACTOR_EMAIL:-agents@gordian.invalid}"
+  jj config set --user user.email "${GORDIAN_ACTOR_EMAIL:-agents@gordian.invalid}"
 fi
 
 # Current Jujutsu stores repository-scoped configuration outside tracked source.

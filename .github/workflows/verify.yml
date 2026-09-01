@@ -141,8 +141,12 @@ jobs:
           set -euo pipefail
           bash scripts/bootstrap-jj.sh --install-only
           jj git init --colocate
-          jj config set --repo user.name "gordian-agent/ci/unattended"
-          jj config set --repo user.email "agents@gordian.invalid"
+          # --user, not --repo. The checker tests create their own JJ repositories in
+          # temp fixtures (`jj git init --colocate`), and a --repo identity does not
+          # reach those. Locally this is masked by a developer's own user-level identity,
+          # which is exactly why these two suites passed here and failed in CI.
+          jj config set --user user.name "gordian-agent/ci/unattended"
+          jj config set --user user.email "agents@gordian.invalid"
 
       - name: Run Python verification
         run: scripts/verify-local.sh python
@@ -169,8 +173,12 @@ jobs:
           set -euo pipefail
           bash scripts/bootstrap-jj.sh --install-only
           jj git init --colocate
-          jj config set --repo user.name "gordian-agent/ci/unattended"
-          jj config set --repo user.email "agents@gordian.invalid"
+          # --user, not --repo. The checker tests create their own JJ repositories in
+          # temp fixtures (`jj git init --colocate`), and a --repo identity does not
+          # reach those. Locally this is masked by a developer's own user-level identity,
+          # which is exactly why these two suites passed here and failed in CI.
+          jj config set --user user.name "gordian-agent/ci/unattended"
+          jj config set --user user.email "agents@gordian.invalid"
           bash scripts/bootstrap-jj.sh
 
       - name: Run specification-consistency verification
