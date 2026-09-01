@@ -56,12 +56,25 @@ if [[ "$install" == true ]]; then
     echo "cargo is required for --install" >&2
     exit 1
   }
-  cargo install \
-    --locked \
-    --force \
-    --version "$jj_version" \
-    --bin jj \
-    jj-cli
+  # `--force` recompiles Jujutsu from source every time, which cost roughly 700s of a
+  # 1496s CI pipeline across the three jobs that need it. Skip the build when the pinned
+  # version is already present — from a restored cache, or a previous local run. The
+  # version assertion below still runs unconditionally, so a wrong or stale binary fails
+  # the script rather than being trusted.
+  installed_version=""
+  if command -v jj >/dev/null 2>&1; then
+    installed_version="$(jj --version 2>/dev/null | awk 'NR == 1 { print $2 }')"
+  fi
+  if [[ "$installed_version" == "$jj_version" ]]; then
+    echo "jj $jj_version already present; skipping build"
+  else
+    cargo install \
+      --locked \
+      --force \
+      --version "$jj_version" \
+      --bin jj \
+      jj-cli
+  fi
   hash -r
 fi
 

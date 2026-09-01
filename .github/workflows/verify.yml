@@ -22,6 +22,16 @@ jobs:
     steps:
       # This job intentionally starts without actions/checkout.  It executes the two
       # acquisition blocks from docs/implementation/agent-runbook.md on a clean runner.
+      # `cargo install jj-cli` compiles Jujutsu from source and ran in three jobs:
+      # 261s + 253s + 199s of a 1496s pipeline. The binary depends only on the pin in
+      # scripts/bootstrap-jj.sh, so it is cached on that version and rebuilt only when the
+      # pin moves. bootstrap-jj.sh still verifies the version it finds, so a stale or
+      # wrong-version cache entry fails the run rather than silently passing.
+      - name: Cache Jujutsu binary
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/jj
+          key: jj-${{ runner.os }}-${{ hashFiles('scripts/bootstrap-jj.sh') }}
       - name: Install acquisition prerequisites
         run: |
           set -euo pipefail
@@ -70,11 +80,37 @@ jobs:
 
       # rust-toolchain.toml is the single authoritative pin: this action reads the channel
       # and components from it, so no Rust version literal appears in this workflow.
+      - name: Cache cargo registry and build output
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: cargo-${{ runner.os }}-
+
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
 
+      # 115s to compile a tool whose version lives in one file.
+      - name: Cache cargo-deny
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-${{ hashFiles('.cargo-deny-version') }}
       - name: Install pinned cargo-deny
-        run: cargo install cargo-deny --locked --version "$(cat .cargo-deny-version)"
+        run: |
+          set -euo pipefail
+          want="$(cat .cargo-deny-version)"
+          # A cache hit must still satisfy the pin; never trust the restored binary blindly.
+          if [ -x "$HOME/.cargo/bin/cargo-deny" ] \
+             && cargo-deny --version 2>/dev/null | grep -qF "$want"; then
+            echo "cargo-deny $want restored from cache"
+          else
+            cargo install cargo-deny --locked --version "$want"
+          fi
 
       - name: Run Rust and supply-chain verification
         run: scripts/verify-local.sh rust
@@ -101,6 +137,15 @@ jobs:
           leanchecker: false
           nanoda: false
           axiom-audit: false
+
+      - name: Cache Lean toolchain and build output
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.elan
+            formal/.lake
+          key: lean-${{ runner.os }}-${{ hashFiles('formal/lean-toolchain', 'formal/lake-manifest.json') }}
+          restore-keys: lean-${{ runner.os }}-
 
       - name: Build, replay-check proofs, and audit axioms
         run: scripts/verify-local.sh formal
@@ -134,6 +179,16 @@ jobs:
       # derive_status resolves immutable subjects through Jujutsu, so its tests need a
       # real JJ repository and an actor identity. actions/checkout produces a git
       # checkout with neither, which is why these tests passed locally and failed here.
+      # `cargo install jj-cli` compiles Jujutsu from source and ran in three jobs:
+      # 261s + 253s + 199s of a 1496s pipeline. The binary depends only on the pin in
+      # scripts/bootstrap-jj.sh, so it is cached on that version and rebuilt only when the
+      # pin moves. bootstrap-jj.sh still verifies the version it finds, so a stale or
+      # wrong-version cache entry fails the run rather than silently passing.
+      - name: Cache Jujutsu binary
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/jj
+          key: jj-${{ runner.os }}-${{ hashFiles('scripts/bootstrap-jj.sh') }}
       - name: Bootstrap Jujutsu
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
       - name: Configure Jujutsu
@@ -166,6 +221,16 @@ jobs:
 
       # Closure validation resolves immutable subjects through JJ. Install and configure it
       # from the single pinned bootstrap source; no JJ release literal belongs in this workflow.
+      # `cargo install jj-cli` compiles Jujutsu from source and ran in three jobs:
+      # 261s + 253s + 199s of a 1496s pipeline. The binary depends only on the pin in
+      # scripts/bootstrap-jj.sh, so it is cached on that version and rebuilt only when the
+      # pin moves. bootstrap-jj.sh still verifies the version it finds, so a stale or
+      # wrong-version cache entry fails the run rather than silently passing.
+      - name: Cache Jujutsu binary
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/jj
+          key: jj-${{ runner.os }}-${{ hashFiles('scripts/bootstrap-jj.sh') }}
       - name: Bootstrap Jujutsu
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
       - name: Configure Jujutsu
