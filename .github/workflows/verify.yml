@@ -101,7 +101,7 @@ jobs:
           restore-keys: cargo-${{ runner.os }}-
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
 
       # 115s to compile a tool whose version lives in one file.
       - name: Cache cargo-deny
@@ -199,7 +199,7 @@ jobs:
           path: ~/.cargo/bin/jj
           key: jj-${{ runner.os }}-${{ hashFiles('scripts/bootstrap-jj.sh') }}
       - name: Bootstrap Jujutsu
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
       - name: Configure Jujutsu
         run: |
           set -euo pipefail
@@ -241,7 +241,7 @@ jobs:
           path: ~/.cargo/bin/jj
           key: jj-${{ runner.os }}-${{ hashFiles('scripts/bootstrap-jj.sh') }}
       - name: Bootstrap Jujutsu
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
       - name: Configure Jujutsu
         run: |
           set -euo pipefail
