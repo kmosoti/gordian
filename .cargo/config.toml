@@ -1,0 +1,4 @@
+# Builds and tests leave core 3 free for the evaluator, the recorder and the driving shell
+# (docs/local-test-plan.md, section 2.3).
+[build]
+jobs = 3

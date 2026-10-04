@@ -333,7 +333,233 @@ fn role_of(masks: &[Vec<bool>], site: ServiceId, service: ServiceId) -> Option<R
 /// `(false, false)`. For `DependencyDown` the pair is `(b, b)`, for `Intermittent` `(b, !b)`.
 /// Counting these worlds, with a uniform prior over them, gives the posterior over kinds.
 /// Evidence that refers to a service not in the graph contradicts everything.
+///
+/// Returns exactly what [`consistent_worlds_reference`] returns, in the same order, for every
+/// input; the equivalence is tested, not proved. Complexity is the same as
+/// [`consistent_hypotheses`], whose documentation has the argument: time
+/// `O(s * n * log s + s * (s + e))`, space `O(n + s^2)`.
 pub fn consistent_worlds(
+    public: &PublicInfo,
+    evidence: &[(Instant, Observation)],
+) -> Vec<(Hypothesis, (bool, bool))> {
+    let services = &public.services;
+    let n = services.len();
+    let valid = |id: ServiceId| id.index() < n;
+
+    // Pass 1: reject dangling references, keep only observations that can discriminate, and
+    // collect the (single) drifted configuration hash per service.
+    let mut drift: BTreeMap<ServiceId, u64> = BTreeMap::new();
+    let mut note_drift =
+        |service: ServiceId, hash: u64| -> bool { *drift.entry(service).or_insert(hash) == hash };
+    let mut informative: Vec<(Instant, &Observation)> = Vec::new();
+    for (t, o) in evidence {
+        match o {
+            Observation::Counter { service, value, .. } => {
+                if !valid(*service) {
+                    return Vec::new();
+                }
+                if *value >= HIGH {
+                    informative.push((*t, o));
+                }
+            }
+            Observation::Message {
+                service, text_id, ..
+            } => {
+                if !valid(*service) {
+                    return Vec::new();
+                }
+                match SignalText::from_text_id(*text_id) {
+                    None | Some(SignalText::CheckHealth) => {}
+                    Some(_) => informative.push((*t, o)),
+                }
+            }
+            Observation::Snapshot {
+                service,
+                config_hash,
+            } => {
+                if !valid(*service) {
+                    return Vec::new();
+                }
+                if *config_hash != services[service.index()].config_hash {
+                    if !note_drift(*service, *config_hash) {
+                        return Vec::new();
+                    }
+                    informative.push((*t, o));
+                }
+            }
+            Observation::Probed { probe, result } => {
+                if !valid(probe.target) {
+                    return Vec::new();
+                }
+                if let (ProbeKind::ConfigSnapshot, ProbeResult::ConfigHash(h)) =
+                    (probe.kind, result)
+                    && *h != services[probe.target.index()].config_hash
+                    && !note_drift(probe.target, *h)
+                {
+                    return Vec::new();
+                }
+                informative.push((*t, o));
+            }
+            Observation::Correction { site, .. } => {
+                if !valid(*site) {
+                    return Vec::new();
+                }
+                informative.push((*t, o));
+            }
+        }
+    }
+
+    let masks: Vec<Vec<bool>> = (0..n)
+        .map(|s| dependents_mask(services, ServiceId(s as u32)))
+        .collect();
+
+    let explains = |h: Hypothesis, bits: (bool, bool)| -> bool {
+        // The earliest instant of an `ErrorRate` alarm at `h`'s site among the observations
+        // already passed. `anchored` at observation `i` is "some `j < i` is such an alarm with
+        // `t_j <= t_i`", which is `min t_j <= t_i`; the minimum is kept as the pass goes on, so
+        // no observation is looked at twice. (The reference rescans `informative[..i]` instead.)
+        let mut earliest_anchor: Option<Instant> = None;
+        for (t, o) in informative.iter() {
+            let anchored = earliest_anchor.is_some_and(|a| a <= *t);
+            let ok = match o {
+                Observation::Counter { service, name, .. } => h.is_some_and(|(k, s)| {
+                    role_of(&masks, s, *service).is_some_and(|role| {
+                        counters(k, role).contains(name) && (role == Role::Site || anchored)
+                    })
+                }),
+                Observation::Message {
+                    service, text_id, ..
+                } => match (SignalText::from_text_id(*text_id), h) {
+                    (Some(text), Some((k, s))) => {
+                        role_of(&masks, s, *service).is_some_and(|role| {
+                            messages(k, role).contains(&text) && (role == Role::Site || anchored)
+                        })
+                    }
+                    _ => false,
+                },
+                Observation::Snapshot { service, .. } => {
+                    h == Some((FaultKind::ConfigDrift, *service))
+                }
+                Observation::Probed { probe, result } => {
+                    let start = services[probe.target.index()].config_hash;
+                    let drift_hash = drift
+                        .get(&probe.target)
+                        .copied()
+                        .unwrap_or(start.wrapping_add(1));
+                    probe_result(services, h, bits, drift_hash, *probe) == *result
+                }
+                Observation::Correction { site, resolved } => {
+                    h.is_some_and(|(_, s)| s == *site) == *resolved
+                }
+            };
+            if !ok {
+                return false;
+            }
+            if let (
+                Some((_, site)),
+                Observation::Counter {
+                    service,
+                    name: CounterName::ErrorRate,
+                    ..
+                },
+            ) = (h, o)
+                && *service == site
+                && earliest_anchor.is_none_or(|a| *t < a)
+            {
+                earliest_anchor = Some(*t);
+            }
+        }
+        true
+    };
+
+    let mut worlds = Vec::new();
+    if explains(None, (false, false)) {
+        worlds.push((None, (false, false)));
+    }
+    for site in 0..n {
+        for kind in FaultKind::ALL {
+            let h = Some((kind, ServiceId(site as u32)));
+            let options: &[(bool, bool)] = if kind == ENTANGLED.0 {
+                &[(false, false), (true, true)]
+            } else if kind == ENTANGLED.1 {
+                &[(false, true), (true, false)]
+            } else {
+                &[(false, false)]
+            };
+            for bits in options {
+                if explains(h, *bits) {
+                    worlds.push((h, *bits));
+                }
+            }
+        }
+    }
+    worlds
+}
+
+/// The set of hypotheses the evidence does not contradict, under the public rules.
+///
+/// The semantics of the rules above, computed in time linear in the evidence length for a graph
+/// of bounded size (see Complexity). The true hypothesis of every generated episode is always in
+/// the result for every prefix of its evidence (soundness, tested). Prior records are advisory
+/// and play no part here: a record can be stale.
+///
+/// Order: "no fault" first, then by site, then by kind.
+///
+/// Returns exactly what [`consistent_hypotheses_reference`] returns for every input (tested
+/// against it on generated, adversarial and arbitrary evidence; not proved).
+///
+/// # Complexity
+///
+/// Let `n` be the length of `evidence`, `s` the number of services and `e` the number of
+/// dependency edges (at most `s^2` unless an edge is repeated). The checker considers
+/// `W = 1 + 7s` candidate worlds: no fault, and for each site five kinds, two of them under two
+/// settings of the hidden bits.
+///
+/// - Time `O(s * n * log s + s * (s + e))`: one pass over the evidence to drop uninformative
+///   observations and note drifted hashes (`O(1)` per observation, plus a `log s` map lookup for
+///   snapshots and probes); `s` dependent-set masks at `O(s + e)` each; then one pass
+///   over the informative observations per world, each observation checked in `O(1)` (table
+///   lookups of at most a handful of entries, plus a `log s` drift lookup for probes). A world is
+///   dropped at its first contradiction, so this is an upper bound. With `s <= MAX_SERVICES`,
+///   as in every generated episode, this is linear in `n` with a constant of up to
+///   `W = 85` passes, plus a term in `s` and `e` that does not depend on `n`.
+/// - Space `O(n + s^2)` beyond the input: the informative observations by reference (at most
+///   `n`), the masks (`s^2` booleans), the drift map (`O(s)`), and the result (at most `W`).
+///
+/// The argument for linearity in `n` is in the pass over the informative observations. The
+/// propagation rule asks, for an abnormal observation at a dependent of the world's site, whether
+/// an earlier `ErrorRate` alarm at that site exists with an instant no later than the
+/// observation's own. That is "the smallest instant among earlier site alarms is at most this
+/// one", so the pass keeps that smallest instant in a single variable and answers the question
+/// in `O(1)`. [`consistent_hypotheses_reference`] answers it by rescanning the earlier
+/// observations and is `O(s * n^2)` when the anchor comes late (`DESIGN.md`, section 8).
+pub fn consistent_hypotheses(
+    public: &PublicInfo,
+    evidence: &[(Instant, Observation)],
+) -> Vec<Hypothesis> {
+    let mut out: Vec<Hypothesis> = Vec::new();
+    for (h, _) in consistent_worlds(public, evidence) {
+        if out.last() != Some(&h) {
+            out.push(h);
+        }
+    }
+    out
+}
+
+/// Every (hypothesis, hidden bits) pair that the evidence does not contradict.
+///
+/// For a hypothesis outside the parity pair the bits are irrelevant and reported as
+/// `(false, false)`. For `DependencyDown` the pair is `(b, b)`, for `Intermittent` `(b, !b)`.
+/// Counting these worlds, with a uniform prior over them, gives the posterior over kinds.
+/// Evidence that refers to a service not in the graph contradicts everything.
+///
+/// The oracle for [`consistent_worlds`]: the implementation as it was before the optimization,
+/// kept verbatim and never to be optimized. It answers "is there an earlier `ErrorRate` alarm at
+/// the site?" by rescanning the earlier observations, which is `O(s * n^2)` in time when the
+/// anchor comes late (`DESIGN.md`, section 8). Its output defines what the optimized function
+/// must return. A change to the public rules must be made to both functions; the equivalence
+/// tests then show whether the two still agree.
+pub fn consistent_worlds_reference(
     public: &PublicInfo,
     evidence: &[(Instant, Observation)],
 ) -> Vec<(Hypothesis, (bool, bool))> {
@@ -481,17 +707,21 @@ pub fn consistent_worlds(
 
 /// The set of hypotheses the evidence does not contradict, under the public rules.
 ///
-/// This is the reference semantics of the rules above. The true hypothesis of every generated
-/// episode is always in the result for every prefix of its evidence (soundness, tested).
-/// Prior records are advisory and play no part here: a record can be stale.
+/// This is the reference semantics of the rules above, and the oracle for
+/// [`consistent_hypotheses`]: the function as it was before the optimization, behaviour
+/// unchanged, built on [`consistent_worlds_reference`]. It is quadratic in the evidence length
+/// when the site's anchoring `ErrorRate` comes late (`DESIGN.md`, section 8); do not call it on a
+/// hot path. The true hypothesis of every generated episode is always in the result for every
+/// prefix of its evidence (soundness, tested). Prior records are advisory and play no part here:
+/// a record can be stale.
 ///
 /// Order: "no fault" first, then by site, then by kind.
-pub fn consistent_hypotheses(
+pub fn consistent_hypotheses_reference(
     public: &PublicInfo,
     evidence: &[(Instant, Observation)],
 ) -> Vec<Hypothesis> {
     let mut out: Vec<Hypothesis> = Vec::new();
-    for (h, _) in consistent_worlds(public, evidence) {
+    for (h, _) in consistent_worlds_reference(public, evidence) {
         if out.last() != Some(&h) {
             out.push(h);
         }

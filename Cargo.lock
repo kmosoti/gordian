@@ -264,6 +264,7 @@ dependencies = [
 name = "gordian-world"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "gordian-core",
  "proptest",
  "rand_chacha 0.10.0",

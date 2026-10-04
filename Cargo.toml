@@ -14,6 +14,16 @@ rust-version = "1.98"
 license = "Apache-2.0"
 repository = "https://github.com/kmosoti/gordian"
 
+# The measurement build (docs/local-test-plan.md, section 2.3): `debug = 1` so that stack traces
+# survive, thin LTO and one codegen unit so that the code measured is the code that ships. The
+# `bench` profile inherits from `release`, so `cargo bench` and `cargo build --release` measure
+# the same thing. Changing any of this moves every calibrated cost constant: recalibrate
+# (crates/gordian-components/CALIBRATION.md, section 7).
+[profile.release]
+debug = 1
+lto = "thin"
+codegen-units = 1
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
