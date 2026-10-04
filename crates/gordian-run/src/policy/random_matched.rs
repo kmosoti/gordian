@@ -79,10 +79,11 @@ pub fn rng_seed(episode_seed: u64, arm: &str) -> [u8; 32] {
     let name = arm.bytes().fold(0xCBF2_9CE4_8422_2325u64, |h, b| {
         (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01B3)
     });
-    let mut state = splitmix64(&mut { episode_seed }) ^ name.rotate_left(17);
+    let mut from_seed = episode_seed;
+    let mut state = splitmix64(&mut from_seed) ^ name.rotate_left(17);
     let mut bytes = [0u8; 32];
-    for chunk in bytes.chunks_exact_mut(8) {
-        chunk.copy_from_slice(&splitmix64(&mut state).to_le_bytes());
+    for chunk in bytes.as_chunks_mut::<8>().0 {
+        *chunk = splitmix64(&mut state).to_le_bytes();
     }
     bytes
 }

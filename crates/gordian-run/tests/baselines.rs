@@ -540,6 +540,41 @@ fn the_rule_stalls_on_jointly_decisive_and_never_buys_a_parity_sample() {
     assert!(decided_by_guess > 0, "the fallback guess was never reached");
 }
 
+#[test]
+fn on_jointly_decisive_the_fallback_names_dependency_down_and_is_right_exactly_then() {
+    // The rule stalls (previous test), so every arm ends in the patience fallback, which
+    // declares the first of the tied pair: `DependencyDown`, because ties keep fault-kind order.
+    // It is therefore right on exactly the episodes whose truth is `DependencyDown`, a share set
+    // by the generator and not by any arm.
+    let l = limits();
+    let decide = DecideConfig::default();
+    let (mut down, mut flapping) = (0, 0);
+    for seed in 0..20u64 {
+        let truth_kind = truth_of(&spec(seed, EpisodeClass::JointlyDecisive, &l))
+            .expect("a fault")
+            .0;
+        for policy in [PolicySpec::AllComponents, PolicySpec::HeuristicOnly] {
+            let record = play_built(&policy, seed, EpisodeClass::JointlyDecisive, &decide);
+            assert!(
+                record.verdict.decision_at.unwrap() >= DEFAULT_PATIENCE,
+                "seed {seed}"
+            );
+            assert_eq!(
+                record.verdict.success,
+                truth_kind == FaultKind::DependencyDown,
+                "seed {seed} {:?}",
+                policy.id()
+            );
+        }
+        match truth_kind {
+            FaultKind::DependencyDown => down += 1,
+            FaultKind::Intermittent => flapping += 1,
+            other => panic!("{other:?} in JointlyDecisive"),
+        }
+    }
+    assert!(down > 0 && flapping > 0, "{down} {flapping}");
+}
+
 /// The hypothetical drift hash the rule assumes at `target`, restated from the checker's own
 /// convention for the reference computation.
 fn assumed_drift(

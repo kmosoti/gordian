@@ -75,7 +75,12 @@ pub enum Variant {
 ///
 /// The only way to build one of these policies. Fields are private and the constructor takes no
 /// truth, so a factory can be made anywhere but can only be used by the harness, which holds the
-/// truth.
+/// truth. The policy type it builds is private to this file:
+///
+/// ```compile_fail
+/// // `OraclePolicy` has no public name, so nothing else can construct one from a truth.
+/// use gordian_run::policy::privileged::OraclePolicy;
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct OracleFactory {
     variant: Variant,

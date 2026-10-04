@@ -125,7 +125,7 @@ impl Selector for Pipeline {
     }
 
     fn select(&mut self, _state: &WorkingState, _bill: &Bill) -> Vec<ComponentId> {
-        let due = self.calls % u64::from(self.config.every) == 0;
+        let due = self.calls.is_multiple_of(u64::from(self.config.every));
         self.calls += 1;
         if due {
             self.config.components.clone()
