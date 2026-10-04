@@ -25,7 +25,8 @@ pub mod recorder;
 pub mod results;
 
 pub use harness::{
-    EpisodeRecord, HarnessError, Limits, Measured, StopReason, run_episode, standard_components,
+    EpisodeRecord, HarnessError, Limits, Measured, StopReason, run_episode, run_episode_privileged,
+    standard_components,
 };
 pub use manifest::{EpisodeParams, IsolationSpec, Manifest, RatioTolerance};
-pub use policy::{Policy, PolicyId};
+pub use policy::{Policy, PolicyId, PolicySpec};

@@ -29,6 +29,14 @@ gordian-eval = { path = "../gordian-eval" }
 # drives, and the hypothesis payload decoder.
 # Simpler alternative: none.
 gordian-components = { path = "../gordian-components" }
+# Requirement: the `random_matched` arm draws from a seeded, reproducible ChaCha8 stream (plan
+# section 4 permits rand_chacha for this). The same crate and version the world already uses, so
+# it adds nothing to the lockfile.
+# Simpler alternative: a hand-rolled generator; possible, but gains nothing over a vetted one.
+rand_chacha = "0.10.0"
+# Requirement: the `Rng` and `SeedableRng` traits that rand_chacha's generator implements.
+# Simpler alternative: none; rand_chacha cannot be used without it.
+rand_core = "0.10.1"
 # Requirement: the manifest is read and written as JSON, and the events sample is JSON lines,
 # for the analysis package and for review.
 # Simpler alternative: hand-written JSON; rejected because the manifest schema will grow.

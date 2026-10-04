@@ -5,8 +5,9 @@ mod common;
 use common::*;
 use gordian_core::{ComponentId, Resource};
 use gordian_run::manifest::{EpisodeParams, IsolationSpec, Manifest};
+use gordian_run::policy::decide::DecideConfig;
 use gordian_run::policy::scripted::{ScriptedPolicy, ScriptedStep};
-use gordian_run::policy::{Policy, PolicyId};
+use gordian_run::policy::{Policy, PolicyId, PolicySpec};
 use gordian_run::recorder::{RunError, execute, execute_with, sampled};
 use gordian_world::{Action, EpisodeClass, ProbeKind, ServiceId};
 use serde_json::Value;
@@ -30,7 +31,10 @@ fn manifest(run_id: &str, policy: &str, seeds: u64, rate: f64) -> Manifest {
             .iter()
             .map(|c| (*c, seeds as u32))
             .collect(),
-        policy: PolicyId::new(policy),
+        // The tests that supply their own policies pass an id the registry does not know as the
+        // arm name; the policy field is then irrelevant, and any registered one will do.
+        policy: PolicySpec::from_id(policy).unwrap_or(PolicySpec::HeuristicOnly),
+        decide: DecideConfig::default(),
         limits: limits(),
         episode_params: EpisodeParams::default(),
         trace_sample_rate: rate,
@@ -262,7 +266,10 @@ fn heuristic_only_completes_20_seeds_by_11_classes_and_every_episode_is_scored()
     }
     eprintln!("heuristic_only mean bill_compute {}", compute / 220);
     assert!(compute > 0, "the heuristic was charged");
-    assert_eq!(time, 0, "heuristic_only uses no probe and no declared time");
+    assert!(
+        time > 0,
+        "the shared rule buys probes, and probe latency is billed as Time"
+    );
     // A smoke test of the instrument, not of the policy: some episodes are solved, some not.
     let ok: u32 = per_class.values().map(|(_, ok)| ok).sum();
     assert!(ok > 0 && ok < 220, "{ok}");
@@ -608,12 +615,21 @@ fn an_existing_identical_manifest_json_is_accepted() {
 #[test]
 fn unusable_manifests_and_policies_are_refused_before_anything_runs() {
     let dir = scratch("refused");
-    let mut unknown = manifest("u", "no_such_policy", 2, 0.0);
+    // An id the registry does not know cannot be written into a manifest at all.
+    assert!(PolicySpec::from_id("no_such_policy").is_err());
+    let text = manifest("u", "heuristic_only", 2, 0.0)
+        .canonical_json()
+        .replace(
+            "\"policy\": \"heuristic_only\"",
+            "\"policy\": \"no_such_policy\"",
+        );
+    assert!(serde_json::from_str::<Manifest>(&text).is_err());
+    // A caller-supplied registry that has no such policy is refused before anything runs.
+    let none = |_: &PolicyId| -> Option<Box<dyn Policy>> { None };
     assert!(matches!(
-        execute(&unknown, &dir).unwrap_err(),
+        execute_with(&manifest("u", "heuristic_only", 2, 0.0), &dir, &none).unwrap_err(),
         RunError::UnknownPolicy(_)
     ));
-    unknown.policy = PolicyId::new("heuristic_only");
     let bad = |edit: &dyn Fn(&mut Manifest)| {
         let mut m = manifest("b", "heuristic_only", 3, 0.0);
         edit(&mut m);

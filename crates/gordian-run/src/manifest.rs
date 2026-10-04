@@ -10,7 +10,8 @@
 //! current clean `HEAD`; the other three are recorded, not checked.
 
 use crate::harness::Limits;
-use crate::policy::PolicyId;
+use crate::policy::PolicySpec;
+use crate::policy::decide::DecideConfig;
 use gordian_core::Instant;
 use gordian_world::{EpisodeClass, EpisodeSpec};
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+
+/// What the arm name of a privileged policy must contain, so that every output that carries the
+/// arm says the arm used hidden state.
+pub const PRIVILEGED: &str = "privileged";
 
 /// How the driver isolates the run: the arguments it passes to `scripts/cgroup-run.sh`, and the
 /// wall-clock backstop it passes to `timeout`.
@@ -112,8 +117,15 @@ pub struct Manifest {
     pub seeds: Vec<u64>,
     /// The classes and how many of the seeds each runs, in the order the run executes them.
     pub episode_classes: Vec<(EpisodeClass, u32)>,
-    /// The policy.
-    pub policy: PolicyId,
+    /// The policy and its parameters. A bare id (`"heuristic_only"`) is the policy with its
+    /// defaults, so manifests written before the baselines existed still parse; see
+    /// [`PolicySpec`].
+    pub policy: PolicySpec,
+    /// The parameters of the decision rule every non-privileged arm shares. Not part of the
+    /// policy: arms may differ only in selection. Absent in older manifests, which get the
+    /// defaults they were run with.
+    #[serde(default)]
+    pub decide: DecideConfig,
     /// Hard limits and loop parameters.
     pub limits: Limits,
     /// Episode-generator parameters.
@@ -141,6 +153,14 @@ impl Manifest {
             return Err(format!(
                 "run_id {:?} must be 1 to 100 of letters, digits, '.', '_', '-'",
                 self.run_id
+            ));
+        }
+        self.policy.validate()?;
+        if self.policy.is_privileged() && !self.arm.contains(PRIVILEGED) {
+            return Err(format!(
+                "arm {:?} runs the privileged policy {:?}; its arm name must contain {PRIVILEGED:?}",
+                self.arm,
+                self.policy.id().0
             ));
         }
         if self.seeds.is_empty() {
@@ -229,11 +249,13 @@ impl Manifest {
 
     /// A manifest for `policy` over `seed_count` seeds starting at `seed_start`, running every
     /// episode class on all of them, with the environment captured from the current directory.
+    #[allow(clippy::too_many_arguments)]
     pub fn for_current_environment(
         run_id: &str,
         experiment: &str,
         arm: &str,
-        policy: &PolicyId,
+        policy: &PolicySpec,
+        decide: DecideConfig,
         seed_start: u64,
         seed_count: u32,
         trace_sample_rate: f64,
@@ -254,6 +276,7 @@ impl Manifest {
                 .map(|class| (*class, seed_count))
                 .collect(),
             policy: policy.clone(),
+            decide,
             limits: Limits::default(),
             episode_params: EpisodeParams::default(),
             trace_sample_rate,

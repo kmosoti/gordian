@@ -256,6 +256,8 @@ dependencies = [
  "gordian-core",
  "gordian-eval",
  "gordian-world",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
  "serde",
  "serde_json",
 ]
