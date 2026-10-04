@@ -60,6 +60,21 @@ the experiment does that. No maturity labels (`v0`, `M1`) for research concepts.
 
 ## Git
 
-Work on a branch. Commit messages say what changed and why. Never rewrite history on a branch
+Work on a branch named for its content, short and descriptive: `small-world`, `exp-001-prereg`.
+No tool-generated prefixes. Commit messages say what changed and why. Never rewrite history on a branch
 someone else may hold. Pull requests are not required for every change but are the review path
 for anything touching a frozen experiment.
+
+## Resource usage
+
+The machine is shared with the evaluator and recorder, and a runaway process costs a whole run.
+
+- Launch every arm, baseline, benchmark, and training job through `scripts/cgroup-run.sh`. It
+  enforces CPU and memory limits with cgroups (v2 where present, v1 here) and reports what was
+  used. Never launch a measurement unisolated.
+- Cores 0-2 are for arms, builds, and tests. Core 3 is for the evaluator, the recorder, and the
+  driving shell. Build with `-j 3`.
+- Never build while a measurement run is in progress.
+- One training job at a time, alone, under 6 GB.
+- Keep `artifacts/runs/` git-ignored; sample per-event traces, never keep them wholesale.
+- The full envelope is [`docs/local-test-plan.md`](docs/local-test-plan.md) section 2.
