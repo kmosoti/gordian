@@ -4,6 +4,41 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A5 components — merged after one revision
+
+**Decided.**
+
+- Measured cost, not declared cost, is the charter's `C` in every experiment. Declared costs fit
+  the pooled average within 25% but deviate up to 2× per class and 24× for the verifier on
+  late-anchor streams; a selective policy could be misbilled in its favour. Plan section 5/A4
+  now requires per-call boundary timing in the ledger and the results table.
+- The verifier's quadratic shape is the world checker's, not the component's. Plan item A5b:
+  optimize behind an equivalence test with the current function kept as reference; required
+  before B1.
+- The lookup's `Resource::Memory` per-read charge was removed: `Memory` means resident memory,
+  measured by the runner. Record reads remain charged as Compute.
+
+**Accepted with notes.**
+
+- The heuristic proposes "no fault" on any symptom-free window and is right 100/100 on `NoFault`.
+  That is a property of the physics (every fault permits silence), not skill. Analyses must
+  read `NoFault` success together with the critical-miss rate on faulted classes.
+- Prior records outside `StaleMemory` are right about 1 time in 5, so the lookup is mostly
+  noise. EXP-004 needs a memory that is sometimes useful; revisit the world's record generator
+  when E2 is designed, as a new world revision, not by editing A1's guarantees in place.
+- Worker subagents were refused `taskset` by their sandbox; the coordinator is not. Pinned
+  measurement runs (B1 onward) are launched by the coordinator through `scripts/cgroup-run.sh`.
+
+## A2 evaluator — merged
+
+**Re-verified.** 118 workspace tests, clippy with all features, oracle guard. Eight randomly
+sampled fixtures recomputed by hand from `RULES.md` without reading the scorer; all matched.
+
+**Accepted with notes.** A `Correct` on a `NoFault` episode followed by `Abstain` scores both
+success and false alarm. Each preregistration must state whether false alarms enter its primary
+outcome. `Correct` reveals whether the site was right, at three probes; baselines should show
+whether any arm uses it as an expensive probe.
+
 ## A1 small world — merged
 
 **Re-verified.** Acceptance commands rerun on the branch and on merged main: 67 tests with all

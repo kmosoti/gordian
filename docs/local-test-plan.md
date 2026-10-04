@@ -284,9 +284,10 @@ manifest.rs   Manifest { run_id, experiment, arm, source_revision, lockfile_sha2
                          seeds: Vec<u64>, episode_classes: Vec<(EpisodeClass, u32)>,
                          policy: PolicyId, limits: Budget, trace_sample_rate: f64 }
 results.rs    one CSV row per episode:
-              run_id, seed, class, success, critical_miss, false_alarm, abstained, probes_used,
-              decision_at_ns, bill_compute, bill_memory, bill_time, bill_probes, bill_comm,
-              bill_storage, components_run, components_skipped
+              run_id, seed, class, success, critical_miss, false_alarm, abstained, undecided,
+              probes_used, corrections, decision_at_ns, bill_compute, bill_memory, bill_time,
+              bill_probes, bill_comm, bill_storage, measured_component_ns, measured_sched_ns,
+              components_run, components_skipped
 recorder.rs   writes manifest.json, results.csv, usage.json (copied from the runner's report),
               events-sample.jsonl for the sampled episodes
 main.rs       gordian-run --manifest FILE     executes every (seed, class) in the manifest
@@ -309,13 +310,23 @@ main.rs       gordian-run --manifest FILE     executes every (seed, class) in th
 - `internal_external_ratio` is within a tolerance declared in the manifest; the first measured
   value becomes the tolerance's starting point and is recorded in this plan's revision history.
 
+**Measured cost is the primary cost (decided in A5 review).** A5 found that declared component
+costs fit the pooled average within 25% but deviate by up to 2× per episode class, and by 24× for
+the verifier on late-anchor streams. A policy that skips expensive-content computations would be
+misbilled if experiments used declared cost. Therefore the harness times every component call and
+every scheduling decision with a monotonic clock at the boundary, records the measurement in the
+ledger as an `Accounting` entry, and writes the per-episode sums to `measured_component_ns` and
+`measured_sched_ns`. Declared cost remains what policies see and what `Bill` enforces as the hard
+limit. The charter's cost `C` in every experiment is measured, not declared. The ratio of the two
+is reported per class.
+
 ### A5 Fixed components (`crates/gordian-components`)
 
 ```text
 Component trait:
   fn id(&self) -> ComponentId
   fn declared_cost(&self, input: &WorkingState) -> Vec<Charge>
-  fn run(&mut self, input: &WorkingState, clock: Instant) -> ComponentOutput   // pure given input
+  fn run(&mut self, input: &WorkingState) -> ComponentOutput   // pure given input; WorkingState.now carries the clock
   ComponentOutput { entries: Vec<(EntryKind, Vec<u8>)>, requests: Vec<ComputationRequest> }
 
 heuristic.rs    rule table: symptom pattern -> candidate FaultKinds
@@ -334,6 +345,17 @@ ledger by `run`, not held by components.
 - Each component: declared cost matches criterion-measured cost on this CPU within 25% at the
   median (the tolerance is widened or narrowed after the first calibration and recorded).
 - `WorkingState` never exceeds its declared size (property test over ledgers).
+
+### A5b Checker complexity (follow-up from A5 review)
+
+`gordian_world::physics::consistent_hypotheses` is quadratic in window length when the site's
+anchoring `ErrorRate` arrives late: 24× declared cost at n = 256, 1.7 ms at n = 1025. Generated
+streams rarely hit this shape, but a recency window that evicts the early anchor moves toward it.
+Deliverable: keep the current function as `consistent_hypotheses_reference`, add an optimized
+version with a stated complexity, a proptest equivalence test against the reference over generated
+and adversarial late-anchor streams, and a criterion bench showing the late-anchor shape is linear.
+Then recalibrate the verifier's cost model. Required before B1, because B1's cost variance would
+otherwise be dominated by one pathological shape.
 
 ### A6 Baselines (`crates/gordian-run/src/policy/`)
 
