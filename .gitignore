@@ -1,11 +1,5 @@
 target/
-.lake/
+artifacts/runs/
 __pycache__/
 *.py[cod]
 .venv/
-.ruff_cache/
-.pytest_cache/
-.mypy_cache/
-build/
-dist/
-*.egg-info/
