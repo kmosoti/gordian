@@ -249,6 +249,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gordian-run"
+version = "0.1.0"
+dependencies = [
+ "gordian-components",
+ "gordian-core",
+ "gordian-eval",
+ "gordian-world",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gordian-world"
 version = "0.1.0"
 dependencies = [

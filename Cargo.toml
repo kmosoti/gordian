@@ -4,6 +4,7 @@ members = [
     "crates/gordian-world",
     "crates/gordian-eval",
     "crates/gordian-components",
+    "crates/gordian-run",
 ]
 resolver = "3"
 

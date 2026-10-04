@@ -23,6 +23,14 @@ cd "$root"
 allow_re='^(crates/gordian-world/|crates/gordian-eval/|crates/gordian-run/src/policy/oracle\.rs$)'
 pattern='oracle::|reveal\('
 
+# Policies get a stricter check than the rest of the tree. A policy may not name the evaluator
+# crate or its truth type, the generated-episode type (whose serde output includes hidden state),
+# the simulator (which applies actions outside the harness's bill), or the hidden-state feature,
+# as well as the pattern above. Word boundaries keep `EpisodeClass` and `EpisodeSpec` legal. Only
+# `policy/oracle.rs` is exempt, and it does not exist yet.
+policy_re='^crates/gordian-run/src/policy/'
+policy_pattern='oracle::|reveal|gordian_eval|\bTruth\b|\bEpisode\b|\bSimulator\b'
+
 status=0
 # Tracked and untracked-but-not-ignored Rust files, so the check works before the first commit.
 while IFS= read -r file; do
@@ -34,7 +42,18 @@ while IFS= read -r file; do
         grep -nE "$pattern" "$file" | sed 's/^/    /' >&2
         status=1
     fi
+    if [[ "$file" =~ $policy_re ]] && grep -nE "$policy_pattern" "$file" >/dev/null 2>&1; then
+        echo "check-no-oracle: policy $file names something a policy may not see" >&2
+        grep -nE "$policy_pattern" "$file" | sed 's/^/    /' >&2
+        status=1
+    fi
 done < <(git ls-files --cached --others --exclude-standard -- '*.rs')
+
+# A policy crate dependency on the hidden-state feature would show up in a manifest.
+if grep -nE 'reveal-hidden-state' crates/gordian-run/Cargo.toml >/dev/null 2>&1; then
+    echo "check-no-oracle: crates/gordian-run/Cargo.toml enables reveal-hidden-state" >&2
+    status=1
+fi
 
 if [[ $status -eq 0 ]]; then
     echo "check-no-oracle: ok"

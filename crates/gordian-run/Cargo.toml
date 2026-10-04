@@ -1,0 +1,39 @@
+[package]
+name = "gordian-run"
+version = "0.1.0"
+description = "Run harness, recorder and driver binary: executes one manifest of episodes under a policy and records every outcome"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "gordian-run"
+path = "src/main.rs"
+
+[dependencies]
+# Requirement: Bill, Budget, Charge, Ledger, ManualClock, Instant, the accounting vocabulary the
+# harness charges and records in.
+# Simpler alternative: none; the harness exists to drive these.
+gordian-core = { path = "../gordian-core" }
+# Requirement: EpisodeSpec, generate, Simulator, Action, Outcome, ComponentDirective. Default
+# features only: the hidden-state accessor is not enabled on this crate's account (the evaluator
+# enables it for the build, which cargo unifies; scripts/check-no-oracle.sh is the textual guard).
+# Simpler alternative: none.
+gordian-world = { path = "../gordian-world" }
+# Requirement: `score` and `Truth`. The harness builds Truth from the generated episode and
+# scores the trajectory; it never reads hidden state itself.
+# Simpler alternative: none; a second scorer would be a second evaluator.
+gordian-eval = { path = "../gordian-eval" }
+# Requirement: the Component trait, WorkingState and the four fixed components that a run
+# drives, and the hypothesis payload decoder.
+# Simpler alternative: none.
+gordian-components = { path = "../gordian-components" }
+# Requirement: the manifest is read and written as JSON, and the events sample is JSON lines,
+# for the analysis package and for review.
+# Simpler alternative: hand-written JSON; rejected because the manifest schema will grow.
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+
+[lints]
+workspace = true
