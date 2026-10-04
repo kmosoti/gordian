@@ -4,6 +4,56 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A6 baselines — merged; headroom probe
+
+**Re-verified.** fmt, clippy with `--locked`, the workspace tests, the oracle guard and the
+driver shell test on the merged tree. Accepted the clock interpretation: a component's declared
+Compute nanoseconds are its time for every component, and `Slow` multiplies them.
+
+**Coordinator error, fixed forward.** The merge was pushed after a test summary showed one failure,
+because the command chain gated on a parsed summary rather than cargo's exit code. The failure was
+a random-count coverage floor in the A5b equivalence tests (about 2–3% flake rate; the checker
+agreed with the reference on every case). Fixed with a deterministic sweep and a floor at about 3.9
+standard deviations. Coordinator merges now gate on exit codes only.
+
+**The worker's finding.** With the shared rule and default limits every arm is at or near the
+ceiling (209–213 of 220; oracles 220). Taken alone, this would make EXP-001 trivially pass.
+
+**Coordinator headroom probe** (20 seeds × 11 classes, cgroup-isolated, successes of 220):
+
+| Arm | compute 20 ms (default) | 250 µs | 60 µs | 25 µs |
+|---|---|---|---|---|
+| heuristic only | 209 | 209 | 187 | 39 |
+| estimator only | 210 | 206 | 20 | 20 |
+| random p = 0.5 | 213 | 138 | 20 | 13 |
+| verifier only | 210 | 78 | 19 | 10 |
+| all components | 213 | 35 | 18 | 4 |
+| oracles | 220 | | | |
+
+Under a binding budget, quality depends strongly on scheduling. Two effects are mixed in this
+table and must be separated:
+
+1. *A shared-rule defect.* Nearly every failure is `budget_exhausted`: the rule waits for its
+   patience deadline, runs out of affordable work first, and never declares although declaring is
+   free. Plan item A6b gives every arm a final declaration.
+2. *Real waste.* `all_components` ran 154 component calls per episode on windows that had mostly
+   not changed (median decision at about 1.9 s, a step every 50 ms). Avoiding that waste is what
+   selective activation claims to do, and a tuned periodic schedule is the charter's adversary.
+
+**Decided.**
+
+- No world revision for EXP-001. It is testable under a binding budget; B1 sweeps budget levels
+  and the preregistration fixes the levels from B1.
+- The saturation at default limits is a property of a budget that never binds, not evidence for
+  or against any mechanism.
+
+**Open, for the user.** One cheap component (the heuristic) is nearly sufficient alone: the
+components are redundant generalists that all read the whole window with the full public rules,
+not the specialists the charter's question is about. That limits the quality headroom available to
+EXP-002 and EXP-003. Making components specialized (partial views, complementary evidence) is a
+research-design choice that risks tailoring the environment to the hypothesis; it is raised to the
+user rather than built.
+
 ## A5b checker — merged
 
 **Re-verified.** fmt, clippy with `--locked` and all features, 220 workspace tests, oracle guard,

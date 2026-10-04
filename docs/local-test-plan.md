@@ -412,6 +412,24 @@ as a test. Acceptance: at EXP-001's planned n from B2, the false-exceedance rate
 to the threshold is at most 0.06 over at least 2,000 simulated experiments, using B1's empirical
 cost distribution, not only lognormal. C1 may not set status `frozen` until this passes.
 
+### A6b Final declaration when no affordable work is left (required before B1)
+
+Found by the coordinator's headroom probe after A6 (see `docs/review-log.md`, A6). Under a binding
+compute budget, almost every failure is `stop_reason = budget_exhausted`: the shared rule waits
+for its patience deadline, the arm runs out of affordable work first, and the episode ends
+undecided although declaring is free. Budget exhaustion then masquerades as indecision, and arms
+are ranked by how long they last rather than by what they concluded.
+
+Deliverable: when the harness determines that no affordable work is left (the existing
+`BudgetExhausted` condition) or the horizon is reached, it gives the policy one final `decide` call
+flagged as final; the shared rule then declares its first-ranked hypothesis, or abstains when it has
+none, exactly as at the patience deadline. Only then does the episode stop. The final call is the
+same for every arm (it lives in the shared rule), and its use is recorded (`stop_reason` gains
+`final_declaration`, distinct from `terminal`). The analysis package's schema guard must be updated
+in the same change. Tests: an arm with a tiny compute budget now declares rather than ending
+undecided; arms with generous budgets produce byte-identical `results.csv` to before except where
+they previously ended undecided; the oracles are unaffected.
+
 ### A8 Interleaved arms and drift control (required before B1)
 
 Found in A5b review. Wall time on this VM drifts within a session (one benchmark moved 249, 268,
