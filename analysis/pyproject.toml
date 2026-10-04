@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gordian-analysis"
+version = "0.1.0"
+description = "Paired statistical analysis of Gordian run directories"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+gordian-analyze = "gordian_analysis.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["gordian_analysis*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
