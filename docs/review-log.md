@@ -4,6 +4,52 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A4 run harness — merged; worker report lost
+
+A container restart stopped the worker after it committed and before it reported. The commit
+survived; the coordinator reviewed it without a report.
+
+**Re-verified.** fmt, clippy with all features, 208 workspace tests, oracle guard. Read
+`HARNESS.md` in full. Ran `heuristic_only` end to end through `scripts/run-driver.sh` under cgroup
+v1 isolation: 550 episodes, 0 undecided, internal-to-external ratio 0.81 (first value; becomes the
+tolerance starting point). A second run of the same manifest gave a byte-identical `results.csv`;
+`measured.csv` differed, as designed. The events sample contained none of the hidden-state key
+names. The episode class does not reach policies (`PublicInfo` has no class; the policy directory
+guard bans `Episode`, `Simulator`, `gordian_eval`).
+
+**Independent evidence from the smoke run.** `heuristic_only` never probes, and its success on
+hidden-kind classes equals the generator's prior for the kind it guesses (JointlyDecisive 0.58
+against a 0.595 prior; Ambiguous 0.44 against 0.40). A policy without hidden state should sit at
+its prior; this is a second confirmation that the public stream does not leak the kind.
+
+**Decided.**
+
+- The budget reconciliation stands: the `Bill` is the authority for every resource; the episode
+  spec's budget must equal the limits or the harness refuses the episode.
+- A component's declared Compute nanoseconds are its time. `Slow` multiplies Compute as well as
+  Time (assigned to A6; `HARNESS.md` section 8 item 7).
+- Analysis must accept undecided rows, drop `bill_total` (it summed ns, probes and bytes), and
+  read `measured.csv`, with measured cost the default for relative savings (separate unit).
+- Every non-oracle baseline shares one decision rule; arms differ only in selection, because
+  EXP-001's intervention is the scheduling policy only (assigned to A6).
+
+**Carried forward.**
+
+- To D1: the events sample carries `class` as a join key. Anything that trains on it must drop
+  `class`; it is a strong label.
+- To B3 and EXP-002: `QuietUrgent` and `NoiseFlood` are toothless against a component that reads
+  the whole window, because catalogue messages are separable from noise for free (`heuristic_only`
+  scored 1.00 on both). The stressors test only policies that pay to look.
+- `FeedbackBait` is identifiable from public graph data (`unreliable_health`); it shares its prior
+  with Ambiguous and StaleMemory, so identification reveals little about the kind. Documented in
+  the world's DESIGN.md.
+
+## A5b checker — restarted from a WIP snapshot
+
+The restart stopped the worker with uncommitted changes. The coordinator snapshotted them as a
+WIP commit on `checker-perf` and a new worker resumed from it, instructed to verify rather than
+trust the unfinished work and to commit after each milestone.
+
 ## A5 components — merged after one revision
 
 **Decided.**
