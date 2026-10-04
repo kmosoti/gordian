@@ -57,7 +57,7 @@ the number of services, `r` the number of prior records read.
 |---|---|---|
 | heuristic | `685 + 3.7 n` | `A_NS = 685`, `B_PS = 3_700` |
 | estimator | `950 + 5.3 n + 120 s` | `A_NS = 950`, `B_PS = 5_300`, `C_PS = 120_000` |
-| prior-record lookup | `500 + 3.83 n + 3.75 r`, plus `Resource::Memory` `64 r` bytes | `A_NS = 500`, `B_PS = 3_830`, `C_PS = 3_750` |
+| prior-record lookup | `500 + 3.83 n + 3.75 r` | `A_NS = 500`, `B_PS = 3_830`, `C_PS = 3_750` |
 | verifier | `750 + 7.5 n + 240 s` | `A_NS = 750`, `B_PS = 7_500`, `C_PS = 240_000` |
 
 Slopes are stored in picoseconds per unit so that costs of a few nanoseconds per observation keep
@@ -70,10 +70,9 @@ is at +18%), and linear in `s` for the estimator and the verifier. For the verif
 residual, so it is not in the model. The lookup is linear in the records read. Nothing here is a
 line forced through a curve; but see section 6 for what "affine in n" does not cover.
 
-**The `Memory` charge** of the lookup (`RECORD_READ_BYTES = 64` per record read) is a declared
-accounting unit, not a measurement, and `Resource::Memory` in core is documented as peak or
-integrated memory. A run budget has to declare a `Memory` limit for the lookup to be affordable,
-and whether bytes read is the right thing to put against it is not settled here.
+**Record reads are charged in `Compute` only.** The lookup declares no `Resource::Memory` charge:
+core defines that resource as peak or integrated resident memory, which is not what a read of a
+record costs, and the `3.75 r` term already carries the reads.
 
 **The lookup's intercept** includes the cost of encoding an entry in the share of windows where a
 record matched (18 of 22 in this pool, 17 of 22 at n = 16). A window with no match costs about a

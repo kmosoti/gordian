@@ -35,7 +35,7 @@ use crate::cost::{affine_ns, compute};
 use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
 use crate::symptoms::{Summary, TAG_MASK, summarize, tag_mask, text_slot};
 use crate::{Component, ComponentOutput, ComputationRequest, MEMORY_ID, VERIFIER_ID, WorkingState};
-use gordian_core::{Charge, ComponentId, Resource};
+use gordian_core::{Charge, ComponentId};
 use gordian_world::physics::characteristic_message;
 use gordian_world::{FaultKind, Hypothesis, ServiceId};
 use std::cmp::Reverse;
@@ -52,14 +52,6 @@ use std::cmp::Reverse;
 const A_NS: u64 = 500;
 const B_PS: u64 = 3_830;
 const C_PS: u64 = 3_750;
-
-/// Declared size in bytes of one record read, charged to `Resource::Memory`.
-///
-/// This is a declared accounting unit, not a measurement: an upper bound on one record's
-/// footprint, a 32-byte struct plus at most 12 two-byte tags. It counts bytes *read*, not bytes
-/// held, so a run's budget must declare a `Memory` limit of its own for this component to be
-/// affordable.
-pub const RECORD_READ_BYTES: u64 = 64;
 
 /// The prior-record lookup.
 #[derive(Debug, Clone, Copy)]
@@ -106,13 +98,7 @@ impl Component for PriorRecordLookup {
     fn declared_cost(&self, input: &WorkingState) -> Vec<Charge> {
         let read = self.records_read(input);
         let ns = affine_ns(A_NS, B_PS, input.size()).saturating_add(affine_ns(0, C_PS, read));
-        vec![
-            compute(ns),
-            Charge::new(
-                Resource::Memory,
-                RECORD_READ_BYTES.saturating_mul(read as u64),
-            ),
-        ]
+        vec![compute(ns)]
     }
 
     fn run(&mut self, input: &WorkingState) -> ComponentOutput {

@@ -378,13 +378,12 @@ fn lookup_read_limit_bounds_both_the_reading_and_the_declared_cost() {
     let all = PriorRecordLookup::new();
     let few = PriorRecordLookup::with_read_limit(3);
     let none = PriorRecordLookup::with_read_limit(0);
-    let memory_bytes = |c: &PriorRecordLookup| -> u64 {
-        c.declared_cost(&w)
+    // Record reads are charged in Compute only; the lookup declares no other resource.
+    assert!(
+        all.declared_cost(&w)
             .iter()
-            .filter(|ch| ch.resource == Resource::Memory)
-            .map(|ch| ch.amount)
-            .sum()
-    };
+            .all(|ch| ch.resource == Resource::Compute)
+    );
     let compute_ns = |c: &PriorRecordLookup| -> u64 {
         c.declared_cost(&w)
             .iter()
@@ -392,15 +391,6 @@ fn lookup_read_limit_bounds_both_the_reading_and_the_declared_cost() {
             .map(|ch| ch.amount)
             .sum()
     };
-    assert_eq!(
-        memory_bytes(&all),
-        10 * gordian_components::memory::RECORD_READ_BYTES
-    );
-    assert_eq!(
-        memory_bytes(&few),
-        3 * gordian_components::memory::RECORD_READ_BYTES
-    );
-    assert_eq!(memory_bytes(&none), 0);
     assert!(compute_ns(&all) > compute_ns(&few) && compute_ns(&few) > compute_ns(&none));
 
     // With a limit of zero nothing is read, so nothing can match.
