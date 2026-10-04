@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/gordian-kg"]
+members = ["crates/gordian-core"]
 resolver = "3"
 
 [workspace.package]
@@ -10,6 +10,7 @@ repository = "https://github.com/kmosoti/gordian"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+missing_docs = "warn"
 
 [workspace.lints.clippy]
 all = "warn"
