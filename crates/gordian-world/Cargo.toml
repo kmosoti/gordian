@@ -37,6 +37,17 @@ serde_json = "1.0.151"
 # not only hand-picked ones.
 # Simpler alternative: loops over fixed seeds; kept as unit tests, but they miss spec shapes.
 proptest = "1.11.0"
+# Requirement: benches/checker.rs compares the optimized checker with the reference at several
+# evidence lengths and must report a median with a confidence interval, not one timing.
+# Simpler alternative: a timing loop; rejected, it would reimplement warm-up and outlier handling,
+# and gordian-components already depends on criterion for its calibration.
+# Cost: dev builds only; the same version and features as gordian-components, so nothing new in
+# Cargo.lock.
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "checker"
+harness = false
 
 [lints]
 workspace = true

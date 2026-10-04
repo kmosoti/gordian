@@ -6,6 +6,7 @@
 
 mod checker;
 mod classes;
+mod equivalence;
 mod leakage;
 mod props;
 mod sim;

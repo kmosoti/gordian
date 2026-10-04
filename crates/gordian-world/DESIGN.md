@@ -220,3 +220,75 @@ Recorded in the commit message and the report; summary here.
 (non-ignored) `.rs` file outside `crates/gordian-world/`, `crates/gordian-eval/`, and
 `crates/gordian-run/src/policy/oracle.rs`. It passes now, and was verified to fail on a planted
 violation. It is a text check: a macro assembling the path from pieces would evade it.
+
+## 8. Checker complexity (work item A5b)
+
+Written before the change, from reading the code and from two measurements of the unchanged
+function (n = number of evidence entries, `m` = number of those that are informative, `s` =
+number of services).
+
+### 8.1 Why the late-anchor shape is quadratic
+
+`consistent_worlds` runs a single pass over the informative observations for each candidate
+world (`explains`), `W = 1 + 7s` worlds in all: no fault, then per site five kinds, two of which
+come in two bit settings. A world is rejected at the first observation it does not permit. The
+cost of one `explains` call is therefore `m` observation checks, plus one call to `anchored` for
+every counter or message *at a dependent of the world's site* whose name the world's kind
+permits there. `anchored(site)` answers "is there an earlier `ErrorRate` alarm at the site, with
+`t2 <= t`?" by scanning `informative[..i]` from the front with `.any(...)`, so it costs the
+position of the first matching anchor, counted from the start of the list, each time it is
+asked.
+
+Consequences, all properties of the code and not of tuning:
+
+- With the anchor first, every call ends after one step: linear. The generator puts the
+  site's `ErrorRate` first, which is why generated streams never show the problem.
+- With `k` entries before the anchor and `d` dependent alarms after it, a surviving world makes
+  `d` calls of about `k + 1` steps each: `k * d`, at most `m^2 / 4` when `k = d = m / 2`.
+- A world that can never see its anchor is rejected at its first dependent alarm, after one
+  failed scan of at most `m` steps. That is linear, so a *missing* anchor is cheap and a *late*
+  one is expensive.
+- Which worlds pay: those that survive up to the dependent alarms. In the measured shape those
+  are `ResourceExhausted`, `DependencyDown` (2 bit settings) and `Intermittent` (2 bit settings)
+  at the site, five worlds. `ConfigDrift` and `CredentialExpired` do not permit a dependent
+  `Latency` alarm and are rejected there without a scan.
+- The answer of `anchored` depends only on the site and on the prefix, never on the kind or the
+  bits. Five worlds compute the same prefix question independently, and each recomputes it from
+  the front at every dependent alarm.
+
+### 8.2 Measurements of the unchanged function
+
+Shape: `n/2` alarms at the site that are not `ErrorRate` (`Latency`), the site's `ErrorRate`,
+then `n/2 - 1` `Latency` alarms at a direct dependent. One generated public graph (9 services,
+seed 3, class `Ambiguous`), instants strictly increasing, one core under
+`scripts/cgroup-run.sh`, other work on the machine. Call and step counts come from a counter
+placed temporarily in `anchored` and in its `.any` closure (removed again; the counts are exact
+and deterministic). Times come from the uninstrumented build, best of 7 batches of 20 calls.
+
+| n | `anchored` calls | scan steps | steps / (n^2/4) | late-anchor (us) | anchor-first (us) |
+|---:|---:|---:|---:|---:|---:|
+| 64 | 155 | 5,115 | 5.00 | 13.3 | 3.7 |
+| 128 | 315 | 20,475 | 5.00 | 29.6 | 5.5 |
+| 256 | 635 | 81,915 | 5.00 | 114.4 | 9.7 |
+| 512 | 1,275 | 327,675 | 5.00 | 427.1 | 17.4 |
+| 1024 | 2,555 | 1,310,715 | 5.00 | 1,684.7 | 32.9 |
+| 2048 | 5,115 | 5,242,875 | 5.00 | 6,550.5 | 64.1 |
+
+The step count is exactly `5 * (n^2/4 - 1)` (five surviving worlds), and the time follows it at
+about 1.25 ns per step (6,550 us over 5.24 M steps at n = 2048); doubling `n` multiplies the
+time by 3.7 to 4.0. Ruled out as the cause by two further shapes at the same sizes: all alarms at
+the site with the anchor last and no dependent alarms, and dependent alarms with no anchor at
+all. Both run in 51 and 67 us at n = 2048 and double with `n`. So pass 1, the mask construction,
+the loop over worlds and the dependency-map lookups are linear, and the cost is the scan inside
+`anchored` and nothing else.
+
+### 8.3 The change
+
+The scan will be replaced by a value that `explains` carries along: for the world's site, the
+smallest instant of any `ErrorRate` alarm at that site among the observations already passed.
+`anchored(site)` at position `i` is "exists `j < i` such that `informative[j]` is such an alarm
+and `t_j <= t_i`", which is `min { t_j : j < i, ... } <= t_i`, so the running minimum answers it
+exactly, including when evidence instants are not sorted. Nothing else will change: not pass 1,
+not the order in which observations are checked, not how the world list is assembled. The old
+code will stay as `consistent_worlds_reference` and `consistent_hypotheses_reference`, the
+oracle that the equivalence tests compare against.
