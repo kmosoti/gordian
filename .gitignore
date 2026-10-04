@@ -3,3 +3,4 @@ artifacts/runs/
 __pycache__/
 *.py[cod]
 .venv/
+.claude/worktrees/
