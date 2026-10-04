@@ -9,5 +9,12 @@ repository.workspace = true
 
 [dependencies]
 
+[dev-dependencies]
+# Requirement: generated (phase, charges) sequences for the Bill sum, atomicity, encoding and
+# replay properties (src/bill.rs tests). Test-only; the library itself stays dependency-free.
+# Simpler alternative considered: a hand-rolled xorshift generator, rejected because it gives no
+# shrinking, so a failing sequence would be reported at full length. Cost: dev builds only.
+proptest = { version = "1", default-features = false, features = ["std"] }
+
 [lints]
 workspace = true

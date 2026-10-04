@@ -10,10 +10,15 @@
 
 #![forbid(unsafe_code)]
 
+pub mod bill;
 pub mod budget;
 pub mod clock;
 pub mod ledger;
 
+pub use bill::{
+    AccountingRecord, Bill, ComponentId, DecodeError, Phase, RecordedChargeError, ReplayError,
+    decode_accounting, encode_accounting,
+};
 pub use budget::{Budget, BudgetError, Charge, Resource};
 pub use clock::{Instant, ManualClock};
-pub use ledger::{Entry, EntryId, EntryKind, Ledger, Provenance};
+pub use ledger::{Entry, EntryId, EntryKind, Ledger, LedgerError, Provenance};
