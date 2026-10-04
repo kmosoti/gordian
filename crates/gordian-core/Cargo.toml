@@ -1,0 +1,13 @@
+[package]
+name = "gordian-core"
+version = "0.1.0"
+description = "Deterministic reference core: explicit clock, resource budgets, append-only event ledger"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
