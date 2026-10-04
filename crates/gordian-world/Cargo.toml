@@ -1,0 +1,42 @@
+[package]
+name = "gordian-world"
+version = "0.1.0"
+description = "Small-world fault-diagnosis simulator: public rules, hidden instances, deterministic episode generation"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Compiles `oracle::reveal`, the only accessor for hidden simulator state. Only gordian-eval and
+# the privileged oracle arm may enable it. Cargo unifies features across a build, so this is a
+# guard, not a proof; scripts/check-no-oracle.sh is the second guard.
+reveal-hidden-state = []
+
+[dependencies]
+# Requirement: the world's rules, costs, and budgets are expressed with core's Charge, Resource,
+# Budget and Instant so that one accounting vocabulary is used everywhere.
+# Simpler alternative: local copies of those types; rejected, they would drift from core.
+gordian-core = { path = "../gordian-core" }
+# Requirement: seeded, reproducible episode generation (ChaCha output is fixed by algorithm).
+# Simpler alternative: a hand-rolled PRNG; possible, but gains nothing over a vetted one.
+rand_chacha = "0.10.0"
+# Requirement: the RNG traits that rand_chacha's generator implements (SeedableRng, RNG core).
+# Simpler alternative: none; rand_chacha cannot be used without it.
+rand_core = "0.10.1"
+# Requirement: specs, observations, actions, outcomes, public and hidden state must be readable
+# by the evaluator fixtures (A2) and the run recorder (A4) as JSON.
+# Simpler alternative: hand-written JSON; rejected because these schemas will grow.
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+# Requirement: the example `dump` and JSON round-trip tests print and parse JSON.
+# Simpler alternative: hand-formatted output; rejected, it would not test the serde derives.
+serde_json = "1.0.151"
+# Requirement: determinism, ordering, soundness and headroom must hold over generated specs,
+# not only hand-picked ones.
+# Simpler alternative: loops over fixed seeds; kept as unit tests, but they miss spec shapes.
+proptest = "1.11.0"
+
+[lints]
+workspace = true
