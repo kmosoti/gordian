@@ -412,6 +412,37 @@ as a test. Acceptance: at EXP-001's planned n from B2, the false-exceedance rate
 to the threshold is at most 0.06 over at least 2,000 simulated experiments, using B1's empirical
 cost distribution, not only lognormal. C1 may not set status `frozen` until this passes.
 
+### A8 Interleaved arms and drift control (required before B1)
+
+Found in A5b review. Wall time on this VM drifts within a session (one benchmark moved 249, 268,
+324, 325 µs over four consecutive runs) and differs between sessions (an unchanged component ran
+13–34% faster in one session than in another). Hardware instruction counters are not available:
+the VM exposes no PMU (`/sys/bus/event_source/devices` lists only software, tracepoint, breakpoint,
+msr, power and uprobe). Measured cost compared across arms run one after another would therefore
+carry machine drift as a treatment effect.
+
+Deliverable:
+
+1. **Interleaving.** A multi-arm manifest runs every arm of an experiment in one process. For each
+   (seed, class) the episode is run once per arm, back to back, in an order drawn per episode from
+   a ChaCha RNG seeded by (run seed, seed, class). Each arm still writes its own `results.csv` and
+   `measured.csv`, so the analysis package is unchanged; `measured.csv` gains `arm_position` (the
+   episode's position in that order). `results.csv` stays byte-identical under protocol replay for
+   each arm.
+2. **Drift control.** Every `drift_block` episodes (manifest field, default 50) the harness runs a
+   fixed reference workload: the verifier on a fixed generated window, repeated a fixed number of
+   times, timed. Results go to `drift.csv` (block index, ns). The analysis package reports the
+   coefficient of variation across blocks and the ratio of last to first block.
+3. **Order-effect check.** The analysis package gains a test of whether measured cost depends on
+   `arm_position` (paired comparison of first-position against later-position runs of the same
+   arm). A position effect larger than the preregistered margin invalidates the run's cost
+   comparison.
+
+Acceptance: an A/A run (two copies of the same arm) over 20 seeds × 11 classes shows a relative
+measured-cost difference whose 90% interval contains 0, with drift and position diagnostics
+reported. If it does not, interleaving is insufficient and the counted-operations alternative
+(deterministic per-component work counters) is built before B1.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.

@@ -4,6 +4,29 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A5b checker — merged
+
+**Re-verified.** fmt, clippy with `--locked` and all features, 220 workspace tests, oracle guard,
+dump sha256 unchanged; the diff to `gordian-components` is cost constants only. The pinned
+calibration recheck waits until no other worker is compiling.
+
+**Accepted.** Root cause found by step counting before any change: `anchored(site)` rescanned the
+informative prefix at every dependent alarm, about k·d steps. The fix carries the minimum anchor
+instant per world; exact for unsorted instants. About 55,000 equivalence comparisons against the
+kept reference across generated, adversarial and random inputs; mutation shows the tests can
+fail. Late-anchor shape linear; 78× faster at n = 2048. 0–20% slower on shapes the reference
+already handled linearly; not tuned, per spec.
+
+**Correction to the A5 entry.** The "24× declared at n = 256" and "1.7 ms at n = 1025" figures
+were not reproduced by the checker alone (0.9–1.0 ms at n = 1024 on the old build). The 24× was a
+component-level declared-to-measured ratio from one session; read it as an order of magnitude,
+not a constant.
+
+**Decided: machine drift is a threat to every measured-cost comparison.** Wall time drifted up
+to 30% within one session and 13–34% between sessions. No hardware counters exist in this VM.
+Plan item A8: interleave arms per episode in randomized order, log a drift-control workload, test
+for position effects, and pass an A/A check before B1.
+
 ## A4 run harness — merged; worker report lost
 
 A container restart stopped the worker after it committed and before it reported. The commit
