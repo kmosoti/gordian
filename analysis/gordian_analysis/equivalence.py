@@ -44,6 +44,31 @@ def noninferior(ci_low: float, margin: float) -> bool:
     return bool(ci_low > -margin)
 
 
+def exceeds(ci_low: float, threshold: float) -> bool:
+    """The lower limit of the (1 - 2*alpha) interval is strictly above `threshold`.
+
+    A one-sided level-alpha decision that the quantity exceeds the threshold (for EXP-001
+    relative savings, threshold 0.20).
+    """
+    return bool(ci_low > threshold)
+
+
+GATE_REASON = "n below preregistered sample size"
+
+
+def gated_category(raw: str, n: int, planned_n: int | None) -> str:
+    """Apply the preregistered-sample-size gate to a raw category or decision label.
+
+    If a planned sample size exists and n < planned_n, the result is UNRESOLVED whatever
+    `raw` says (charter section 8 item 3: underpowered experiments stay unresolved).
+    Otherwise `raw` is returned unchanged; `planned_n=None` means exploratory, no gate.
+    `classify` itself stays a pure function of the interval.
+    """
+    if planned_n is not None and n < planned_n:
+        return UNRESOLVED
+    return raw
+
+
 def _check(d: np.ndarray) -> np.ndarray:
     d = np.asarray(d, dtype=float)
     if d.ndim != 1 or len(d) < 2:

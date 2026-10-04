@@ -149,3 +149,113 @@ def test_power_cli_matches_textbook(capsys, tmp_path):
 def test_power_cli_invalid_input(capsys):
     rc, _, err = run_cli(capsys, "power", "--sd", "-1", "--margin", "0.5")
     assert rc == 2 and "sd must be positive" in err
+
+
+# ---- planned n and relative savings -------------------------------------------------------
+
+
+def rs_args(fx, *extra, threshold="0.20"):
+    return (
+        "compare", "--a", str(fx / "run_a"), "--b", str(fx / "run_b"), "--metric", "bill_total",
+        "--relative-savings", "--threshold", threshold, "--seed", "1", *extra,
+    )  # fmt: skip
+
+
+def test_header_exploratory_without_planned_n(capsys, fixtures_dir, tmp_path):
+    j = tmp_path / "o.json"
+    _, out, _ = run_cli(capsys, *compare_args(fixtures_dir, "--json", str(j)))
+    assert out.splitlines()[0] == "EXPLORATORY: no preregistered sample size"
+    assert "WARNINGS" in out  # existing warnings kept
+    r = json.loads(j.read_text())
+    assert r["exploratory"] is True and r["planned_n"] is None and r["gate_applied"] is False
+    assert r["category"] == r["category_raw"]
+
+
+def test_planned_n_below_forces_unresolved_and_shows_raw(capsys, fixtures_dir, tmp_path):
+    # bill_total: every pair has B/A = 0.75, so the raw category is BENEFICIAL on 20 pairs.
+    j = tmp_path / "o.json"
+    _, out, _ = run_cli(
+        capsys,
+        *compare_args(fixtures_dir, "--planned-n", "500", "--json", str(j), metric="bill_total",
+                      margin="1", direction="--lower-is-better"),
+    )  # fmt: skip
+    assert "EXPLORATORY" not in out
+    assert "Preregistered sample size: 500 pairs; observed: 20 pairs (BELOW plan)" in out
+    assert "CATEGORY: UNRESOLVED  (n below preregistered sample size)" in out
+    assert "Raw category (before the sample-size gate): BENEFICIAL" in out
+    assert "not reportable as a verdict" in out
+    r = json.loads(j.read_text())
+    assert r["category"] == "unresolved" and r["category_raw"] == "beneficial"
+    assert r["gate_applied"] is True and r["gate_reason"] == "n below preregistered sample size"
+    assert r["noninferior_reportable"] is False
+
+
+def test_planned_n_met_reports_raw_category(capsys, fixtures_dir):
+    _, out, _ = run_cli(
+        capsys,
+        *compare_args(fixtures_dir, "--planned-n", "20", metric="bill_total", margin="1",
+                      direction="--lower-is-better"),
+    )  # fmt: skip
+    assert "Preregistered sample size: 20 pairs; observed: 20 pairs (plan met)" in out
+    assert "CATEGORY: BENEFICIAL" in out
+    assert "Raw category" not in out
+
+
+def test_relative_savings_end_to_end(capsys, fixtures_dir, tmp_path):
+    # fixtures: every episode has B = 0.75 * A (easy 12/16, hard 15/20), so S = 1 - 270/360
+    # = 0.25 with a zero-width interval, which exceeds 0.20.
+    j = tmp_path / "o.json"
+    rc, out, _ = run_cli(capsys, *rs_args(fixtures_dir, "--planned-n", "20", "--json", str(j)))
+    assert rc == 0
+    r = json.loads(j.read_text())
+    assert r["savings"] == pytest.approx(0.25)
+    assert (r["a"]["total"], r["b"]["total"]) == (360.0, 270.0)
+    assert r["bootstrap"]["low"] == pytest.approx(0.25)
+    assert r["bootstrap"]["high"] == pytest.approx(0.25)
+    assert r["decision"] == "exceeds" and r["gate_applied"] is False
+    assert "DECISION: S EXCEEDS the threshold" in out and "S = 0.25" in out
+
+
+def test_relative_savings_gated_by_planned_n(capsys, fixtures_dir, tmp_path):
+    j = tmp_path / "o.json"
+    _, out, _ = run_cli(capsys, *rs_args(fixtures_dir, "--planned-n", "500", "--json", str(j)))
+    assert "DECISION: UNRESOLVED  (n below preregistered sample size)" in out
+    assert "Raw decision (before the sample-size gate): S EXCEEDS the threshold" in out
+    r = json.loads(j.read_text())
+    assert r["decision"] == "unresolved" and r["decision_raw"] == "exceeds"
+
+
+def test_relative_savings_exploratory_header_and_false_decision(capsys, fixtures_dir):
+    _, out, _ = run_cli(capsys, *rs_args(fixtures_dir, threshold="0.30"))
+    assert out.splitlines()[0] == "EXPLORATORY: no preregistered sample size"
+    assert "S does NOT exceed the threshold" in out
+
+
+def test_relative_savings_refuses_higher_is_better_and_bad_combinations(capsys, fixtures_dir):
+    base = ["compare", "--a", str(fixtures_dir / "run_a"), "--b", str(fixtures_dir / "run_b"),
+            "--metric", "bill_total", "--seed", "1"]  # fmt: skip
+    for extra in (
+        ["--relative-savings", "--threshold", "0.2", "--higher-is-better"],
+        ["--relative-savings"],  # no threshold
+        ["--relative-savings", "--threshold", "0.2", "--margin", "0.1"],
+        ["--threshold", "0.2", "--margin", "0.1", "--lower-is-better"],  # threshold w/o mode
+    ):
+        with pytest.raises(SystemExit) as e:
+            main([*base, *extra])
+        assert e.value.code == 2
+    capsys.readouterr()
+    # --lower-is-better is accepted alongside --relative-savings
+    assert main([*base, "--relative-savings", "--threshold", "0.2", "--lower-is-better"]) == 0
+
+
+def test_relative_savings_zero_total_is_loud(capsys, tmp_path):
+    a = write_run(tmp_path / "a", [{"seed": s} for s in (1, 2, 3)])  # all bills zero
+    b = write_run(tmp_path / "b", [{"seed": s} for s in (1, 2, 3)])
+    rc, out, err = run_cli(capsys, "compare", "--a", str(a), "--b", str(b), "--metric", "bill_total",
+                           "--relative-savings", "--threshold", "0.2", "--seed", "1")  # fmt: skip
+    assert rc == 2 and out == "" and "zero" in err
+
+
+def test_invalid_planned_n(capsys, fixtures_dir):
+    rc, _, err = run_cli(capsys, *compare_args(fixtures_dir, "--planned-n", "1"))
+    assert rc == 2 and "planned n" in err

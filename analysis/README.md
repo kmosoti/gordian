@@ -16,7 +16,9 @@ cd analysis && .venv/bin/python -m pytest -q
 ```bash
 gordian-analyze compare --a RUNDIR --b RUNDIR --metric success --margin 0.01 \
     --higher-is-better --seed 1 [--alpha 0.05] [--interval bootstrap|t] \
-    [--resamples 10000] [--json FILE]
+    [--resamples 10000] [--planned-n N] [--json FILE]
+gordian-analyze compare --a RUNDIR --b RUNDIR --metric bill_total --relative-savings \
+    --threshold 0.20 --seed 1 [--planned-n N] [--alpha 0.05] [--resamples 10000] [--json FILE]
 gordian-analyze power --sd 1 --margin 0.5 --alpha 0.05 --power 0.8 \
     [--true-diff 0] [--equivalence] [--json FILE]
 ```
@@ -60,6 +62,30 @@ and return the equal-tailed percentile interval (numpy linear-interpolation quan
 stays together; the arms are never resampled independently. The seed (`numpy.random.default_rng`)
 is returned in the result and printed in the report.
 
+`ratio_of_totals_ci(paired, metric, seed, resamples=10000, confidence=0.90)` is the relative
+cost measure of charter EXP-001:
+
+```text
+S = 1 - sum_i B_i / sum_i A_i                (ratio of totals, not a mean of ratios)
+```
+
+Each resample draws episode indices with replacement, applies the same indices to A and B,
+and recomputes S from the resampled totals; the interval is the equal-tailed percentile
+interval of those S values. Positive S means B costs less. It applies no sign flip and is only
+meaningful for cost-like metrics (lower is better), so the CLI mode refuses `--higher-is-better`.
+It raises on negative values, on `sum(A) == 0`, and if any resample has `sum(A) == 0`.
+`equivalence.exceeds(ci_low, threshold)` is `ci_low > threshold` (strict); for EXP-001 the
+threshold is 0.20. `compare --relative-savings --threshold T` reports S, its interval, and
+whether the lower limit exceeds T; `--margin` and `--interval` do not apply and are refused,
+as is `--threshold` outside this mode. This mode does not produce a four-way category, only
+exceeds / does not exceed (and, below the planned n, unresolved).
+
+Caveat measured here, not proved: with skewed per-episode costs (lognormal, true S exactly
+0.20), the percentile bootstrap lower limit exceeded 0.20 in 12% of 300 simulated experiments at
+n = 30, 8% at n = 100, and 7% at n = 300, against a nominal 5%. The decision is therefore
+somewhat liberal at moderate n when costs are heavy-tailed. Treat a borderline `exceeds` with
+that in mind; a bias-corrected interval was not added because it is outside the specification.
+
 ### equivalence.py
 
 ```text
@@ -83,6 +109,28 @@ unresolved  otherwise
 that straddles zero and is not inside the margin is `unresolved`; the report never maps "not
 significant" to "equivalent". By construction `equivalent` requires `ci_high - ci_low < 2*margin`,
 so an interval that is wide relative to the margin cannot be classified as equivalent.
+
+#### Preregistered sample size gate
+
+`classify` is a pure function of the interval. The sample-size gate is separate:
+`gated_category(raw, n, planned_n)` returns `unresolved` when `planned_n` is given and
+`n < planned_n`, and `raw` otherwise (charter section 8 item 3: underpowered experiments stay
+unresolved; the freeze fixes the sample size). `--planned-n N` applies it in `compare`, in both
+the standard and the `--relative-savings` modes.
+
+```text
+--planned-n absent       header "EXPLORATORY: no preregistered sample size"; category = raw
+n_pairs >= planned_n     category = raw; header says "plan met"
+n_pairs <  planned_n     category = UNRESOLVED, reason "n below preregistered sample size";
+                         the raw category is printed on its own line labelled "Raw category
+                         (before the sample-size gate)"
+```
+
+Below the planned n the non-inferiority line is printed as raw and marked not reportable as a
+verdict (`noninferior_reportable: false` in the JSON), since the same underpowered result
+would otherwise reappear there. Exceeding the planned n does not make a result confirmatory;
+that depends on the experiment's frozen status, which this package does not know. The
+existing small-n and degenerate-sample warnings are kept in every mode.
 
 The category is computed from the bootstrap interval by default (`--interval t` for the t
 interval). The report always shows both intervals, both categories, and the TOST p-values.
@@ -126,19 +174,23 @@ numbers are descriptive and exploratory; they carry no test and no multiplicity 
    `ttest_ind`) differs from the work-item spec used here (`--metric`, `--margin`, paired
    designs, `ttest_rel`). The work-item spec was followed; arms are paired, so `ttest_ind` would
    be the wrong test.
-2. The charter's EXP-001 cost measure is relative, `S = 1 - C_sel / C_base`, a ratio of totals.
-   This package tests means of per-episode differences in absolute metric units, so `S > 0.20`
-   is not directly expressible. It is not approximated here; a relative-cost comparison needs
-   its own, separately specified procedure (for example a paired bootstrap of the ratio of
-   means), which would be a change to this unit's scope.
+2. The charter's EXP-001 cost measure is relative, `S = 1 - C_sel / C_base`, a ratio of totals,
+   which the difference-of-means procedure cannot express. Resolved by the coordinator:
+   `ratio_of_totals_ci`, `exceeds`, and `compare --relative-savings --threshold` (see
+   intervals.py above). The measure and the 0.20 threshold are passed by the caller; nothing
+   in this package fixes them.
 3. Equivalence power for `true_diff != 0` is not specified. The specified formula is applied
    with `margin - |true_diff|`, keeping `beta/2`. This is conservative compared with the
    textbook form that uses `z_{1-beta}` for that case.
 4. `classify` is a pure function of the interval, so it cannot know the sample is tiny. For
    very small n the percentile bootstrap undercovers and a degenerate sample (all differences
-   equal) yields a zero-width interval. The category is left as specified, but the report adds
-   warnings for n < 30, for zero variance, for bootstrap/t category disagreement, and when the
-   category is equivalent but TOST does not reject. Treat a warned `equivalent` as unresolved.
+   equal) yields a zero-width interval. The category is left as specified, and the report
+   adds warnings for n < 30, for zero variance, for bootstrap/t category disagreement, and
+   when the category is equivalent but TOST does not reject. Treat a warned `equivalent` as
+   unresolved. Resolved by the coordinator: `--planned-n` and `gated_category` force
+   `unresolved` below the preregistered sample size; without `--planned-n` the report is
+   labelled EXPLORATORY. The warnings remain because the gate does not catch a degenerate
+   sample that meets the planned n.
 5. One test per call. Which comparison is primary, and any multiplicity adjustment for
    secondary comparisons (charter section 8, item 4), is the caller's responsibility; this
    package applies no adjustment.

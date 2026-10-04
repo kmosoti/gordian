@@ -187,3 +187,29 @@ def test_equivalent_implies_interval_narrower_than_twice_margin():
         m = float(rng.uniform(0.01, 1))
         if eq.classify(lo, hi, m) == eq.EQUIVALENT:
             assert hi - lo < 2 * m
+
+
+# ---- preregistered-sample-size gate ------------------------------------------------------
+
+
+@pytest.mark.parametrize("raw", eq.CATEGORIES)
+def test_gate_below_planned_n_forces_unresolved(raw):
+    assert eq.gated_category(raw, n=99, planned_n=100) == eq.UNRESOLVED
+
+
+@pytest.mark.parametrize("raw", eq.CATEGORIES)
+def test_gate_at_or_above_planned_n_passes_raw_through(raw):
+    assert eq.gated_category(raw, n=100, planned_n=100) == raw
+    assert eq.gated_category(raw, n=500, planned_n=100) == raw
+
+
+@pytest.mark.parametrize("raw", eq.CATEGORIES)
+def test_gate_absent_passes_raw_through(raw):
+    assert eq.gated_category(raw, n=3, planned_n=None) == raw
+
+
+def test_classify_stays_pure_of_sample_size():
+    import inspect
+
+    assert list(inspect.signature(eq.classify).parameters) == ["ci_low", "ci_high", "margin"]
+    assert eq.classify(-0.005, 0.005, 0.01) == eq.EQUIVALENT
