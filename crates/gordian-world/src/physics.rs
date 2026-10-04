@@ -336,7 +336,8 @@ fn role_of(masks: &[Vec<bool>], site: ServiceId, service: ServiceId) -> Option<R
 ///
 /// Returns exactly what [`consistent_worlds_reference`] returns, in the same order, for every
 /// input; the equivalence is tested, not proved. Complexity is the same as
-/// [`consistent_hypotheses`]: time `O(s * n * log s + s^3)`, space `O(n + s^2)`.
+/// [`consistent_hypotheses`], whose documentation has the argument: time
+/// `O(s * n * log s + s * (s + e))`, space `O(n + s^2)`.
 pub fn consistent_worlds(
     public: &PublicInfo,
     evidence: &[(Instant, Observation)],
@@ -497,10 +498,10 @@ pub fn consistent_worlds(
 
 /// The set of hypotheses the evidence does not contradict, under the public rules.
 ///
-/// This is the reference semantics of the rules above, computed in time linear in the evidence.
-/// The true hypothesis of every generated episode is always in the result for every prefix of its
-/// evidence (soundness, tested). Prior records are advisory and play no part here: a record can
-/// be stale.
+/// The semantics of the rules above, computed in time linear in the evidence length for a graph
+/// of bounded size (see Complexity). The true hypothesis of every generated episode is always in
+/// the result for every prefix of its evidence (soundness, tested). Prior records are advisory
+/// and play no part here: a record can be stale.
 ///
 /// Order: "no fault" first, then by site, then by kind.
 ///
@@ -509,17 +510,19 @@ pub fn consistent_worlds(
 ///
 /// # Complexity
 ///
-/// Let `n` be the length of `evidence` and `s` the number of services. The checker considers
+/// Let `n` be the length of `evidence`, `s` the number of services and `e` the number of
+/// dependency edges (at most `s^2` unless an edge is repeated). The checker considers
 /// `W = 1 + 7s` candidate worlds: no fault, and for each site five kinds, two of them under two
 /// settings of the hidden bits.
 ///
-/// - Time `O(s * n * log s + s^3)`: one pass over the evidence to drop uninformative
+/// - Time `O(s * n * log s + s * (s + e))`: one pass over the evidence to drop uninformative
 ///   observations and note drifted hashes (`O(1)` per observation, plus a `log s` map lookup for
-///   snapshots and probes); `s` dependent-set masks at `O(s^2)` each worst case; then one pass
+///   snapshots and probes); `s` dependent-set masks at `O(s + e)` each; then one pass
 ///   over the informative observations per world, each observation checked in `O(1)` (table
 ///   lookups of at most a handful of entries, plus a `log s` drift lookup for probes). A world is
 ///   dropped at its first contradiction, so this is an upper bound. With `s <= MAX_SERVICES`,
-///   as in every generated episode, this is linear in `n` with a constant of up to 85 passes.
+///   as in every generated episode, this is linear in `n` with a constant of up to
+///   `W = 85` passes, plus a term in `s` and `e` that does not depend on `n`.
 /// - Space `O(n + s^2)` beyond the input: the informative observations by reference (at most
 ///   `n`), the masks (`s^2` booleans), the drift map (`O(s)`), and the result (at most `W`).
 ///

@@ -223,9 +223,10 @@ violation. It is a text check: a macro assembling the path from pieces would eva
 
 ## 8. Checker complexity (work item A5b)
 
-Written before the change, from reading the code and from two measurements of the unchanged
-function (n = number of evidence entries, `m` = number of those that are informative, `s` =
-number of services).
+Sections 8.1 and 8.2 were written before the change, from reading the code and from measuring
+the unchanged function; section 8.3 says what was changed and section 8.4 what the change
+measures. Notation: `n` = number of evidence entries, `m` = number of those that are
+informative, `s` = number of services.
 
 ### 8.1 Why the late-anchor shape is quadratic
 
@@ -260,35 +261,114 @@ Consequences, all properties of the code and not of tuning:
 
 Shape: `n/2` alarms at the site that are not `ErrorRate` (`Latency`), the site's `ErrorRate`,
 then `n/2 - 1` `Latency` alarms at a direct dependent. One generated public graph (9 services,
-seed 3, class `Ambiguous`), instants strictly increasing, one core under
-`scripts/cgroup-run.sh`, other work on the machine. Call and step counts come from a counter
-placed temporarily in `anchored` and in its `.any` closure (removed again; the counts are exact
-and deterministic). Times come from the uninstrumented build, best of 7 batches of 20 calls.
+seed 3, class `Ambiguous`), instants strictly increasing. Call and step counts come from a
+counter placed temporarily in `anchored` and in its `.any` closure (removed again; the counts
+are exact and deterministic; the first author's counts were reproduced when the work was resumed,
+with identical results). Times are the criterion medians of
+`benches/checker.rs`, `late_anchor/reference` and `early_anchor/reference`, built with the
+measurement profile of section 8.4, on one core under `scripts/cgroup-run.sh --cpus 2
+--cpu-quota 100`.
 
 | n | `anchored` calls | scan steps | steps / (n^2/4) | late-anchor (us) | anchor-first (us) |
 |---:|---:|---:|---:|---:|---:|
-| 64 | 155 | 5,115 | 5.00 | 13.3 | 3.7 |
-| 128 | 315 | 20,475 | 5.00 | 29.6 | 5.5 |
-| 256 | 635 | 81,915 | 5.00 | 114.4 | 9.7 |
-| 512 | 1,275 | 327,675 | 5.00 | 427.1 | 17.4 |
-| 1024 | 2,555 | 1,310,715 | 5.00 | 1,684.7 | 32.9 |
-| 2048 | 5,115 | 5,242,875 | 5.00 | 6,550.5 | 64.1 |
+| 64 | 155 | 5,115 | 5.00 | 5.8 | 2.4 |
+| 256 | 635 | 81,915 | 5.00 | 62.3 | 6.5 |
+| 1024 | 2,555 | 1,310,715 | 5.00 | 901.5 | 22.7 |
+| 2048 | 5,115 | 5,242,875 | 5.00 | 3,809 | 43.1 |
 
-The step count is exactly `5 * (n^2/4 - 1)` (five surviving worlds), and the time follows it at
-about 1.25 ns per step (6,550 us over 5.24 M steps at n = 2048); doubling `n` multiplies the
-time by 3.7 to 4.0. Ruled out as the cause by two further shapes at the same sizes: all alarms at
-the site with the anchor last and no dependent alarms, and dependent alarms with no anchor at
-all. Both run in 51 and 67 us at n = 2048 and double with `n`. So pass 1, the mask construction,
-the loop over worlds and the dependency-map lookups are linear, and the cost is the scan inside
-`anchored` and nothing else.
+Steps at the sizes not shown: 128 gives 20,475, 512 gives 327,675.
+
+The step count is exactly `5 * (n^2/4 - 1)` (five surviving worlds). The time follows it at
+about 0.73 ns per step (3,809 us over 5.24 M steps at n = 2048); from n = 256 to 1024 to 2048
+the time multiplies by 14.5 and then by 4.2, against 16 and 4 for a quadratic. Ruled out as the
+cause by two further shapes at the same sizes: all alarms at the site with the anchor last and
+no dependent alarms, and dependent alarms with no anchor at all. At n = 2048 they run in 42 and
+27 us, and double with `n` (a timing loop, best of 9 batches of 20 calls; 21.6 and 13.8 us at
+n = 1024). So pass 1, the mask construction, the loop over worlds and the dependency-map lookups
+are linear, and the cost is the scan inside `anchored` and nothing else.
+
+A correction to the first draft of this section. It reported 6,550 us at n = 2048 (1,685 us at
+1024, 114 us at 256) and 51 and 67 us for the two ruled-out shapes, measured while other work
+was running on the machine. None of those times reproduced: on a quiet machine, with the build
+of the time (no LTO, 16 codegen units, no debug info) and the same shape, the reference takes
+4,084 us at n = 2048, 1,009 us at 1024 and 62 us at 256, within 0 to 12% of the numbers above.
+The step counts did reproduce exactly, and the shape of the argument does not depend on the
+times. The "24x declared cost at n = 256" and "1.7 ms at n = 1025" in the A5 review and the plan were
+measured through the verifier component, not on the checker alone, in conditions that cannot be
+reconstructed from the repository; the checker alone does not reproduce them (0.9 to 1.0 ms at
+n = 1024). This record keeps only the figures it has measured itself.
 
 ### 8.3 The change
 
-The scan will be replaced by a value that `explains` carries along: for the world's site, the
+The scan was replaced by a value that `explains` carries along: for the world's site, the
 smallest instant of any `ErrorRate` alarm at that site among the observations already passed.
 `anchored(site)` at position `i` is "exists `j < i` such that `informative[j]` is such an alarm
 and `t_j <= t_i`", which is `min { t_j : j < i, ... } <= t_i`, so the running minimum answers it
-exactly, including when evidence instants are not sorted. Nothing else will change: not pass 1,
-not the order in which observations are checked, not how the world list is assembled. The old
-code will stay as `consistent_worlds_reference` and `consistent_hypotheses_reference`, the
-oracle that the equivalence tests compare against.
+exactly, including when evidence instants are not sorted. Nothing else changed: not pass 1, not
+the order in which observations are checked, not how the world list is assembled. The old code
+stays, verbatim apart from its name and doc comment, as `consistent_worlds_reference` and
+`consistent_hypotheses_reference`, the oracle that `src/tests/equivalence.rs` compares against.
+
+Why this and not something else:
+
+- It is the smallest change that removes the repeated question. The answer depends only on the
+  site and the prefix, and one `Option<Instant>` per world pass carries it: no table, no second
+  pass, no new type.
+- A table of prefix minima per site, shared by the five worlds that ask the same question, would
+  answer it once instead of five times. It costs `O(s * m)` memory and a build pass, and the
+  saving is a constant factor (at most 5 here) on something that is already linear. Not taken.
+- Remembering only the position of the *first* anchor in the list is cheaper still and wrong:
+  `consistent_hypotheses` is public and accepts any slice, whose instants need not be sorted
+  (generated streams are sorted, evidence assembled by a caller need not be), and then the first
+  anchor in the list is not the one with the earliest instant. The equivalence tests contain
+  inputs on which that version differs from the reference.
+- Leaving the 85 passes over the evidence (one per world, `W = 1 + 7s` at `s = 12`) alone is
+  deliberate. A pass per world is linear, and restructuring it into a single pass that tracks all
+  worlds at once would be a larger change to the checker than the defect justifies.
+
+### 8.4 What the change measures
+
+Profile: the root `Cargo.toml` release profile (`debug = 1`, thin LTO, one codegen unit), which
+the `bench` profile inherits. `benches/checker.rs` under `scripts/cgroup-run.sh --cpus 2
+--cpu-quota 100 --memory 2G`, no other build running; criterion medians, 60 samples. The late
+anchor is the shape of 8.2.
+
+| n | late-anchor reference | late-anchor optimized | early-anchor reference | early-anchor optimized | generated reference (22 windows) | generated optimized (22 windows) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 64 | 5.78 us | 2.43 us | 2.36 us | 2.41 us | 24.8 us | 25.9 us |
+| 256 | 62.3 us | 7.32 us | 6.50 us | 6.95 us | 43.1 us | 46.3 us |
+| 1024 | 901.5 us | 24.5 us | 22.7 us | 26.8 us | 97.7 us | 103.4 us |
+| 2048 | 3,809 us | 49.1 us | 43.1 us | 51.9 us | 177.4 us | 176.6 us |
+
+- On the late anchor the optimized checker is linear in `n`: 24 ns per entry at n = 2048, a
+  time ratio of 3.3 from 256 to 1024 (for a 4x length, so a fixed cost of about 1 to 2 us is
+  still visible at the small end) and 2.0 from 1024 to 2048. It is 2.4x faster at n = 64, 8.5x at
+  256, 37x at 1024 and 78x at 2048. Generated streams never showed the problem; a recency window
+  that evicts the early anchor would move toward it.
+- On the shapes where the reference was already linear the optimized checker is slower, not
+  faster: by 0 to 20% on the early anchor (the confidence intervals overlap at 64; +7% at 256,
+  +18% at 1024, +20% at 2048) and by 0 to 8% on generated windows. The cause is the update of
+  the running minimum, which the reference never does, on every observation of every world pass.
+  That is the price of the fix on inputs that did not need it. It was not tuned away, because
+  the work item was to optimize nothing else.
+- A generated window longer than the episode's stream repeats the stream with shifted instants
+  (the bench's `window`); the numbers for generated windows at large `n` are for that repeated
+  content, not for episodes that long.
+
+### 8.5 Equivalence
+
+`src/tests/equivalence.rs`: every comparison checks `consistent_worlds` against
+`consistent_worlds_reference` and `consistent_hypotheses` against
+`consistent_hypotheses_reference`, element for element and in order. Sources of input: every
+prefix of generated episodes of all eleven classes (plus probe results appended, which the
+generator never emits); two adversarial late-anchor generators up to 2048 entries (non-`ErrorRate`
+site alarms, then the anchor, then dependents; and dependents first with the anchor last); random
+evidence from the whole public alphabet, uniform and biased toward a hidden world. Case counts
+are printed by the tests (`cargo test -p gordian-world equivalence -- --nocapture`) and each
+test asserts a minimum share of non-empty results so that agreement cannot come only from
+everything being contradicted. Checked by mutation: replacing the running minimum by the first
+anchor, by the latest anchor, by a look-ahead over the whole stream, by `<` for `<=` in the
+test, or by a test that ignores instants fails the suite; two mutants survive and are
+equivalent by argument (dropping the site test from the minimum's update, since a non-site
+`ErrorRate` that a surviving world accepts is itself anchored and so cannot lower the minimum;
+and `<` for `<=` in the update of the minimum, which only changes a value to an equal value).
