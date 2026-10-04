@@ -293,7 +293,11 @@ was running on the machine. None of those times reproduced: on a quiet machine, 
 of the time (no LTO, 16 codegen units, no debug info) and the same shape, the reference takes
 4,084 us at n = 2048, 1,009 us at 1024 and 62 us at 256, within 0 to 12% of the numbers above.
 The step counts did reproduce exactly, and the shape of the argument does not depend on the
-times. The "24x declared cost at n = 256" and "1.7 ms at n = 1025" in the A5 review and the plan were
+times. The likeliest reason is the machine and not the code: in the same session the heuristic
+component, which never calls the checker, ran at 0.66 to 0.87 of the times recorded for it
+under the same build settings earlier (`gordian-components/CALIBRATION.md`, section 8), so the
+speed of this VM differs between sessions by an amount of that order. The cause of that is not
+known. The "24x declared cost at n = 256" and "1.7 ms at n = 1025" in the A5 review and the plan were
 measured through the verifier component, not on the checker alone, in conditions that cannot be
 reconstructed from the repository; the checker alone does not reproduce them (0.9 to 1.0 ms at
 n = 1024). This record keeps only the figures it has measured itself.

@@ -47,8 +47,8 @@ use std::cmp::Reverse;
 // Fitted on 2026-10-04, Intel(R) Xeon(R) Processor @ 2.80GHz (4 vCPU VM), `bench` profile with the
 // workspace release settings (`debug = 1`, thin LTO, one codegen unit), on core 2 under
 // `scripts/cgroup-run.sh --cpus 2 --cpu-quota 100`, then `calibrate.py` (weighted least squares
-// on relative error), constants rounded from the fits of three runs. PROVISIONAL: the
-// coordinator reruns the calibration pinned before merge. Ratios and the shape of the fit:
+// on relative error), constants rounded from the fits of three runs, checked against a fourth.
+// The coordinator reruns the calibration before merge. Ratios and the shape of the fit:
 // CALIBRATION.md. Recalibrate after a change to the CPU, the release profile, or this
 // component's code.
 const A_NS: u64 = 275;
