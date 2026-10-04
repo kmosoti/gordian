@@ -619,8 +619,49 @@ fn equals_reference_on_dependents_first_anchor_last_streams() {
         "equivalence dependents-first: pure shape at n >= 256 in {} cases",
         long_pure.get()
     );
-    assert!(long_pure.get() >= 20, "{}", long_pure.get());
+    // Coverage of the pure shape here is random: each case is pure with probability about 0.10
+    // (tail = 0 with 1/5, n >= 256 with about 1/2), so over 300 cases the count is about 30 with
+    // a standard deviation of about 5.2. The earlier floor of 20 sat 1.9 standard deviations
+    // below the mean and failed in about 2-3% of runs. The pure shape is now guaranteed by the
+    // deterministic sweep below; this floor only catches a broken strategy, at about 3.9
+    // standard deviations (chance failure about 5e-5).
+    assert!(long_pure.get() >= 10, "{}", long_pure.get());
     assert_eq!(tally.cases.get(), 300);
+}
+
+/// The pure dependents-first shape at fixed lengths, for every class, time mode and two
+/// dependent shares: coverage that does not depend on the proptest seed.
+#[test]
+fn the_pure_dependents_first_shape_is_compared_at_every_length() {
+    let tally = Tally::default();
+    let mut compared = 0u64;
+    for class in 0..EpisodeClass::ALL.len() {
+        for n in [256usize, 512, 1024, 2048] {
+            for time_mode in 0u8..4 {
+                for dep_pm in [900u32, 1000] {
+                    let p = DependentsFirst {
+                        graph_seed: 0x5eed_0000 + class as u64,
+                        class,
+                        n,
+                        tail: 0,
+                        time_mode,
+                        dep_pm,
+                        detail: (n as u64) << 8 | u64::from(time_mode),
+                    };
+                    let (public, evidence, _site) = build_dependents_first(&p);
+                    assert_eq!(evidence.len(), n);
+                    agree(&public, &evidence, &tally).unwrap_or_else(|e| panic!("{p:?}: {e}"));
+                    assert_eq!(
+                        consistent_hypotheses_reference(&public, &evidence),
+                        vec![],
+                        "{p:?}"
+                    );
+                    compared += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(compared, 11 * 4 * 4 * 2);
 }
 
 // ---------------------------------------------------------------------------------------------
