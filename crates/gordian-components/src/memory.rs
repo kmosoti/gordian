@@ -1,0 +1,169 @@
+//! Lookup of prior records whose symptom signature matches the window.
+//!
+//! `PublicInfo::prior_records` holds `(signature, resolution)` pairs from earlier episodes. The
+//! lookup reads the records, keeps those whose signature equals the set of symptoms in the
+//! window, and returns their resolutions as hypotheses. Whether a lookup like this deserves the
+//! name "memory" is a question for EXP-004, not something the name settles.
+//!
+//! # Matching
+//!
+//! The window's signature is the set of symptom tags it shows (a counter at or above
+//! `physics::HIGH`, a catalogue message other than `CheckHealth`), the same definition as
+//! `physics::signature`. A record matches when its signature is *equal* to that set. Subset,
+//! superset, and fuzzy matches are alternatives an experiment can try. A window with no
+//! symptoms matches nothing.
+//!
+//! A record carries a fault kind but no site. The site of each hypothesis is taken from the
+//! window: the service where the kind's characteristic message was seen if there is one, else the
+//! earliest service with a high `ErrorRate`, else the service of the first symptom.
+//!
+//! # Ranking, and being fooled
+//!
+//! Matching records vote for their resolution; the hypothesis for the kind with the most votes
+//! ranks first, and there is a proposal only if that kind is strictly ahead. The lookup does not
+//! check a record against the evidence: a stale record whose signature matches is returned like
+//! any other, and that is deliberate (the stale-memory stressor of the charter, section 10, and
+//! EXP-004 measure what it costs).
+//!
+//! # Cost
+//!
+//! Finding the matches reads each record once, so the lookup charges per record read, on top of
+//! the work of summarizing the window. An optional read limit stops after the first `k` records;
+//! the declared cost uses the number actually read.
+
+use crate::cost::{affine_ns, compute};
+use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
+use crate::symptoms::{Summary, TAG_MASK, summarize, tag_mask, text_slot};
+use crate::{Component, ComponentOutput, ComputationRequest, MEMORY_ID, VERIFIER_ID, WorkingState};
+use gordian_core::{Charge, ComponentId};
+use gordian_world::physics::characteristic_message;
+use gordian_world::{FaultKind, Hypothesis, ServiceId};
+use std::cmp::Reverse;
+
+// Declared cost, `Resource::Compute` nanoseconds:
+// `A_NS + B_PS * n / 1000 + C_PS * r / 1000` for a window of `n` observations and `r` records
+// read. `A_NS` includes the cost of emitting an entry in the share of windows where a record
+// matched (18 of 22 in the calibration pool), so a window with no match costs less than declared.
+// Fitted on 2026-10-04, Intel(R) Xeon(R) Processor @ 2.80GHz (4 vCPU VM), `bench` profile, pinned
+// to core 2: `taskset -c 2 cargo bench -p gordian-components`, then `calibrate.py` (weighted least
+// squares on relative error), constants rounded from the fits of several runs. Ratios and the
+// shape of the fit: CALIBRATION.md. Recalibrate after a change to the CPU, the release profile,
+// or this component's code.
+const A_NS: u64 = 500;
+const B_PS: u64 = 3_830;
+const C_PS: u64 = 3_750;
+
+/// The prior-record lookup.
+#[derive(Debug, Clone, Copy)]
+pub struct PriorRecordLookup {
+    read_limit: usize,
+}
+
+impl Default for PriorRecordLookup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PriorRecordLookup {
+    /// A lookup that reads every record.
+    pub fn new() -> Self {
+        Self {
+            read_limit: usize::MAX,
+        }
+    }
+
+    /// A lookup that reads at most the first `limit` records, in the order `PublicInfo` lists
+    /// them.
+    pub fn with_read_limit(limit: usize) -> Self {
+        Self { read_limit: limit }
+    }
+
+    fn records_read(&self, input: &WorkingState) -> usize {
+        input.public.prior_records.len().min(self.read_limit)
+    }
+}
+
+fn site_for(kind: FaultKind, summary: &Summary) -> Option<ServiceId> {
+    summary.first[text_slot(characteristic_message(kind))]
+        .or(summary.first_error())
+        .or(summary.first_abnormal)
+}
+
+impl Component for PriorRecordLookup {
+    fn id(&self) -> ComponentId {
+        MEMORY_ID
+    }
+
+    fn declared_cost(&self, input: &WorkingState) -> Vec<Charge> {
+        let read = self.records_read(input);
+        let ns = affine_ns(A_NS, B_PS, input.size()).saturating_add(affine_ns(0, C_PS, read));
+        vec![compute(ns)]
+    }
+
+    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
+        let summary = summarize(&input.public, input.evidence());
+        let window = summary.mask & TAG_MASK;
+        if window == 0 {
+            return ComponentOutput::default();
+        }
+        let mut votes = [0u32; 5];
+        for record in input
+            .public
+            .prior_records
+            .iter()
+            .take(self.records_read(input))
+        {
+            if tag_mask(&record.signature) == window {
+                votes[kind_index(record.resolution)] += 1;
+            }
+        }
+        // Kinds with at least one vote, most votes first, ties in `FaultKind` order.
+        let mut kinds: Vec<(FaultKind, u32)> = FaultKind::ALL
+            .into_iter()
+            .zip(votes)
+            .filter(|(_, v)| *v > 0)
+            .collect();
+        kinds.sort_by_key(|(k, v)| (Reverse(*v), kind_index(*k)));
+        let ranked: Vec<Ranked> = kinds
+            .iter()
+            .filter_map(|(kind, v)| {
+                let site = site_for(*kind, &summary)?;
+                Some(Ranked {
+                    hypothesis: Some((*kind, site)),
+                    score: Some(*v),
+                })
+            })
+            .collect();
+        let Some(top) = ranked.first().and_then(|r| r.score) else {
+            return ComponentOutput::default();
+        };
+        let tied = ranked.iter().take_while(|r| r.score == Some(top)).count() as u32;
+        let proposal: Option<Hypothesis> = unique_best(&ranked, tied);
+        let mut requests = Vec::new();
+        if proposal.is_some() {
+            requests.push(ComputationRequest {
+                component: VERIFIER_ID,
+                reason: "check prior-record resolution".to_string(),
+            });
+        }
+        let entry = HypothesisEntry::Candidates {
+            source: "prior-record lookup".to_string(),
+            basis: "records whose signature equals the window's".to_string(),
+            ranked,
+            tied_at_top: tied,
+        };
+        ComponentOutput {
+            entries: vec![hypothesis_entry(&entry)],
+            requests,
+            proposal,
+        }
+    }
+}
+
+fn kind_index(kind: FaultKind) -> usize {
+    FaultKind::ALL
+        .iter()
+        .position(|k| *k == kind)
+        .unwrap_or_default()
+}
