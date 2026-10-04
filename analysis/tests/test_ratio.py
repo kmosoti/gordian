@@ -102,9 +102,15 @@ def test_negative_values_and_bad_args_rejected(tmp_path):
         ratio_of_totals_ci(p2, "bill_compute", seed=1.5)  # type: ignore[arg-type]
 
 
-def test_bill_total_metric(tmp_path):
-    # bill_total = sum of the six bill columns; here compute + memory.
-    a = write_run(tmp_path / "a", [{"seed": s, "bill_compute": 6, "bill_memory": 4} for s in (1, 2)])
-    b = write_run(tmp_path / "b", [{"seed": s, "bill_compute": 3, "bill_memory": 3} for s in (1, 2)])
-    r = ratio_of_totals_ci(load_pair(a, b), "bill_total", seed=1, resamples=100)
-    assert r.savings == pytest.approx(1 - 12 / 20)  # 1 - (3+3+3+3)/(10+10)
+def test_measured_total_ns_metric(tmp_path):
+    # measured_total_ns = component + sched + harness; here 6+4+0 = 10 vs 3+3+0 = 6 per episode.
+    a = write_run(
+        tmp_path / "a",
+        [{"seed": s, "measured_component_ns": 6, "measured_sched_ns": 4} for s in (1, 2)],
+    )
+    b = write_run(
+        tmp_path / "b",
+        [{"seed": s, "measured_component_ns": 3, "measured_sched_ns": 3} for s in (1, 2)],
+    )
+    r = ratio_of_totals_ci(load_pair(a, b), "measured_total_ns", seed=1, resamples=100)
+    assert r.savings == pytest.approx(1 - 12 / 20)  # 1 - (6+6)/(10+10)

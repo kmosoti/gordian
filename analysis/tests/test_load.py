@@ -98,7 +98,7 @@ def test_pairing_aligns_rows_regardless_of_file_order(tmp_path):
     rb = [{"seed": s, "bill_compute": 10 * s} for s in (2, 3, 1)]
     paired = load_pair(write_run(tmp_path / "a", ra), write_run(tmp_path / "b", rb))
     assert paired.a["seed"].tolist() == paired.b["seed"].tolist() == [1, 2, 3]
-    # d = B - A = 10s - s = 9s ; bill_total = bill_compute here
+    # d = B - A = 10s - s = 9s
     assert paired.differences("bill_compute", True).tolist() == [9.0, 18.0, 27.0]
 
 
@@ -111,17 +111,18 @@ def test_sign_convention_applied_once(tmp_path):
     assert paired.differences("bill_compute", False).tolist() == [4.0, 5.0]
 
 
-def test_bill_total_derived_in_code_and_input_not_mutated(tmp_path):
+def test_measured_total_derived_in_code_and_input_not_mutated(tmp_path):
     p = write_run(
         tmp_path / "r",
-        [{"seed": 1, "bill_compute": 1, "bill_memory": 2, "bill_time": 3,
-          "bill_probes": 4, "bill_comm": 5, "bill_storage": 6}],
+        [{"seed": 1, "measured_component_ns": 1, "measured_sched_ns": 2,
+          "measured_harness_ns": 4}],
     )  # fmt: skip
-    before = hashlib.sha256((p / "results.csv").read_bytes()).hexdigest()
+    before = {f: hashlib.sha256((p / f).read_bytes()).hexdigest() for f in ("results.csv", "measured.csv")}
     run = load_run(p)
-    assert run.results["bill_total"].tolist() == [21.0]  # 1+2+3+4+5+6
-    assert hashlib.sha256((p / "results.csv").read_bytes()).hexdigest() == before
-    assert "bill_total" not in (p / "results.csv").read_text().splitlines()[0]
+    assert run.results["measured_total_ns"].tolist() == [7.0]  # 1+2+4
+    for f, digest in before.items():
+        assert hashlib.sha256((p / f).read_bytes()).hexdigest() == digest
+        assert "measured_total_ns" not in (p / f).read_text().splitlines()[0]
 
 
 def test_unknown_metric_rejected(tmp_path):

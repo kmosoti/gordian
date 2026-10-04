@@ -1,8 +1,8 @@
 # gordian-analysis
 
 Paired statistical analysis of Gordian run directories (work item A7). It reads the
-`results.csv` that the recorder writes (and `usage.json` when present), pairs two arms on
-`(seed, class)`, and reports the charter section 8 quantities. The unit of replication is the
+`results.csv` and `measured.csv` that the recorder writes (and `usage.json` when present),
+pairs two arms on `(seed, class)`, and reports the charter section 8 quantities. The unit of replication is the
 episode; nothing here is computed per event.
 
 ```bash
@@ -17,18 +17,45 @@ cd analysis && .venv/bin/python -m pytest -q
 gordian-analyze compare --a RUNDIR --b RUNDIR --metric success --margin 0.01 \
     --higher-is-better --seed 1 [--alpha 0.05] [--interval bootstrap|t] \
     [--resamples 10000] [--planned-n N] [--json FILE]
-gordian-analyze compare --a RUNDIR --b RUNDIR --metric bill_total --relative-savings \
+gordian-analyze compare --a RUNDIR --b RUNDIR --relative-savings \
     --threshold 0.20 --seed 1 [--planned-n N] [--alpha 0.05] [--resamples 10000] [--json FILE]
+gordian-analyze compare --a RUNDIR --b RUNDIR --relative-savings --declared-cost \
+    --metric bill_compute --threshold 0.20 --seed 1
 gordian-analyze power --sd 1 --margin 0.5 --alpha 0.05 --power 0.8 \
     [--true-diff 0] [--equivalence] [--json FILE]
 ```
 
 `--seed` is required, and exactly one of `--higher-is-better` / `--lower-is-better` is
 required (there is no default, so a cost metric cannot silently be read with the wrong sign).
-Metrics: `success`, `critical_miss`, `false_alarm`, `abstained`, `probes_used`,
-`decision_at_ns`, each `bill_*` column, and `bill_total`. `bill_total` is the sum of the six
-`bill_*` columns, computed in memory; input files are never modified. Booleans are accepted as
-`true/false/0/1`. `--margin` is in the metric's own units.
+Metrics: `success`, `critical_miss`, `false_alarm`, `abstained`, `undecided`, `probes_used`,
+`corrections`, `decision_at_ns`, each `bill_*` column, each `measured_*_ns` column, and
+`measured_total_ns`. `measured_total_ns` is the sum of the three measured columns, computed in
+memory; input files are never modified. Booleans are accepted as `true/false/0/1`. `--margin`
+is in the metric's own units.
+
+`bill_total` no longer exists. It added nanoseconds to probe counts and bytes, which have no
+common unit; asking for it is an error that says so. The `bill_*` columns are declared cost,
+one resource each, and are compared one at a time.
+
+`decision_at_ns` is undefined for an undecided episode, so a comparison on it is refused while
+either arm has one. It is not computed over the decided episodes alone, which would condition
+the comparison on the outcome; compare `undecided` and `success` instead.
+
+### Which cost: `--relative-savings`
+
+The charter's cost `C` is measured wall time (`docs/local-test-plan.md`, A4 and A5). So
+`--relative-savings` defaults to `--metric measured_total_ns` and the report says
+"Cost basis: measured wall time, the charter's cost C". Other choices:
+
+- another `measured_*_ns` column is allowed and labelled as one part of the episode, not `C`;
+- a `bill_*` column is refused unless `--declared-cost` is passed, and the report then says
+  "DECLARED cost (a bill column), NOT the charter's cost C". The JSON carries `cost_basis`
+  (`measured`, `measured_partial`, `declared`);
+- anything that is not a cost (`success`, `decision_at_ns`, ...) is refused.
+
+Undecided episodes stay in the totals: cost is spent whether or not the episode decided.
+Relative savings says nothing about quality. An arm that never decides can cost much less, and
+the report would say so; it has to be read next to the success comparison, as EXP-001 does.
 
 Exit status is 0 on success and 2 on malformed input (message on stderr).
 
@@ -47,11 +74,25 @@ Positive `d` always means B is better. The report states which convention was us
 
 ### load.py
 
-`load_run(dir)` parses one run and fails (`LoadError`) on a missing file or column, a value that
-is not boolean or not finite-numeric, more than one `run_id`, or duplicate `(seed, class)`.
-`pair_runs` / `load_pair` join two arms on `(seed, class)` and fail on any key present in only
-one arm; rows are aligned by sorted key, not file order. An optional numeric `confidence`
-column is parsed when present.
+`load_run(dir)` reads `results.csv` and `measured.csv` and joins them on `(seed, class)`. It
+fails (`LoadError`) on:
+
+- a missing file or column, or any column that is not in the schema the harness writes
+  (`crates/gordian-run/src/results.rs`; a test compares the loader's lists with the header
+  constants in that file). `confidence` is the one named optional column in `results.csv`,
+  kept for the risk-coverage curve; the harness does not write it yet;
+- a value that is not boolean or not finite-numeric, more than one `run_id`, or duplicate
+  `(seed, class)` in either file;
+- `decision_at_ns` empty on a decided row, or present on an undecided one. It is empty exactly
+  when `undecided` is true (evaluator R9) and loads as NaN there; every other column must be
+  filled;
+- keys in one file and not the other, or a `run_id` that differs between the two files. There
+  is no silent drop, fill or outer join.
+
+`stop_reason` and `directives_ignored` load as is; `stop_reason` must be non-empty and its
+values are not checked against a list. `pair_runs` / `load_pair` join two arms on
+`(seed, class)` and fail on any key present in only one arm; rows are aligned by sorted key,
+not file order.
 
 ### intervals.py
 
@@ -159,12 +200,15 @@ estimated from exploratory runs carries its own uncertainty that is not propagat
 
 ### breakdown.py
 
-`per_class_table` (n, mean, sd per class and metric); `coverage_error_table`
-(`coverage = 1 - mean(abstained)`, `error_rate_answered = 1 - mean(success)` over non-abstained
-episodes, NaN if none were answered, plus a pooled `ALL` row); `risk_coverage_curve`
-(requires `confidence`: over answered episodes, for each distinct confidence value c take all
+`per_class_table` (n, n_missing, mean, sd per class and metric; only `decision_at_ns` can be
+missing, and its mean is over decided episodes, said so by `n_missing`); `coverage_error_table`
+(an episode is answered when it neither abstained nor is undecided; `coverage = answered / n`,
+`error_rate_answered = 1 - mean(success)` over answered episodes, NaN if none were answered,
+`undecided_rate`, plus a pooled `ALL` row. An undecided episode never gave an answer, so it is
+neither coverage nor an answered error; it is still a failure in the `success` metric); `risk_coverage_curve`
+(requires `confidence`: over answered, i.e. decided and not abstained, episodes, for each distinct confidence value c take all
 answered episodes with confidence >= c, so ties enter together; `coverage = accepted / N`
-with N counting every episode including abstained ones; `risk` = fraction of accepted episodes
+with N counting every episode including abstained and undecided ones; `risk` = fraction of accepted episodes
 that are not successes); `paired_class_table` (per class n, mean A, mean B, mean d). Per-class
 numbers are descriptive and exploratory; they carry no test and no multiplicity adjustment.
 
@@ -195,10 +239,36 @@ numbers are descriptive and exploratory; they carry no test and no multiplicity 
    secondary comparisons (charter section 8, item 4), is the caller's responsibility; this
    package applies no adjustment.
 
+## Fixtures
+
+`tests/fixtures/run_a` and `run_b` are hand-built (invented numbers with hand-computed
+expectations). Their `measured.csv` is invented too: component, scheduler and harness
+nanoseconds were chosen so `measured_total_ns` equals what the old `bill_total` was per row.
+
+`tests/fixtures/real_a` and `real_b` are unedited `gordian-run` output, three seeds by eleven
+classes, `heuristic_only`, from the harness at commit `b187142`:
+
+```bash
+CARGO_BUILD_JOBS=1 cargo build --release -p gordian-run
+target/release/gordian-run init --run-id real-a --arm real-a --policy heuristic_only \
+    --seed-start 1 --seed-count 3 --trace-sample-rate 0 --out a.json
+# real-b: the same manifest with run_id and arm real-b and limits.max_steps edited 1000 -> 20
+scripts/cgroup-run.sh --name N --memory 2G -- target/release/gordian-run --manifest a.json --out real_a
+```
+
+Only `results.csv`, `measured.csv` and `manifest.json` are kept. Arm B is not a second policy
+(`heuristic_only` is the only real one): it is the same policy under a 20-step cap, which makes
+30 of its 33 episodes `undecided` with `stop_reason=step_cap` and an empty `decision_at_ns`.
+It had to share arm A's seeds, because arms are paired on `(seed, class)`, so a different seed
+range or trace rate would not give a pair (the trace rate does not change `results.csv`).
+The manifest edit is visible in `real_b/manifest.json`. The measured nanoseconds are one
+machine's wall times and are only used as numbers in tests, never as expected values.
+
 ## Tests
 
 `python -m pytest -q` from `analysis/`. Tests include hand-computed values (arithmetic in
 comments), `scipy.stats.ttest_rel` / `ttest_1samp` agreement, all four categories from synthetic
 data, bootstrap reproducibility and pair-preservation, loader rejection of duplicate and
-unmatched keys, power textbook cases and monotonicity, a Monte Carlo check of
-`achieved_power_t`, and the CLI end to end on `tests/fixtures/run_a` and `run_b`.
+unmatched keys, of unknown columns, of a results/measured key mismatch, and of an empty
+decision time on a decided row (`tests/test_real_runs.py`, also the real-output fixtures), power textbook cases and monotonicity, a Monte Carlo check of
+`achieved_power_t`, and the CLI end to end on `tests/fixtures/run_a` and `run_b` and on `real_a` and `real_b`.

@@ -48,9 +48,9 @@ def test_compare_success_end_to_end(capsys, fixtures_dir, tmp_path):
 def test_compare_cost_lower_is_better(capsys, fixtures_dir):
     rc, out, _ = run_cli(
         capsys,
-        *compare_args(fixtures_dir, metric="bill_total", margin="1", direction="--lower-is-better"),
+        *compare_args(fixtures_dir, metric="measured_total_ns", margin="1", direction="--lower-is-better"),
     )
-    # bill_total: A = 16 (easy) / 20 (hard), B = 12 / 15 -> d = A - B = 4, 5 -> mean 4.5, sd 0.513
+    # measured_total_ns: A = 16 (easy) / 20 (hard), B = 12 / 15 -> d = A - B = 4, 5 -> mean 4.5, sd 0.513
     assert rc == 0
     # the per-class table uses the same convention, applied once: easy 16-12 = 4, hard 20-15 = 5
     assert "easy 10 16.0000 12.0000 4.0000" in " ".join(out.split())
@@ -62,9 +62,9 @@ def test_compare_cost_lower_is_better(capsys, fixtures_dir):
 
 def test_compare_swapped_direction_flips_sign(capsys, fixtures_dir, tmp_path):
     f1, f2 = tmp_path / "1.json", tmp_path / "2.json"
-    run_cli(capsys, *compare_args(fixtures_dir, "--json", str(f1), metric="bill_total", margin="1",
+    run_cli(capsys, *compare_args(fixtures_dir, "--json", str(f1), metric="measured_total_ns", margin="1",
                                   direction="--lower-is-better"))  # fmt: skip
-    run_cli(capsys, *compare_args(fixtures_dir, "--json", str(f2), metric="bill_total", margin="1",
+    run_cli(capsys, *compare_args(fixtures_dir, "--json", str(f2), metric="measured_total_ns", margin="1",
                                   direction="--higher-is-better"))  # fmt: skip
     assert json.loads(f1.read_text())["mean_d"] == pytest.approx(4.5)
     assert json.loads(f2.read_text())["mean_d"] == pytest.approx(-4.5)
@@ -155,8 +155,9 @@ def test_power_cli_invalid_input(capsys):
 
 
 def rs_args(fx, *extra, threshold="0.20"):
+    # No --metric: relative savings defaults to measured_total_ns.
     return (
-        "compare", "--a", str(fx / "run_a"), "--b", str(fx / "run_b"), "--metric", "bill_total",
+        "compare", "--a", str(fx / "run_a"), "--b", str(fx / "run_b"),
         "--relative-savings", "--threshold", threshold, "--seed", "1", *extra,
     )  # fmt: skip
 
@@ -172,11 +173,11 @@ def test_header_exploratory_without_planned_n(capsys, fixtures_dir, tmp_path):
 
 
 def test_planned_n_below_forces_unresolved_and_shows_raw(capsys, fixtures_dir, tmp_path):
-    # bill_total: every pair has B/A = 0.75, so the raw category is BENEFICIAL on 20 pairs.
+    # measured_total_ns: every pair has B/A = 0.75, so the raw category is BENEFICIAL on 20 pairs.
     j = tmp_path / "o.json"
     _, out, _ = run_cli(
         capsys,
-        *compare_args(fixtures_dir, "--planned-n", "500", "--json", str(j), metric="bill_total",
+        *compare_args(fixtures_dir, "--planned-n", "500", "--json", str(j), metric="measured_total_ns",
                       margin="1", direction="--lower-is-better"),
     )  # fmt: skip
     assert "EXPLORATORY" not in out
@@ -193,7 +194,7 @@ def test_planned_n_below_forces_unresolved_and_shows_raw(capsys, fixtures_dir, t
 def test_planned_n_met_reports_raw_category(capsys, fixtures_dir):
     _, out, _ = run_cli(
         capsys,
-        *compare_args(fixtures_dir, "--planned-n", "20", metric="bill_total", margin="1",
+        *compare_args(fixtures_dir, "--planned-n", "20", metric="measured_total_ns", margin="1",
                       direction="--lower-is-better"),
     )  # fmt: skip
     assert "Preregistered sample size: 20 pairs; observed: 20 pairs (plan met)" in out
@@ -233,7 +234,7 @@ def test_relative_savings_exploratory_header_and_false_decision(capsys, fixtures
 
 def test_relative_savings_refuses_higher_is_better_and_bad_combinations(capsys, fixtures_dir):
     base = ["compare", "--a", str(fixtures_dir / "run_a"), "--b", str(fixtures_dir / "run_b"),
-            "--metric", "bill_total", "--seed", "1"]  # fmt: skip
+            "--metric", "measured_total_ns", "--seed", "1"]  # fmt: skip
     for extra in (
         ["--relative-savings", "--threshold", "0.2", "--higher-is-better"],
         ["--relative-savings"],  # no threshold
@@ -251,7 +252,7 @@ def test_relative_savings_refuses_higher_is_better_and_bad_combinations(capsys, 
 def test_relative_savings_zero_total_is_loud(capsys, tmp_path):
     a = write_run(tmp_path / "a", [{"seed": s} for s in (1, 2, 3)])  # all bills zero
     b = write_run(tmp_path / "b", [{"seed": s} for s in (1, 2, 3)])
-    rc, out, err = run_cli(capsys, "compare", "--a", str(a), "--b", str(b), "--metric", "bill_total",
+    rc, out, err = run_cli(capsys, "compare", "--a", str(a), "--b", str(b), "--metric", "measured_total_ns",
                            "--relative-savings", "--threshold", "0.2", "--seed", "1")  # fmt: skip
     assert rc == 2 and out == "" and "zero" in err
 
