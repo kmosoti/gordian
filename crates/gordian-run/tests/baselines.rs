@@ -25,7 +25,7 @@ use gordian_run::policy::{
     self, Built, Policy, PolicyId, PolicySpec, fixed_pipeline, random_matched,
 };
 use gordian_run::recorder::execute;
-use gordian_run::{EpisodeRecord, run_episode, run_episode_privileged, standard_components};
+use gordian_run::{EpisodeRecord, run_episode_privileged, standard_components};
 use gordian_world::physics::{consistent_hypotheses, consistent_worlds, probe_result};
 use gordian_world::{
     Action, EpisodeClass, FaultKind, Hypothesis, Observation, Probe, ProbeKind, ProbeResult,
@@ -974,9 +974,10 @@ fn only_the_oracle_file_names_the_truth() {
 
 #[test]
 fn only_oracle_policies_are_built_from_the_truth() {
-    // The type-level half: `build` returns a policy for every arm except the two privileged
-    // ones, which come back as a factory the harness alone can use. Nothing public takes a
-    // truth and returns a policy other than that factory.
+    // The registry half: `build` returns a policy for every arm except the two privileged ones,
+    // which come back as a factory. (That nothing else takes a truth is by construction, with a
+    // `compile_fail` doctest on the private policy type, and by the source scan above; it is not
+    // something a runtime test can show.)
     let decide = DecideConfig::default();
     for spec in all_specs() {
         let privileged = matches!(
@@ -985,11 +986,10 @@ fn only_oracle_policies_are_built_from_the_truth() {
         );
         assert_eq!(privileged, spec.is_privileged(), "{:?}", spec.id());
     }
-    // A privileged policy refuses to be built by the generic harness entry point: it is not a
-    // `Policy` until the harness has a truth to give its factory.
+    // Through the privileged entry point the factory yields a policy, and its ledger entries are
+    // labelled with the oracle's id.
     let factory = OracleFactory::new(Variant::Evidence, decide);
     assert_eq!(factory.variant(), Variant::Evidence);
-    // The built policy states which rule it uses, and it is not the shared one.
     let l = limits();
     let record = {
         let mut components = standard_components();
@@ -1007,33 +1007,6 @@ fn only_oracle_policies_are_built_from_the_truth() {
             .iter()
             .any(|e| e.provenance.producer == "policy/oracle_evidence")
     );
-}
-
-#[test]
-fn a_non_oracle_arm_gives_the_same_answer_whatever_the_truth_is_called() {
-    // Behavioural check on the other side: run the public arms through the generic entry point
-    // and again through a wrapper that hides nothing and adds nothing; the verdicts agree
-    // episode by episode, so no hidden input could have been used (the wrapper cannot supply
-    // one). Compared on the verdict and the bill.
-    let l = limits();
-    let decide = DecideConfig::default();
-    for spec in non_privileged_specs() {
-        for class in [
-            EpisodeClass::Ambiguous,
-            EpisodeClass::NoFault,
-            EpisodeClass::JointlyDecisive,
-        ] {
-            let a = play_built(&spec, 5, class, &decide);
-            let Built::Public(mut p) = policy::build(&spec, &decide, &arm_name(&spec), 5) else {
-                unreachable!()
-            };
-            let mut components = standard_components();
-            let b =
-                run_episode(&common::spec(5, class, &l), p.as_mut(), &mut components, &l).unwrap();
-            assert_eq!(a.verdict, b.verdict);
-            assert_eq!(a.bill, b.bill);
-        }
-    }
 }
 
 // ---- the manifest ----
