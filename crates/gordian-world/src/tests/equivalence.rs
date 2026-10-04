@@ -505,6 +505,124 @@ fn the_pure_late_anchor_shape_is_compared_at_every_length() {
     assert!(t.long_non_empty.get() >= 10);
 }
 
+/// The other late-anchor shape, in the words of the work item: the dependents' alarms first and
+/// the site's `ErrorRate` last. No world that has the site as its site can explain the early
+/// dependent alarms, and the worlds that have a dependent as their site cannot explain an
+/// `ErrorRate` at an ancestor, so the consistent set is empty; what this input checks is that
+/// the optimized pass rejects for the same reason and never lets an anchor that comes *later* in
+/// the list (or the evidence) explain an alarm that came before it. `tail` extra dependent
+/// alarms may follow the anchor, which then are anchored but do not bring the early ones back.
+#[derive(Debug, Clone)]
+struct DependentsFirst {
+    graph_seed: u64,
+    class: usize,
+    /// Number of observations, 1 to 2048.
+    n: usize,
+    /// Entries after the anchor, 0 to 4 (capped so that the anchor is not first).
+    tail: usize,
+    /// 0 increasing instants; 1 all equal; 2 decreasing (every anchor instant is earlier than
+    /// the alarms before it); 3 the anchor is given the earliest instant of all.
+    time_mode: u8,
+    /// Share, in thousandths, of the entries before the anchor that are dependents' alarms; the
+    /// rest are benign. The first entry is always a dependent's alarm.
+    dep_pm: u32,
+    detail: u64,
+}
+
+fn dependents_first_strategy() -> impl Strategy<Value = DependentsFirst> {
+    (
+        any::<u64>(),
+        0usize..11,
+        prop_oneof![1 => 2usize..=16, 2 => 17usize..=256, 3 => 257usize..=2048],
+        0usize..=4,
+        0u8..4,
+        prop_oneof![1 => 0u32..=1000, 2 => 900u32..=1000],
+        any::<u64>(),
+    )
+        .prop_map(
+            |(graph_seed, class, n, tail, time_mode, dep_pm, detail)| DependentsFirst {
+                graph_seed,
+                class,
+                n,
+                tail,
+                time_mode,
+                dep_pm,
+                detail,
+            },
+        )
+}
+
+fn build_dependents_first(p: &DependentsFirst) -> (PublicInfo, Evidence, ServiceId) {
+    let public =
+        generate(&EpisodeSpec::new(p.graph_seed, EpisodeClass::ALL[p.class])).public_info();
+    let world = World {
+        services: public.services.clone(),
+    };
+    let mut rng = Mix(p.detail);
+    let with_dependents: Vec<ServiceId> = (0..world.len() as u32)
+        .map(ServiceId)
+        .filter(|s| !world.dependents_of(*s).is_empty())
+        .collect();
+    let site = rng.pick(&with_dependents);
+    let deps = world.dependents_of(site);
+    let tail = p.tail.min(p.n - 2);
+    let anchor_at = p.n - 1 - tail;
+    let alarm = |rng: &mut Mix| HIGH + rng.below(50) as u64;
+    let mut obs: Vec<Observation> = Vec::with_capacity(p.n);
+    for i in 0..p.n {
+        let o = if i == anchor_at {
+            ctr(site, CounterName::ErrorRate, alarm(&mut rng))
+        } else if i > anchor_at || i == 0 || rng.below(1000) < p.dep_pm as usize {
+            let dep = rng.pick(&deps);
+            let name = rng.pick(&[CounterName::Latency, CounterName::ErrorRate]);
+            ctr(dep, name, alarm(&mut rng))
+        } else {
+            benign(&mut rng, world.len())
+        };
+        obs.push(o);
+    }
+    let mut times: Vec<u64> = match p.time_mode {
+        0 | 3 => (0..p.n).map(|i| i as u64 + 1).collect(),
+        1 => vec![7; p.n],
+        _ => (0..p.n).map(|i| (p.n - i) as u64).collect(),
+    };
+    if p.time_mode == 3 {
+        times[anchor_at] = 0;
+    }
+    (
+        public,
+        times.into_iter().map(Instant).zip(obs).collect(),
+        site,
+    )
+}
+
+#[test]
+fn equals_reference_on_dependents_first_anchor_last_streams() {
+    let long_pure = Cell::new(0u64);
+    let tally = run(
+        "dependents-first",
+        300,
+        dependents_first_strategy(),
+        |p, t| {
+            let (public, evidence, _site) = build_dependents_first(&p);
+            prop_assert_eq!(evidence.len(), p.n);
+            agree(&public, &evidence, t)?;
+            if p.tail == 0 && p.n >= 256 {
+                // The pure shape: dependents' alarms, then the anchor, nothing after.
+                prop_assert_eq!(consistent_hypotheses_reference(&public, &evidence), vec![]);
+                bump(&long_pure);
+            }
+            Ok(())
+        },
+    );
+    println!(
+        "equivalence dependents-first: pure shape at n >= 256 in {} cases",
+        long_pure.get()
+    );
+    assert!(long_pure.get() >= 20, "{}", long_pure.get());
+    assert_eq!(tally.cases.get(), 300);
+}
+
 // ---------------------------------------------------------------------------------------------
 // 3. Random sequences over the public alphabet of observations.
 // ---------------------------------------------------------------------------------------------
