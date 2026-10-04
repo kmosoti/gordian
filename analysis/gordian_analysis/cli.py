@@ -14,7 +14,16 @@ import pandas as pd
 from . import equivalence as eq
 from .breakdown import coverage_error_table, paired_class_table, risk_coverage_curve
 from .intervals import DEFAULT_RESAMPLES, paired_bootstrap_ci, ratio_of_totals_ci
-from .load import METRICS, OPTIONAL_CONFIDENCE, LoadError, load_pair
+from .load import (
+    BILL_COLUMNS,
+    MEASURED_TOTAL,
+    MEASURED_VALUE_COLUMNS,
+    METRICS,
+    OPTIONAL_CONFIDENCE,
+    LoadError,
+    check_metric,
+    load_pair,
+)
 from .power import equivalence_n, noninferiority_n
 
 SMALL_N = 30
@@ -164,18 +173,67 @@ def _sample_size_header(r: dict) -> list[str]:
     ]
 
 
+COST_BASIS_TEXT = {
+    "measured": "measured wall time, the charter's cost C",
+    "measured_partial": (
+        "measured wall time of one part of the episode; NOT the charter's cost C "
+        f"({MEASURED_TOTAL} is C)"
+    ),
+    "declared": (
+        "DECLARED cost (a bill column), NOT the charter's cost C; it is what the policy was "
+        "charged, not what the work took, and it counts one resource only"
+    ),
+}
+
+
+def cost_basis(metric: str, declared_cost: bool) -> str:
+    """Classify a relative-savings metric, refusing a declared cost that was not asked for.
+
+    The charter's C is measured cost (docs/local-test-plan.md, A4 and A5), so
+    `measured_total_ns` is the default and a bill column needs `declared_cost=True`.
+    """
+    if metric in BILL_COLUMNS:
+        if not declared_cost:
+            raise ValueError(
+                f"{metric} is declared cost, not the charter's cost C (measured cost, "
+                f"{MEASURED_TOTAL}). To compute relative savings on a declared cost anyway, "
+                "pass --declared-cost; the report will say so"
+            )
+        return "declared"
+    if declared_cost:
+        raise ValueError(
+            f"--declared-cost applies only to a bill_* column, named with --metric; got metric "
+            f"{metric!r}"
+        )
+    if metric == MEASURED_TOTAL:
+        return "measured"
+    if metric in MEASURED_VALUE_COLUMNS:
+        return "measured_partial"
+    check_metric(metric)
+    raise ValueError(
+        f"{metric!r} is not a cost metric; relative savings takes {MEASURED_TOTAL} (default), "
+        f"another measured_* column, or with --declared-cost a bill_* column"
+    )
+
+
 def analyze_relative_savings(
     dir_a: str,
     dir_b: str,
     *,
-    metric: str,
+    metric: str = MEASURED_TOTAL,
+    declared_cost: bool = False,
     threshold: float,
     seed: int,
     alpha: float = 0.05,
     n_resamples: int = DEFAULT_RESAMPLES,
     planned_n: int | None = None,
 ) -> dict:
-    """EXP-001 style cost measure: S = 1 - sum(B)/sum(A), decision S > threshold."""
+    """EXP-001 style cost measure: S = 1 - sum(B)/sum(A), decision S > threshold.
+
+    The metric defaults to the measured total (the charter's C). A declared-cost bill column
+    is accepted only with `declared_cost=True`, and the result then says so.
+    """
+    basis = cost_basis(metric, declared_cost)
     if not math.isfinite(threshold) or threshold >= 1.0:
         raise ValueError("threshold must be finite and below 1 (S cannot exceed 1)")
     if not 0.0 < alpha < 0.5:
@@ -196,6 +254,8 @@ def analyze_relative_savings(
     out = {
         "mode": "relative_savings",
         "metric": metric,
+        "cost_basis": basis,
+        "cost_basis_text": COST_BASIS_TEXT[basis],
         "definition": "S = 1 - sum(B)/sum(A) over paired episodes; positive S means B costs less",
         "a": {"path": str(paired.run_a.path), "run_id": paired.run_a.run_id, "total": res.sum_a},
         "b": {"path": str(paired.run_b.path), "run_id": paired.run_b.run_id, "total": res.sum_b},
@@ -223,6 +283,7 @@ def format_relative(r: dict) -> str:
     pct = f"{100 * r['interval_confidence']:g}%"
     lines = _sample_size_header(r) + [
         f"Relative savings on metric: {r['metric']}",
+        f"Cost basis: {r['cost_basis_text']}",
         f"A (baseline):  {r['a']['path']}  run_id={r['a']['run_id']}  total={_f(r['a']['total'])}",
         f"B (treatment): {r['b']['path']}  run_id={r['b']['run_id']}  total={_f(r['b']['total'])}",
         f"Definition: {r['definition']}.",
@@ -308,7 +369,7 @@ def format_compare(r: dict) -> str:
             f"Coverage and error among answered, arm {name}:",
             _frame_text(
                 r["coverage_error"][arm],
-                ["class", "n", "n_answered", "coverage", "error_rate_answered"],
+                ["class", "n", "n_answered", "coverage", "error_rate_answered", "undecided_rate"],
             ),
         ]
         if arm in r.get("risk_coverage", {}):
@@ -360,6 +421,14 @@ def format_power(r: dict) -> str:
     return "\n".join(lines)
 
 
+def _metric_arg(value: str) -> str:
+    try:
+        check_metric(value)
+    except LoadError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="gordian-analyze", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
@@ -367,7 +436,9 @@ def build_parser() -> argparse.ArgumentParser:
     c = sub.add_parser("compare", help="paired comparison of two run directories")
     c.add_argument("--a", required=True, metavar="RUNDIR", help="baseline run directory")
     c.add_argument("--b", required=True, metavar="RUNDIR", help="treatment run directory")
-    c.add_argument("--metric", required=True, choices=METRICS)
+    c.add_argument("--metric", type=_metric_arg, metavar="METRIC",
+                   help="one of: " + ", ".join(METRICS) + ". Required, except with "
+                   f"--relative-savings, where it defaults to {MEASURED_TOTAL}")  # fmt: skip
     c.add_argument("--margin", type=float, help="symmetric margin, in metric units (required "
                    "unless --relative-savings)")  # fmt: skip
     g = c.add_mutually_exclusive_group()
@@ -376,6 +447,10 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--relative-savings", action="store_true",
                    help="report S = 1 - sum(B)/sum(A) for a cost metric against --threshold; "
                    "implies lower-is-better and refuses --higher-is-better")  # fmt: skip
+    c.add_argument("--declared-cost", action="store_true",
+                   help="with --relative-savings, allow a declared-cost bill_* column as the "
+                   "metric. The report states that it is declared cost, not the charter's "
+                   "cost C (measured)")  # fmt: skip
     c.add_argument("--threshold", type=float, help="S must exceed this (EXP-001: 0.20)")
     c.add_argument("--planned-n", type=int, help="preregistered number of paired episodes; "
                    "fewer observed pairs forces the category to unresolved")  # fmt: skip
@@ -412,6 +487,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if args.threshold is not None:
                 parser.error("--threshold applies only with --relative-savings")
+            if args.declared_cost:
+                parser.error("--declared-cost applies only with --relative-savings")
+            if args.metric is None:
+                parser.error("--metric is required")
             if args.margin is None:
                 parser.error("--margin is required")
             if args.higher is None:
@@ -421,7 +500,8 @@ def main(argv: list[str] | None = None) -> int:
             result = analyze_relative_savings(
                 args.a,
                 args.b,
-                metric=args.metric,
+                metric=args.metric or MEASURED_TOTAL,
+                declared_cost=args.declared_cost,
                 threshold=args.threshold,
                 seed=args.seed,
                 alpha=args.alpha,
