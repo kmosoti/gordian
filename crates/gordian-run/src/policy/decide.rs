@@ -67,11 +67,38 @@ impl Default for DecideConfig {
     }
 }
 
-// Declared cost of one call, `Resource::Compute` nanoseconds. See `POLICIES.md`, section 3, for
-// how these were measured and what they do not cover.
-const BASE_NS: u64 = 400;
-const SCAN_PS_PER_OBSERVATION: u64 = 2_000;
-const EVAL_NS_PER_WORLD_PROBE: u64 = 30;
+// Declared cost of one call, in picoseconds per unit so that slopes of a few nanoseconds keep
+// their precision; the charge is `Resource::Compute` nanoseconds. Fitted on 2026-10-04 on the
+// 4 vCPU Xeon (release profile, not pinned: the sandbox refused `taskset` for builds, and another
+// worker was benchmarking) by the ignored test `measure_the_rule_against_its_declared_cost` in
+// `tests/baselines.rs`, weighted least squares on relative error, rounded. What was measured and
+// what the constants do not cover: `POLICIES.md`, section 3.
+const BASE_PS: u64 = 45_000;
+const SCAN_PS: u64 = 950;
+const WORLD_PS: u64 = 10_500;
+const EVAL_PS: u64 = 36_000;
+const DECODE_OUTPUT_PS: u64 = 530_000;
+const DECODE_HYPOTHESIS_PS: u64 = 115_000;
+
+/// The quantities the rule's declared cost is a function of; see [`Decider::declared_cost`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CostFeatures {
+    /// Observations in the window.
+    pub window: u64,
+    /// Outputs the previous call decoded (at most one each from the verifier, estimator and
+    /// heuristic).
+    pub decoded_outputs: u64,
+    /// Hypotheses in those outputs.
+    pub decoded_hypotheses: u64,
+    /// Hypotheses in the first available stored set.
+    pub candidates: u64,
+    /// Worlds of that set before narrowing.
+    pub worlds: u64,
+    /// Distinct sites among its hypotheses.
+    pub targets: u64,
+    /// Whether the rule could buy a probe from it: several hypotheses, none of them "no fault".
+    pub probing: bool,
+}
 
 /// A world: a hypothesis and the two hidden parity bits. For hypotheses outside the entangled
 /// pair the bits are `(false, false)` and carry nothing.
@@ -224,11 +251,13 @@ pub struct ProbeScore {
     pub numerator: u64,
 }
 
-/// The distinct hypotheses of `worlds`, in order of first appearance.
+/// The distinct hypotheses of `worlds`, in order. Worlds of one hypothesis are consecutive (they
+/// are built from a duplicate-free candidate set, one hypothesis at a time), so comparing with the
+/// previous one is enough.
 fn distinct(worlds: &[World]) -> Vec<Hypothesis> {
     let mut out: Vec<Hypothesis> = Vec::new();
     for (h, _) in worlds {
-        if !out.contains(h) {
+        if out.last() != Some(h) {
             out.push(*h);
         }
     }
@@ -314,6 +343,9 @@ pub struct Decider {
     estimator: Option<Vec<Hypothesis>>,
     heuristic: Option<Vec<Hypothesis>>,
     remaining: Remaining,
+    /// Outputs and hypotheses the last `decide` call decoded: the decoding work whose cost the
+    /// next step's declared cost carries.
+    decoded: (u64, u64),
 }
 
 impl Default for Decider {
@@ -331,6 +363,7 @@ impl Decider {
             estimator: None,
             heuristic: None,
             remaining: Remaining::default(),
+            decoded: (0, 0),
         }
     }
 
@@ -356,6 +389,10 @@ impl Decider {
             return;
         };
         *slot = offered(output);
+        if !output.entries.is_empty() {
+            self.decoded.0 += 1;
+            self.decoded.1 += slot.as_ref().map_or(0, |set| set.len() as u64);
+        }
     }
 
     fn sources(&self) -> impl Iterator<Item = &Vec<Hypothesis>> {
@@ -378,29 +415,52 @@ impl Decider {
         })
     }
 
-    /// The declared cost of one `decide` call at `state`, in `Resource::Compute` nanoseconds.
-    ///
-    /// A function of the window size and the size of the stored candidate set only: a base, a
-    /// scan of the window for bought probes, and, when a probe could be chosen, an evaluation of
-    /// every candidate probe against every world. It is an upper bound on the work, because the
-    /// narrowing by bought probes only removes worlds.
-    pub fn declared_cost(&self, state: &WorkingState) -> Charge {
-        let mut ns = BASE_NS
-            .saturating_add(SCAN_PS_PER_OBSERVATION.saturating_mul(state.size() as u64) / 1000);
-        if let Some(set) = self.sources().next()
-            && set.len() > 1
-            && !set.contains(&None)
-        {
-            let worlds: u64 = set.iter().map(|h| bit_options(*h).len() as u64).sum();
-            let targets = set
+    /// The quantities the declared cost is a function of.
+    pub fn cost_features(&self, state: &WorkingState) -> CostFeatures {
+        let mut features = CostFeatures {
+            window: state.size() as u64,
+            decoded_outputs: self.decoded.0,
+            decoded_hypotheses: self.decoded.1,
+            candidates: 0,
+            worlds: 0,
+            targets: 0,
+            probing: false,
+        };
+        if let Some(set) = self.sources().next() {
+            features.candidates = set.len() as u64;
+            features.worlds = set.iter().map(|h| bit_options(*h).len() as u64).sum();
+            features.probing = set.len() > 1 && !set.contains(&None);
+            features.targets = set
                 .iter()
                 .filter_map(|h| h.map(|(_, s)| s))
                 .collect::<BTreeSet<_>>()
                 .len() as u64;
-            let evaluations = ProbeKind::ALL.len() as u64 * targets * worlds;
-            ns = ns.saturating_add(EVAL_NS_PER_WORLD_PROBE.saturating_mul(evaluations));
         }
-        Charge::new(Resource::Compute, ns)
+        features
+    }
+
+    /// The declared cost of one `decide` call at `state`, in `Resource::Compute` nanoseconds.
+    ///
+    /// A function of [`CostFeatures`] only: a base; a scan of the window for bought probes; the
+    /// narrowing of the candidate set's worlds; when a probe could be chosen, the evaluation of
+    /// every candidate probe against every world; and the decoding of the outputs the *previous*
+    /// call received. That last term is a lag, not a guess: which outputs a step brings is not
+    /// known before `select`, but the decoding work of every step is charged at the next one, so
+    /// the whole episode's decoding is charged except the final step's. The narrowing and scoring
+    /// terms are upper bounds, because narrowing by bought probes only removes worlds. Constants
+    /// and their fit: `POLICIES.md`, section 3.
+    pub fn declared_cost(&self, state: &WorkingState) -> Charge {
+        let f = self.cost_features(state);
+        let mut ps = BASE_PS
+            .saturating_add(SCAN_PS.saturating_mul(f.window))
+            .saturating_add(WORLD_PS.saturating_mul(f.worlds))
+            .saturating_add(DECODE_OUTPUT_PS.saturating_mul(f.decoded_outputs))
+            .saturating_add(DECODE_HYPOTHESIS_PS.saturating_mul(f.decoded_hypotheses));
+        if f.probing {
+            let evaluations = ProbeKind::ALL.len() as u64 * f.targets * f.worlds;
+            ps = ps.saturating_add(EVAL_PS.saturating_mul(evaluations));
+        }
+        Charge::new(Resource::Compute, ps.div_ceil(1000))
     }
 
     /// The rule. `outputs` holds the outputs of the components that ran this step.
@@ -409,6 +469,7 @@ impl Decider {
         state: &WorkingState,
         outputs: &[(ComponentId, ComponentOutput)],
     ) -> Option<Action> {
+        self.decoded = (0, 0);
         for (id, output) in outputs {
             self.absorb(*id, output);
         }

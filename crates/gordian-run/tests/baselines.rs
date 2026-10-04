@@ -925,7 +925,8 @@ fn only_the_oracle_file_names_the_truth() {
         for word in ["Truth", "Episode", "Simulator", "gordian_eval"] {
             assert!(!has_word(&text, word), "{name} names {word}");
         }
-        for fragment in ["oracle::", "reveal"] {
+        // Built from pieces so that this file does not trip the guard it mirrors.
+        for fragment in [["oracle", "::"].concat().as_str(), "reveal"] {
             assert!(!text.contains(fragment), "{name} contains {fragment}");
         }
     }
@@ -1228,41 +1229,66 @@ fn memory_is_not_an_input_of_the_shared_rule() {
 #[test]
 #[ignore = "a measurement, not a check: run with --release --nocapture; see POLICIES.md"]
 fn measure_the_rule_against_its_declared_cost() {
-    // Times `Decider::decide` on a state built from real episodes, against the declared cost.
+    // Times `Decider::decide` on states built from generated streams, and prints one CSV row per
+    // state: the quantities the declared cost is a function of, the declared cost, and two
+    // measured times per call. `fresh` builds a new rule and hands it the step's outputs, so it
+    // includes decoding them (what an arm that runs all components pays at each step); `steady`
+    // calls the same rule again with no outputs. Rows go to stderr; the fit is in `POLICIES.md`.
     let l = limits();
     let decide = DecideConfig::default();
-    let mut rows = Vec::new();
+    eprintln!(
+        "MEASURE,class,seed,cut,window,dec_outputs,dec_hyps,candidates,worlds,targets,probing,due,steady_declared_ns,fresh_ns,steady_ns"
+    );
     for class in EpisodeClass::ALL {
-        let mut total_ns = 0u128;
-        let mut declared = 0u128;
-        let mut calls = 0u128;
-        for seed in 0..10u64 {
+        for seed in 0..12u64 {
             let ep = generate(&spec(seed, class, &l));
-            let mut state = WorkingState::new(ep.public_info(), l.window);
-            for (at, obs) in ep.stream() {
-                state.admit(*at, obs.clone());
-            }
-            let mut components = standard_components();
-            let outputs: Vec<_> = components
-                .iter_mut()
-                .map(|c| (c.id(), c.run(&state)))
-                .collect();
-            let mut rule = Decider::new(decide);
-            for _ in 0..3 {
+            let stream = ep.stream().to_vec();
+            for cut in [stream.len() / 3, 2 * stream.len() / 3, stream.len()] {
+                let mut state = WorkingState::new(ep.public_info(), l.window);
+                for (at, obs) in &stream[..cut] {
+                    state.admit(*at, obs.clone());
+                }
+                let mut components = standard_components();
+                let outputs: Vec<_> = components
+                    .iter_mut()
+                    .map(|c| (c.id(), c.run(&state)))
+                    .collect();
+                let mut rule = Decider::new(decide);
                 rule.decide(&state, &outputs);
+                let f = rule.cost_features(&state);
+                let declared = rule.declared_cost(&state).amount;
+                // The decode term lags a step, so a state that has just decoded carries it.
+                // `steady` below decodes nothing, so its declared cost has no decode term.
+                let steady_declared = {
+                    let mut idle = rule.clone();
+                    idle.decide(&state, &[]);
+                    idle.declared_cost(&state).amount
+                };
+                let _ = declared;
+                let reps = 300u32;
+                let started = std::time::Instant::now();
+                for _ in 0..reps {
+                    let mut fresh = Decider::new(decide);
+                    std::hint::black_box(fresh.decide(&state, &outputs));
+                }
+                let fresh_ns = started.elapsed().as_nanos() / u128::from(reps);
+                let started = std::time::Instant::now();
+                for _ in 0..reps {
+                    std::hint::black_box(rule.decide(&state, &[]));
+                }
+                let steady_ns = started.elapsed().as_nanos() / u128::from(reps);
+                eprintln!(
+                    "MEASURE,{class:?},{seed},{cut},{},{},{},{},{},{},{},{},{steady_declared},{fresh_ns},{steady_ns}",
+                    f.window,
+                    f.decoded_outputs,
+                    f.decoded_hypotheses,
+                    f.candidates,
+                    f.worlds,
+                    f.targets,
+                    u8::from(f.probing),
+                    u8::from(state.now >= Instant(decide.patience_ns))
+                );
             }
-            let started = std::time::Instant::now();
-            let reps = 200;
-            for _ in 0..reps {
-                std::hint::black_box(rule.decide(&state, &[]));
-            }
-            total_ns += started.elapsed().as_nanos();
-            calls += reps;
-            declared += u128::from(rule.declared_cost(&state).amount) * reps;
         }
-        rows.push((class, total_ns / calls, declared / calls));
-    }
-    for (class, measured, declared) in rows {
-        eprintln!("{class:?}: measured {measured} ns, declared {declared} ns per call");
     }
 }
