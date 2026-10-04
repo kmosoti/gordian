@@ -1,145 +1,462 @@
-# Local test plan: what this machine can settle
+# Local test plan: what this machine can settle, and how to build it
 
-This plan maps the charter's build order onto one machine with no GPU, and says for each
-experiment how far it can be taken here, in what order, and what has to wait for different
-hardware. It is a plan, not a preregistration; each experiment still gets its own
-`experiments/EXP-NNN-<slug>/` file from the template before any confirmatory run.
+This plan maps the charter's build order onto one machine with no GPU. It is written so that an
+implementer can pick up any work item without further design conversation: each names its crate,
+modules, public types, tests, acceptance command, and resource envelope. It is a plan, not a
+preregistration; each experiment still gets its own `experiments/EXP-NNN-<slug>/` file from the
+template before any confirmatory run.
+
+Read [`charter.md`](charter.md) first. Section numbers below refer to it where cited.
 
 ## 1. The machine
 
 | Resource | Value | Consequence |
 |---|---|---|
 | CPU | 4 vCPU Intel Xeon 2.8 GHz, AVX2, AVX-512F, AVX-512 VNNI, FMA, F16C | Enough for the simulator, all scheduler experiments, and tiny learned components. VNNI makes the int8 arm of EXP-007 measurable here |
-| Memory | 15 GiB | Resident-memory measurements for EXP-001 and EXP-007 are credible; model sizes stay in the tens of millions of parameters at most |
-| Disk | about 30 GB free | Enough for run ledgers at thousands of episodes. Raw per-event traces must be sampled, not kept wholesale |
-| GPU | none | EXP-006 at the scale of its precedent is impossible here. Tiny-scale recurrence is possible and is honestly labelled |
-| Toolchain | Rust 1.98 with clippy, rustfmt, Miri; Python 3.11; pip and crates.io reachable | Property testing, mutation testing, and benchmarks can be installed. Analysis can use numpy and scipy |
+| Memory | 15 GiB | Resident-memory measurements are credible; learned components stay at most in the tens of millions of parameters |
+| Disk | about 30 GB free | Enough for episode-level results tables at thousands of episodes. Per-event traces must be sampled, never kept wholesale |
+| GPU | none | EXP-006 at the scale of its precedent is impossible here. Tiny-scale recurrence is possible and is labelled as such |
+| cgroups | Hybrid: v1 `memory`, `cpu`, `cpuacct`, `cpuset` mounted read-write and enforceable; v2 unified mount exposes only `hugetlb` | `scripts/cgroup-run.sh` uses v2 when a machine offers it and v1 here. Verified: a 512 MB limit killed a 700 MB allocation and recorded peak usage and failure count |
+| Toolchain | Rust 1.98 with clippy, rustfmt, Miri; Python 3.11; pip and crates.io reachable | Property testing, mutation testing, and benchmarks can be installed. Analysis uses numpy and scipy |
 
-**Operating rule:** nothing in a confirmatory run may use more than 3 of the 4 cores. The fourth
-is reserved for the evaluator and the run recorder so that resource contention from measurement
-does not leak into measured cost.
+## 2. Resource governance
 
-## 2. What can be settled here, and what cannot
+These rules apply to every build, test, and run on this machine. They exist so that measurement
+never contaminates what is measured, and so that one runaway process cannot take the machine
+down.
+
+### 2.1 Core allocation
+
+| Cores | Use |
+|---|---|
+| 0-2 | Experimental arms, builds, tests |
+| 3 | Evaluator, run recorder, the shell driving the run |
+
+A confirmatory run never puts an arm on core 3. The run driver pins itself there with
+`taskset -c 3` before launching arms.
+
+### 2.2 Every run goes through the runner
+
+`scripts/cgroup-run.sh` is the only sanctioned way to launch an arm, a baseline, a benchmark, or a
+training job. It:
+
+1. detects cgroup v2 (needs `cpu`, `cpuset`, `memory` in `/sys/fs/cgroup/cgroup.controllers`),
+   falls back to v1, and refuses to run unisolated unless told it is a development run;
+2. creates a leaf group per run, sets `cpuset`, a CFS quota, and a hard memory limit with swap
+   disabled where the controller allows;
+3. runs the command inside the group;
+4. reports JSON: isolation mode, limits, exit code, wall nanoseconds, CPU nanoseconds from the
+   controller, peak memory bytes, OOM kill count;
+5. removes the group.
+
+Defaults: cores 0-2, 300% CPU quota, 4 GB memory. A confirmatory run states its limits in the
+preregistration and passes them explicitly.
+
+```bash
+scripts/cgroup-run.sh --name exp001-selective-s7 --cpus 0-2 --cpu-quota 300 --memory 2G \
+  --report artifacts/runs/<run-id>/usage.json -- \
+  target/release/gordian-run --manifest artifacts/runs/<run-id>/manifest.json
+```
+
+The runner's CPU-nanoseconds and peak-memory figures are the external resource measurement. The
+arm's own `Bill` (item A3) is the internal one. The results table carries both, and item A4's
+acceptance test is that they agree within a declared tolerance. Disagreement is an instrument
+defect, never something to tune away.
+
+### 2.3 Builds and tests
+
+- `cargo build` and `cargo test` run with `-j 3` so core 3 stays free. Put this in
+  `.cargo/config.toml` as `[build] jobs = 3` so nobody has to remember it.
+- `cargo test` runs single-threaded (`-- --test-threads=1`) for any test that measures time or
+  memory. Property tests and unit tests may run in parallel.
+- Never run a build concurrently with a measurement run. The driver script checks for a running
+  `cargo` or `rustc` process and refuses to start a confirmatory run while one exists.
+- Release builds for measurement: `--release` with `debug = 1` in the release profile so stack
+  traces survive, `lto = "thin"`, `codegen-units = 1`. The same profile is recorded in the
+  manifest.
+
+### 2.4 Memory ceilings
+
+| Process | Ceiling | Why |
+|---|---|---|
+| One arm | 2 GB default, preregistered per experiment | Three arms in parallel stay under 6 GB with room for the OS |
+| Evaluator plus recorder | 1 GB | They touch one episode at a time |
+| Training job (Stages D-F) | 6 GB, run alone | Tiny models do not need more; a job that does is out of scope for this machine |
+| Everything together | 12 GB | 3 GB headroom for the page cache and the shell |
+
+### 2.5 Disk
+
+- `artifacts/runs/` is git-ignored. Each run directory holds `manifest.json`, `results.csv`,
+  `usage.json`, and optionally `events-sample.jsonl`.
+- Per-event traces are kept for a preregistered sample of episodes only (default 1%). A full
+  trace for a single episode is on the order of kilobytes; a run of 10,000 episodes at 1% is
+  therefore a few megabytes.
+- `cargo clean` before a release measurement build is not required; `target/` is excluded from the
+  disk budget but is deleted first if free space drops under 5 GB.
+- The driver refuses to start a run if free space is under 2 GB.
+
+### 2.6 Time
+
+- Every arm has a wall-clock cap in its preregistration. The runner does not enforce it; the arm's
+  own `ManualClock`-driven budget does, and `timeout(1)` wraps the runner as the backstop.
+- No run is left unattended without the backstop.
+
+## 3. What can be settled here, and what cannot
 
 | Experiment | Here | Partially here | Needs more |
 |---|---|---|---|
 | EXP-001 selective activation | Fully, with heuristic components | | |
-| EXP-002 richer salience | Fully, including the small learned cost-aware policy (logistic or tiny MLP, CPU training in minutes) | | |
-| EXP-003 representation isolation | Fully. It is an engineering experiment, not a scale experiment | | |
-| EXP-004 memory | Fully for fixed-window and budgeted retrieval. Recurrent state with a tiny GRU-class model on CPU | | |
-| EXP-005 world model | Empirical transition table fully. Learned dynamics at small-world scale | | |
-| EXP-006 adaptive depth | | Tiny-scale recurrence with compute-matched comparison. Result labelled "tiny scale" | Any claim at the scale of the recurrent-depth precedent |
-| EXP-007 low precision | | Reference vs int8 (VNNI) latency and memory on this CPU; ternary variants only if a usable component exists | Retraining for ternary beyond trivial sizes |
+| EXP-002 richer salience | Fully, including the small learned cost-aware policy | | |
+| EXP-003 representation isolation | Fully. An engineering experiment, not a scale experiment | | |
+| EXP-004 memory | Fully for fixed-window and budgeted retrieval. Recurrent state with a tiny GRU-class model | | |
+| EXP-005 world model | Transition table fully. Learned dynamics at small-world scale | | |
+| EXP-006 adaptive depth | | Tiny-scale recurrence, compute-matched. Result labelled "tiny scale" | Any claim at the scale of the recurrent-depth precedent |
+| EXP-007 low precision | | float32 vs int8 (VNNI) latency and memory on this CPU | Ternary beyond trivial sizes |
 | EXP-I01 memory × scheduling | Fully | | |
 | Stress suite | Fully | | |
 | Protocol replay | Fully | | |
-| Numerical replay | On this CPU only; a second backend is needed to claim tolerance across targets | | |
-| Statistical replication | Fully for the heuristic-only experiments. For learned arms, a handful of independent training runs each | | |
+| Numerical replay | On this CPU only | | A second backend |
+| Statistical replication | Fully for heuristic-only experiments; 5 independent training runs per learned arm | | |
 
-The first meaningful result in the charter (section 12) is reachable on this machine without
-anything learned. That is the target of the first three stages below.
+The charter's first meaningful result (section 12) is reachable here with nothing learned. That is
+the target of Stages A to C.
 
-## 3. Stages and work items
+## 4. Workspace layout at the end of Stage A
 
-Each stage names its deliverable, acceptance check, and rough wall-clock on this machine. Items
-inside a stage are independent unless noted.
+```text
+Cargo.toml                 workspace: core, world, eval, components, run
+.cargo/config.toml         jobs = 3
+crates/gordian-core        clock, budget, ledger (exists), bill (A3)
+crates/gordian-world       simulator, episode generator, observation stream (A1)
+crates/gordian-eval        scoring against hidden state; no dependency on any policy (A2)
+crates/gordian-components  fixed heuristic components and their cost models (A5)
+crates/gordian-run         run manifest, recorder, driver binary `gordian-run` (A4, A6)
+analysis/                  Python: intervals, equivalence tests, breakdowns (A7)
+scripts/cgroup-run.sh      isolation runner (exists)
+scripts/run-driver.sh      preflight checks and launch of one manifest (A4)
+experiments/               TEMPLATE.md plus one directory per experiment
+artifacts/runs/            git-ignored run outputs
+```
 
-### Stage A: measurement instrument (no experiments yet)
+Dependency direction, enforced by review: `core` depends on nothing in the workspace. `world`
+depends on `core`. `eval` depends on `core` and `world` and nothing else; it must never depend on
+`components` or `run`. `components` depends on `core` and `world`. `run` depends on everything.
+
+External crates permitted in Stage A, all with the requirement they serve:
+
+| Crate | Kind | Requirement | Simpler alternative considered |
+|---|---|---|---|
+| `serde`, `serde_json` | production | manifests and results must be readable by the analysis package | hand-written JSON; rejected because the manifest schema will grow |
+| `rand_chacha` | production | seeded, reproducible episode generation | `rand` default RNG is not stable across versions; a hand-rolled PCG is possible but gains nothing |
+| `proptest` | dev | generated traces for replay and bill-sum properties | hand-written cases miss the shapes that break invariants |
+| `criterion` | dev | cost-model calibration with statistical noise estimates | `std::time::Instant` loops; rejected because A5 needs variance, not a single number |
+| `cargo-mutants` | tool, not a dependency | evaluator mutation kill rate | none; this is the only check that the evaluator's tests test anything |
+
+No async runtime, no database, no logging framework in Stage A. The ledger is the log.
+
+## 5. Stage A: the measurement instrument
 
 The question is whether we can measure correctness and cost reliably. Nothing else is credible
-until this is true.
+until this is true. Items A1 to A7 are independent except where noted; A4 depends on A3.
 
-| Item | Deliverable | Acceptance |
+### A1 Small world (`crates/gordian-world`)
+
+Branch: `small-world`.
+
+**Modules and public types**
+
+```text
+graph.rs      Service { id, depends_on: Vec<ServiceId>, resource: ResourceKind, config: Config }
+              World { services, edges, hidden: HiddenState }
+fault.rs      Fault { kind: FaultKind, site: ServiceId, onset: Instant, critical: bool }
+              FaultKind: ResourceExhausted | ConfigDrift | DependencyDown | CredentialExpired | Intermittent
+sense.rs      Observation (a Measurement payload): Counter { service, name, value }
+                                                 | Message { service, text_id, severity }
+                                                 | Snapshot { service, config_hash }
+              Probe { kind: ProbeKind, target: ServiceId }  -> ProbeResult, with declared cost
+episode.rs    EpisodeSpec { seed, class: EpisodeClass, horizon, noise_rate, budget: Budget }
+              EpisodeClass: Ambiguous | DelayedConfigChange | NoiseFlood | JointlyDecisive
+                          | NoFault | CriticalFault | QuietUrgent | Duplicates | FeedbackBait
+                          | StaleMemory | ComponentTimeout
+              Episode { spec, world, faults, stream: Vec<(Instant, Observation)> }
+              generate(spec) -> Episode              pure function of spec
+step.rs       Simulator { episode, clock, cursor }    yields observations up to clock.now()
+              apply(action: Action) -> Outcome        Action: Probe | Correct { site } | Declare { fault } | Abstain
+```
+
+`HiddenState` is `pub(crate)` and exposed only through `gordian_world::oracle::reveal(&Episode)`,
+a function whose only permitted callers are `gordian-eval` and the oracle baseline. A policy that
+imports `oracle` fails review; a `#[deprecated]`-style doc comment names the rule, and `run`
+asserts at startup that no arm links the symbol (check `cargo tree`-level feature flag:
+`oracle` is behind a feature `reveal-hidden-state` that only `eval` and the oracle arm enable).
+
+**Episode classes and what each must contain**
+
+| Class | Generator guarantee |
+|---|---|
+| Ambiguous | Two or more `FaultKind`s produce identical first symptoms; exactly one probe distinguishes them |
+| DelayedConfigChange | A `Snapshot` with a changed `config_hash` arrives at least `k` observations before the first symptom; the correct declaration requires it |
+| NoiseFlood | At least 80% of observations are irrelevant messages with high-entropy `text_id` |
+| JointlyDecisive | Two probes are individually uninformative (posterior unchanged) and jointly decisive |
+| NoFault | No fault; the only correct action is `Abstain` or `Declare(None)`; measures false alarms |
+| CriticalFault | `critical = true`; a miss or a wrong correction here is scored under the separate bound |
+| QuietUrgent | A NoiseFlood with exactly one low-severity message that is the true signal |
+| Duplicates | Each true observation is repeated 2 to 5 times with identical content |
+| FeedbackBait | Observations whose natural interpretation requests a computation whose result requests the same computation again |
+| StaleMemory | A cross-episode memory record (see E2) that was true in an earlier episode and is false now |
+| ComponentTimeout | A declared component is marked to fail or exceed its time cost in this episode |
+
+**Tests**
+
+- Unit: each class's guarantee above, checked by inspecting the generated episode.
+- Property (proptest over `EpisodeSpec`): `generate(spec) == generate(spec)` structurally;
+  stream is sorted by `Instant`; every `Fault.site` is a service in the world; a `Probe` against
+  a non-service is refused.
+- Property: for every class except `NoFault`, the oracle can reach the correct declaration within
+  the episode budget. (This is the headroom check; it must pass before B4 can mean anything.)
+
+**Acceptance**
+
+```bash
+cargo test -p gordian-world
+cargo run -p gordian-world --example dump -- --seed 7 --class Ambiguous | sha256sum   # same hash twice
+```
+
+### A2 Evaluator (`crates/gordian-eval`)
+
+Branch: `evaluator`.
+
+```text
+score.rs    Verdict { success: bool, critical_miss: bool, false_alarm: bool, abstained: bool,
+                      probes_used: u32, decision_at: Instant }
+            score(episode: &Episode, trajectory: &[(Instant, Action, Outcome)]) -> Verdict
+fixtures/   tiny-cases.json: at least 30 hand-written episodes with expected verdicts,
+            written from the class definitions, NOT generated by gordian-world
+```
+
+Rules: `success` is true only when the declared fault matches hidden state in kind and site, or
+when the episode is `NoFault` and the arm abstained or declared none. `critical_miss` is true when
+`critical` and not `success`. A trajectory that exceeds budget is scored as the last action
+before exhaustion.
+
+**Tests**
+
+- Every fixture case produces its expected verdict.
+- Property: `score` is a pure function (same inputs, same verdict).
+- Property: changing the declared site on a successful trajectory makes `success` false.
+- Mutation: `cargo mutants -p gordian-eval` kill rate at least 90%; surviving mutants are listed
+  in `crates/gordian-eval/MUTANTS.md` with a reason each.
+
+**Acceptance**
+
+```bash
+cargo test -p gordian-eval
+cargo mutants -p gordian-eval --no-shuffle    # read the kill rate from the summary
+```
+
+### A3 Cost bill (`crates/gordian-core/src/bill.rs`)
+
+Branch: `cost-bill` (together with A4).
+
+```text
+Phase: Sensing | Scheduling | Component(ComponentId) | Communication | Storage
+Bill  { per_phase: BTreeMap<Phase, BTreeMap<Resource, u64>> }
+Bill::charge(phase, Charge) -> Result<(), BudgetError>     delegates to an inner Budget
+Bill::total(resource) -> u64
+Bill::by_phase(resource) -> impl Iterator<(Phase, u64)>
+```
+
+Every charge in the system now goes through a `Bill`, never a bare `Budget`. The ledger receives
+an `Accounting` entry per charge whose payload is the serialized `(Phase, Charge)`.
+
+**Tests**
+
+- Property: for every generated sequence of charges, `sum(by_phase(r)) == total(r)` for each `r`.
+- Property: a refused charge leaves `Bill` equal to its state before the attempt (same as
+  `Budget::charge_all`).
+- Replay: rebuilding a `Bill` from the ledger's `Accounting` entries yields the same `Bill`.
+
+### A4 Run recorder and driver (`crates/gordian-run`, `scripts/run-driver.sh`)
+
+```text
+manifest.rs   Manifest { run_id, experiment, arm, source_revision, lockfile_sha256,
+                         toolchain, cpu_flags: Vec<String>, isolation: IsolationSpec,
+                         seeds: Vec<u64>, episode_classes: Vec<(EpisodeClass, u32)>,
+                         policy: PolicyId, limits: Budget, trace_sample_rate: f64 }
+results.rs    one CSV row per episode:
+              run_id, seed, class, success, critical_miss, false_alarm, abstained, probes_used,
+              decision_at_ns, bill_compute, bill_memory, bill_time, bill_probes, bill_comm,
+              bill_storage, components_run, components_skipped
+recorder.rs   writes manifest.json, results.csv, usage.json (copied from the runner's report),
+              events-sample.jsonl for the sampled episodes
+main.rs       gordian-run --manifest FILE     executes every (seed, class) in the manifest
+```
+
+`scripts/run-driver.sh --manifest FILE`:
+
+1. refuses if free disk under 2 GB, if a `cargo`/`rustc` process is running, or if the manifest's
+   `source_revision` does not match `git rev-parse HEAD` with a clean tree;
+2. pins itself to core 3;
+3. launches `gordian-run` through `scripts/cgroup-run.sh` with the manifest's `isolation` limits
+   and `timeout` as a backstop;
+4. after exit, compares `usage.json` CPU nanoseconds against the sum of `bill_time` in
+   `results.csv` and records the ratio in `usage.json` as `internal_external_ratio`.
+
+**Tests**
+
+- Running the same manifest twice yields byte-identical `results.csv` (protocol replay).
+- A manifest whose `source_revision` is stale is refused by the driver (shell test).
+- `internal_external_ratio` is within a tolerance declared in the manifest; the first measured
+  value becomes the tolerance's starting point and is recorded in this plan's revision history.
+
+### A5 Fixed components (`crates/gordian-components`)
+
+```text
+Component trait:
+  fn id(&self) -> ComponentId
+  fn declared_cost(&self, input: &WorkingState) -> Vec<Charge>
+  fn run(&mut self, input: &WorkingState, clock: Instant) -> ComponentOutput   // pure given input
+  ComponentOutput { entries: Vec<(EntryKind, Vec<u8>)>, requests: Vec<ComputationRequest> }
+
+heuristic.rs    rule table: symptom pattern -> candidate FaultKinds
+estimator.rs    counts-based posterior over (FaultKind, site) from observations so far
+memory.rs       lookup of prior episodes' (symptom, resolution) pairs, budgeted by entries read
+verifier.rs     checks a candidate declaration against the available observations for consistency
+```
+
+`WorkingState` is the charter's bounded working view (section 3.1): active task, relevant services,
+unresolved hypotheses, pending computations, with a declared maximum size. It is built from the
+ledger by `run`, not held by components.
+
+**Tests**
+
+- Each component: `run` is deterministic for the same input.
+- Each component: declared cost matches criterion-measured cost on this CPU within 25% at the
+  median (the tolerance is widened or narrowed after the first calibration and recorded).
+- `WorkingState` never exceeds its declared size (property test over ledgers).
+
+### A6 Baselines (`crates/gordian-run/src/policy/`)
+
+```text
+Policy trait: fn select(&mut self, state: &WorkingState, bill: &Bill, clock: Instant) -> Vec<ComponentId>
+              fn decide(&mut self, state: &WorkingState) -> Option<Action>
+
+heuristic_only.rs    runs the heuristic component once, declares its top candidate
+fixed_pipeline.rs    runs all components in a fixed order every step; order tuned on exploration data
+all_components.rs    runs every component every step with no ordering
+random_matched.rs    each step, runs a uniformly random subset sized to match a target compute bill
+oracle.rs            reads hidden state (feature `reveal-hidden-state`); declares correctly at the
+                     earliest instant the evidence would permit; labelled privileged in every output
+```
+
+**Acceptance:** each policy completes 200 episodes (20 per class, seeds 0-19) under the default
+limits via the driver; the oracle's success is at least 0.95 on every class except `NoFault`,
+where false alarm is 0.
+
+### A7 Analysis (`analysis/`)
+
+Python package, installed with `pip install -e analysis[dev]`; depends on numpy, scipy, pandas.
+No plotting dependency in Stage A.
+
+```text
+analysis/gordian_analysis/
+  load.py        read results.csv and usage.json for a run id; join arms on (seed, class)
+  intervals.py   paired bootstrap CI (10,000 resamples, seed recorded) for a difference in means
+  equivalence.py TOST for a preregistered margin; returns beneficial/harmful/equivalent/unresolved
+  power.py       episodes needed for a margin at given variance and power (B2)
+  breakdown.py   per-class tables; coverage-vs-error curve from abstention
+  cli.py         gordian-analyze compare --a RUN --b RUN --margin-success 0.01 --margin-cost 0.20
+```
+
+**Tests:** each function against hand-computed values; `equivalence.py` against scipy's
+`ttest_ind` where applicable; the four result categories each reachable by a synthetic input.
+
+## 6. Stage B: exploration runs
+
+Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
+
+| Item | Procedure | Output |
 |---|---|---|
-| A1 Small world | `crates/gordian-world`: dependency graph with resources, configuration, fault injection, counters, event messages, snapshots, probes; episode generator producing every class in charter section 5 (ambiguous symptoms, delayed configuration change, noise, jointly decisive probe pairs, no-fault, critical fault) | A generated episode can be replayed from its seed to the identical observation stream. Each episode class is reachable from the generator and labelled |
-| A2 Evaluator | `crates/gordian-eval`: scores a decision against hidden state; reports success, critical miss, abstention, probe count, resources. Lives in its own crate with no dependency on any policy code | Hand-checked tiny cases (at least 30) in a fixture file, written independently of the generator. Mutation testing on the evaluator reaches a declared kill rate |
-| A3 Cost accounting | Extend `gordian-core::Budget` with a `Bill` that attributes every charge to a phase: sensing, scheduling, component execution, communication, storage | Property test: the sum of phase bills equals total spend on every generated trace. Protocol replay reproduces the bill exactly |
-| A4 Run recorder | Writes a run manifest (source revision, lockfile hash, toolchain, CPU flags, seeds, policy, limits) and an episode-level results table (one row per episode, never per event) to `artifacts/runs/<id>/` | A run can be re-executed from its manifest and produces an identical results table |
-| A5 Fixed components | Heuristic analyzer, rule-based estimator, memory lookup, verifier. No learning. Each has a declared cost model | Each component's declared cost matches its measured cost within a stated tolerance on this CPU |
-| A6 Baselines | Simple heuristic, tuned fixed pipeline, all-component execution, random activation at matched compute, small-world oracle | Each baseline runs end to end on 200 episodes under hard limits. The oracle scores near its ceiling, confirming the environment has headroom |
-| A7 Analysis | Python package `analysis/`: paired bootstrap intervals, TOST equivalence test with declared margins, per-episode-class breakdown, coverage-vs-error curve. Reads only the results table | Tested against hand-computed values and against scipy where applicable |
+| B1 Variance | Every A6 policy, 500 episodes per class, seeds 1000-1499, default limits | `artifacts/runs/b1-*`; a table of mean and standard deviation of success and total cost per (policy, class) committed as `experiments/exploration/b1-variance.csv` |
+| B2 Power table | `gordian-analyze power` on B1's variance for margins 0.01 success and 0.20 cost at 80% and 90% power | `experiments/exploration/b2-power.md`; its numbers are the sample sizes in every later freeze |
+| B3 Stress suite | Every policy through every stressor class. Record failures. Fix instrument defects; never tune a baseline to pass | `experiments/exploration/b3-stress.md` listing each (policy, stressor, outcome) |
+| B4 Oracle gap | Best baseline vs oracle per class from B1 | If the gap is under 0.10 success on every class, revise A1 before anything is frozen; record the decision |
 
-Verification tooling added in this stage, all development-only: `proptest` (generated traces for
-A1, A3), `cargo-mutants` (A2), `criterion` (A5 cost models). Each is justified by the row that
-uses it.
+Resource envelope: B1 is the heaviest. Five policies × 11 classes × 500 episodes = 27,500 episodes
+per policy. Run policies sequentially, each under the runner with 3 cores and 2 GB. Measure one
+policy's wall time on 100 episodes first and extrapolate before launching the rest.
 
-Rough wall-clock: the longest item is A1. Expect this stage to dominate the calendar.
-
-### Stage B: exploration runs
-
-Development runs to find defects and estimate variance. No hypothesis is tested yet.
+## 7. Stage C: the first result (EXP-001, heuristic components only)
 
 | Item | Deliverable |
 |---|---|
-| B1 Variance estimate | Run every baseline on 500 episodes per class. Record the standard deviation of success and cost per class |
-| B2 Power table | From B1, compute the episode count needed to detect the candidate margins (1 point on success, 20% on cost) at 80% and 90% power. This number becomes the sample size in every freeze |
-| B3 Stress suite | Implement the six stressors from charter section 10 as episode generator modes. Run every baseline through each. Record failures; fix instrument defects, never tune baselines to pass |
-| B4 Oracle gap | Measure the gap between the best baseline and the oracle per class. If the gap is small everywhere, the small world is too easy and A1 is revised before any experiment is frozen |
+| C1 Preregister | `experiments/EXP-001-selective-activation/EXP-001.md` from the template. Primary comparison: paired difference against `fixed_pipeline` in verified success (margin from the charter's proposed 0.01, confirmed or revised by B2) and in total bill (margin 0.20). Critical-miss bound stated separately. Sample size from B2. Exchange rate or hard-constraint treatment for each resource stated |
+| C2 Selector | `policy/selective.rs`: task-conditioned score per component from cheap features (novelty, goal relevance, declared cost), explicit stop rule, hard limits. No learning |
+| C3 Freeze | Commit the preregistration; write the commit hash into its freeze record; change status to `frozen` |
+| C4 Execute | Held-out seeds 5000+ on dependency structures not used in Stage B. One arm at a time via the driver. Each arm's `usage.json` and `results.csv` hashes recorded |
+| C5 Report | `gordian-analyze compare`; category, intervals, per-class table, stress outcomes, every excluded episode with reason, replay diff of a re-execution from the manifest |
 
-### Stage C: the first result (EXP-001, heuristic only)
+If C5 is "harmful" or "equivalent," the charter's falsification rule applies: the selective
+mechanism is simplified or removed before Stage D. That is a result, not a setback.
 
-| Item | Deliverable |
-|---|---|
-| C1 Preregister | `experiments/EXP-001-selective-activation/` from the template. Margins from B2. Primary: paired difference in verified success and in total cost against the tuned fixed pipeline. Critical-miss bound stated separately. Sample size from B2 |
-| C2 Selector | Cheap task-conditioned selector with explicit stopping, charter section 4's initial proposal. Hard limits enabled |
-| C3 Freeze | Commit the preregistration. Record the freeze commit in the file |
-| C4 Execute | Run on held-out environments generated from unseen dependency structures, 3 cores, one process per arm |
-| C5 Report | Category (beneficial, harmful, equivalent, unresolved), intervals, per-class behaviour, stress suite pass/fail, every excluded episode with reason. Replay check: re-run from manifest, diff the results table |
-
-If C5 returns "harmful" or "equivalent," the charter's falsification rule applies: the selective
-mechanism is simplified or removed before Stage D starts. That is a result, not a setback.
-
-### Stage D: selection mechanisms (EXP-002, EXP-003)
-
-Both run entirely on this machine.
+## 8. Stage D: selection mechanisms (EXP-002, EXP-003)
 
 | Item | Deliverable |
 |---|---|
-| D1 EXP-002 arms | Novelty threshold; tuned weighted score; component-conditioned score; small learned cost-aware policy trained on exploration-run data with the counterfactual fork procedure from charter section 9 at a preregistered fork rate, cost charged |
-| D2 EXP-002 ablations | Novelty, uncertainty, goal relevance, reliability, history removed one at a time |
-| D3 EXP-003 variants | Shared representation, semantic-only, explicit mixed boundary. Three predefined component replacements for the engineering hypothesis |
-| D4 EXP-003 engineering measures | Consumers changed, adaptation data, validation effort, recorded per replacement |
+| D1 EXP-002 arms | `policy/novelty_threshold.rs`, `policy/weighted_score.rs`, `policy/conditioned_score.rs`, `policy/learned_selector.rs`. The learned selector is a logistic model or a one-hidden-layer MLP under 10,000 parameters, trained on Stage B traces plus counterfactual forks at a preregistered fork rate; fork cost charged to the training bill |
+| D2 EXP-002 ablations | Feature flags on `conditioned_score` removing novelty, uncertainty, goal relevance, reliability, history one at a time |
+| D3 EXP-003 variants | Three `Boundary` implementations behind one trait: `SharedState`, `SemanticOnly`, `MixedWithRefs`. Three predefined replacements: swap the estimator, swap the heuristic's rule table, add a new sense |
+| D4 EXP-003 measures | Per replacement: consumers changed (count from the diff), adaptation data (bytes of calibration input), validation effort (test count and runtime) |
 
-### Stage E: learned state and prediction (EXP-004, EXP-005, EXP-I01)
+Training resource envelope: one job at a time, cores 0-2, 6 GB, run alone. Training data stays
+under 1 GB on disk.
 
-Learned components stay tiny: linear or GRU-class models, trained on CPU in minutes. Training
-runs are repeated at least 5 times with different seeds for every learned arm so that statistical
-replication is reported, not assumed.
+## 9. Stage E: learned state and prediction (EXP-I01, EXP-004, EXP-005)
+
+Learned components are linear or GRU-class models under one million parameters, trained on CPU.
+Every learned arm is trained 5 times with different seeds; the results table carries the training
+seed, and the analysis reports across training runs, not within one.
 
 | Item | Deliverable |
 |---|---|
-| E1 EXP-I01 first | The 2×2 memory × scheduling interaction, preregistered before E2. Fixed-window memory vs budgeted retrieval, crossed with fixed pipeline vs the EXP-001 selector |
-| E2 EXP-004 | Fixed window, compressed recurrent state (tiny GRU), budgeted retrieval, shuffled-retrieval control. Delayed-evidence and stale-memory episode classes |
-| E3 EXP-005 | Empirical transition table, tiny learned dynamics, matched model-free arm. Decision regret as a primary measure, not prediction loss |
+| E1 EXP-I01 | 2×2: `{fixed_window, budgeted_retrieval}` × `{fixed_pipeline, selective}`. Preregistered before E2 |
+| E2 EXP-004 | `memory/fixed_window.rs`, `memory/recurrent.rs` (tiny GRU), `memory/retrieval.rs` with a read budget, `memory/shuffled.rs` control. Episode classes `DelayedConfigChange` and `StaleMemory` are primary |
+| E3 EXP-005 | `dynamics/table.rs`, `dynamics/learned.rs`, and a matched model-free arm. Primary measure is decision regret against the oracle's earliest-correct decision, not prediction loss |
 
-### Stage F: execution efficiency (EXP-006 tiny, EXP-007 CPU)
+## 10. Stage F: execution efficiency (EXP-006 tiny, EXP-007 int8)
 
 Only if Stages C to E produce at least one "beneficial" mechanism.
 
 | Item | Deliverable |
 |---|---|
-| F1 EXP-006 at tiny scale | Shallow fixed, deeper fixed, adaptive recurrence, repeated execution without recurrent state, on the tiny models from Stage E. Parameter-matched and compute-matched runs. Report labelled "tiny scale, CPU" |
-| F2 EXP-007 int8 | Reference float32 vs int8 using VNNI on this CPU. Resident memory, state memory, latency, task quality. Ternary deferred unless a component is large enough for it to matter |
+| F1 EXP-006 | On the Stage E models: shallow fixed, deeper fixed, adaptive recurrence with a stopping rule, repeated execution without recurrent state. Parameter-matched and compute-matched runs. Every output labelled "tiny scale, CPU" |
+| F2 EXP-007 | float32 reference vs int8 using VNNI through a small hand-written kernel or a crate justified under section 4's table. Measures: resident memory, state memory, latency, task quality. Ternary deferred |
 
-## 4. What is explicitly not claimed from this machine
+## 11. What is explicitly not claimed from this machine
 
 - Any scaling statement about recurrent depth.
-- Numerical replay across backends. Only the "same CPU, same flags" claim is available.
+- Numerical replay across backends. Only "same CPU, same flags" is available.
 - Ternary quantization results beyond trivial sizes.
 - Anything about a second domain until the second simulator exists, written without shared code.
 
-## 5. Branch and run conventions
+## 12. Conventions
 
-Branches are short and descriptive: `small-world`, `evaluator`, `exp-001-prereg`,
-`exp-001-run`. No tool-generated prefixes.
+- Branches: short and descriptive (`small-world`, `evaluator`, `cost-bill`, `exp-001-prereg`).
+- Every run directory: `artifacts/runs/<YYYYMMDD-HHMMSS>-<exp>-<arm>-<seedrange>/` with
+  `manifest.json`, `results.csv`, `usage.json`, optional `events-sample.jsonl`. The directory is
+  git-ignored; the SHA-256 of `manifest.json` and `results.csv` go in the experiment file.
+- Before every push: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace`, and for the Python package `python -m pytest analysis`.
 
-Every run writes `artifacts/runs/<timestamp>-<exp>-<arm>/manifest.json` and `results.csv`. The
-directory is git-ignored; the manifest hash and the results table hash are recorded in the
-experiment file's outcome section so the run is citable without committing it.
+## 13. Order of the next branches
 
-## 6. Order of the next three branches
+1. `small-world`: A1.
+2. `evaluator`: A2.
+3. `cost-bill`: A3 and A4.
+4. `components`: A5.
+5. `baselines`: A6, which also lands `.cargo/config.toml` and the release profile.
+6. `analysis`: A7.
+7. `exploration`: B1 to B4, committed as the three files under `experiments/exploration/`.
+8. `exp-001-prereg`, then `exp-001-run`.
 
-1. `small-world`: A1 with proptest-backed replay check.
-2. `evaluator`: A2 with the independent fixture file and cargo-mutants.
-3. `cost-bill`: A3 and A4 together, because the recorder's identity claim is only testable once
-   the bill exists.
+Each branch merges to main when its acceptance commands pass on this machine.
