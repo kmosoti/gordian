@@ -41,13 +41,15 @@ use gordian_world::{CounterName, FaultKind, Hypothesis, PublicInfo, ServiceId};
 
 // Declared cost, `Resource::Compute` nanoseconds: `A_NS + B_PS * n / 1000` for a window of `n`
 // observations.
-// Fitted on 2026-10-04, Intel(R) Xeon(R) Processor @ 2.80GHz (4 vCPU VM), `bench` profile, pinned
-// to core 2: `taskset -c 2 cargo bench -p gordian-components`, then `calibrate.py` (weighted least
-// squares on relative error), constants rounded from the fits of several runs. Ratios and the
-// shape of the fit: CALIBRATION.md. Recalibrate after a change to the CPU, the release profile,
-// or this component's code.
-const A_NS: u64 = 685;
-const B_PS: u64 = 3_700;
+// Fitted on 2026-10-04, Intel(R) Xeon(R) Processor @ 2.80GHz (4 vCPU VM), `bench` profile with the
+// workspace release settings (`debug = 1`, thin LTO, one codegen unit), on core 2 under
+// `scripts/cgroup-run.sh --cpus 2 --cpu-quota 100`, then `calibrate.py` (weighted least squares
+// on relative error), constants rounded from the fits of three runs. PROVISIONAL: the
+// coordinator reruns the calibration pinned before merge. Ratios and the shape of the fit:
+// CALIBRATION.md. Recalibrate after a change to the CPU, the release profile, or this
+// component's code.
+const A_NS: u64 = 365;
+const B_PS: u64 = 2_140;
 
 /// Where a rule puts the site of its candidates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

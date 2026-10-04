@@ -52,14 +52,16 @@ use std::cmp::Reverse;
 
 // Declared cost, `Resource::Compute` nanoseconds: `A_NS + B_PS * n / 1000 + C_PS * s / 1000` for
 // a window of `n` observations over `s` services.
-// Fitted on 2026-10-04, Intel(R) Xeon(R) Processor @ 2.80GHz (4 vCPU VM), `bench` profile, pinned
-// to core 2: `taskset -c 2 cargo bench -p gordian-components`, then `calibrate.py` (weighted least
-// squares on relative error), constants rounded from the fits of several runs. Ratios and the
-// shape of the fit: CALIBRATION.md. Recalibrate after a change to the CPU, the release profile,
-// or this component's code.
-const A_NS: u64 = 950;
-const B_PS: u64 = 5_300;
-const C_PS: u64 = 120_000;
+// Fitted on 2026-10-04, Intel(R) Xeon(R) Processor @ 2.80GHz (4 vCPU VM), `bench` profile with the
+// workspace release settings (`debug = 1`, thin LTO, one codegen unit), on core 2 under
+// `scripts/cgroup-run.sh --cpus 2 --cpu-quota 100`, then `calibrate.py` (weighted least squares
+// on relative error), constants rounded from the fits of three runs. PROVISIONAL: the
+// coordinator reruns the calibration pinned before merge. Ratios and the shape of the fit:
+// CALIBRATION.md. Recalibrate after a change to the CPU, the release profile, or this
+// component's code.
+const A_NS: u64 = 485;
+const B_PS: u64 = 2_930;
+const C_PS: u64 = 101_000;
 
 /// The count-based estimator.
 #[derive(Debug, Clone, Copy, Default)]
