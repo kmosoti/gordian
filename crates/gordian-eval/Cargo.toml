@@ -1,0 +1,37 @@
+[package]
+name = "gordian-eval"
+version = "0.1.0"
+description = "Evaluator: scores a recorded trajectory against hidden truth, independent of any policy"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Requirement: `Instant`, the shared logical-time value carried by every trajectory step.
+# Simpler alternative: a local `u64`; rejected, steps must be the same type the world and the
+# run recorder use.
+gordian-core = { path = "../gordian-core" }
+# Requirement: the world's own `Action`, `Outcome`, `Fault`, `EpisodeClass`, and, through
+# `reveal-hidden-state`, the oracle that `Truth::from_episode` reads. This crate and the
+# privileged oracle arm are the only ones allowed to enable the feature.
+# Simpler alternative: copies of those types; rejected, a copy could drift from the world and
+# make scoring agree with itself rather than with the world.
+gordian-world = { path = "../gordian-world", features = ["reveal-hidden-state"] }
+# Requirement: `Truth`, `Step`, `Verdict` and `EvalError` are written in and compared against
+# JSON fixtures, and `Verdict` rows reach the run recorder (A4).
+# Simpler alternative: hand-written JSON; rejected because the schemas will grow.
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+# Requirement: the hand-written fixtures in fixtures/tiny-cases.json are parsed here.
+# Simpler alternative: a Rust table of cases; rejected, the point of the fixtures is that they
+# are data written without any code from the world's generator.
+serde_json = "1.0.151"
+# Requirement: determinism and mutation properties hold over generated trajectories, not only
+# hand-picked ones.
+# Simpler alternative: loops over fixed cases (kept as fixtures); they miss trajectory shapes.
+proptest = "1.11.0"
+
+[lints]
+workspace = true
