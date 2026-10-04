@@ -371,6 +371,20 @@ analysis/gordian_analysis/
 **Tests:** each function against hand-computed values; `equivalence.py` against scipy's
 `ttest_ind` where applicable; the four result categories each reachable by a synthetic input.
 
+### A7b Ratio interval calibration (required before EXP-001 is frozen)
+
+Found in A7 review. The percentile bootstrap for the relative-savings measure
+S = 1 − ΣB/ΣA is anti-conservative on skewed costs. In the A7 worker's simulation with
+lognormal per-episode costs and true S exactly at the 0.20 threshold, the 90% interval's lower
+limit exceeded the threshold in 12% of experiments at n = 30, 8% at n = 100, and 7% at n = 300,
+against a nominal 5%.
+
+Deliverable: a BCa or studentized (bootstrap-t on the log ratio) interval in
+`analysis/gordian_analysis/intervals.py`, selectable from the CLI, with the simulation committed
+as a test. Acceptance: at EXP-001's planned n from B2, the false-exceedance rate at true S equal
+to the threshold is at most 0.06 over at least 2,000 simulated experiments, using B1's empirical
+cost distribution, not only lognormal. C1 may not set status `frozen` until this passes.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
