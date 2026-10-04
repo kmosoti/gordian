@@ -14,6 +14,7 @@
 //! Logical time is a [`ManualClock`] that moves only by declared costs and by the step quantum.
 
 use crate::policy::Policy;
+use crate::policy::privileged::OracleFactory;
 use gordian_components::payload::{HypothesisEntry, decode};
 use gordian_components::{
     Component, ComponentOutput, ConsistencyVerifier, CountEstimator, PriorRecordLookup,
@@ -304,12 +305,33 @@ fn time_of(charges: &[Charge]) -> u64 {
         .fold(0u64, |sum, c| sum.saturating_add(c.amount))
 }
 
-/// `charges` with every `Resource::Time` amount multiplied by `factor` (a `Slow` directive).
+/// Declared `Resource::Compute` in `charges`, saturating.
+fn compute_of(charges: &[Charge]) -> u64 {
+    charges
+        .iter()
+        .filter(|c| c.resource == Resource::Compute)
+        .fold(0u64, |sum, c| sum.saturating_add(c.amount))
+}
+
+/// How long a component's declared charge keeps the logical clock busy. A component that
+/// declares a `Resource::Time` charge (even a zero one) takes that long. One that declares none
+/// takes its declared `Resource::Compute` nanoseconds: the A4 review decision that a component's
+/// compute nanoseconds are its time (`HARNESS.md`, section 5).
+fn busy_ns(charges: &[Charge]) -> u64 {
+    if charges.iter().any(|c| c.resource == Resource::Time) {
+        time_of(charges)
+    } else {
+        compute_of(charges)
+    }
+}
+
+/// `charges` with every `Resource::Time` and `Resource::Compute` amount multiplied by `factor`
+/// (a `Slow` directive). A component's compute nanoseconds are its time, so both move.
 fn slowed(charges: Vec<Charge>, factor: u32) -> Vec<Charge> {
     charges
         .into_iter()
         .map(|c| {
-            if c.resource == Resource::Time {
+            if matches!(c.resource, Resource::Time | Resource::Compute) {
                 Charge::new(c.resource, c.amount.saturating_mul(u64::from(factor)))
             } else {
                 c
@@ -469,6 +491,39 @@ pub fn run_episode(
     components: &mut [Box<dyn Component>],
     limits: &Limits,
 ) -> Result<EpisodeRecord, HarnessError> {
+    play(spec, Source::Given(policy), components, limits)
+}
+
+/// [`run_episode`] for a privileged arm: the policy is built here, from the episode's truth, by
+/// `factory`. This is the only way in the crate for a policy to be built from the truth, and
+/// `OracleFactory` is the only type that accepts it (`policy/oracle.rs`, `POLICIES.md`).
+///
+/// # Errors
+///
+/// As [`run_episode`].
+pub fn run_episode_privileged(
+    spec: &EpisodeSpec,
+    factory: &OracleFactory,
+    components: &mut [Box<dyn Component>],
+    limits: &Limits,
+) -> Result<EpisodeRecord, HarnessError> {
+    play(spec, Source::Privileged(factory), components, limits)
+}
+
+/// Where the episode's policy comes from.
+enum Source<'a> {
+    /// The caller built it; it was never shown the truth.
+    Given(&'a mut dyn Policy),
+    /// Built from the truth once the episode exists.
+    Privileged(&'a OracleFactory),
+}
+
+fn play(
+    spec: &EpisodeSpec,
+    source: Source<'_>,
+    components: &mut [Box<dyn Component>],
+    limits: &Limits,
+) -> Result<EpisodeRecord, HarnessError> {
     let started = Wall::now();
     limits.validate()?;
     if spec.budget != limits.world_budget() {
@@ -494,6 +549,11 @@ pub fn run_episode(
     let (seed, class) = (episode.spec().seed, episode.spec().class);
     let mut sim = Simulator::new(episode);
     let public_info = sim.public_info();
+    let mut built: Option<Box<dyn Policy>> = None;
+    let policy: &mut dyn Policy = match source {
+        Source::Given(policy) => policy,
+        Source::Privileged(factory) => built.insert(factory.build(&truth)).as_mut(),
+    };
 
     // Harness directives name components by index; a real component has that id. The others
     // are ignored and counted.
@@ -620,7 +680,7 @@ pub fn run_episode(
             };
             components_run += 1;
             ran.push(id);
-            clock.advance(time_of(&cost));
+            clock.advance(busy_ns(&cost));
             if fail.contains(&id) {
                 // Charged, but produced nothing. The ledger says only that nothing came out.
                 let body = payload(&json!({ "component": id.0, "output": "none" }))?;

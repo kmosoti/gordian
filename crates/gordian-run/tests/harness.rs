@@ -651,6 +651,7 @@ fn directives_fail_and_slow_change_the_bill_exactly_as_specified() {
         .unwrap();
 
         let mut expected_time = 0;
+        let mut expected_compute = 0;
         let mut expected_failed = Vec::new();
         let mut expected_ignored = 0;
         for id in 0..4u32 {
@@ -662,14 +663,20 @@ fn directives_fail_and_slow_change_the_bill_exactly_as_specified() {
                 }
             }
             expected_time += factor * MS;
+            expected_compute += factor * 100;
         }
         for d in &directives {
             if d.component >= 4 {
                 expected_ignored += 1;
             }
         }
-        // Every component was charged, failed or not; Compute is not multiplied.
-        assert_eq!(record.bill.total(Resource::Compute), 400, "seed {seed}");
+        // Every component was charged, failed or not. A slowed one pays its factor in Compute
+        // as well as in Time: a component's compute nanoseconds are its time (HARNESS.md, 5).
+        assert_eq!(
+            record.bill.total(Resource::Compute),
+            expected_compute,
+            "seed {seed}"
+        );
         assert_eq!(
             record.bill.total(Resource::Time),
             expected_time,
@@ -711,6 +718,75 @@ fn directives_fail_and_slow_change_the_bill_exactly_as_specified() {
     assert!(
         seen_fail > 0 && seen_slow > 0 && seen_ignored > 0,
         "{seen_fail} {seen_slow} {seen_ignored}"
+    );
+}
+
+#[test]
+fn slow_changes_the_bill_and_the_clock_of_the_real_components() {
+    // The A5 components declare only Compute nanoseconds. Since a component's compute
+    // nanoseconds are its time (HARNESS.md, 5), a Slow directive multiplies the Compute charge
+    // and the clock advance. A script that runs one component and abstains in the same step
+    // records its decision when the component's busy time has passed, so the decision instant is
+    // the clock advance, and the bill is the charge.
+    let l = limits();
+    let run_one = |class: EpisodeClass, seed: u64, id: u32| {
+        let s = spec(seed, class, &l);
+        let state = gordian_components::WorkingState::new(generate(&s).public_info(), l.window);
+        let declared: u64 = gordian_run::standard_components()
+            .iter()
+            .find(|c| c.id() == ComponentId(id))
+            .unwrap()
+            .declared_cost(&state)
+            .iter()
+            .filter(|c| c.resource == Resource::Compute)
+            .map(|c| c.amount)
+            .sum();
+        let mut policy = ScriptedPolicy::new(vec![step(&[id], Some(Action::Abstain))]);
+        let mut components = gordian_run::standard_components();
+        let record = play(seed, class, &mut policy, &mut components, &l).unwrap();
+        (
+            declared,
+            record.bill.total(Resource::Compute),
+            record.bill.total(Resource::Time),
+            record.verdict.decision_at,
+        )
+    };
+    let mut seen = 0;
+    for seed in 0..300u64 {
+        let directives = generate(&spec(seed, EpisodeClass::ComponentTimeout, &l))
+            .harness_directives()
+            .to_vec();
+        let slow = directives.iter().find_map(|d| match d.mode {
+            ComponentMode::Slow { factor } if d.component < 4 => Some((d.component, factor)),
+            _ => None,
+        });
+        let Some((id, factor)) = slow else { continue };
+
+        let (declared, bill, time, decision_at) = run_one(EpisodeClass::ComponentTimeout, seed, id);
+        assert!(declared > 0);
+        // The bill holds the multiplied amount, and the clock moved by it.
+        assert_eq!(
+            bill,
+            declared * u64::from(factor),
+            "seed {seed} component {id}"
+        );
+        assert_eq!(decision_at, Some(Instant(bill)), "seed {seed}");
+        // The component declares no Time, so the Time bill is zero: the clock moved without it.
+        assert_eq!(time, 0);
+
+        // The same component on an episode without directives: the plain cost, and the plain
+        // clock advance. The directive is what changed it.
+        let (declared, bill, _, decision_at) = run_one(EpisodeClass::Ambiguous, seed, id);
+        assert_eq!(bill, declared, "seed {seed} component {id}");
+        assert_eq!(decision_at, Some(Instant(bill)));
+        seen += 1;
+        if seen == 6 {
+            break;
+        }
+    }
+    assert_eq!(
+        seen, 6,
+        "too few Slow directives on the real components in 300 seeds"
     );
 }
 

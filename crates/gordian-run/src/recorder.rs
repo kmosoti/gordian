@@ -23,9 +23,11 @@
 //!
 //! `harness/timer` entries in the sample are wall-clock timings and differ between runs.
 
-use crate::harness::{EpisodeRecord, HarnessError, run_episode, standard_components};
+use crate::harness::{
+    EpisodeRecord, HarnessError, run_episode, run_episode_privileged, standard_components,
+};
 use crate::manifest::Manifest;
-use crate::policy::{self, Policy, PolicyId};
+use crate::policy::{self, Built, Policy, PolicyId};
 use crate::results::{MEASURED_HEADER, RESULTS_HEADER, class_name, measured_row, results_row};
 use gordian_core::{Entry, EntryKind, Phase, decode_accounting};
 use gordian_world::EpisodeClass;
@@ -201,20 +203,38 @@ fn write_sample(out: &mut impl Write, run_id: &str, record: &EpisodeRecord) -> R
 /// including undecided ones; nothing is excluded. A [`HarnessError`] aborts the run and no
 /// results file is written.
 pub fn execute(manifest: &Manifest, out: &Path) -> Result<RunSummary, RunError> {
-    execute_with(manifest, out, &policy::build)
+    run_manifest(manifest, out, &Source::Registry)
 }
 
-/// [`execute`] with the policies supplied by `make_policy` instead of [`policy::build`]. For
-/// tests and for arms that are not registered. `make_policy` is called once per episode and must
-/// return a fresh policy each time.
+/// [`execute`] with the policies supplied by `make_policy` instead of the registry
+/// ([`policy::build`]). For tests and for arms that are not registered. `make_policy` is called
+/// once per episode and must return a fresh policy each time. It cannot supply a privileged arm.
 pub fn execute_with(
     manifest: &Manifest,
     out: &Path,
     make_policy: &dyn Fn(&PolicyId) -> Option<Box<dyn Policy>>,
 ) -> Result<RunSummary, RunError> {
+    run_manifest(manifest, out, &Source::Custom(make_policy))
+}
+
+/// Where a run's policies come from.
+enum Source<'a> {
+    /// [`policy::build`], from the manifest's policy, decision rule and arm.
+    Registry,
+    /// The caller's function.
+    Custom(&'a dyn Fn(&PolicyId) -> Option<Box<dyn Policy>>),
+}
+
+fn run_manifest(
+    manifest: &Manifest,
+    out: &Path,
+    source: &Source<'_>,
+) -> Result<RunSummary, RunError> {
     manifest.validate().map_err(RunError::Manifest)?;
-    if make_policy(&manifest.policy).is_none() {
-        return Err(RunError::UnknownPolicy(manifest.policy.clone()));
+    if let Source::Custom(make) = source
+        && make(&manifest.policy.id()).is_none()
+    {
+        return Err(RunError::UnknownPolicy(manifest.policy.id()));
     }
     fs::create_dir_all(out).map_err(|e| io_error("cannot create", out, e))?;
     let results_path = out.join("results.csv");
@@ -267,12 +287,25 @@ pub fn execute_with(
 
     for (seed, class) in manifest.episodes() {
         let spec = manifest.spec_for(seed, class);
-        let Some(mut policy) = make_policy(&manifest.policy) else {
-            return Err(RunError::UnknownPolicy(manifest.policy.clone()));
+        let built = match source {
+            Source::Registry => {
+                policy::build(&manifest.policy, &manifest.decide, &manifest.arm, seed)
+            }
+            Source::Custom(make) => match make(&manifest.policy.id()) {
+                Some(policy) => Built::Public(policy),
+                None => return Err(RunError::UnknownPolicy(manifest.policy.id())),
+            },
         };
         let mut components = standard_components();
-        let record = run_episode(&spec, policy.as_mut(), &mut components, &manifest.limits)
-            .map_err(|error| RunError::Harness { seed, class, error })?;
+        let record = match built {
+            Built::Public(mut policy) => {
+                run_episode(&spec, policy.as_mut(), &mut components, &manifest.limits)
+            }
+            Built::Privileged(factory) => {
+                run_episode_privileged(&spec, &factory, &mut components, &manifest.limits)
+            }
+        }
+        .map_err(|error| RunError::Harness { seed, class, error })?;
         results.push_str(&results_row(&manifest.run_id, &record));
         results.push('\n');
         measured.push_str(&measured_row(&manifest.run_id, &record));

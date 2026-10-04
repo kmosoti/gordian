@@ -27,7 +27,7 @@ Per step:
 |---|---|---|
 | 1 | `sim.observe_until(now)`, plus the result of the previous probe or correction, merged in instant order and admitted into the `WorkingState` | one `Measurement` per observation, producer `harness/sensor`, stamped with the admission time; the observation's own instant is in the payload |
 | 2 | charge `policy.declared_select_cost` under `Phase::Scheduling`; if accepted, advance the clock by its declared `Time` and call `policy.select` | `Accounting` (accepted or refused); one `Measurement` from `harness/timer` (declared-cost call plus `select`) |
-| 3 | for each selected component, once: charge its declared cost under `Phase::Component(id)`; a refused charge means it does not run; an accepted one advances the clock by its declared `Time`, then runs (or fails, see 5) | `Accounting`; the component's entries as it produced them (`Hypothesis`), its requests (`ComputationRequest`); a `harness/timer` `Measurement` per run |
+| 3 | for each selected component, once: charge its declared cost under `Phase::Component(id)`; a refused charge means it does not run; an accepted one advances the clock by its busy time (its declared `Time`, or, when it declares none, its declared `Compute` nanoseconds; see 5), then runs (or fails, see 5) | `Accounting`; the component's entries as it produced them (`Hypothesis`), its requests (`ComputationRequest`); a `harness/timer` `Measurement` per run |
 | 4 | `policy.decide(state, outputs)` | a `harness/timer` `Measurement`; `Decision` for an action |
 | 5 | apply the action (section 2 for how the budgets meet) | `Outcome` (the simulator's, or a bill refusal); `Accounting` under `Phase::Sensing` for a carried-out probe or correction |
 | 6 | keep the harness-owned parts of the working state: the top (at most eight) scored hypotheses of the latest scored output, and the pending requests (a request for another component stays pending until that component has run) | |
@@ -91,14 +91,20 @@ waits for observations pays nothing for the wait; if experiments should charge d
 preregistered exchange rate (charter section 4), not something this loop assumes.
 
 A consequence of sharing `Time`: with default limits (250 ms) a component that declared 50 ms of
-`Time` would eat a fifth of the probe time. None of the A5 components declares `Time`; see
-section 8.
+`Time` would eat a fifth of the probe time. None of the A5 components declares `Time`; their
+declared `Compute` nanoseconds are their time on the clock (section 5), but they are not billed
+under `Resource::Time`, so the `Time` limit stays the probes' and a `Slow` directive moves the
+clock and the `Compute` bill without touching the probe time.
 
 ## 3. The logical clock
 
 `ManualClock`, moved only by the harness:
 
-- by declared `Time` charges that were accepted (components, scheduling), when charged;
+- by a component's busy time when its charge was accepted: its declared `Time`, or, for a
+  component that declares no `Time` charge at all (the A5 components), its declared `Compute`
+  nanoseconds (section 5);
+- by the policy's declared scheduling `Time`, when charged (its declared `Compute` does not move
+  the clock);
 - by a probe's or correction's latency (`ready_at - now`), after the action;
 - at the end of a step, up to `step_start + step_ns` if it is not there yet.
 
@@ -143,9 +149,23 @@ is part of the run. An index with no such component is ignored and counted in `d
   gets no entry for it in `outputs`. The ledger records a `ComputationResult` with the payload
   `{"component": i, "output": "none"}`, which does not say why: the events sample must not hold the
   directive.
-- `Slow { factor }`: every declared `Resource::Time` amount of the component is multiplied by
-  `factor`, in the charge (so the ledger and the bill hold the multiplied amount) and, because the
-  clock advances by the charged `Time`, in the clock advance. Other resources are not multiplied.
+- `Slow { factor }`: every declared `Resource::Time` and `Resource::Compute` amount of the
+  component is multiplied by `factor`, in the charge (so the ledger and the bill hold the
+  multiplied amounts) and, because the clock advances by the charged busy time, in the clock
+  advance. Other resources are not multiplied.
+
+  *Why both.* The coordinator's A4 review decision: a component's declared `Compute` nanoseconds
+  are its time. The A5 components declare only `Compute`, so a directive that multiplied only
+  `Time` changed nothing for them. *The clock rule that follows.* A component's busy time is its
+  declared `Time` if it declares any `Time` charge (even a zero one), else its declared `Compute`
+  nanoseconds. That applies to every component, slowed or not, so with the A5 components the
+  clock now moves by a few microseconds per component run, where before it did not move at all.
+  Steps are 50 ms, so no step boundary changes, but a decision made in the same step as a
+  component run is stamped a few microseconds later than before. A test with the real A5
+  components shows `Slow` changing the `Compute` bill and the clock by exactly `factor`
+  (`tests/harness.rs`, `slow_changes_the_bill_and_the_clock_of_the_real_components`). The
+  alternative reading, that only a slowed component's compute counts as time, would make an
+  unslowed component instantaneous and a slowed one not; it was not taken.
 
 ## 6. What is recorded where
 
@@ -206,14 +226,15 @@ unit's scope.
 6. **A refused-by-bill action is not in the trajectory.** The world was not asked, and putting a
    `Refused` outcome in the trajectory would invent an answer the world did not give. The refusal
    is in the ledger. Scores are the same either way (evaluator R12).
-7. **`Slow` has no effect on the A5 components.** The specification multiplies *declared Time*, and
-   the A5 components declare only `Resource::Compute`. With them, `Slow` changes nothing in the
-   bill or the clock; `Fail` works. The class's intent ("exceed its time cost") would need either
-   the components to declare their cost in `Time` as well, or a decision that `Compute`
-   nanoseconds are time. That is a decision for the coordinator; the harness applies the
-   specification as written and the tests use components that declare `Time`.
+7. **`Slow` had no effect on the A5 components. Resolved in A6.** The specification multiplied
+   *declared Time*, and the A5 components declare only `Resource::Compute`. The coordinator
+   decided (A4 review) that a component's declared `Compute` nanoseconds are its time, so `Slow`
+   now multiplies `Compute` and `Time`, and the clock advances by the multiplied compute
+   nanoseconds (section 5 states the rule and what else it moves). The earlier test that asserted
+   `Compute` is not multiplied was changed to assert that it is.
 8. **`Resource::Time` is shared** between probe latency and component and scheduling time (section
-   2). Harmless until a component declares `Time`.
+   2). Harmless until a component declares `Time`; the A5 components do not, and their compute
+   nanoseconds move the clock without being billed as `Time`.
 9. **A7's loader and `bill_total`.** `analysis/gordian_analysis/load.py` requires a finite number in
    `decision_at_ns` and would reject any undecided row; it also defines `bill_total` as the sum of
    the six bill columns, which adds nanoseconds to probe units and bytes. Neither is changed here.
@@ -223,19 +244,30 @@ unit's scope.
     that links the accessor from one that does not. The textual guard is the check:
     `scripts/check-no-oracle.sh` now checks `crates/gordian-run/src/policy/` more strictly than the
     rest of the tree (no `gordian_eval`, `Truth`, `Episode`, `Simulator`, `reveal`), except
-    `policy/oracle.rs`, which does not exist.
+    `policy/oracle.rs`, which A6 built (see `POLICIES.md`, section 6).
 11. **Default limits are provisional.** `Limits::default()` (20 ms compute, the world's 12 probes
     and 250 ms, 50 ms steps, a window of 256, a cap of 1000 steps) is a placeholder for exploration
     runs, not a preregistered budget.
-12. **Defaults for `heuristic_only`.** Its 3 s patience is a choice, justified in its module
-    documentation; it is a smoke-test policy and A6 may replace it.
+12. **Defaults for `heuristic_only`.** Its 3 s patience was a choice for a smoke-test policy. A6
+    replaced its own rule with the rule every arm shares; the 3 s is now that rule's patience, in
+    the manifest's `decide` section (`POLICIES.md`).
+13. **A privileged entry point (A6).** `run_episode_privileged` takes an `OracleFactory` instead of
+    a policy, and builds the policy inside the loop from the episode's truth. It is the only
+    change to the loop for the oracle arms (an enum `Source` and a few lines at the point the
+    truth is built). `run_episode` is unchanged for every other caller. `POLICIES.md`, section 6.
+14. **The manifest's policy is an enum (A6).** `policy` is a `PolicySpec`: a bare id as before, or
+    an object with parameters; `decide` is a new section with a default, so a manifest written
+    before A6 still parses and means what it meant (`heuristic_only` now runs the shared rule,
+    which is a change of behaviour, not of syntax).
 
 ## 9. Built and not built
 
-Built: the loop, the policy trait, the scripted policy, `heuristic_only`, the manifest, both CSV
-files, the events sample, the `gordian-run` binary (`--manifest`/`--out`, and `init` to write a
-manifest for the current checkout), `scripts/run-driver.sh`, and the shell test
-`tests/driver.sh`.
+Built: the loop, the policy trait, the scripted policy, the manifest, both CSV files, the events
+sample, the `gordian-run` binary (`--manifest`/`--out`, and `init` to write a manifest for the
+current checkout, with every policy's parameters), `scripts/run-driver.sh`, and the shell test
+`tests/driver.sh`. Built in A6: the baselines (`heuristic_only`, `fixed_pipeline`,
+`all_components`, `random_matched`, and the two privileged oracle arms) and the decision rule they
+share; `POLICIES.md` states them.
 
-Not built: the A6 baselines, the oracle policy, any training or forking of counterfactual episodes,
-the analysis of a run, and anything that charges `Memory`, `Communication` or `Storage`.
+Not built: any training or forking of counterfactual episodes, the analysis of a run, and anything
+that charges `Memory`, `Communication` or `Storage`.
