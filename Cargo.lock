@@ -77,6 +77,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gordian-eval"
+version = "0.1.0"
+dependencies = [
+ "gordian-core",
+ "gordian-world",
+ "proptest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gordian-world"
 version = "0.1.0"
 dependencies = [
