@@ -323,10 +323,16 @@ gordian-run init --run-id ID --policy POLICY --seed-start N --seed-count N --out
 
 ## 8. Measurements
 
-A development run, unisolated (section 9), release build, seeds 0 to 19 of every class, default
-limits, default patience, `random_matched` at the placeholder p = 0.5. Deterministic columns only;
-the run is not kept (`artifacts/runs/` is git-ignored) and the coordinator reruns it through the
-driver. It is exploration: nothing here is a confirmation of anything.
+A development run, release build, seeds 0 to 19 of every class, default limits, default patience,
+`random_matched` at the placeholder p = 0.5, run first with `gordian-run init` and `gordian-run
+--manifest ... --out` directly (unisolated), then again through `scripts/run-driver.sh` (cgroup v1,
+cores 0-2, pinned driver; the sandbox did not refuse it). The two sets of `results.csv` are
+byte-identical apart from the run id, for all six policies. Deterministic columns only below; the
+runs are not kept (`artifacts/runs/` is git-ignored). `internal_external_ratio` from the driver
+runs, first values and no tolerance declared: `heuristic_only` 0.879, `fixed_pipeline` 0.961,
+`all_components` 0.967, `random_matched` 0.965, `oracle_immediate` 0.442 (about 3 ms of work, so
+start-up dominates), `oracle_evidence` 0.879. It is exploration: nothing here is a confirmation of
+anything.
 
 | policy | class | success | critical misses | false alarms | abstained | undecided | mean probes | mean bill_compute (ns) |
 |---|---|---|---|---|---|---|---|---|
@@ -455,9 +461,11 @@ driver. It is exploration: nothing here is a confirmation of anything.
 9. **Dependency added:** `rand_chacha` 0.10.0 and `rand_core` 0.10.1 for `gordian-run`, the same
    versions the world uses (already in the lockfile). Requirement: a seeded, reproducible stream
    for `random_matched`. Simpler alternative: a hand-written generator, which gains nothing.
-10. **Sandbox.** The development run and the calibration were unisolated: no `cgroup-run.sh`, no
-    `run-driver.sh`, no `taskset` on the measurement. The coordinator reruns them through the
-    driver.
+10. **Isolation.** The six-policy development run was done directly and again through
+    `scripts/run-driver.sh`, which this session's sandbox allowed, with identical results. The
+    calibration of the rule's declared cost (section 3) and the earlier test runs were unisolated
+    and unpinned (`taskset` was not used on cargo), on a machine another worker was using. No
+    refusal by the sandbox was met that had to be worked around.
 11. **Not measured:** the memory lookup's contribution under a rule that can use it; the verifier's
     value on late-anchor or evicted-window streams (A5b territory); any noise or stress beyond what
     the eleven classes generate; the effect of the compute limit (it never binds).
