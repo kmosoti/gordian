@@ -60,6 +60,7 @@ the experiment does that. No maturity labels (`v0`, `M1`) for research concepts.
 
 ## Git
 
-Work on a branch. Commit messages say what changed and why. Never rewrite history on a branch
+Work on a branch named for its content, short and descriptive: `small-world`, `exp-001-prereg`.
+No tool-generated prefixes. Commit messages say what changed and why. Never rewrite history on a branch
 someone else may hold. Pull requests are not required for every change but are the review path
 for anything touching a frozen experiment.

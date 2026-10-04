@@ -19,6 +19,8 @@ The answer may be no. The repository is built so that it can be.
   statistical procedure, the stress suite, the reproducibility claims, and the build order.
 - [`docs/plan-review.md`](docs/plan-review.md) — the review of the plan that produced the charter,
   and what the charter adds or changes.
+- [`docs/local-test-plan.md`](docs/local-test-plan.md) — what this machine can settle, in which
+  order, and what has to wait for other hardware.
 - [`experiments/TEMPLATE.md`](experiments/TEMPLATE.md) — the preregistration form every
   experiment uses.
 
