@@ -1,0 +1,52 @@
+[package]
+name = "gordian-components"
+version = "0.1.0"
+description = "Fixed diagnosis components (rule heuristic, count estimator, prior-record lookup, consistency verifier), their bounded working state, and calibrated cost models"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# Deliberately only default features of gordian-world: components see `PublicInfo` and observed
+# evidence, never hidden simulator state. The textual guard under `scripts/` is the second guard.
+
+[dependencies]
+# Requirement: ComponentId, Charge, Resource, EntryKind and Instant, the shared accounting and
+# ledger vocabulary that a component's declared cost and output entries are expressed in.
+# Simpler alternative: local copies of those types; rejected, they would drift from core.
+gordian-core = { path = "../gordian-core" }
+# Requirement: PublicInfo, Observation, Hypothesis and the public rules in `physics`
+# (consistent_hypotheses, counters, messages, signature). Default features only, so the
+# hidden-state accessor is not compiled in on this crate's account.
+# Simpler alternative: re-deriving the rules locally; rejected, a second copy could disagree with
+# the checker that the verifier must agree with.
+gordian-world = { path = "../gordian-world" }
+# Requirement: derive Serialize/Deserialize for the entry payload types, so ledger payloads are
+# typed on both the producing and the reading side.
+# Simpler alternative: hand-written JSON strings; rejected, they would not be checked by types.
+serde = { version = "1.0.229", features = ["derive"] }
+# Requirement: ledger payloads are serde_json bytes (assignment of work item A5).
+# Simpler alternative: a binary encoding as in core's accounting payload; rejected, the contract
+# for hypothesis entries names JSON.
+serde_json = "1.0.151"
+
+[dev-dependencies]
+# Requirement: determinism, bounded-size, kind and consistency claims hold over generated
+# episode specs and admit sequences, not only hand-picked ones.
+# Simpler alternative: loops over fixed seeds; kept as unit tests, but they miss spec shapes.
+# Cost: dev builds only. `std` only, as in gordian-core.
+proptest = { version = "1", default-features = false, features = ["std"] }
+# Requirement: the cost models are calibrated against criterion medians on this CPU
+# (benches/components.rs, tests/cost_calibration.rs).
+# Simpler alternative: a hand-rolled timing loop; rejected, it would reimplement warm-up,
+# outlier handling and the median estimate that the acceptance test reads.
+# Cost: dev builds only. `cargo_bench_support` is needed for `cargo bench`; the plotting and
+# parallel-analysis defaults are left off to keep the build small.
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "components"
+harness = false
+
+[lints]
+workspace = true
