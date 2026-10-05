@@ -131,13 +131,14 @@ const R_COMPARED_BYTES: usize = 5;
 /// How many units the rule has.
 const R_UNITS: usize = 6;
 
-// Weights, picoseconds per unit: fitted 2026-10-05 after work item A6c (the rule recognises a
-// repeated output): the weights of calibrate_ops.py (fixed windows and recorded states in a
-// loop, 5 runs of 25 timings, the rule timed on its comparison path and, alternating padded
-// outputs, its decoding path) scaled to what the harness pays (calibrate_insitu.py, 3 runs of 5
-// passes); only the rule's table was rewritten.
-// In situ: 1.37 x the weights fitted on fixed windows in a loop, plus
-// 130 ns on the per-call unit(s) (`calibrate_insitu.py`).
+// Weights, picoseconds per unit: fitted 2026-10-05 after work item A6d (the rule keeps its
+// narrowed views): the weights of calibrate_ops.py (fixed windows and recorded states in a
+// loop, 5 runs of 25 timings, the rule timed on its comparison path, on its decoding path
+// (alternating padded outputs, which also narrows and scores again) and on its narrowing path
+// (alternating a state with one more probe result)) scaled to what the harness pays
+// (calibrate_insitu.py, 3 runs of 5 passes); only the rule's table was rewritten.
+// In situ: 1.78 x the weights fitted on fixed windows in a loop, plus
+// 45.1 ns on the per-call unit(s) (`calibrate_insitu.py`).
 // Non-negative least squares on the minimum time per call, weighted by 1/time, with no
 // intercept beyond the explicit per-call unit; rounded to three figures. What each unit
 // counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
@@ -145,12 +146,12 @@ const R_UNITS: usize = 6;
 #[rustfmt::skip]
 /// The shared rule's units and their weights.
 pub const RULE_UNITS: &[Unit] = &[
-    Unit { name: "calls", weight_ps: 246000 },
-    Unit { name: "decoded_outputs", weight_ps: 365000 },
-    Unit { name: "decoded_ranked", weight_ps: 158000 },
-    Unit { name: "worlds", weight_ps: 20000 },
-    Unit { name: "probe_evals", weight_ps: 33200 },
-    Unit { name: "compared_bytes", weight_ps: 45 },
+    Unit { name: "calls", weight_ps: 197000 },
+    Unit { name: "decoded_outputs", weight_ps: 477000 },
+    Unit { name: "decoded_ranked", weight_ps: 195000 },
+    Unit { name: "worlds", weight_ps: 24000 },
+    Unit { name: "probe_evals", weight_ps: 41400 },
+    Unit { name: "compared_bytes", weight_ps: 20 },
 ];
 
 /// The work the shared rule did, in the units of [`RULE_UNITS`].

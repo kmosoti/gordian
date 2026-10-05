@@ -41,7 +41,7 @@ use gordian_world::graph::dependents_mask;
 use gordian_world::physics::{HIGH, SignalText, SymptomTag};
 use gordian_world::{
     Action, CounterName, Episode, EpisodeClass, EpisodeSpec, FaultKind, Observation, Outcome,
-    ProbeKind, ServiceId, Severity, Simulator, generate,
+    Probe, ProbeKind, ProbeResult, ServiceId, Severity, Simulator, generate,
 };
 use serde_json::json;
 use std::cell::RefCell;
@@ -438,7 +438,10 @@ fn time_rule<S: Selector + Clone>(
             // One real call first; then the arm is in the state the same call finds it in on
             // every later repeat, which is the state the counts and the timings are taken in.
             // Since work item A6c that state is one that holds the outputs it is handed again,
-            // so it recognises them and decodes nothing: the rule's *comparison* path.
+            // so it recognises them and decodes nothing, and since work item A6d it also holds
+            // the narrowed view of what it holds and the scores of its probes, so it narrows and
+            // scores nothing: the rule's *comparison* path, the call of a step that changed
+            // nothing it keeps.
             let step = |arm: &mut Arm<S>| {
                 black_box(arm.declared_select_cost(black_box(state)));
                 black_box(arm.select(black_box(state), &snap.bill));
@@ -467,7 +470,9 @@ fn time_rule<S: Selector + Clone>(
             // outputs and the same outputs with one trailing space in every payload (JSON that
             // decodes to exactly the same thing but is never byte for byte equal to the other),
             // so that every call decodes what it is handed, as a call that brings a new output
-            // does. Only where there is something to decode.
+            // does. A replaced output drops the narrowed view kept with it, so the same call also
+            // narrows the new set and scores its probes again. Only where there is something to
+            // decode.
             let padded: Vec<(ComponentId, ComponentOutput)> = outputs
                 .iter()
                 .map(|(id, output)| {
@@ -517,6 +522,66 @@ fn time_rule<S: Selector + Clone>(
                     "rule",
                     state,
                     rule_counts(decoding.counts()),
+                    timing,
+                );
+            }
+
+            // The *narrowing* path (work item A6d), which neither of the two above is: the
+            // outputs are held and equal, but the probe results in the window differ from call to
+            // call, so the rule narrows what it holds against different probes, and scores their
+            // probes, again each time, as a step that shows a new probe result does. Alternate
+            // the state with a copy that has one more probe result admitted. What the result
+            // says does not matter to the time; the counts are taken from the call itself.
+            let mut probed = state.clone();
+            probed.admit(
+                state.now,
+                Observation::Probed {
+                    probe: Probe {
+                        kind: ProbeKind::HealthCheck,
+                        target: ServiceId(0),
+                    },
+                    result: ProbeResult::Negative,
+                },
+            );
+            let mut flip = false;
+            let mut narrow = |arm: &mut Arm<S>| {
+                flip = !flip;
+                let shown = if flip { &probed } else { state };
+                black_box(arm.declared_select_cost(black_box(shown)));
+                black_box(arm.select(black_box(shown), &snap.bill));
+                black_box(arm.decide(black_box(shown), black_box(outputs)));
+            };
+            for _ in 0..4 {
+                narrow(&mut arm);
+            }
+            arm.take_ops();
+            narrow(&mut arm);
+            let narrowing = arm.take_ops();
+            let narrows = RULE_UNITS
+                .iter()
+                .position(|u| u.name == "worlds")
+                .map(|at| narrowing.counts()[at])
+                .unwrap_or(0);
+            if narrows > 0 {
+                let timing = measure(reps, || {
+                    narrow(&mut arm);
+                    black_box(arm.take_ops());
+                });
+                let narrow_tag = Tag {
+                    set: tag.set,
+                    source: "episode_narrow",
+                    class: tag.class.clone(),
+                    arm: tag.arm,
+                    n: tag.n,
+                    probes: tag.probes,
+                    extra_records: tag.extra_records,
+                };
+                emit(
+                    out,
+                    &narrow_tag,
+                    "rule",
+                    state,
+                    rule_counts(narrowing.counts()),
                     timing,
                 );
             }
