@@ -126,14 +126,22 @@ impl Limits {
 /// Why an episode stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StopReason {
-    /// The simulator accepted a `Declare` or `Abstain`.
+    /// The simulator accepted a `Declare` or `Abstain` at an ordinary step.
     Terminal,
+    /// The simulator accepted a `Declare` or `Abstain` that the policy made at the final call,
+    /// after the loop had found that no affordable work was left or that the horizon was reached.
+    /// A decided episode, distinct from [`StopReason::Terminal`] so that an analysis can tell an
+    /// answer the arm gave while it still had means from one it gave when it had none.
+    FinalDeclaration,
     /// Undecided, and nothing the arm could still do is affordable: no scheduling step plus
-    /// component, and no probe or correction, fits the bill.
+    /// component, and no probe or correction, fits the bill. The policy had its final call and
+    /// did not close the episode with it.
     BudgetExhausted,
-    /// Undecided, and the logical clock passed the episode horizon.
+    /// Undecided, and the logical clock passed the episode horizon. The policy had its final call
+    /// and did not close the episode with it.
     Horizon,
-    /// Undecided, and the step cap was reached.
+    /// Undecided, and the step cap was reached. The cap is a runaway guard, not a decision point:
+    /// there is no final call (`HARNESS.md`, section 1).
     StepCap,
 }
 
@@ -142,10 +150,16 @@ impl StopReason {
     pub fn as_str(self) -> &'static str {
         match self {
             StopReason::Terminal => "terminal",
+            StopReason::FinalDeclaration => "final_declaration",
             StopReason::BudgetExhausted => "budget_exhausted",
             StopReason::Horizon => "horizon",
             StopReason::StepCap => "step_cap",
         }
+    }
+
+    /// Whether the episode closed with a declaration or an abstention.
+    pub fn is_decided(self) -> bool {
+        matches!(self, StopReason::Terminal | StopReason::FinalDeclaration)
     }
 }
 
@@ -430,6 +444,41 @@ fn scored_hypotheses(outputs: &[(ComponentId, ComponentOutput)]) -> Vec<(Hypothe
     Vec::new()
 }
 
+/// Admit into `state` what has arrived by `until`: the passive observations the simulator has not
+/// yet delivered, and the results of earlier probes and corrections that were ready by `until`,
+/// merged in instant order. Results not ready yet stay in `ready_results`. Each admission is a
+/// `Measurement` from `harness/sensor` stamped `stamp`, the time of the ledger's last entry, with
+/// the observation's own instant in the payload.
+fn sense(
+    sim: &mut Simulator,
+    state: &mut WorkingState,
+    ledger: &mut Ledger,
+    ready_results: &mut Vec<(Instant, Observation)>,
+    until: Instant,
+    stamp: Instant,
+) -> Result<(), HarnessError> {
+    let mut arrived: Vec<(Instant, Observation)> = sim.observe_until(until);
+    let (ready, waiting) = std::mem::take(ready_results)
+        .into_iter()
+        .partition(|(at, _)| *at <= until);
+    *ready_results = waiting;
+    arrived.extend(ready);
+    arrived.sort_by_key(|(at, _)| *at);
+    for (at, observation) in arrived {
+        let body = payload(&json!({ "at_ns": at.0, "observation": observation }))?;
+        append(
+            ledger,
+            stamp,
+            EntryKind::Measurement,
+            "harness/sensor".to_owned(),
+            Vec::new(),
+            body,
+        )?;
+        state.admit(at, observation);
+    }
+    Ok(())
+}
+
 /// Whether the arm could still do anything: pay for a scheduling step and then a component, or
 /// for a probe or a correction. Declaring and abstaining are free and do not count; an arm that
 /// can no longer compute or sense is out of means, and the loop stops it.
@@ -478,7 +527,10 @@ fn work_affordable(
 /// probe) and admit them into the working state; charge the policy's declared scheduling cost and
 /// let it select components; charge and run each selected component; let the policy decide;
 /// apply the action. It stops at the first of: a terminal outcome, the logical clock passing the
-/// horizon, no affordable work left, or the step cap. `HARNESS.md` gives the rest.
+/// horizon, no affordable work left, or the step cap. Before stopping for the horizon or for want
+/// of affordable work, the policy gets one final call (`Policy::decide_final`), and a declaration
+/// or abstention made there ends the episode with `StopReason::FinalDeclaration`. `HARNESS.md`
+/// gives the rest.
 ///
 /// # Errors
 ///
@@ -589,28 +641,22 @@ fn play(
     let (mut components_run, mut components_skipped) = (0u32, 0u32);
     let mut steps = 0u32;
 
-    let stop = loop {
+    let loop_stop = loop {
         steps += 1;
         let step_start = clock.now();
 
         // Sense: passive observations that have arrived, and the result of the last probe.
         // Admitted in instant order; the measurement entry is stamped with the admission time
-        // and carries the observation's own instant in its payload.
-        let mut arrived: Vec<(Instant, Observation)> = sim.observe_until(step_start);
-        arrived.append(&mut ready_results);
-        arrived.sort_by_key(|(at, _)| *at);
-        for (at, observation) in arrived {
-            let body = payload(&json!({ "at_ns": at.0, "observation": observation }))?;
-            append(
-                &mut ledger,
-                step_start,
-                EntryKind::Measurement,
-                "harness/sensor".to_owned(),
-                Vec::new(),
-                body,
-            )?;
-            state.admit(at, observation);
-        }
+        // and carries the observation's own instant in its payload. A result is ready by the
+        // next step's start (the clock waited for it), so everything pending is admitted.
+        sense(
+            &mut sim,
+            &mut state,
+            &mut ledger,
+            &mut ready_results,
+            step_start,
+            step_start,
+        )?;
         state.now = step_start;
 
         // Schedule: charge the declared selection cost, then select. One timer entry covers the
@@ -878,11 +924,114 @@ fn play(
         }
     };
 
+    // The final call. An arm that stopped because nothing affordable was left, or because the
+    // horizon came, gets one more `decide`, so that running out of means is not mistaken for
+    // having decided nothing (`HARNESS.md`, section 1). The step cap does not: it is a runaway
+    // guard and says nothing about the arm's means or the episode's time.
+    let stop = if matches!(loop_stop, StopReason::Horizon | StopReason::BudgetExhausted) {
+        // The policy sees what it would see at the start of a step at this instant: whatever
+        // arrived, and whatever it bought that is ready. The world refuses anything after the
+        // horizon, so the call is made at the horizon at the latest; a result that would only
+        // be ready later is not shown.
+        let sees_until = clock.now().min(horizon);
+        sense(
+            &mut sim,
+            &mut state,
+            &mut ledger,
+            &mut ready_results,
+            sees_until,
+            clock.now(),
+        )?;
+        state.now = sees_until;
+
+        // Charged like any other scheduling call. A refusal is recorded and does not stop the
+        // call: declaring is free, so an arm that cannot pay for the call still declares.
+        let (final_cost, cost_ns) = timed(|| policy.declared_final_cost(&state));
+        let accounting = match charge(
+            &mut bill,
+            &mut ledger,
+            clock.now(),
+            &policy_producer,
+            Phase::Scheduling,
+            &final_cost,
+        )? {
+            Charged::Accepted(accounting) => {
+                clock.advance(time_of(&final_cost));
+                accounting
+            }
+            Charged::Refused(refusal) => refusal,
+        };
+        let (action, decide_ns) = timed(|| policy.decide_final(&state));
+        let ns = cost_ns.saturating_add(decide_ns);
+        measured.sched_ns = measured.sched_ns.saturating_add(ns);
+        record_timing(
+            &mut ledger,
+            clock.now(),
+            "decide",
+            None,
+            ns,
+            vec![accounting],
+        )?;
+
+        // The step's instant is never before the last recorded step (evaluator R15) and never
+        // after the horizon; if the last step was already refused as past the horizon, the world
+        // refuses this one too and the episode stays undecided.
+        let at = clock
+            .now()
+            .min(horizon)
+            .max(trajectory.last().map_or(Instant(0), |step| step.at));
+        let mut closed = false;
+        if let Some(action) = action {
+            let decision = append(
+                &mut ledger,
+                clock.now(),
+                EntryKind::Decision,
+                policy_producer.clone(),
+                Vec::new(),
+                payload(&action)?,
+            )?;
+            if matches!(action, Action::Declare { .. } | Action::Abstain) {
+                let outcome = sim.apply(action, at);
+                append(
+                    &mut ledger,
+                    clock.now(),
+                    EntryKind::Outcome,
+                    "harness/simulator".to_owned(),
+                    vec![decision],
+                    payload(&outcome)?,
+                )?;
+                closed = matches!(outcome, Outcome::Declared | Outcome::Abstained);
+                trajectory.push(Step {
+                    at,
+                    action,
+                    outcome,
+                });
+            } else {
+                // Nothing could follow a probe or a correction, so the world is not asked.
+                append(
+                    &mut ledger,
+                    clock.now(),
+                    EntryKind::Outcome,
+                    "harness/final".to_owned(),
+                    vec![decision],
+                    payload(&json!({ "refused": "final" }))?,
+                )?;
+            }
+        }
+        if closed {
+            StopReason::FinalDeclaration
+        } else {
+            loop_stop
+        }
+    } else {
+        loop_stop
+    };
+
     // Score. The trajectory ends at the terminal step if there was one; the loop stops right
     // after it, so no attempt after the close is ever recorded. An evaluator error is a harness
     // bug and fails the run.
     let verdict = score(&truth, &trajectory)?;
-    if verdict.undecided != (stop != StopReason::Terminal) {
+    if verdict.undecided == stop.is_decided() {
         return Err(HarnessError::Inconsistent(format!(
             "loop stopped with {stop:?} but the evaluator says undecided = {}",
             verdict.undecided

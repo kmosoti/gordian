@@ -40,6 +40,24 @@
 //! reached it plans nothing, which the arm treats as "no plan" rather than as a claim of
 //! minimality. Among plans of equal length the first found is used, cheaper probes first.
 //!
+//! # The final call
+//!
+//! When the harness has found that no affordable work is left, or that the horizon was reached, it
+//! calls [`Policy::decide_final`] once more (`HARNESS.md`, section 1). An oracle treats that as its
+//! own deadline arriving, because that is what it is:
+//!
+//! - `oracle_immediate` declares the truth, as it does at every call. It has declared at the first
+//!   step, so the harness never reaches a final call for it; the answer exists so that the arm is
+//!   defined there.
+//! - `oracle_evidence` declares the truth if the public evidence identifies it, and otherwise
+//!   abstains, exactly as at the patience deadline. It does not buy a probe (nothing could follow),
+//!   and it does not declare the truth from the hidden state: an ideal observer that did would stop
+//!   being one precisely when it matters. A final call that makes it abstain is therefore a
+//!   statement that the evidence it could afford did not identify the fault.
+//!
+//! Neither oracle changes at default limits: both always decided before the first final call
+//! (`tests/baselines.rs` pins this).
+//!
 //! These arms are free: `zero_cost` is declared for their scheduling, because they are a ceiling
 //! and not a cost-bearing mechanism. They select no components.
 
@@ -123,7 +141,8 @@ struct OraclePolicy {
 }
 
 impl OraclePolicy {
-    fn decide_evidence(&self, state: &WorkingState) -> Option<Action> {
+    /// `last` is the harness's final call: the deadline counts as passed and no probe is bought.
+    fn decide_evidence(&self, state: &WorkingState, last: bool) -> Option<Action> {
         let evidence: Vec<_> = state.evidence().iter().cloned().collect();
         let worlds = consistent_worlds(&state.public, &evidence);
         let mut hypotheses: Vec<Hypothesis> = Vec::new();
@@ -135,13 +154,13 @@ impl OraclePolicy {
         if hypotheses == [self.truth] {
             return Some(Action::Declare { fault: self.truth });
         }
-        if let Some(probe) = self.next_probe(&state.public.services, &worlds) {
+        if !last && let Some(probe) = self.next_probe(&state.public.services, &worlds) {
             return Some(Action::Probe {
                 kind: probe.kind,
                 target: probe.target,
             });
         }
-        (state.now >= self.patience).then_some(Action::Abstain)
+        (last || state.now >= self.patience).then_some(Action::Abstain)
     }
 
     /// The first probe of the shortest plan that identifies the truth, if one fits.
@@ -293,7 +312,18 @@ impl Policy for OraclePolicy {
     ) -> Option<Action> {
         match self.variant {
             Variant::Immediate => Some(Action::Declare { fault: self.truth }),
-            Variant::Evidence => self.decide_evidence(state),
+            Variant::Evidence => self.decide_evidence(state, false),
+        }
+    }
+
+    fn declared_final_cost(&self, _state: &WorkingState) -> Vec<Charge> {
+        zero_cost()
+    }
+
+    fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
+        match self.variant {
+            Variant::Immediate => Some(Action::Declare { fault: self.truth }),
+            Variant::Evidence => self.decide_evidence(state, true),
         }
     }
 }

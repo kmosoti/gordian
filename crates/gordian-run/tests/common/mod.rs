@@ -199,6 +199,14 @@ impl Policy for Spy {
         });
         self.inner.decide(state, outputs)
     }
+
+    fn declared_final_cost(&self, state: &WorkingState) -> Vec<Charge> {
+        self.inner.declared_final_cost(state)
+    }
+
+    fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
+        self.inner.decide_final(state)
+    }
 }
 
 /// A scripted step selecting `select` and taking `action`.
