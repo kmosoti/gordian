@@ -629,8 +629,10 @@ fn main() {
     // States recorded from real episodes: default limits, and a binding compute budget under
     // which arms run out of affordable work and the harness makes its final call.
     let default = Limits::default();
-    let mut tight = Limits::default();
-    tight.compute = 250_000;
+    let tight = Limits {
+        compute: 250_000,
+        ..Limits::default()
+    };
     for limits in [&default, &tight] {
         let config = DecideConfig::default();
         record_arm(

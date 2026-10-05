@@ -91,41 +91,30 @@ const DECODE_HYPOTHESIS_PS: u64 = 115_000;
 // work of the scheduling path it is part of, the same way a component does:
 //
 // - `calls`: one per `decide` or final call (the step's fixed cost: the cost declaration, the
-//   selection and the decision, which run once per step; the cost declaration reads the stored
-//   candidate set, which is as large as the worlds built from it, so it has no unit of its
-//   own);
-// - `scanned`: observations looked at when the probe results and corrections are collected;
+//   selection and the decision, which run once per step);
 // - `decoded_outputs`: component outputs whose entry was decoded;
 // - `decoded_ranked`: candidates in the entries decoded;
 // - `worlds`: worlds built from a candidate set, and worlds visited when a probe is scored;
-// - `agree_steps`: probe results checked against a world, and probe results scanned to find the
-//   drifted hash a check needs;
-// - `probe_evals`: calls of `probe_result` made to score candidate probes;
-// - `group_steps`: steps of grouping worlds by the result a probe gives them;
-// - `probes_scored`: candidate probes scored and compared (service times probe kind).
+// - `probe_evals`: calls of `probe_result` made to score candidate probes, one per (probe, world).
 //
-// Corrections are not counted: the rule never buys one, and a check of one is a comparison of two
-// integers.
+// What is not a unit, and why (`CALIBRATION.md`, section 9): the scan of the window for bought
+// probes (0.3 ns an observation, under 3% of a call at the largest window), the check of bought
+// probes against a world, the grouping of worlds by a probe's result and the per-probe set-up of
+// scoring (each fitted at under 2% of the time, and not separable from `probe_evals` and `worlds`:
+// dropping all four changes no fit by more than 0.0002 in R^2), and corrections (the rule never
+// buys one).
 const R_CALLS: usize = 0;
-const R_SCANNED: usize = 1;
-const R_DECODED_OUTPUTS: usize = 2;
-const R_DECODED_RANKED: usize = 3;
-const R_WORLDS: usize = 4;
-const R_AGREE_STEPS: usize = 5;
-const R_PROBE_EVALS: usize = 6;
-const R_GROUP_STEPS: usize = 7;
-const R_PROBES_SCORED: usize = 8;
+const R_DECODED_OUTPUTS: usize = 1;
+const R_DECODED_RANKED: usize = 2;
+const R_WORLDS: usize = 3;
+const R_PROBE_EVALS: usize = 4;
 /// How many units the rule has.
-const R_UNITS: usize = 9;
+const R_UNITS: usize = 5;
 
 /// The shared rule's units and their weights.
 pub const RULE_UNITS: &[Unit] = &[
     Unit {
         name: "calls",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "scanned",
         weight_ps: 0,
     },
     Unit {
@@ -141,19 +130,7 @@ pub const RULE_UNITS: &[Unit] = &[
         weight_ps: 0,
     },
     Unit {
-        name: "agree_steps",
-        weight_ps: 0,
-    },
-    Unit {
         name: "probe_evals",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "group_steps",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "probes_scored",
         weight_ps: 0,
     },
 ];
@@ -307,16 +284,12 @@ impl Bought {
 /// The drifted configuration hash to assume at `target`: the one already seen in a probe result,
 /// or, when none was, the public hash plus one. The checker uses the same convention, and the
 /// value only matters in that it differs from the public hash.
-fn drift_hash(
-    services: &[Service],
-    target: ServiceId,
-    bought: &Bought,
-    ops: &mut RuleOps,
-) -> Option<u64> {
+fn drift_hash(services: &[Service], target: ServiceId, bought: &Bought) -> Option<u64> {
     let start = services.get(target.index())?.config_hash;
-    let seen = bought.probes.iter().find_map(|(probe, result)| {
-        ops.add(R_AGREE_STEPS, 1);
-        match result {
+    let seen = bought
+        .probes
+        .iter()
+        .find_map(|(probe, result)| match result {
             ProbeResult::ConfigHash(h)
                 if probe.kind == ProbeKind::ConfigSnapshot
                     && probe.target == target
@@ -325,8 +298,7 @@ fn drift_hash(
                 Some(*h)
             }
             _ => None,
-        }
-    });
+        });
     Some(seen.unwrap_or(start.wrapping_add(1)))
 }
 
@@ -345,10 +317,8 @@ fn probe_agrees(
     probe: Probe,
     result: ProbeResult,
     bought: &Bought,
-    ops: &mut RuleOps,
 ) -> bool {
-    ops.add(R_AGREE_STEPS, 1);
-    let Some(drift) = drift_hash(services, probe.target, bought, ops) else {
+    let Some(drift) = drift_hash(services, probe.target, bought) else {
         // A probe at a service that is not in the graph says nothing about these worlds.
         return true;
     };
@@ -378,7 +348,7 @@ fn worlds_of_counted(
             let probes_agree = bought
                 .probes
                 .iter()
-                .all(|(probe, result)| probe_agrees(services, world, *probe, *result, bought, ops));
+                .all(|(probe, result)| probe_agrees(services, world, *probe, *result, bought));
             let corrections_agree = bought
                 .corrections
                 .iter()
@@ -445,33 +415,23 @@ fn score_probes_counted(
     };
     let mut out = Vec::new();
     for target in targets {
-        let Some(drift) = drift_hash(services, target, bought, ops) else {
+        let Some(drift) = drift_hash(services, target, bought) else {
             continue;
         };
         for kind in ProbeKind::ALL {
             let probe = Probe { kind, target };
-            ops.add(R_PROBES_SCORED, 1);
             let mut groups: Vec<(ProbeResult, u64, Vec<Hypothesis>)> = Vec::new();
             for (h, bits) in worlds {
                 let result = probe_result(services, *h, *bits, drift, probe);
                 ops.add(R_PROBE_EVALS, 1);
-                // Finding the group looks at each group up to the match; finding the
-                // hypothesis in it looks at each hypothesis up to the match.
-                match groups.iter_mut().position(|g| g.0 == result) {
-                    Some(at) => {
-                        let group = &mut groups[at];
-                        ops.add(R_GROUP_STEPS, at as u64 + 1);
+                match groups.iter_mut().find(|g| g.0 == result) {
+                    Some(group) => {
                         group.1 += 1;
-                        let seen = group.2.iter().position(|x| x == h);
-                        ops.add(R_GROUP_STEPS, seen.map_or(group.2.len(), |i| i + 1) as u64);
-                        if seen.is_none() {
+                        if !group.2.contains(h) {
                             group.2.push(*h);
                         }
                     }
-                    None => {
-                        ops.add(R_GROUP_STEPS, groups.len() as u64 + 1);
-                        groups.push((result, 1, vec![*h]));
-                    }
+                    None => groups.push((result, 1, vec![*h])),
                 }
             }
             let numerator = groups.iter().map(|g| g.1 * g.2.len() as u64).sum();
@@ -709,7 +669,6 @@ impl Decider {
         for (id, output) in outputs {
             self.absorb(*id, output, ops);
         }
-        ops.add(R_SCANNED, state.size() as u64);
         let bought = Bought::from_evidence(state.evidence());
         let view = self.view(state, &bought, ops);
         // The final call is the only thing `last` changes: it makes the deadline due.

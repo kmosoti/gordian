@@ -43,41 +43,39 @@ const C_PS: u64 = 156_000;
 
 // Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
 //
-// - `calls`: one per call, which always emits one entry;
-// - `candidates`: 1 when the consistent set is not empty, which makes the entry a list of
-//   candidates; an empty set (the window lost the anchor) makes the shorter damaged-evidence entry
-//   and counts 0;
+// - `candidates` or `damaged`: exactly one of the two per call, the envelope of the entry the call
+//   emits, which is a list of candidates when the consistent set is not empty and the shorter
+//   damaged-evidence entry when it is empty (the window lost the anchor); the call's own fixed
+//   cost is in them;
 // - `scanned`: observations touched: the copy of the window into the checker's slice, and the
 //   checker's first pass (so twice the window length unless the pass ends early);
-// - `mask_steps`, `worlds`, `evals`, `probe_evals`: the checker's own counts
-//   (`physics::CheckerOps`): dependents-mask steps, candidate worlds tried, evaluations of a
-//   world against an observation, and against a probe result;
+// - `worlds`, `evals`, `probe_evals`: the checker's own counts (`physics::CheckerOps`): candidate
+//   worlds tried, evaluations of a world against an observation, and against a probe result;
 // - `ranked`: hypotheses written into the entry, which is the whole consistent set.
-const U_CALLS: usize = 0;
-const U_CANDIDATES: usize = 1;
+//
+// The checker also counts the steps of building its dependents masks (`mask_steps`). The verifier
+// does not price them: they depend on the graph alone, and the fit cannot tell them from `worlds`
+// (dropping them changes no fit by more than 0.0002 in R^2).
+const U_CANDIDATES: usize = 0;
+const U_DAMAGED: usize = 1;
 const U_SCANNED: usize = 2;
-const U_MASK_STEPS: usize = 3;
-const U_WORLDS: usize = 4;
-const U_EVALS: usize = 5;
-const U_PROBE_EVALS: usize = 6;
-const U_RANKED: usize = 7;
+const U_WORLDS: usize = 3;
+const U_EVALS: usize = 4;
+const U_PROBE_EVALS: usize = 5;
+const U_RANKED: usize = 6;
 
 /// The verifier's units and their weights.
 pub const UNITS: &[Unit] = &[
-    Unit {
-        name: "calls",
-        weight_ps: 0,
-    },
     Unit {
         name: "candidates",
         weight_ps: 0,
     },
     Unit {
-        name: "scanned",
+        name: "damaged",
         weight_ps: 0,
     },
     Unit {
-        name: "mask_steps",
+        name: "scanned",
         weight_ps: 0,
     },
     Unit {
@@ -125,16 +123,15 @@ impl Component for ConsistencyVerifier {
 
     fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops) {
         let mut ops = Ops::zero(VERIFIER_ID);
-        ops.add(U_CALLS, 1);
         let evidence = input.evidence_vec();
         ops.add(U_SCANNED, evidence.len() as u64);
         let (set, checked) = consistent_hypotheses_counted(&input.public, &evidence);
         ops.add(U_SCANNED, checked.scanned);
-        ops.add(U_MASK_STEPS, checked.mask_steps);
         ops.add(U_WORLDS, checked.worlds_tried);
         ops.add(U_EVALS, checked.evals);
         ops.add(U_PROBE_EVALS, checked.probe_evals);
         if set.is_empty() {
+            ops.add(U_DAMAGED, 1);
             let entry = HypothesisEntry::EvidenceDamaged {
                 source: "verifier".to_string(),
                 window: input.size() as u32,

@@ -52,6 +52,18 @@ fn unit_count(ops: &gordian_components::Ops, unit: &str) -> u64 {
     ops.counts()[at]
 }
 
+/// Calls counted: the `calls` unit, or for the verifier the entry envelope it emits once per call.
+fn calls_of(ops: &gordian_components::Ops) -> u64 {
+    if ops::units(ops.component())
+        .iter()
+        .any(|u| u.name == "calls")
+    {
+        unit_count(ops, "calls")
+    } else {
+        unit_count(ops, "candidates") + unit_count(ops, "damaged")
+    }
+}
+
 fn rule_count(ops: &RuleOps, unit: &str) -> u64 {
     let at = RULE_UNITS.iter().position(|u| u.name == unit).unwrap();
     ops.counts()[at]
@@ -82,7 +94,7 @@ fn only_the_components_that_ran_are_counted() {
                     // One call per step the heuristic was selected and ran. `components_run`
                     // also counts a call a `Fail` directive stopped (charged, not run), which
                     // only the ComponentTimeout class makes.
-                    let calls = unit_count(o, "calls");
+                    let calls = calls_of(o);
                     if class == EpisodeClass::ComponentTimeout {
                         assert!(calls <= u64::from(h.components_run), "{class:?} {seed}");
                     } else {
@@ -93,12 +105,7 @@ fn only_the_components_that_ran_are_counted() {
                 }
             }
             let all = play_arm(&PolicySpec::AllComponents, seed, class, &limits());
-            let calls: u64 = all
-                .ops
-                .components
-                .iter()
-                .map(|o| unit_count(o, "calls"))
-                .sum();
+            let calls: u64 = all.ops.components.iter().map(calls_of).sum();
             if class == EpisodeClass::ComponentTimeout {
                 assert!(calls <= u64::from(all.components_run), "{class:?} {seed}");
             } else {
@@ -327,7 +334,6 @@ fn taking_the_count_resets_it() {
     rule.decide(&state, &outputs);
     let first = rule.take_ops();
     assert_eq!(rule_count(&first, "calls"), 1);
-    assert_eq!(rule_count(&first, "scanned"), state.size() as u64);
     assert_eq!(
         rule_count(&first, "decoded_outputs"),
         3,

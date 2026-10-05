@@ -29,6 +29,10 @@ DEFAULTS = {
     "components_skipped": 0,
     "directives_ignored": 0,
     "stop_reason": "terminal",
+    "ops_component": 0,
+    "ops_sched": 0,
+    "modelled_component_ns": 0,
+    "modelled_sched_ns": 0,
 }
 
 MEASURED_DEFAULTS = {

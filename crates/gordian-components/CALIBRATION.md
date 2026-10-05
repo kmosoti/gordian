@@ -236,7 +236,10 @@ spread, which is about 10%. What is left is content dependence of the ordinary k
 observation is an alarm costs 2.5 to 3.0 times the pooled declared cost, because the pooled
 model is fitted to windows that are mostly benign. An experiment whose windows are denser in
 alarms than the generated pool will see declared cost below measured cost for the verifier by
-that factor. The measured cost, not the declared one, is the cost in every experiment.
+that factor. The measured cost, not the declared one, is the cost in every experiment. (Superseded
+by work item A8b: the cost in every experiment is now the *modelled* cost of section 9, a count of
+the work done, which follows content where the declared cost follows only size. Measured wall time
+stays as the secondary check.)
 
 ## 7. Recalibrating
 

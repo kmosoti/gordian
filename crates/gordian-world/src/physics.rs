@@ -327,6 +327,10 @@ fn role_of(masks: &[Vec<bool>], site: ServiceId, service: ServiceId) -> Option<R
     }
 }
 
+/// What [`consistent_worlds`] returns: every (hypothesis, hidden bits) pair the evidence does not
+/// contradict.
+pub type Worlds = Vec<(Hypothesis, (bool, bool))>;
+
 /// The work one call of the consistency checker did, in declared units.
 ///
 /// Each field counts a step of a loop the optimized checker really runs, so the counts follow the
@@ -389,7 +393,7 @@ pub fn consistent_worlds(
 pub fn consistent_worlds_counted(
     public: &PublicInfo,
     evidence: &[(Instant, Observation)],
-) -> (Vec<(Hypothesis, (bool, bool))>, CheckerOps) {
+) -> (Worlds, CheckerOps) {
     let services = &public.services;
     let n = services.len();
     let valid = |id: ServiceId| id.index() < n;

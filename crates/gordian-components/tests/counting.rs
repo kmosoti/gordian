@@ -28,6 +28,19 @@ use gordian_world::{
 };
 use proptest::prelude::*;
 
+/// One per call: the `calls` unit, or for the verifier, whose fixed cost is in the envelope of the
+/// entry it emits, the one of `candidates` and `damaged` that applies.
+fn calls_of(ops: &Ops) -> u64 {
+    if ops::units(ops.component())
+        .iter()
+        .any(|u| u.name == "calls")
+    {
+        count_of(ops, "calls")
+    } else {
+        count_of(ops, "candidates") + count_of(ops, "damaged")
+    }
+}
+
 fn count_of(ops: &Ops, unit: &str) -> u64 {
     let at = ops::units(ops.component())
         .iter()
@@ -68,7 +81,7 @@ proptest! {
             prop_assert_eq!(&out1, &a.run(&w));
             prop_assert_eq!(ops1.component(), a.id());
             prop_assert_eq!(ops1.counts().len(), ops::units(a.id()).len());
-            prop_assert_eq!(count_of(&ops1, "calls"), 1);
+            prop_assert_eq!(calls_of(&ops1), 1);
         }
     }
 
@@ -113,7 +126,7 @@ proptest! {
         let evidence: Vec<_> = w.evidence().iter().cloned().collect();
         let (set, checked) = consistent_hypotheses_counted(&w.public, &evidence);
         let (out, v) = ConsistencyVerifier::new().run_counted(&w);
-        prop_assert_eq!(count_of(&v, "mask_steps"), checked.mask_steps);
+        prop_assert_eq!(count_of(&v, "worlds"), checked.worlds_tried);
         prop_assert_eq!(count_of(&v, "evals"), checked.evals);
         prop_assert_eq!(count_of(&v, "probe_evals"), checked.probe_evals);
         prop_assert_eq!(count_of(&v, "scanned"), evidence.len() as u64 + checked.scanned);
@@ -323,9 +336,13 @@ fn units_are_named_once_and_every_known_component_has_some() {
     for id in [HEURISTIC_ID, ESTIMATOR_ID, MEMORY_ID, VERIFIER_ID] {
         let units = ops::units(id);
         assert!(!units.is_empty() && units.len() <= ops::MAX_UNITS);
-        assert_eq!(
-            units[0].name, "calls",
-            "{id:?}: the explicit intercept comes first"
+        // The per-call fixed cost is an explicit unit, never an intercept: `calls`, or for the
+        // verifier the envelope of the entry it emits.
+        assert!(
+            units.iter().any(|u| u.name == "calls")
+                || (units.iter().any(|u| u.name == "candidates")
+                    && units.iter().any(|u| u.name == "damaged")),
+            "{id:?}: no explicit per-call unit"
         );
         let mut names: Vec<_> = units.iter().map(|u| u.name).collect();
         names.sort_unstable();
