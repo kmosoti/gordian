@@ -106,6 +106,31 @@ mod tests {
     }
 
     #[test]
+    fn a_keyed_draw_with_a_classs_hash_is_that_classs_draw() {
+        // The stream harness keys its draws with a constant of its own instead of a class; the
+        // episode harness's draw is the keyed draw with the class's hash, so nothing about it
+        // changed when the keyed form was added.
+        for class in [EpisodeClass::Ambiguous, EpisodeClass::NoFault] {
+            for seed in 0..20 {
+                assert_eq!(
+                    arm_order(5, seed, class, 4),
+                    arm_order_keyed(5, seed, class_hash(class), 4)
+                );
+                assert_eq!(
+                    order_seed(5, seed, class),
+                    order_seed_keyed(5, seed, class_hash(class))
+                );
+            }
+        }
+        // A different key is a different stream.
+        assert_ne!(order_seed_keyed(5, 6, 1), order_seed_keyed(5, 6, 2));
+        let moved = (0..50u64)
+            .filter(|s| arm_order_keyed(5, *s, 1, 3) != arm_order_keyed(5, *s, 2, 3))
+            .count();
+        assert!(moved > 10, "{moved}");
+    }
+
+    #[test]
     fn one_arm_is_always_first() {
         assert_eq!(arm_order(1, 2, EpisodeClass::NoFault, 1), vec![0]);
     }

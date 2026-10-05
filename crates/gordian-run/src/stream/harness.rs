@@ -279,12 +279,12 @@ struct State {
     duration: Instant,
 }
 
+/// What a sense delivers: the events, and the probe results that are ready.
+type Sensed = (Vec<StreamEvent>, Vec<(u32, Instant, Observation)>);
+
 /// Deliver what has arrived by `until` and record it. Returns the events and the ready probe
 /// results.
-fn sense(
-    st: &mut State,
-    until: Instant,
-) -> Result<(Vec<StreamEvent>, Vec<(u32, Instant, Observation)>), StreamHarnessError> {
+fn sense(st: &mut State, until: Instant) -> Result<Sensed, StreamHarnessError> {
     let events = st.sim.observe_until(until);
     let stamp = st.clock.now();
     for event in &events {

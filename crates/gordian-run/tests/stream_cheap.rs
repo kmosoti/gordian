@@ -30,7 +30,6 @@ mod cheap {
     use gordian_world::{Action, Hypothesis, Observation, Probe};
     use std::collections::BTreeSet;
 
-
     /// What the cheap rung did with one incident's evidence.
     #[derive(Debug, Clone)]
     pub(crate) struct CheapRun {
@@ -220,13 +219,13 @@ mod cheap {
     }
 }
 
+use cheap::{exhaustive_probes, probing_sim};
 use gordian_core::Instant;
 use gordian_stream::{HardKind, ObsId, Stream, StreamKind, StreamParams, Tier, generate};
 use gordian_stream_reveal::{IncidentTruth, StreamTruth, truth_of};
 use gordian_world::graph::dependents_mask;
 use gordian_world::physics::consistent_hypotheses;
 use gordian_world::{FaultKind, Hypothesis, Observation, ServiceId};
-use cheap::{exhaustive_probes, probing_sim};
 
 type Evidence = Vec<(Instant, Observation)>;
 
@@ -498,4 +497,3 @@ fn a_call_costs_at_least_ten_thousand_typical_component_calls() {
     assert!(c100.modelled_ns > 3 * base && c100.tokens == 400 + 100 * 20);
     assert_eq!(c100.calls, 1);
 }
-

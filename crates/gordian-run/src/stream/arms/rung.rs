@@ -1012,6 +1012,10 @@ impl Rung {
         tag: u64,
     ) -> Option<Proposed> {
         let i = self.index_of(id)?;
+        // The rule concludes once per anomaly: a later conclusion is not acted on.
+        if self.anomalies[i].cheap_done {
+            return None;
+        }
         match conclusion {
             Conclusion::Declare(diagnosis) => {
                 if held {

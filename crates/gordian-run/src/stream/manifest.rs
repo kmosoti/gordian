@@ -323,12 +323,18 @@ impl StreamManifest {
 
     /// The one-arm manifest of arm `index`: the same run with only that arm, so that running it
     /// alone gives the arm's `results.csv` byte for byte (protocol replay is per arm). Its
-    /// `run_id` is `<run_id>.<arm>`, which is what the arm's rows carry.
+    /// `run_id` is `<run_id>.<arm>`, which is what the arm's rows carry. A manifest that already
+    /// has one arm is returned as it is, so that running an arm's own `manifest.json` reproduces
+    /// its rows, run id included.
     ///
     /// # Panics
     ///
     /// If `index` is not an arm of the manifest.
     pub fn single_arm(&self, index: usize) -> StreamManifest {
+        if self.arms.len() == 1 {
+            assert_eq!(index, 0, "a one-arm manifest has only arm 0");
+            return self.clone();
+        }
         let spec = self.arms[index].clone();
         StreamManifest {
             run_id: format!("{}.{}", self.run_id, spec.arm),
