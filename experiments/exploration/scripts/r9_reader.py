@@ -190,6 +190,7 @@ SITE_FEATURES = [
     "burst_union",           # distinct characteristic messages at the site in the burst (capped at 3)
     "burst_inconsistent",    # the site's burst fits no single known kind (0/1)
     "burst_char",            # a characteristic message at the site in the burst (0/1)
+    "site_mixed_burst",      # MixedSignals at the site in the burst (0/1)
 ]
 PARTNER_FEATURES = [
     "ff_n",        # free-form messages of the partner candidate in phase 2 (capped at 5)
@@ -199,17 +200,21 @@ PARTNER_FEATURES = [
     "cluster_p2",  # an ErrorRate and a Latency alarm within 50 ms in phase 2, no characteristic message near
     "mixed_burst",  # MixedSignals at the candidate in the burst
     "mixed_p2",    # MixedSignals at the candidate in phase 2
+    "mixed_alarm",  # MixedSignals at the candidate within 100 ms of an abnormal counter there (burst or phase 2)
     "pulses",      # abnormal readings at the candidate in the 6 s after its first alarm (capped at 4)
 ]
 # The partner candidates: the best unconnected service and the best connected one (a dependent or an
 # upstream service of the site), each chosen by the score `partner_score`.
-GROUPS = ("unc", "con")
+GROUPS = ("unc", "dep", "up")
+GROUP_REL = {"unc": "unconnected", "dep": "dependent", "up": "upstream"}
 FEATURES = SITE_FEATURES + [f"{g}_{k}" for g in GROUPS for k in PARTNER_FEATURES]
 
 
 def _groups(recs, site, rel):
     ff_p2 = {}
     mixed_burst, mixed_p2 = set(), set()
+    mixed_times = {}
+    site_mixed_burst = False
     char_site_p2, char_site_burst = [], []
     nonerr_site_p2 = 0
     ab_burst = {}     # service -> set of abnormal counter names in the burst
@@ -238,6 +243,11 @@ def _groups(recs, site, rel):
                         char_site_p2.append(name)
                     if s == site and in_b:
                         char_site_burst.append(name)
+                if name == "MixedSignals":
+                    if in_b or in_p:
+                        mixed_times.setdefault(s, []).append(t)
+                    if s == site and in_b:
+                        site_mixed_burst = True
                 if name == "MixedSignals" and s != site:
                     if in_b:
                         mixed_burst.add(s)
@@ -266,7 +276,7 @@ def _groups(recs, site, rel):
         "mixed_burst": mixed_burst, "mixed_p2": mixed_p2, "char_site_p2": char_site_p2,
         "char_site_burst": char_site_burst, "nonerr_site_p2": nonerr_site_p2,
         "ab_burst": ab_burst, "ab_series": ab_series, "p2_alarm": p2_alarm, "char_times": char_times,
-        "site_burst_ab": site_burst_ab,
+        "site_burst_ab": site_burst_ab, "mixed_times": mixed_times, "site_mixed_burst": site_mixed_burst,
     }
 
 
@@ -310,6 +320,8 @@ def _partner_block(s, g, site_ids, mu_ff):
         "cluster_p2": float(cluster),
         "mixed_burst": float(s in g["mixed_burst"]),
         "mixed_p2": float(s in g["mixed_p2"]),
+        "mixed_alarm": float(any(abs(tm - ta) < 0.1 for tm in g["mixed_times"].get(s, [])
+                                 for ta, _ in g["ab_series"].get(s, []))),
         "pulses": float(min(pulses, 4)),
     }, [i for _, i in msgs]
 
@@ -319,7 +331,7 @@ def partner_score(b):
     evidence, each item on a comparable scale. Used only to choose which service of a group the
     classifier looks at."""
     return (min(b["ff_score"], 8.0) / 4.0 + b["share"] + b["alarm_burst"] / 2.0 + b["cluster_p2"]
-            + b["mixed_burst"] + b["mixed_p2"] - 0.25 * b["pulses"])
+            + b["mixed_burst"] + b["mixed_p2"] + b["mixed_alarm"] - 0.25 * b["pulses"])
 
 
 def features(services, focus, context):
@@ -345,13 +357,14 @@ def features(services, focus, context):
     f["site_nonerr_p2_score"] = poisson_tail_score(g["nonerr_site_p2"], mu_ab * win)
     f["burst_union"] = float(min(len(set(g["char_site_burst"])), 3))
     f["burst_char"] = float(bool(g["char_site_burst"]))
+    f["site_mixed_burst"] = float(g["site_mixed_burst"])
     f["burst_inconsistent"] = float(_burst_inconsistent(g))
     cited = [i for _, i in site_msgs]
     chosen = {}
     for grp in GROUPS:
         best, best_b, best_cite = None, None, []
         for s in range(n):
-            if s == site or (rel[s] == "unconnected") != (grp == "unc"):
+            if s == site or rel[s] != GROUP_REL[grp]:
                 continue
             b, cite = _partner_block(s, g, site_ids, mu_ff)
             sc = partner_score(b)
