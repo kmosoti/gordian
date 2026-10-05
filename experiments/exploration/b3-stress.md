@@ -264,6 +264,10 @@ near 0 beside `Ambiguous`'s 1.97, with the same success.
    losing a component can help. This is a property of the shared rule's source order (the
    verifier's set is read first, `POLICIES.md` section 2) and the final declaration, not a
    discovery about components. It is not verified here beyond the pattern.
+   *Diagnosed afterwards, and the mechanism above is not the main one: see `b3-finding4.md`. Paired
+   against the same episodes without the directives, `Fail` does raise success in these cells; the
+   lift comes from the shared rule's per-step charge for decoding the verifier's output, not from
+   the source order.*
 
 ## 4. Hard limits held
 
@@ -347,6 +351,8 @@ properties; items 5 to 7 are failures of arms.
 3. **The shared rule's source order lets a failed component help** (section 3, item 5, last
    paragraph). It means that a stress class that removes a component can raise an arm's score. I
    have not confirmed the mechanism by experiment.
+   (Superseded by `b3-finding4.md`: confirmed that a failed component raises the score, and that
+   the cause is the rule's decoding charge, not the source order.)
 4. **`QuietUrgent`, the only generated-critical stressor, adds nothing to `Ambiguous` or
    `CriticalFault`**: its critical-miss rate is the arm's general failure rate on a faulted class
    (table in section 2), and `CriticalFault` shows the same numbers (`b1-variance.csv`). The

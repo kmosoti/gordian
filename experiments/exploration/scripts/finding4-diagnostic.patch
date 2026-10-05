@@ -1,0 +1,79 @@
+diff -ruN a/crates/gordian-run/src/harness.rs b/crates/gordian-run/src/harness.rs
+--- a/crates/gordian-run/src/harness.rs	2026-10-05 03:23:55.463708256 +0000
++++ b/crates/gordian-run/src/harness.rs	2026-10-05 03:23:55.475089400 +0000
+@@ -668,7 +668,15 @@
+     // block nothing but the simulator holds it.
+     let episode = generate(spec);
+     let truth = Truth::from_episode(&episode);
+-    let directives = episode.harness_directives().to_vec();
++    let mut directives = episode.harness_directives().to_vec();
++    // DIAGNOSTIC PATCH (scratch copy, not in the repository): GORDIAN_DIAG_DIRECTIVES selects
++    // which harness directives are applied: all (default), none, fail, slow.
++    match std::env::var("GORDIAN_DIAG_DIRECTIVES").as_deref() {
++        Ok("none") => directives.clear(),
++        Ok("fail") => directives.retain(|d| matches!(d.mode, ComponentMode::Fail)),
++        Ok("slow") => directives.retain(|d| matches!(d.mode, ComponentMode::Slow { .. })),
++        _ => {}
++    }
+     let public_stream = episode.stream().to_vec();
+     let horizon = episode.spec().horizon;
+     let (seed, class) = (episode.spec().seed, episode.spec().class);
+diff -ruN a/crates/gordian-run/src/policy/decide.rs b/crates/gordian-run/src/policy/decide.rs
+--- a/crates/gordian-run/src/policy/decide.rs	2026-10-05 03:23:55.463179698 +0000
++++ b/crates/gordian-run/src/policy/decide.rs	2026-10-05 03:23:55.474431273 +0000
+@@ -530,7 +530,10 @@
+             return;
+         };
+         *slot = offered(output, ops);
+-        if !output.entries.is_empty() {
++        // DIAGNOSTIC PATCH (scratch copy, not in the repository): the verifier's output is
++        // decoded and used as always but its decoding is not carried into the next declared cost.
++        let free = id == VERIFIER_ID && std::env::var("GORDIAN_DIAG_VERIFIER_FREE_DECODE").is_ok();
++        if !output.entries.is_empty() && !free {
+             self.decoded.0 += 1;
+             self.decoded.1 += slot.as_ref().map_or(0, |set| set.len() as u64);
+         }
+@@ -542,8 +545,22 @@
+             .flatten()
+     }
+ 
++    /// DIAGNOSTIC PATCH (scratch copy): the sources the decision reads. With
++    /// GORDIAN_DIAG_VERIFIER_UNUSED the verifier's stored set is never a candidate source, while
++    /// every charge (which reads `sources`) stays exactly as it is.
++    fn decision_sources(&self) -> Vec<&Vec<Hypothesis>> {
++        let skip = std::env::var("GORDIAN_DIAG_VERIFIER_UNUSED").is_ok();
++        let mut out = Vec::new();
++        if !skip {
++            out.extend(self.verifier.as_ref());
++        }
++        out.extend(self.estimator.as_ref());
++        out.extend(self.heuristic.as_ref());
++        out
++    }
++
+     fn view(&self, state: &WorkingState, bought: &Bought, ops: &mut RuleOps) -> Option<View> {
+-        self.sources().find_map(|set| {
++        self.decision_sources().into_iter().find_map(|set| {
+             let worlds = worlds_of_counted(&state.public.services, set, bought, ops);
+             if worlds.is_empty() {
+                 None
+diff -ruN a/crates/gordian-world/examples/directives.rs b/crates/gordian-world/examples/directives.rs
+--- a/crates/gordian-world/examples/directives.rs	1970-01-01 00:00:00.000000000 +0000
++++ b/crates/gordian-world/examples/directives.rs	2026-10-05 03:23:55.476910261 +0000
+@@ -0,0 +1,16 @@
++//! SCRATCH (not in the repository): list the harness directives of ComponentTimeout episodes.
++//! Public API only; no hidden-state feature.
++use gordian_world::{EpisodeClass, EpisodeSpec, generate};
++
++fn main() {
++    println!("seed\tdirectives");
++    for seed in 1000..1500u64 {
++        let ep = generate(&EpisodeSpec::new(seed, EpisodeClass::ComponentTimeout));
++        let d: Vec<String> = ep
++            .harness_directives()
++            .iter()
++            .map(|d| format!("{}:{:?}", d.component, d.mode))
++            .collect();
++        println!("{}\t{}", seed, d.join(";"));
++    }
++}
