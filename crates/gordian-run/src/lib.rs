@@ -12,6 +12,9 @@
 //! - [`harness::run_episode_privileged`], the one way a policy is built from the episode's truth.
 //! - [`manifest::Manifest`], [`results`] (`results.csv`, `measured.csv`) and [`recorder`]
 //!   (`manifest.json`, `events-sample.jsonl`), and the `gordian-run` binary.
+//! - [`interleave`] and [`drift`] (item A8): a manifest may list several arms, each episode is
+//!   played once per arm in an order drawn per episode, and a fixed reference workload is timed
+//!   between episodes into `drift.csv`.
 //!
 //! Not built here: the analysis of any run. The driver script `scripts/run-driver.sh` pins,
 //! isolates and launches the binary; this crate does not.
@@ -22,7 +25,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod drift;
 pub mod harness;
+pub mod interleave;
 pub mod manifest;
 pub mod policy;
 pub mod recorder;
@@ -32,5 +37,5 @@ pub use harness::{
     EpisodeRecord, HarnessError, Limits, Measured, StopReason, run_episode, run_episode_privileged,
     standard_components,
 };
-pub use manifest::{EpisodeParams, IsolationSpec, Manifest, RatioTolerance};
+pub use manifest::{ArmSpec, EpisodeParams, IsolationSpec, Manifest, RatioTolerance};
 pub use policy::{Policy, PolicyId, PolicySpec};

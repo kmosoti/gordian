@@ -34,6 +34,9 @@ fn manifest(run_id: &str, policy: &str, seeds: u64, rate: f64) -> Manifest {
         // The tests that supply their own policies pass an id the registry does not know as the
         // arm name; the policy field is then irrelevant, and any registered one will do.
         policy: PolicySpec::from_id(policy).unwrap_or(PolicySpec::HeuristicOnly),
+        arms: Vec::new(),
+        run_seed: 0,
+        drift_block: 50,
         decide: DecideConfig::default(),
         limits: limits(),
         episode_params: EpisodeParams::default(),
@@ -179,17 +182,19 @@ fn results_have_the_plans_columns_in_order_then_the_additions_one_row_per_episod
         .map(|(s, c)| (*s, format!("{c:?}")))
         .collect();
     assert_eq!(keys, expected);
-    // measured.csv: one row per results row, same keys, three timing columns.
+    // measured.csv: one row per results row, same keys, three timing columns, and the arm's
+    // position, which is always 0 in a one-arm run.
     let measured = read(&dir, "measured.csv");
     assert_eq!(
         measured.lines().next().unwrap(),
-        "run_id,seed,class,measured_component_ns,measured_sched_ns,measured_harness_ns"
+        "run_id,seed,class,measured_component_ns,measured_sched_ns,measured_harness_ns,arm_position"
     );
     let mr = rows(&measured);
     assert_eq!(mr.len(), r.len());
     for (a, b) in r.iter().zip(&mr) {
         assert_eq!(a[..3], b[..3]);
         assert!(b[3..].iter().all(|v| v.parse::<u64>().is_ok()));
+        assert_eq!(b[6], "0");
     }
     // No events file when the sample rate is zero.
     assert!(!dir.join("events-sample.jsonl").exists());

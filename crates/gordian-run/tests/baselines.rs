@@ -53,6 +53,9 @@ fn manifest(run_id: &str, arm: &str, policy: PolicySpec, seeds: u64) -> Manifest
             .map(|c| (*c, seeds as u32))
             .collect(),
         policy,
+        arms: Vec::new(),
+        run_seed: 0,
+        drift_block: 50,
         decide: DecideConfig::default(),
         limits: limits(),
         episode_params: EpisodeParams::default(),

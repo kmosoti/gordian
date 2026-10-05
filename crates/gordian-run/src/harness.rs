@@ -275,6 +275,19 @@ pub fn standard_components() -> Vec<Box<dyn Component>> {
     ]
 }
 
+/// A working state of `capacity` over the public information and the first `capacity`
+/// observations of the public stream of the episode `spec` describes. For the drift-control
+/// workload ([`crate::drift`]), which needs a fixed window and nothing else: no truth is built
+/// and no simulator made, and this stays in this file because only this file generates episodes.
+pub fn public_window(spec: &EpisodeSpec, capacity: usize) -> WorkingState {
+    let episode = generate(spec);
+    let mut state = WorkingState::new(episode.public_info(), capacity);
+    for (at, observation) in episode.stream().iter().take(capacity) {
+        state.admit(*at, observation.clone());
+    }
+    state
+}
+
 fn elapsed_ns(since: Wall) -> u64 {
     u64::try_from(since.elapsed().as_nanos()).unwrap_or(u64::MAX)
 }
