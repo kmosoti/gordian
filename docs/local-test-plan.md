@@ -398,6 +398,20 @@ analysis/gordian_analysis/
 **Tests:** each function against hand-computed values; `equivalence.py` against scipy's
 `ttest_ind` where applicable; the four result categories each reachable by a synthetic input.
 
+### A6c Decode each component output once (required before any experiment)
+
+Found in the Stage B follow-ups (`experiments/exploration/b3-finding4.md`). The shared rule keeps
+the latest output of each component and decodes, and is charged for decoding, every stored output
+on every step, whether or not it changed. Deliverable: the rule decodes an output when it arrives
+(the component ran this step) and keeps the decoded form; a stored output from an earlier step is
+not decoded or charged again. The change must reduce real work, declared cost and counted
+operations together, so the three stay consistent. Acceptance: every verdict column of
+`results.csv` (success, critical_miss, false_alarm, abstained, undecided, probes_used, corrections)
+is identical per episode at the 20 ms budget for every arm, with cost and decision-time columns
+allowed to change; the decode units of the rule's counted-operation weights are re-validated
+(A8b's R² bar); the B1 grid is re-run at the four budgets and `experiments/exploration/` gains a
+before/after table.
+
 ### A7b Ratio interval calibration (required before EXP-001 is frozen)
 
 Found in A7 review. The percentile bootstrap for the relative-savings measure

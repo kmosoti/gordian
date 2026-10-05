@@ -4,6 +4,31 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Exploration follow-ups — merged; correction to the Stage B entry
+
+**Re-verified.** Gates on exit codes; the truth table regenerated from
+`crates/gordian-eval/examples/truth_table.rs` hashes to the scratch original; no crate source
+changed beyond that allowlisted example.
+
+**Finding 4 resolved, and it corrects Stage B.** The shared rule charges for decoding every stored
+component output on every step, 530 ns per output plus 115 ns per hypothesis, even when the output
+has not changed. On a symptom-free window the verifier's output lists 46 hypotheses, so re-decoding
+it costs about 5,800 ns of the roughly 7,600 ns the rule charges per step. A failed verifier leaves
+nothing to decode, the budget lasts longer, and success rises: that is the whole "failed component
+helps" effect (removing the charge lifts `all_components` at 250 µs from 13.8% to 72.2% on these
+episodes; removing the verifier's priority in the rule changes 0.2–1.8 points).
+
+**Correction.** Stage B's collapse of verifier-running arms at binding budgets (`all_components`
+0.291 at 250 µs) is mostly this re-decoding charge, not component compute. With it removed, the
+worker's upper-bound variant gives `all_components` 0.730 and `fixed_verifier_only` 0.943 at
+250 µs. The heuristic family is bit-identical either way, so the Stage B conclusion about the tuned
+periodic baseline stands; the "naive pipelines collapse because components are expensive" reading
+does not.
+
+**Decided.** Re-billing an unchanged output is an artefact of the shared rule's implementation,
+not a property of the world, and it biases every comparison involving a verifier-running arm. It
+is fixed under every option of the pending decision (plan item A6c), before any experiment.
+
 ## Stage B exploration (B1–B4) — merged; EXP-001 not freezable as designed
 
 **Re-verified.** Gates on exit codes; per-arm success, modelled cost and critical-miss rates
@@ -61,9 +86,8 @@ Coordinator recommendation: (c). A preregistered experiment whose negative outco
 implied by exploration arithmetic has low information value, while the fixes in (b) are needed for
 EXP-002 to EXP-004 anyway.
 
-Independent of the decision, started now: A7b (ratio-interval calibration on B1's cost
-distribution) and the two small exploration follow-ups (truth-table regeneration from the
-repository; diagnosing finding 4).
+Independent of the decision, started then: A7b (ratio-interval calibration on B1's cost
+distribution) and the two small exploration follow-ups, since merged (see the entry above).
 
 ## A8b counted operations — merged with a freeze gate
 
