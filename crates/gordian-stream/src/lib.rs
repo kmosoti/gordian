@@ -45,6 +45,9 @@ mod timeserde;
 #[cfg(any(test, feature = "reveal-hidden-state"))]
 pub mod oracle;
 
+#[cfg(any(test, feature = "reveal-hidden-state"))]
+pub mod questions;
+
 #[cfg(test)]
 mod tests;
 

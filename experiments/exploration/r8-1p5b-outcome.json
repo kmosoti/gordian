@@ -1,0 +1,158 @@
+{
+ "label": "qwen2.5-1.5b-instruct-q4_k_m",
+ "calls_files": {
+  "../../../artifacts/runs/r8-main-1p5b-s1/calls.jsonl": "b8f9d607fdcf56efaff30c3f3ac70c043d185cb92552cf83a27a4a57f9846f4b",
+  "../../../artifacts/runs/r8-main-1p5b-s2h/calls.jsonl": "d5869b0d6e87fd859aae42cb568dea4d85e4f013efdb1c739d379e6f5b06ce31",
+  "../../../artifacts/runs/r8-main-1p5b-plain/calls.jsonl": "aff1f58af53d6235fd37b38770c2b88628d25ef664b060f34df98174fae64511"
+ },
+ "calls": 228,
+ "results": {
+  "hard": {
+   "n_incidents": 28,
+   "A": [
+    0.5,
+    0.35714285714285715,
+    0.39285714285714285,
+    0.42857142857142855,
+    0.35714285714285715
+   ],
+   "A_interval": [
+    [
+     0.35714285714285715,
+     0.6428571428571429
+    ],
+    [
+     0.21428571428571427,
+     0.5
+    ],
+    [
+     0.25,
+     0.5357142857142857
+    ],
+    [
+     0.2857142857142857,
+     0.5714285714285714
+    ],
+    [
+     0.21428571428571427,
+     0.5
+    ]
+   ],
+   "p0": 0.35714285714285715,
+   "p0_interval": [
+    0.21428571428571427,
+    0.5
+   ],
+   "delta": 3.000000000000003,
+   "delta_status": 2,
+   "delta_interval": [
+    -0.08449999999999963,
+    3.000000000000003
+   ],
+   "delta_unidentified_resamples": 1211,
+   "delta_edge_resamples": 3796,
+   "delta_interval_p0_fixed": [
+    -0.021499999999999575,
+    3.000000000000003
+   ],
+   "delta_unidentified_resamples_p0_fixed": 933,
+   "A0_lower": 0.35714285714285715,
+   "A0_minus_p0_interval": [
+    -0.0357142857142857,
+    0.3214285714285714
+   ],
+   "bootstrap": {
+    "resamples": 10000,
+    "seed": 9800
+   },
+   "fit_free_amplitude": {
+    "delta": 3.000000000000003,
+    "amplitude": 0.13761870601282838
+   },
+   "precondition": {
+    "A0": 0.5,
+    "A0_lower": 0.35714285714285715,
+    "p0": 0.35714285714285715,
+    "A0_at_least_floor": true,
+    "lower_above_p0_plus_margin": false,
+    "holds": false
+   },
+   "outcome": "unidentifiable (this model)",
+   "incidents_seen": 28
+  },
+  "plain": {
+   "n_incidents": 10,
+   "A": [
+    0.3,
+    0.1,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "A_interval": [
+    [
+     0.1,
+     0.5
+    ],
+    [
+     0.0,
+     0.3
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ]
+   ],
+   "p0": 0.0,
+   "p0_interval": [
+    0.0,
+    0.0
+   ],
+   "delta": 2.5040000000000027,
+   "delta_status": 0,
+   "delta_interval": [
+    0.6355000000000011,
+    3.000000000000003
+   ],
+   "delta_unidentified_resamples": 282,
+   "delta_edge_resamples": 3880,
+   "delta_interval_p0_fixed": [
+    0.6355000000000011,
+    3.000000000000003
+   ],
+   "delta_unidentified_resamples_p0_fixed": 282,
+   "A0_lower": 0.1,
+   "A0_minus_p0_interval": [
+    0.1,
+    0.5
+   ],
+   "bootstrap": {
+    "resamples": 10000,
+    "seed": 9800
+   },
+   "fit_free_amplitude": {
+    "delta": 2.5145000000000026,
+    "amplitude": 0.3020193719135718
+   },
+   "precondition": {
+    "A0": 0.3,
+    "A0_lower": 0.1,
+    "p0": 0.0,
+    "A0_at_least_floor": false,
+    "lower_above_p0_plus_margin": false,
+    "holds": false
+   },
+   "outcome": "plain proxy: no regime claimed",
+   "incidents_seen": 10,
+   "regions_by_the_criterion_formula": "unidentifiable (this model)"
+  }
+ }
+}

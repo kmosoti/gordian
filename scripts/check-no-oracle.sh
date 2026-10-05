@@ -9,6 +9,8 @@
 # Allowlist (path prefixes relative to the repository root):
 #   crates/gordian-world/                      the crate that defines the accessor
 #   crates/gordian-stream/                     the stream crate, which defines its own accessor
+#                                              (including its `questions` module and example, R8's
+#                                              evaluator-side question dumper, beside `dump`)
 #   crates/gordian-eval/                       the evaluator
 #   crates/gordian-stream-eval/                the stream evaluator
 #   crates/gordian-run/src/policy/oracle.rs    the privileged oracle baselines (module `privileged`)

@@ -1,0 +1,9 @@
+run,model,phase,calls_designed,calls_recorded,parse_failures,transport_errors,client_seconds,server_wall_s,server_cpu_s,peak_memory_mb,oom_kills,complete
+r8-main-1p5b-plain,qwen2.5-1.5b-instruct-q4_k_m,main,60,60,0,0,2315.5,2320.2,6655.5,1191,0,True
+r8-main-1p5b-s1,qwen2.5-1.5b-instruct-q4_k_m,main,56,56,0,0,711.9,716.4,2081.3,1184,0,True
+r8-main-1p5b-s2,,,160,0,0,0,0,,,,,False
+r8-main-1p5b-s2h,qwen2.5-1.5b-instruct-q4_k_m,main,112,112,0,0,5627.1,5630.6,16213.9,1192,0,True
+r8-main-3b-s1,qwen2.5-3b-instruct-q4_k_m,main,32,32,0,0,857.8,868.3,2490.4,2001,0,True
+r8-main-3b-s2,,,112,0,0,0,0,,,,,False
+r8-pilot-1,qwen2.5-1.5b-instruct-q4_k_m,pilot,20,3,0,0,137.0,,,,,False
+r8-pilot-2,qwen2.5-1.5b-instruct-q4_k_m,pilot,14,14,0,0,538.7,,,,,True

@@ -1,0 +1,24 @@
+{
+ "n_incidents": 28,
+ "A0": 0.5,
+ "A0_interval": [
+  0.35714285714285715,
+  0.6428571428571429
+ ],
+ "p0": 0.35714285714285715,
+ "p0_interval": [
+  0.21428571428571427,
+  0.5
+ ],
+ "precondition": {
+  "A0": 0.5,
+  "A0_lower": 0.35714285714285715,
+  "p0": 0.35714285714285715,
+  "A0_at_least_floor": true,
+  "lower_above_p0_plus_margin": false,
+  "holds": false
+ },
+ "calls": 56,
+ "parse_failures": 0,
+ "transport_errors": 0
+}
