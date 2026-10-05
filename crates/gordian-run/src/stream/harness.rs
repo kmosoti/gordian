@@ -676,6 +676,7 @@ fn play(
                     .map(|i| PlanIncident {
                         id: i.id,
                         hard: i.tier == Tier::Hard,
+                        decoy: i.tier == Tier::Decoy,
                         decisive: i.decisive.clone(),
                         first: i.observations.first().copied(),
                     })

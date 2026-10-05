@@ -71,21 +71,26 @@ pub fn manifest(
 }
 
 /// Every arm of the registry, by id.
-pub const ALL_ARMS: [&str; 8] = [
+pub const ALL_ARMS: [&str; 11] = [
     "never_escalate",
     "always_escalate",
     "periodic_escalation",
     "change_triggered",
     "threshold_score",
     "random_escalation",
+    "contradiction_escalation",
     "oracle_escalation",
+    "oracle_selection",
+    "oracle_decoy",
     "ablation_hidden_rules",
 ];
 
 /// The arm name a manifest must give `policy`.
 pub fn arm_name(policy: &str) -> String {
     match policy {
-        "oracle_escalation" => "oracle_escalation_privileged".to_owned(),
+        "oracle_escalation" | "oracle_selection" | "oracle_decoy" => {
+            format!("{policy}_privileged")
+        }
         other => other.to_owned(),
     }
 }

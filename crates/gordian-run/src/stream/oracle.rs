@@ -24,6 +24,29 @@
 //! something else (two calls per hard incident, one at onset), it is a change to
 //! `OracleEscalation::direct`.
 //!
+//! # The two decomposing arms (work item R5)
+//!
+//! `oracle_escalation` bundles three privileges: which anomalies are hard (selection), when to
+//! ask (the instant the decisive evidence has been delivered) and what to put in the context (the
+//! decisive evidence and nothing else). R5 separates them, and every one of the following arms
+//! is the shared cheap rung and the shared declaring procedure with a different rule, built by
+//! the same factory from the same plan:
+//!
+//! - `oracle_selection_privileged` knows which noticed anomalies are hard (those whose anchor
+//!   belongs to a hard incident) and escalates exactly those, once each, `delay_ns` after they are
+//!   noticed, with the context the rung builds ([`super::arms::rung::Rung::context`], the
+//!   function every comparison arm uses). Its only privilege is the choice of anomalies: it
+//!   neither reads the decisive-evidence labels nor builds a context of its own, and it has no
+//!   say in when the cheap rung declares (the default hold, an escalation in flight, applies).
+//! - `oracle_decoy_privileged` knows which noticed anomalies are decoys (anchor in a decoy) and
+//!   dismisses them: declares "not an incident" at the anchor the step they are noticed, after
+//!   which the cheap rung never declares for them and no longer reviews them. It escalates
+//!   nothing; for every other anomaly it is `never_escalate`.
+//!
+//! Both are privileged by role and by name, and reach the truth the way `oracle_escalation`
+//! does: through the plan, by the harness, and nothing else. Their rules are private to this
+//! file.
+//!
 //! # How the truth reaches it, and only it
 //!
 //! [`StreamPolicy`] and [`EscalationRule`] have no place for a truth. [`OracleFactory::build`]
@@ -55,6 +78,12 @@ use std::collections::BTreeSet;
 /// The id of `oracle_escalation`.
 pub const ID: &str = "oracle_escalation";
 
+/// The id of `oracle_selection`: escalates exactly the hard anomalies with the rung's context.
+pub const SELECTION_ID: &str = "oracle_selection";
+
+/// The id of `oracle_decoy`: dismisses exactly the decoy anomalies and escalates nothing.
+pub const DECOY_ID: &str = "oracle_decoy";
+
 /// What the privileged arm is told about one incident of the segment: facts the harness read from
 /// the truth it holds aside.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +92,8 @@ pub struct PlanIncident {
     pub id: u32,
     /// Whether the incident is hard.
     pub hard: bool,
+    /// Whether the incident is a decoy.
+    pub decoy: bool,
     /// Every decisive observation of the incident, in stream order.
     pub decisive: Vec<ObsId>,
     /// The incident's first observation.
@@ -97,44 +128,98 @@ impl OraclePlan {
 #[derive(Debug, Clone)]
 pub struct OracleFactory {
     rung: RungConfig,
+    mode: Mode,
+}
+
+/// Which privileged arm a factory builds.
+#[derive(Debug, Clone, Copy)]
+enum Mode {
+    /// `oracle_escalation`.
+    Escalation,
+    /// `oracle_selection`, with its delay after notice.
+    Selection { delay_ns: u64 },
+    /// `oracle_decoy`.
+    Decoy,
 }
 
 impl OracleFactory {
-    /// A factory whose arm shares the cheap rung `rung`.
+    /// A factory of `oracle_escalation` whose arm shares the cheap rung `rung`.
     pub fn new(rung: RungConfig) -> Self {
-        Self { rung }
+        Self {
+            rung,
+            mode: Mode::Escalation,
+        }
+    }
+
+    /// A factory of `oracle_selection`, which escalates each hard anomaly `delay_ns` after it is
+    /// noticed, with the context of the shared cheap rung `rung`.
+    pub fn selection(rung: RungConfig, delay_ns: u64) -> Self {
+        Self {
+            rung,
+            mode: Mode::Selection { delay_ns },
+        }
+    }
+
+    /// A factory of `oracle_decoy`, which dismisses each decoy anomaly and escalates nothing.
+    pub fn decoy(rung: RungConfig) -> Self {
+        Self {
+            rung,
+            mode: Mode::Decoy,
+        }
     }
 
     /// The arm for the segment whose hard incidents `plan` describes and whose public information
     /// is `public`. Called by the harness.
     pub fn build(&self, plan: &OraclePlan, public: &StreamPublic) -> Box<dyn StreamPolicy> {
-        let hard = plan
-            .incidents
-            .iter()
-            .filter(|i| i.hard && !i.decisive.is_empty())
-            .map(|i| HardIncident {
-                id: i.id,
-                decisive: i.decisive.clone(),
-                last: i.decisive.iter().map(|o| o.0).max().unwrap_or(0),
-                first: i.first.unwrap_or(i.decisive[0]),
-            })
-            .collect();
-        let hard_ids: BTreeSet<u32> = plan
-            .incidents
-            .iter()
-            .filter(|i| i.hard)
-            .map(|i| i.id)
-            .collect();
-        Box::new(StreamArm::with(
-            OracleEscalation {
-                owner: plan.owner.clone(),
-                hard,
-                hard_ids,
-                done: BTreeSet::new(),
-            },
-            public,
-            self.rung.clone(),
-        ))
+        let ids_where = |keep: &dyn Fn(&PlanIncident) -> bool| -> BTreeSet<u32> {
+            plan.incidents
+                .iter()
+                .filter(|i| keep(i))
+                .map(|i| i.id)
+                .collect()
+        };
+        match self.mode {
+            Mode::Escalation => {
+                let hard = plan
+                    .incidents
+                    .iter()
+                    .filter(|i| i.hard && !i.decisive.is_empty())
+                    .map(|i| HardIncident {
+                        id: i.id,
+                        decisive: i.decisive.clone(),
+                        last: i.decisive.iter().map(|o| o.0).max().unwrap_or(0),
+                        first: i.first.unwrap_or(i.decisive[0]),
+                    })
+                    .collect();
+                Box::new(StreamArm::with(
+                    OracleEscalation {
+                        owner: plan.owner.clone(),
+                        hard,
+                        hard_ids: ids_where(&|i| i.hard),
+                        done: BTreeSet::new(),
+                    },
+                    public,
+                    self.rung.clone(),
+                ))
+            }
+            Mode::Selection { delay_ns } => Box::new(StreamArm::with(
+                SelectionOracle {
+                    owner: plan.owner.clone(),
+                    hard_ids: ids_where(&|i| i.hard),
+                    delay_ns,
+                },
+                public,
+                self.rung.clone(),
+            )),
+            Mode::Decoy => Box::new(StreamArm::with(
+                DecoyOracle {
+                    owner: plan.owner.clone(),
+                    decoy_ids: ids_where(&|i| i.decoy),
+                },
+                public,
+                self.rung.clone(),
+            )),
+        }
     }
 }
 
@@ -204,5 +289,79 @@ impl EscalationRule for OracleEscalation {
             });
         }
         out
+    }
+}
+
+/// The privileged selection rule. Has no public constructor.
+struct SelectionOracle {
+    /// The incident each observation belongs to.
+    owner: Vec<Option<u32>>,
+    hard_ids: BTreeSet<u32>,
+    delay_ns: u64,
+}
+
+impl EscalationRule for SelectionOracle {
+    fn id(&self) -> PolicyId {
+        PolicyId::new(SELECTION_ID)
+    }
+
+    fn role(&self) -> ArmRole {
+        ArmRole::Privileged
+    }
+
+    /// The noticed anomalies whose anchor belongs to a hard incident, once each, `delay_ns` after
+    /// they were noticed. Nothing else about the anomaly is read, and the context is the rung's.
+    fn targets(&mut self, now: Instant, views: &[AnomalyView]) -> Vec<u32> {
+        views
+            .iter()
+            .filter(|v| {
+                v.attempts == 0
+                    && now.0 >= v.noticed_at.0.saturating_add(self.delay_ns)
+                    && self
+                        .owner
+                        .get(v.anchor.0 as usize)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|i| self.hard_ids.contains(&i))
+            })
+            .map(|v| v.id)
+            .collect()
+    }
+}
+
+/// The privileged decoy rule. Has no public constructor.
+struct DecoyOracle {
+    /// The incident each observation belongs to.
+    owner: Vec<Option<u32>>,
+    decoy_ids: BTreeSet<u32>,
+}
+
+impl EscalationRule for DecoyOracle {
+    fn id(&self) -> PolicyId {
+        PolicyId::new(DECOY_ID)
+    }
+
+    fn role(&self) -> ArmRole {
+        ArmRole::Privileged
+    }
+
+    /// Escalates nothing.
+    fn targets(&mut self, _now: Instant, _views: &[AnomalyView]) -> Vec<u32> {
+        Vec::new()
+    }
+
+    /// The noticed anomalies whose anchor belongs to a decoy.
+    fn dismissals(&mut self, _now: Instant, views: &[AnomalyView]) -> Vec<u32> {
+        views
+            .iter()
+            .filter(|v| {
+                self.owner
+                    .get(v.anchor.0 as usize)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|i| self.decoy_ids.contains(&i))
+            })
+            .map(|v| v.id)
+            .collect()
     }
 }
