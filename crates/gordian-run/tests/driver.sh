@@ -303,6 +303,21 @@ for bad in 'use gordian_eval::Truth;' 'let e: Episode;' 'let s: Simulator;' 'fn 
   check "the guard rejects a policy containing: $bad" bash -c "! bash '$repo/scripts/check-no-oracle.sh' 2>/dev/null"
 done
 rm "$repo/crates/gordian-run/src/policy/bad.rs"
+# The stream harness's arms are policy files too, and the stream evaluator (work item R3b) is
+# banned from them: its crate, its two accessors, the verdict and the privileged arm's plan.
+mkdir -p "$repo/crates/gordian-run/src/stream/arms"
+printf 'fn ok() {}\n' > "$repo/crates/gordian-run/src/stream/arms/fine.rs"
+check "a clean stream arm file passes the guard" bash "$repo/scripts/check-no-oracle.sh"
+for bad in 'use gordian_stream_eval::score_stream;' 'let t = truth_from_stream(&s);' 'let c = calls_from_sim(&sim);' 'fn f(p: &OraclePlan) {}' 'fn f(p: &PlanIncident) {}' 'let t: StreamTruth;' 'let v: StreamVerdict;'; do
+  printf '%s\n' "$bad" > "$repo/crates/gordian-run/src/stream/arms/bad.rs"
+  check "the guard rejects a stream arm containing: $bad" bash -c "! bash '$repo/scripts/check-no-oracle.sh' 2>/dev/null"
+done
+rm "$repo/crates/gordian-run/src/stream/arms/bad.rs"
+printf 'use gordian_stream_eval::score_stream;\n' > "$repo/crates/gordian-run/src/stream/harness.rs"
+check "the stream harness, outside arms/, may name the stream evaluator" bash "$repo/scripts/check-no-oracle.sh"
+printf 'fn f() { gordian_stream::oracle::reveal(&s); }\n' > "$repo/crates/gordian-run/src/stream/harness.rs"
+check "but the stream's oracle accessor may not be named there" bash -c "! bash '$repo/scripts/check-no-oracle.sh' 2>/dev/null"
+rm "$repo/crates/gordian-run/src/stream/harness.rs"
 printf 'fn f() { gordian_world::oracle::reveal(&e); }\n' > "$repo/crates/gordian-run/src/policy/oracle.rs"
 check "policy/oracle.rs alone is exempt" bash "$repo/scripts/check-no-oracle.sh"
 printf 'use gordian_eval::Truth;\n' > "$repo/crates/gordian-run/src/lib.rs"
