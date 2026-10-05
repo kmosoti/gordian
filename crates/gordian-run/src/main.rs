@@ -179,7 +179,11 @@ fn parse_stream_arms(list: &str) -> Result<Vec<StreamArmSpec>, String> {
         } else {
             name
         };
-        arms.push(StreamArmSpec { arm: name, policy });
+        arms.push(StreamArmSpec {
+            arm: name,
+            policy,
+            context: None,
+        });
     }
     Ok(arms)
 }

@@ -705,3 +705,24 @@ the selected anomalies do not depend on the delay. `tests/stream_delay.rs` pins 
 reproduces `results.csv` and `incidents.csv` byte for byte against fixtures written by the binary
 built before the parameter existed. The R3b smoke result that `always_escalate` escalates before any
 decisive evidence exists was checked on a sample of hard incidents (`experiments/exploration/r4-headroom.md`).
+
+**Context builders (R6).** The context of an escalation is built by the shared rung, so a builder
+is an option of the rung and not of an arm (`src/stream/arms/context.rs`, documented there). Four
+exist: `rung`, the default and the rung's own context unchanged; `window` (every observation of
+the last `window_ns`, any service, the `max_refs` most recent); `cooccur` (observations at the
+anomaly's site and at services whose abnormal readings began within `delta_ns` of the anomaly's
+anchor); `neighbourhood` (observations at services within `hops` hops of the site in the public
+graph, edges in either direction). Each is a pure function of a `PublicView` (the observations the
+rung holds, the public graph, the instant of the latest step, the anomaly's anchor instant and
+site), in a file under `arms/`, which the textual guard and `tests/stream_arms.rs` cover; a test
+repeats the ban for that file by name and pins the view's fields. The builder is named per arm in
+the manifest (`arms[].context`, `{"builder": "window", "window_ns": ..., "max_refs": ...}`) or for
+every arm in `rung.context`; neither is written when it is `rung`, so manifests written before
+R6 are the same text (a test). `tests/stream_context.rs` pins `rung`, spelled or defaulted, to
+`results.csv` and `incidents.csv` of arms that escalate (always, contradiction, selection oracle)
+written by the binary of commit `1b7b0c7`, and checks that a non-default builder changes them. The
+builder's own computation is not in the modelled cost (the rung's context construction never
+was); it is in `measured_sched_ns`. `oracle_selection` takes any builder through its rung with no
+change of its own. `oracle_selection_context` is a supplementary privileged arm for R6's report:
+`oracle_selection`'s choice of anomalies and delay with the decisive evidence delivered so far as
+the context, separating context from timing in `oracle_escalation`'s ceiling.

@@ -253,7 +253,12 @@ fn a_call_in_flight_holds_the_cheap_declaration_by_default() {
 
 // ---- One decision procedure
 
-const PRIVILEGED_IDS: [&str; 3] = ["oracle_escalation", "oracle_selection", "oracle_decoy"];
+const PRIVILEGED_IDS: [&str; 4] = [
+    "oracle_escalation",
+    "oracle_selection",
+    "oracle_decoy",
+    "oracle_selection_context",
+];
 
 fn comparison_specs() -> Vec<(&'static str, StreamPolicySpec)> {
     ALL_ARMS

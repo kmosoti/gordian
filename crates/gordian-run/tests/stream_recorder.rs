@@ -212,6 +212,7 @@ fn the_privileged_and_ablation_arms_say_so_on_every_row_and_in_their_names() {
         m.arms = vec![StreamArmSpec {
             arm: name.to_owned(),
             policy: StreamPolicySpec::from_id(policy).unwrap(),
+            context: None,
         }];
         m.validate()
     };
