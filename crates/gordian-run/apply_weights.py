@@ -10,6 +10,10 @@ script writes the date and the command given with `--record`, and `CALIBRATION.m
 holds the rest.
 
     apply_weights.py FIT.json --record "2026-10-05, five runs, calibrate_ops.py"
+    apply_weights.py FIT.json --record "..." --only rule      # leave the other tables as they are
+
+`--only` is for a recalibration after a change to one unit's code (work item A6c changed only the
+shared rule), so that the weights of code that did not change are not re-fitted with it.
 """
 
 from __future__ import annotations
@@ -43,9 +47,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("fit")
     ap.add_argument("--record", required=True, help="what to write above each table")
+    ap.add_argument("--only", nargs="+", choices=sorted(TABLES), help="write only these tables")
     args = ap.parse_args()
     fit = json.loads(Path(args.fit).read_text())
     for target, (path, const, owner) in TABLES.items():
+        if args.only and target not in args.only:
+            continue
         # The weights are the unrounded NNLS ones, in ns; the table holds ps. The fit names its
         # units alphabetically (the calibration program writes a JSON object), so match by name.
         by_name = {

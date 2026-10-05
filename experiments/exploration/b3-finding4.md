@@ -1,7 +1,11 @@
 # B3 finding 4: why a failed component raised an arm's score
 
 Status: development run, `exploration-followups` branch. Nothing here tests a hypothesis and
-nothing here may later be cited as confirmation. **The shared decision rule, the harness and every
+nothing here may later be cited as confirmation. **Note added with work item A6c:** the mechanism in
+section 5 is right about the charge but not about what is decoded again: the rule never re-decoded a
+*stored* output, it re-decoded an output a component produced again with the same bytes, and A6c
+removes that (`a6c-before-after.md`, which also reruns the paired comparison: the effect is reduced,
+not gone). The text below is the record as written. **The shared decision rule, the harness and every
 crate are unchanged**; the experiments below ran on scratch variants of a copy of `crates/`
 (`scripts/finding4-diagnostic.patch`, never applied to the tree). Whether to change the rule is
 the coordinator's decision.

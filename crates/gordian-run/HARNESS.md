@@ -198,6 +198,10 @@ the validity fits).
   as they declare zero cost. Nothing in the rule reads its count (a test pins this textually, and
   another shows two copies of the rule acting identically when one has its count taken and the
   other does not).
+- The harness hands `decide` only the outputs of components that ran and did not fail at this
+  step; it keeps no store of earlier ones. Whether an arriving output is new is the rule's own
+  business: it decodes an output once and recognises a byte-for-byte repeat of the one it holds
+  (work item A6c, `POLICIES.md` section 3.1), so the harness did not change for A6c.
 - Counting is deterministic: a function of the input and of the component's configuration, with
   no clock and no randomness. The world's checker has a counted variant that the plain function
   wraps; the reference functions are unchanged (`gordian-world`, `src/tests/counting.rs`).
