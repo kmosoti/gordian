@@ -4,6 +4,97 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R9 grounded distractor penalty — merged; the world's look-alikes cost a strong reader little
+
+**Provenance.**
+
+- The reader was frozen at `cccbcf2` (tag `r9-reader-frozen`) before any evaluation number;
+  the evaluation commit `a16f839` follows it. Development on seeds 29000–29999, evaluation on
+  30000–30399.
+- Three tuning runs were refused once by the driver because the R10 worker's `cargo test` was
+  running; they wrote nothing and were rerun. The core-sharing rule worked as intended.
+- The ceiling and R4's oracle are byte-identical to R6's in all six runs.
+- Gates on exit codes on the merged tree: fmt, clippy `--locked`, 576 Rust tests, the oracle
+  guard, 339 analysis tests. Run outputs moved to `artifacts/runs/r9/` (ignored).
+
+**Re-verified from raw files.**
+
+- Reader on 312 hard evaluation questions: A(m) = 0.958, 0.939, 0.904, 0.913, 0.933 at
+  m = 0, 50, 100, 200, 400; control 0.045; δ* = 0.0137 [0.0054, 0.0223] with the coordinator's
+  own 2,000-resample cluster bootstrap (worker: 0.0135 [0.0055, 0.0225]).
+- Rerun, tuning-selected builder, G = ceiling − builder:
+
+  | δ | Selected builder | G [90%] |
+  |---|---|---|
+  | 0.0055 | `window` 80 s, N 512 | 0.032 [0.011, 0.054] |
+  | 0.0135 | `cooccur` 16 s or `neighbourhood` k 4 (tie at 0.734) | 0.073 [0.046, 0.099] |
+  | 0.0225 | `neighbourhood` k 4, N 256 | 0.089 [0.059, 0.118] |
+
+  All match the worker.
+
+**Verdict as written: unresolved.** The R6 regime needs G's upper bound below 0.10 at δ*_hi
+(it is 0.118); the R7 regime needs G ≥ 0.10 at δ*_lo (it is 0.032).
+
+**Coordinator error, recorded.** The feasibility note said the R6 regime needs roughly
+δ*_hi < 0.05. It needs about 0.012, because G(0.05) was already 0.097 in R7. I read the regime
+boundaries off R7's grid without interpolating. The criterion stands as written; the outcome is
+unresolved on its own terms, and the error is in the feasibility note, not the clauses.
+
+**What it means.**
+
+- **In this world, look-alike distractors cost a strong reader very little.** A reader that
+  knows the hidden rules and has learned from labelled development questions loses at most
+  0.054 of accuracy at any distractor count up to 400, and recovers to 0.933 at 400. R8's crude
+  reader lost 0.57. The world's confusability is real but small for a competent reader.
+- **The curve is not exponential in count.** It dips at m = 100 and recovers, because random
+  draws from the ±40 s pool include the incident's own non-decisive observations, which help
+  (a split brain's burst). δ* is a summary, not a law, and the rerun turns it into a
+  count-based penalty that the reader's curve does not quite obey.
+- **Read as a point estimate, the context lever is modest.** At δ* the perfect-context ceiling
+  beats the best simple builder by 0.073 [0.046, 0.099] on hard incidents, at 36× the references.
+  That is more than R6's 0.024 and less than R7's "fragile" 0.14–0.34. EXP-102 can claim both a
+  small quality margin and a large reference saving, with the quality margin's interval reaching
+  from 0.03 to 0.12 across δ*'s interval.
+- **Count-based penalties transfer to builder contexts, not to the rung's.** On R6's actual
+  contexts the reader is within 0.05 of the curve for `window`, `cooccur` and `neighbourhood`.
+  On the rung's own context it reads 0.659 against a predicted 0.953: the rung's context lacks
+  the cascade's partner, which is missing information, not distraction. The simulated reasoner's
+  `q` already models that loss.
+- **What δ* is not.** It is the loss of one program with the hidden rules and learned weights
+  on this world's questions. It says nothing about real models (R8 could not), and a stronger
+  reader would give a smaller value, as every version during development did.
+
+**Accepted with notes.**
+
+- The reader learned softmax weights from labelled development questions. The plan allowed
+  the hidden rules and forbade labels at evaluation; it did not say whether labelled training
+  was allowed. The coordinator accepts it: the reasoner is the hidden side's stand-in, and a
+  model trained on labelled diagnoses is what it stands in for. The reader is therefore stronger
+  than a rule-only reader, and δ* is smaller for it.
+- Six of 170 direct-check calls had an anchor more than 0.1 s after onset and the reader was
+  wrong on all six. Its first-alarm-is-onset assumption is a weakness, post hoc.
+- The tuning-selected builder is an unstable comparator at small δ: two builders tie at δ*, and
+  the held-out-best builder would pass the R6 clause's upper bound at δ*_hi (0.097). The
+  criterion is kept as written.
+
+**Decided.**
+
+1. **The reasoner's default for every preregistration is δ = 0.0135**, with the sweep
+   {0, 0.0055, 0.0225, 0.05} required beside it, so that every claim is read across the interval
+   and at the old default. This replaces the free δ = 0 default in the reasoner's spec for
+   experiments, not in the code (the code's default stays 0 so that R6 and R7 replay).
+2. **EXP-102's claim is references and cost at matched quality, with a secondary quality margin**
+   against the best public builder, preregistered at 0.05 with the δ sweep. The worker's
+   "fewest references within 0.05 of the ceiling" reading is the primary measure.
+3. **The simulated reasoner's distractor penalty remains a count-based stand-in.** A
+   composition-based law (penalising look-alike free-form messages rather than every
+   reference) would fit the reader's curve better. It is not built now: the count-based law
+   with the measured δ is within 0.05 of the reader on every builder context, and a new law
+   would need a new byte-identity gate and would reopen R7. Recorded as a known weakness of
+   the world, with the direct-check table as the evidence for revisiting it.
+4. With R5, R6, R7, R9 and R10 done, the simulation-side headroom work for EXP-101 and EXP-102
+   is complete. The next unit is EXP-101's preregistration.
+
 ## R10 salience ceiling — merged; noticing is worth 0.10 on burst families and 0.75 on the leak
 
 **Provenance.**
