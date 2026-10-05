@@ -13,7 +13,10 @@ code or run (`docs/local-test-plan.md`, 5R, R10) and is applied unchanged.
 Primary setting (b = 5, rho = 0.7), the rung's own context, 200 held-out streams (seeds
 20000-20199), paired 90% cluster bootstrap over streams (10,000 resamples, seed 9950):
 
-{{criterion_primary}}
+| result | notice | selection | difference [90% paired cluster bootstrap] | needs | verdict |
+|---|---|---|---|---|---|
+| 1: hard incidents, slow leak excluded | 218/372 = 0.586 | 182/372 = 0.489 | +0.097 [+0.062, +0.132] | point >= 0.03, lower bound > 0.01 | holds |
+| 2: slow leak | 130/139 = 0.935 | 26/139 = 0.187 | +0.748 [+0.678, +0.813] | point >= 0.2, lower bound > 0.1 | holds |
 
 - **Result 1, salience headroom on hard incidents (slow leak excluded): holds.** +0.097
   [+0.062, +0.132] against a margin of 0.03 and a lower bound that had to exceed 0.01.
@@ -23,7 +26,20 @@ Primary setting (b = 5, rho = 0.7), the rung's own context, 200 held-out streams
 Each is its own result; neither is an "either". Sensitivity (b = 2.5 and b = 8, rho = 0.7) and the
 secondary pairing (`window` 40 s, N 256), the same two results in every cell:
 
-{{criterion_all}}
+| pairing | setting (b, rho) | result | notice | selection | difference [90%] | verdict |
+|---|---|---|---|---|---|---|
+| rung's own context | b5-rho0.7 (primary) | 1: hard, leak excluded | 0.586 (218/372) | 0.489 (182/372) | +0.097 [+0.062, +0.132] | holds |
+| rung's own context | b5-rho0.7 (primary) | 2: slow leak | 0.935 (130/139) | 0.187 (26/139) | +0.748 [+0.678, +0.813] | holds |
+| rung's own context | b2.5-rho0.7 | 1: hard, leak excluded | 0.272 (101/372) | 0.247 (92/372) | +0.024 [-0.013, +0.059] | does not hold |
+| rung's own context | b2.5-rho0.7 | 2: slow leak | 0.396 (55/139) | 0.072 (10/139) | +0.324 [+0.252, +0.398] | holds |
+| rung's own context | b8-rho0.7 | 1: hard, leak excluded | 0.793 (295/372) | 0.694 (258/372) | +0.099 [+0.063, +0.135] | holds |
+| rung's own context | b8-rho0.7 | 2: slow leak | 1.000 (139/139) | 0.223 (31/139) | +0.777 [+0.707, +0.840] | holds |
+| window 40 s, N 256 | b5-rho0.7 | 1: hard, leak excluded | 0.952 (354/372) | 0.796 (296/372) | +0.156 [+0.119, +0.194] | holds |
+| window 40 s, N 256 | b5-rho0.7 | 2: slow leak | 0.906 (126/139) | 0.288 (40/139) | +0.619 [+0.539, +0.696] | holds |
+| window 40 s, N 256 | b2.5-rho0.7 | 1: hard, leak excluded | 0.538 (200/372) | 0.454 (169/372) | +0.083 [+0.041, +0.124] | holds |
+| window 40 s, N 256 | b2.5-rho0.7 | 2: slow leak | 0.460 (64/139) | 0.137 (19/139) | +0.324 [+0.254, +0.393] | holds |
+| window 40 s, N 256 | b8-rho0.7 | 1: hard, leak excluded | 0.997 (371/372) | 0.841 (313/372) | +0.156 [+0.125, +0.187] | holds |
+| window 40 s, N 256 | b8-rho0.7 | 2: slow leak | 0.993 (138/139) | 0.295 (41/139) | +0.698 [+0.627, +0.767] | holds |
 
 At b = 2.5 result 1 with the rung's own context does **not** hold: +0.024 [-0.013, +0.059], a point
 estimate under the margin and an interval that reaches below zero. That is "not shown here", not
@@ -103,10 +119,19 @@ never found one, so I never had to wait; `r10_run.sh` also waits for a `cargo` o
 before a run and logged no wait. One of the other worker's `cargo build` processes was visible when
 I started, before any build of mine; I did not coordinate with its builds beyond that check.
 
-{{runs}}
+| run | arms | streams | seeds | b, rho | notice z | ledgers kept | driver exit | wall s | peak MB | oom |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `r10-diag-b5-rho0.7` | 3 | 100 | 32000-32099 | 5, 0.7 | 3 | 1 | 0 | 17 | 753 | 0 |
+| `r10-heldout-b2.5-rho0.7` | 6 | 200 | 20000-20199 | 2.5, 0.7 | 3 | 0 | 0 | 18 | 14 | 0 |
+| `r10-heldout-b5-rho0.7` | 6 | 200 | 20000-20199 | 5, 0.7 | 3 | 0 | 0 | 16 | 14 | 0 |
+| `r10-heldout-b8-rho0.7` | 6 | 200 | 20000-20199 | 8, 0.7 | 3 | 0 | 0 | 18 | 15 | 0 |
+| `r10-sweep-z0.5-b5-rho0.7` | 1 | 200 | 20000-20199 | 5, 0.7 | 0.5 | 0.1 | 0 | 5 | 74 | 0 |
+| `r10-sweep-z1-b5-rho0.7` | 1 | 200 | 20000-20199 | 5, 0.7 | 1 | 0.1 | 0 | 5 | 69 | 0 |
+| `r10-sweep-z2-b5-rho0.7` | 1 | 200 | 20000-20199 | 5, 0.7 | 2 | 0.1 | 0 | 4 | 66 | 0 |
+| `xcheck-r6-heldout-b5-rho0.7` | 62 | 200 | 20000-20199 | 5, 0.7 | 3 | 0 | 0 | 186 | 103 | 0 |
 
 **Regression (R6's held-out manifest, b = 5, rho = 0.7).** Replayed with this branch's binary, run id
-kept, `source_revision` the only change, into a separate directory: {{regression}} Hashes
+kept, `source_revision` the only change, into a separate directory: 62 arms replayed; `results.csv` identical for 62, `incidents.csv` identical for 62. Hashes
 against `r6-results-sha256.csv`: `r10-regression.csv`. Also, the arms R10 shares with R6
 (`sel_rung`, `sel_win_w40_n256`, R4's oracle, `never_escalate`) write the same `results.csv` and
 `incidents.csv` as R6's own files at the same setting once the `run_id` column is dropped
@@ -128,15 +153,36 @@ leak and the hard-incident columns are the criterion's.
 
 b = 5, rho = 0.7:
 
-{{points_primary}}
+| arm | hard quality (excl. leak) | slow-leak quality | plain accuracy | critical misses (hard + plain) | calls / stream | refs / call | cost s / stream | false alarms / stream | wrong declarations / stream | calls refused |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `sel_rung_privileged` | 0.489 | 0.187 | 0.741 | 282 (99 + 183) | 2.10 | 43.3 | 0.66 | 5.52 | 6.59 | 0 |
+| `notice_rung_privileged` | 0.586 | 0.935 | 0.741 | 229 (46 + 183) | 2.56 | 36.9 | 0.73 | 5.52 | 6.43 | 0 |
+| `sel_win_w40_n256_privileged` | 0.796 | 0.288 | 0.741 | 255 (72 + 183) | 2.10 | 251.1 | 2.84 | 5.52 | 6.09 | 0 |
+| `notice_win_w40_n256_privileged` | 0.952 | 0.906 | 0.741 | 194 (11 + 183) | 2.56 | 249.6 | 3.44 | 5.52 | 5.95 | 0 |
+| `oracle_escalation_privileged` | 0.952 | 0.906 | 0.741 | 194 (11 + 183) | 2.56 | 5.1 | 0.32 | 5.52 | 4.29 | 0 |
+| `never_escalate` | 0.000 | 0.000 | 0.741 | 338 (155 + 183) | 0.00 | - | 0.00 | 5.52 | 5.88 | 0 |
 
 b = 2.5, rho = 0.7:
 
-{{points_b25}}
+| arm | hard quality (excl. leak) | slow-leak quality | plain accuracy | critical misses (hard + plain) | calls / stream | refs / call | cost s / stream | false alarms / stream | wrong declarations / stream | calls refused |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `sel_rung_privileged` | 0.247 | 0.072 | 0.741 | 311 (128 + 183) | 2.10 | 43.3 | 0.66 | 5.52 | 7.03 | 0 |
+| `notice_rung_privileged` | 0.272 | 0.396 | 0.741 | 291 (108 + 183) | 2.56 | 36.9 | 0.73 | 5.52 | 7.27 | 0 |
+| `sel_win_w40_n256_privileged` | 0.454 | 0.137 | 0.741 | 292 (109 + 183) | 2.10 | 251.1 | 2.84 | 5.52 | 6.75 | 0 |
+| `notice_win_w40_n256_privileged` | 0.538 | 0.460 | 0.741 | 258 (75 + 183) | 2.56 | 249.6 | 3.44 | 5.52 | 6.95 | 0 |
+| `oracle_escalation_privileged` | 0.538 | 0.432 | 0.741 | 275 (92 + 183) | 2.56 | 5.1 | 0.32 | 5.52 | 5.39 | 0 |
+| `never_escalate` | 0.000 | 0.000 | 0.741 | 338 (155 + 183) | 0.00 | - | 0.00 | 5.52 | 5.88 | 0 |
 
 b = 8, rho = 0.7:
 
-{{points_b8}}
+| arm | hard quality (excl. leak) | slow-leak quality | plain accuracy | critical misses (hard + plain) | calls / stream | refs / call | cost s / stream | false alarms / stream | wrong declarations / stream | calls refused |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `sel_rung_privileged` | 0.694 | 0.223 | 0.741 | 267 (84 + 183) | 2.10 | 43.3 | 0.66 | 5.52 | 6.26 | 0 |
+| `notice_rung_privileged` | 0.793 | 1.000 | 0.741 | 205 (22 + 183) | 2.56 | 36.9 | 0.73 | 5.52 | 6.10 | 0 |
+| `sel_win_w40_n256_privileged` | 0.841 | 0.295 | 0.741 | 250 (67 + 183) | 2.10 | 251.1 | 2.84 | 5.52 | 5.99 | 0 |
+| `notice_win_w40_n256_privileged` | 0.997 | 0.993 | 0.741 | 185 (2 + 183) | 2.56 | 249.6 | 3.44 | 5.52 | 5.81 | 0 |
+| `oracle_escalation_privileged` | 1.000 | 1.000 | 0.741 | 183 (0 + 183) | 2.56 | 5.1 | 0.32 | 5.52 | 4.14 | 0 |
+| `never_escalate` | 0.000 | 0.000 | 0.741 | 338 (155 + 183) | 0.00 | - | 0.00 | 5.52 | 5.88 | 0 |
 
 Reading of the rows:
 
@@ -163,7 +209,18 @@ measure (divided by all incidents of the row's kind); intervals are paired clust
 the 100 streams (seed 9950). **A decomposition read off a smaller set of streams than the
 criterion's: it is a mechanism check, not a second test.**
 
-{{decomposition}}
+| incidents | group | n | selection correct | notice correct | gain (incidents) | gain in quality [90%] | R4 oracle correct |
+|---|---|---|---|---|---|---|---|
+| hard incidents, slow leak excluded | all | 190 of 190 | 82 | 96 | 14 | +0.074 [+0.021, +0.127] | 170 |
+| hard incidents, slow leak excluded | never noticed | 20 of 190 | 0 | 6 | 6 | +0.032 [+0.012, +0.052] | 19 |
+| hard incidents, slow leak excluded | noticed called | 168 of 190 | 82 | 89 | 7 | +0.037 [-0.011, +0.085] | 149 |
+| hard incidents, slow leak excluded | noticed uncalled | 2 of 190 | 0 | 1 | 1 | +0.005 [+0.000, +0.015] | 2 |
+| hard incidents, slow leak excluded | noticed | 170 of 190 | 82 | 90 | 8 | +0.042 [-0.006, +0.090] | 151 |
+| slow leak | all | 80 of 80 | 13 | 76 | 63 | +0.787 [+0.691, +0.872] | 73 |
+| slow leak | never noticed | 40 of 80 | 0 | 38 | 38 | +0.475 [+0.386, +0.558] | 38 |
+| slow leak | noticed called | 38 of 80 | 13 | 36 | 23 | +0.287 [+0.205, +0.374] | 34 |
+| slow leak | noticed uncalled | 2 of 80 | 0 | 2 | 2 | +0.025 [+0.000, +0.056] | 1 |
+| slow leak | noticed | 40 of 80 | 13 | 38 | 25 | +0.312 [+0.233, +0.396] | 35 |
 
 - On 190 non-leak hard incidents the gain is 14 (+0.074 [+0.021, +0.127], against +0.097 on the held-out
   streams; the intervals overlap). **Never-noticed incidents carry 6 of the 14**, late-noticed ones 8. The
@@ -184,17 +241,53 @@ Latency is the rung's first notice of the incident minus the incident's first ob
 held-out streams, at the default threshold, are in `r10-notice-latency.csv` (source `heldout`) and
 below.
 
-{{latency}}
+| family | mode | hard incidents | noticed | never noticed | latency p25 / median / p75 / max (s) | median from onset (s) | anchored at the first observation |
+|---|---|---|---|---|---|---|---|
+| compound | contradicts_early | 23 | 21 | 2 | 0.3 / 2.3 / 4.2 / 8.0 | 2.3 | 20 |
+| compound | mimics_plain | 29 | 28 | 1 | 3.3 / 5.2 / 6.1 / 15.4 | 5.2 | 24 |
+| compound | ALL | 52 | 49 | 3 | 1.3 / 3.7 / 5.5 / 15.4 | 3.7 | 44 |
+| cascade | contradicts_early | 39 | 36 | 3 | 0.5 / 2.1 / 4.7 / 27.4 | 2.1 | 35 |
+| cascade | mimics_plain | 37 | 33 | 4 | 0.4 / 1.1 / 4.9 / 21.1 | 1.1 | 33 |
+| cascade | ALL | 76 | 69 | 7 | 0.4 / 1.9 / 4.9 / 27.4 | 1.9 | 68 |
+| split_brain | contradicts_early | 30 | 28 | 2 | 1.3 / 4.8 / 7.1 / 73.6 | 4.8 | 24 |
+| split_brain | mimics_plain | 32 | 24 | 8 | 2.7 / 5.1 / 7.4 / 45.8 | 5.1 | 23 |
+| split_brain | ALL | 62 | 52 | 10 | 1.5 / 5.1 / 7.4 / 73.6 | 5.1 | 47 |
+| slow_leak | ALL | 80 | 40 | 40 | 15.3 / 17.8 / 23.7 / 59.6 | 19.0 | 0 |
+| ALL | contradicts_early | 92 | 85 | 7 | 0.5 / 2.5 / 5.5 / 73.6 | 2.5 | 79 |
+| ALL | mimics_plain | 98 | 85 | 13 | 1.1 / 4.1 / 6.1 / 45.8 | 4.1 | 80 |
+| ALL | ALL | 270 | 210 | 60 | 1.4 / 4.9 / 13.0 / 73.6 | 4.9 | 159 |
 
 Held-out streams (200), default threshold:
 
-{{latency_heldout}}
+| family | mode | hard incidents | noticed | never noticed | latency p25 / median / p75 / max (s) | median from onset (s) |
+|---|---|---|---|---|---|---|
+| compound | contradicts_early | 71 | 65 | 6 | 0.3 / 0.5 / 3.1 / 16.3 | 0.5 |
+| compound | mimics_plain | 48 | 45 | 3 | 2.2 / 3.8 / 6.7 / 29.9 | 3.8 |
+| compound | ALL | 119 | 110 | 9 | 0.4 / 2.4 / 4.6 / 29.9 | 2.4 |
+| cascade | contradicts_early | 47 | 41 | 6 | 0.3 / 2.7 / 4.7 / 14.3 | 2.7 |
+| cascade | mimics_plain | 75 | 68 | 7 | 0.4 / 1.9 / 4.0 / 27.5 | 1.9 |
+| cascade | ALL | 122 | 109 | 13 | 0.4 / 1.9 / 4.4 / 27.5 | 1.9 |
+| split_brain | contradicts_early | 63 | 59 | 4 | 1.5 / 4.2 / 6.4 / 48.4 | 4.2 |
+| split_brain | mimics_plain | 68 | 63 | 5 | 2.4 / 4.2 / 6.5 / 62.9 | 4.2 |
+| split_brain | ALL | 131 | 122 | 9 | 2.2 / 4.2 / 6.5 / 62.9 | 4.2 |
+| slow_leak | ALL | 139 | 64 | 75 | 14.0 / 16.1 / 18.1 / 52.7 | 17.5 |
+| ALL | contradicts_early | 181 | 165 | 16 | 0.4 / 2.6 / 4.8 / 48.4 | 2.6 |
+| ALL | mimics_plain | 191 | 176 | 15 | 1.0 / 3.3 / 5.7 / 62.9 | 3.3 |
+| ALL | ALL | 511 | 405 | 106 | 0.7 / 3.8 / 7.6 / 62.9 | 3.8 |
 
 ### Never-noticed incidents, by family and mode
 
 Counts of hard incidents with no anomaly anchored on them. Slow-leak incidents have no mode.
 
-{{never_summary}}
+| family | mode | diag | heldout |
+|---|---|---|---|
+| cascade | contradicts_early | 3 | 6 |
+| cascade | mimics_plain | 4 | 7 |
+| compound | contradicts_early | 2 | 6 |
+| compound | mimics_plain | 1 | 3 |
+| slow_leak | unknown | 40 | 75 |
+| split_brain | contradicts_early | 2 | 4 |
+| split_brain | mimics_plain | 8 | 5 |
 
 The full list is `r10-never-noticed.csv`. **Where their observations went**
 (`r10-never-noticed-anchors-summary.csv`, supplementary): every one of the never-noticed hard
@@ -216,7 +309,19 @@ primary held-out run's `sel_rung_privileged`. Notices are counted from the repla
 Most of those are not false in the ordinary sense: at the default, 4.0 a stream are anchored on
 background and 19.4 on plain incidents the cheap rung is meant to handle.
 
-{{sweep}}
+| notice z | hard incidents noticed (all / non-leak / leak) | anomalies / stream | false notices / stream (background + plain) | on decoys / stream |
+|---|---|---|---|---|
+| 3 (default) | 0.793 (405/511) / 0.917 (341/372) / 0.460 (64/139) | 27.55 | 23.41 | 1.88 |
+| 2 | 0.814 (416/511) / 0.946 (352/372) / 0.460 (64/139) | 34.76 | 29.91 | 2.27 |
+| 1 | 0.810 (414/511) / 0.941 (350/372) / 0.460 (64/139) | 58.55 | 52.77 | 2.65 |
+| 0.5 | 0.793 (405/511) / 0.927 (345/372) / 0.432 (60/139) | 87.75 | 81.89 | 2.72 |
+
+| notice z | hard quality (excl. leak) | slow-leak quality | plain accuracy | critical misses | calls / stream | refs / call | cost s / stream | false alarms / stream | calls refused | quality minus default [90%] | leak minus default [90%] |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 3 (default) | 0.489 | 0.187 | 0.741 | 282 | 2.10 | 43.3 | 0.66 | 5.52 | 0 | - | - |
+| 2 | 0.527 | 0.216 | 0.807 | 228 | 2.16 | 39.8 | 0.65 | 10.65 | 0 | +0.038 [+0.006, +0.070] | +0.029 [-0.022, +0.079] |
+| 1 | 0.513 | 0.237 | 0.805 | 226 | 2.20 | 37.4 | 0.63 | 32.41 | 0 | +0.024 [-0.008, +0.057] | +0.050 [+0.007, +0.098] |
+| 0.5 | 0.478 | 0.245 | 0.766 | 250 | 2.08 | 36.5 | 0.59 | 61.70 | 0 | -0.011 [-0.047, +0.024] | +0.058 [+0.007, +0.111] |
 
 - The share of non-leak hard incidents noticed rises from 0.917 to 0.946 at z = 2 and then falls back
   (0.941 at z = 1, 0.927 at z = 0.5); the slow leak's noticed share does not move (0.460, then 0.432)
@@ -305,4 +410,5 @@ Run outputs: `artifacts/runs/` in the worktree (git-ignored), notice dumps in
 `artifacts/runs/r10-notices/`. Committed here: `r10-*.csv`, `scripts/r10_*.py`,
 `scripts/r10_run.sh`, `scripts/r10_notice_dump.sh`, the arm, its tests and the example.
 
-{{commits}}
+- `0b8ebfe` Add oracle_notice_privileged: the selection oracle plus noticing (R10)
+- `f23753c` R10 analysis: criterion, decomposition, notice latency, sweep, provenance
