@@ -29,9 +29,10 @@ def test_interval_by_hand_two_episodes(tmp_path):
     #   (0,0): S = 1 - 0/20 = 1 ; (0,1),(1,0): S = 1 - 10/20 = 0.5 ; (1,1): S = 1 - 20/20 = 0.
     # 25% of mass sits on 0 and on 1, so the 5th and 95th percentiles are exactly 0 and 1.
     r = ratio_of_totals_ci(pair(tmp_path, [10, 10], [0, 10]), "bill_compute", seed=4,
-                           resamples=20000)  # fmt: skip
+                           resamples=20000, method="percentile")  # fmt: skip
     assert r.savings == pytest.approx(0.5)
     assert r.low == pytest.approx(0.0, abs=1e-12) and r.high == pytest.approx(1.0, abs=1e-12)
+    assert r.method == "percentile"
 
 
 def test_pair_preservation_zero_width(tmp_path):

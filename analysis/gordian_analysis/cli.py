@@ -23,7 +23,9 @@ from .drift import (
     position_effect_stratified,
 )
 from .intervals import (
+    DEFAULT_RATIO_METHOD,
     DEFAULT_RESAMPLES,
+    RATIO_METHODS,
     median_ratio_ci,
     paired_bootstrap_ci,
     ratio_of_totals_ci,
@@ -262,8 +264,12 @@ def analyze_relative_savings(
     alpha: float = 0.05,
     n_resamples: int = DEFAULT_RESAMPLES,
     planned_n: int | None = None,
+    interval_method: str = DEFAULT_RATIO_METHOD,
 ) -> dict:
     """EXP-001 style cost measure: S = 1 - sum(B)/sum(A), decision S > threshold.
+
+    `interval_method` is "percentile", "bca" or "studentized" (see `ratio_of_totals_ci`); the
+    decision is the same either way: the interval's lower limit against the threshold.
 
     The metric defaults to the modelled cost (the charter's C). With it, the measured wall time
     is reported alongside as a secondary check. A declared-cost bill column is accepted only
@@ -277,15 +283,20 @@ def analyze_relative_savings(
     _check_planned_n(planned_n)
     paired = load_pair(dir_a, dir_b)
     conf = 1.0 - 2.0 * alpha
-    res = ratio_of_totals_ci(paired, metric, seed, n_resamples, conf)
+    res = ratio_of_totals_ci(paired, metric, seed, n_resamples, conf, interval_method)
     raw = "exceeds" if eq.exceeds(res.low, threshold) else "does_not_exceed"
     gated = eq.gated_category(raw, res.n, planned_n)
     gate_applied = planned_n is not None and res.n < planned_n
     warnings = []
     if res.n < SMALL_N:
         warnings.append(
-            f"only {res.n} paired episodes; the percentile bootstrap interval is unreliable "
+            f"only {res.n} paired episodes; the {res.method} bootstrap interval is unreliable "
             "at this size"
+        )
+    if not (math.isfinite(res.low) and math.isfinite(res.high)):
+        warnings.append(
+            "a limit of the interval is infinite: some bootstrap resamples had a zero standard "
+            "error, which the studentized interval keeps as an infinite t rather than dropping"
         )
     out = {
         "mode": "relative_savings",
@@ -317,7 +328,7 @@ def analyze_relative_savings(
         secondary = {}
         for name in (MEASURED_POLICY, MEASURED_TOTAL):
             try:
-                m = ratio_of_totals_ci(paired, name, seed, n_resamples, conf)
+                m = ratio_of_totals_ci(paired, name, seed, n_resamples, conf, interval_method)
             except ValueError as e:
                 # The check is secondary: when it cannot be computed (no wall time recorded, an
                 # arm with none) the primary result stands and says why the check is missing.
@@ -348,7 +359,8 @@ def format_relative(r: dict) -> str:
         f"Threshold: S > {r['threshold']:g}   alpha: {r['alpha']:g}   interval: {pct} (1 - 2*alpha)",
         "",
         f"S = {_f(r['savings'])}",
-        f"Bootstrap {pct} interval: [{_f(b['low'])}, {_f(b['high'])}]  "
+        f"Bootstrap {pct} interval ({_METHOD_TEXT[b['method']]}): "
+        f"[{_lim(b['low'], '-inf')}, {_lim(b['high'], '+inf')}]  "
         f"(resamples={b['n_resamples']}, seed={b['seed']}; whole episodes resampled as pairs)",
         "",
     ]
@@ -379,7 +391,7 @@ def format_relative(r: dict) -> str:
             )
             lines.append(
                 f"  {name}: S = {_f(m['savings'])}  {pct} interval "
-                f"[{_f(mb['low'])}, {_f(mb['high'])}]  ({part})"
+                f"[{_lim(mb['low'], '-inf')}, {_lim(mb['high'], '+inf')}]  ({part})"
             )
     if r["warnings"]:
         lines += ["", "WARNINGS:"] + [f"  - {w}" for w in r["warnings"]]
@@ -388,6 +400,18 @@ def format_relative(r: dict) -> str:
 
 def _f(x, spec=".6g"):
     return "n/a" if x is None else format(x, spec)
+
+
+def _lim(x, infinite: str):
+    """An interval limit; the JSON-safe form of an infinite limit is None, shown as `infinite`."""
+    return infinite if x is None else format(x, ".6g")
+
+
+_METHOD_TEXT = {
+    "percentile": "percentile",
+    "bca": "BCa",
+    "studentized": "studentized, bootstrap-t on the log ratio",
+}
 
 
 def _frame_text(rows: list[dict], cols: list[str]) -> str:
@@ -775,6 +799,10 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--alpha", type=float, default=0.05)
     c.add_argument("--interval", choices=["bootstrap", "t"], default=None,
                    help="interval for the category (default bootstrap)")  # fmt: skip
+    c.add_argument("--interval-method", choices=RATIO_METHODS, default=None,
+                   help="with --relative-savings, how the bootstrap resamples become an interval "
+                   f"(default {DEFAULT_RATIO_METHOD}; the percentile interval is liberal on skewed "
+                   "costs, see experiments/exploration/a7b-ratio-calibration.md)")  # fmt: skip
     c.add_argument("--resamples", type=int, default=DEFAULT_RESAMPLES)
     c.add_argument("--json", metavar="FILE", help="also write the full result as JSON")
 
@@ -841,6 +869,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.margin is not None or args.interval is not None:
                 parser.error("--margin and --interval do not apply to --relative-savings")
         else:
+            if args.interval_method is not None:
+                parser.error("--interval-method applies only with --relative-savings")
             if args.threshold is not None:
                 parser.error("--threshold applies only with --relative-savings")
             if args.declared_cost:
@@ -863,6 +893,7 @@ def main(argv: list[str] | None = None) -> int:
                 alpha=args.alpha,
                 n_resamples=args.resamples,
                 planned_n=args.planned_n,
+                interval_method=args.interval_method or DEFAULT_RATIO_METHOD,
             )
             text = format_relative(result)
         elif args.command == "compare":
