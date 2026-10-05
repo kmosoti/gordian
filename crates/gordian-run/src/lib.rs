@@ -32,6 +32,7 @@ pub mod manifest;
 pub mod policy;
 pub mod recorder;
 pub mod results;
+pub mod stream;
 
 pub use harness::{
     EpisodeOps, EpisodeRecord, HarnessError, Limits, Measured, StopReason, run_episode,

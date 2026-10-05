@@ -33,9 +33,16 @@ fn splitmix64(state: &mut u64) -> u64 {
 /// The 32-byte generator seed for `(run_seed, seed, class)`, expanded with splitmix64 rather
 /// than a library's seed expansion, so that no dependency's choice is a hidden input.
 pub fn order_seed(run_seed: u64, seed: u64, class: EpisodeClass) -> [u8; 32] {
+    order_seed_keyed(run_seed, seed, class_hash(class))
+}
+
+/// [`order_seed`] with the class replaced by any 64-bit key. A world with no episode classes (the
+/// stream harness) passes its own constant, so that its draws are a different stream from every
+/// episode's and the same function of `(run_seed, seed, key)`.
+pub fn order_seed_keyed(run_seed: u64, seed: u64, key: u64) -> [u8; 32] {
     let mut state = DOMAIN;
     let mut folded = 0u64;
-    for word in [run_seed, seed, class_hash(class)] {
+    for word in [run_seed, seed, key] {
         state ^= word;
         folded ^= splitmix64(&mut state);
     }
@@ -50,8 +57,13 @@ pub fn order_seed(run_seed: u64, seed: u64, class: EpisodeClass) -> [u8; 32] {
 /// The order in which the arms play `(seed, class)`: a permutation of `0..arms`, where
 /// `order[p]` is the index of the arm at position `p`. One arm gives `[0]`.
 pub fn arm_order(run_seed: u64, seed: u64, class: EpisodeClass, arms: usize) -> Vec<usize> {
+    arm_order_keyed(run_seed, seed, class_hash(class), arms)
+}
+
+/// [`arm_order`] with the class replaced by any 64-bit key (see [`order_seed_keyed`]).
+pub fn arm_order_keyed(run_seed: u64, seed: u64, key: u64, arms: usize) -> Vec<usize> {
     let mut order: Vec<usize> = (0..arms).collect();
-    let mut rng = ChaCha8Rng::from_seed(order_seed(run_seed, seed, class));
+    let mut rng = ChaCha8Rng::from_seed(order_seed_keyed(run_seed, seed, key));
     // Fisher-Yates. `(r * (i + 1)) >> 64` maps a uniform u64 to `0..=i` with a bias of at most
     // `(i + 1) / 2^64`, which no experiment here can see.
     for i in (1..order.len()).rev() {
