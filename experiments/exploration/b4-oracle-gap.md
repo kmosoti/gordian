@@ -7,9 +7,10 @@ Data: the four B1 runs (seeds 1000 to 1499, 500 episodes per class and cell; run
 `experiments/exploration/b1-variance.md`), plus three supplementary families of runs described
 there: S1 (a "select nothing" arm and longer periods), S2 (five lower budget levels) and S3
 (noise rate 50). Truth distributions come from the generator itself, read with the privileged
-accessor in a scratch program outside the repository for analysis only (no policy sees it); the
-program and its output are not committed (the repository's guard forbids naming the accessor
-outside its allowlist).
+accessor for analysis only (no policy sees it). They were first read by a scratch program outside
+the repository; `crates/gordian-eval/examples/truth_table.rs` now regenerates the same table
+inside the evaluator crate (the one place the repository's guard allows the accessor), and
+`experiments/exploration/scripts/b4.py` calls it. The table itself is not committed.
 
 ## 1. The oracle gap, per class and budget level
 
