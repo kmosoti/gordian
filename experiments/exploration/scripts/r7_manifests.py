@@ -36,7 +36,10 @@ def write(stage, b, rho, delta, seeds, arms, run_seed, experiment):
     tmp = C.MANIFESTS / (rid + ".base")
     out = C.MANIFESTS / (rid + ".json")
     if out.exists():
-        raise SystemExit(f"{out} exists; a manifest that was written is never rewritten here")
+        # Written, and perhaps run, at an earlier revision: the manifest of a run that was made is
+        # never touched; one the driver refused is set aside by hand first (`*.unrun-*`).
+        print(f"{out} exists; kept", file=sys.stderr)
+        return
     tmp.unlink(missing_ok=True)
     subprocess.run(
         [
