@@ -694,6 +694,45 @@ the primary setting, EXP-101 as designed has too little to win, and the coordina
 revising the world and reordering the program around context construction (EXP-102) before any
 freeze. Seeds as in R4: tuning 10000–10099, held-out 20000–20199.
 
+### R6 Context-construction headroom (before the substrate prototype)
+
+R5 showed that perfect selection buys cost but no quality (selection oracle 0.489, the same as the
+best public arm at any cost), while the remaining 0.46 of hard-incident quality, and most of the
+reduction in critical misses, belongs to the context the reasoner receives. The trace attributes
+the deficit to evidence at services the rung never attaches (738 missing observations) and outside
+its window (330). Before any substrate is built to construct context, measure how far simple
+public context builders go (charter section 7: strong simple baselines first).
+
+**Context builders** (public information only; each a manifest option of the shared rung, so every
+arm can use any builder):
+
+- `rung` (current): the anomaly's attached observations.
+- `window`: every observation of the last `W` seconds across all services, capped at `N`
+  references, most recent first.
+- `cooccur`: observations at any service whose abnormal readings began within `Δ` of the
+  anomaly's, grouped by temporal co-occurrence.
+- `neighbourhood`: observations at services within `k` hops of the anomaly's site in the public
+  dependency graph.
+
+**Arms.** Selection held fixed to isolate context: `oracle_selection_privileged` (tuned delay) with
+each public builder, and the privileged decisive-evidence context (R4's oracle) as the ceiling.
+Also `always_escalate` (tuned delay) with each builder, as the realistic public pairing.
+
+**Criterion, fixed by the coordinator before any R6 run (2026-10-06).** EXP-102 has
+context-construction headroom if, at the primary setting (b = 5, ρ = 0.7), with selection held at
+the selection oracle, either:
+
+1. the privileged decisive-evidence context exceeds the best public builder by at least 0.10 in
+   hard-incident quality (slow leak excluded) at equal or fewer references per call, with the 90%
+   cluster-bootstrap lower bound above 0.05; or
+2. to come within 0.05 of the ceiling's quality, the best public builder needs at least 1.5 times
+   the references per call, with the 90% interval of that ratio excluding 1.25.
+
+Critical misses and plain-incident accuracy are reported beside quality for every row and are
+never folded in. The same numbers are reported at b = 2.5 and b = 8. Seeds as in R4 and R5. If
+neither clause holds, simple context builders capture the lever, and EXP-102 has too little to win
+as designed.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.

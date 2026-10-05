@@ -4,6 +4,45 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R5 decomposed headroom — merged; selection buys cost, context buys quality
+
+**Provenance.** A container restart interrupted the run; a new worker resumed in place, retained
+the interrupted replay, and re-ran it. All 237 R4 regression arm-runs match R4's committed hashes.
+Gates on exit codes on the merged tree. Run outputs moved to `artifacts/runs/r5/` (ignored).
+
+**Re-verified at b = 5, ρ = 0.7 from raw files.**
+
+| Arm | Hard quality | Plain accuracy | Critical misses | Cost s/stream | Calls/stream |
+|---|---|---|---|---|---|
+| Selection oracle | 0.489 | 0.741 | 282 | 0.66 | 2.1 |
+| `always_escalate`, 14 s | 0.489 | 0.815 | 256 | 7.36 | 24.7 |
+| `contradiction_escalation` | 0.478 | 0.804 | 275 | 7.86 | 23.5 |
+| R4 oracle (selection + timing + context) | 0.952 | 0.741 | 194 | 0.32 | 2.6 |
+| Decoy oracle | 0 | 0.741 | 338 | 0 | 0 |
+
+**Verdict as written.** Both clauses of the R5 criterion hold at every setting (primary: gap 0.433
+[0.389, 0.476]; cost ratio 10.75 [9.08, 11.79]).
+
+**What it means.**
+
+- Perfect selection buys about 11× lower cost at matched hard-incident quality, but no quality, and
+  it pays for the saving with lower plain accuracy and more critical misses than escalating
+  everything, which the criterion did not count. An EXP-101 freeze must bound critical misses and
+  plain accuracy, not only hard-incident quality.
+- The public contradiction signal does not select: the public checker contradicts 97% of plain
+  anomalies at some point. Telling hard anomalies from plain ones with public information is
+  genuinely hard in this world.
+- Context construction holds the remaining 0.46 of quality and most of the critical-miss reduction
+  (194 against 282). The cause is binding: evidence at services the rung never attaches (738
+  missing observations) and outside its window (330).
+- Decoy handling has measurable headroom: the decoy oracle cuts false alarms by 1.88 per stream
+  [1.68, 2.08] at no cost.
+
+**Decided.** Before any substrate is built, R6 measures how far simple public context builders go,
+under a criterion fixed before it runs. The common thread of R5's findings is evidence binding
+across services and time; if simple builders capture it, EXP-102 has little to win, and if not, the
+substrate prototype's first job is binding.
+
 ## R4 headroom — merged; the margin was met but did not discriminate
 
 **Re-verified.** Gates on exit codes; at b = 5, ρ = 0.7 the coordinator recomputed from raw
