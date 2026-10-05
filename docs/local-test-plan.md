@@ -641,6 +641,22 @@ verified decisions per unit of total cost, with intervals. If the gap is under t
 coordinator sets before the run on every setting, revise R1 before anything is frozen. The
 recommendation of sweep settings and margins for EXP-101 is the deliverable.
 
+**Margin, fixed by the coordinator before any R4 run (2026-10-06).**
+
+- *Comparison by frontier, not by a single tuned point.* For each non-privileged baseline, sweep
+  its parameters on tuning streams and trace its quality-to-cost frontier on held-out streams.
+  No exchange rate between quality and cost is chosen for tuning.
+- *Quality* is the pooled fraction of hard incidents declared correctly by their deadline,
+  excluding the slow-leak family (reported separately as salience headroom). Plain-incident
+  accuracy, critical misses and false alarms are reported beside it, never folded in.
+- *Cost* is total modelled cost per stream (substrate and rule plus reasoner).
+- *Headroom exists* if, on at least one reasoner setting, the privileged oracle's quality exceeds
+  the best non-privileged frontier's quality at equal or lower cost by at least 0.10 absolute,
+  with the 90% bootstrap interval's lower bound (streams resampled as clusters) above 0.05.
+- If headroom exists only on settings where the reasoner is very informative and uncorrelated
+  (high `b`, `ρ` = 0), that is reported as a conditional result, not as headroom for EXP-101.
+
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
