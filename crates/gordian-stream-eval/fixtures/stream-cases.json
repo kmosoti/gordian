@@ -1,0 +1,1947 @@
+[
+ {
+  "name": "plain/correct-on-time",
+  "rules": ["S1","S2","S4","S6","S8","S19","S20"],
+  "note": "Plain incident, onset 10 s, deadline 40 s. The truth declared at 12 s, anchored on one of the incident's observations.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":12000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":12000000000,"time_to_first_correct_ns":2000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/correct-exactly-at-deadline",
+  "rules": ["S6"],
+  "note": "A correct declaration at exactly the deadline is on time.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":40000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":40000000000,"time_to_first_correct_ns":30000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/correct-one-nanosecond-late",
+  "rules": ["S6","S7","S8","S9"],
+  "note": "One nanosecond after the deadline: a correct declaration, not on time, so the incident is missed. first_correct_at is still recorded.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":40000000001,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":40000000001,"time_to_first_correct_ns":30000000001,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/critical-late-is-a-critical-miss",
+  "rules": ["S7","S9","S10","S19"],
+  "note": "Critical plain incident, deadline 30 s, correct declaration at 35 s: late, so missed, and a critical miss.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":true,"onset_ns":10000000000,"deadline_ns":30000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":35000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":true,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":35000000000,"time_to_first_correct_ns":25000000000,"correct_by_deadline":false,"missed":true,"critical_miss":true,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":1,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":1,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/critical-correct-on-time-is-no-miss",
+  "rules": ["S6","S10","S19"],
+  "note": "Critical plain incident declared correctly at 20 s, deadline 30 s: no miss.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":true,"onset_ns":10000000000,"deadline_ns":30000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":true,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":20000000000,"time_to_first_correct_ns":10000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":1,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/silent-is-missed",
+  "rules": ["S9","S10"],
+  "note": "Nothing declared about a non-critical plain incident: missed, not a critical miss.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/silent-critical-is-a-critical-miss",
+  "rules": ["S9","S10"],
+  "note": "Nothing declared about a critical plain incident.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":true,"onset_ns":10000000000,"deadline_ns":30000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":true,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":true,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":1,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":1,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/right-kind-wrong-site",
+  "rules": ["S5","S11"],
+  "note": "Kind matches, site does not: one wrong declaration, missed.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":4}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/right-site-wrong-kind",
+  "rules": ["S5","S11"],
+  "note": "Site matches, kind does not.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ResourceExhausted"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/none-is-wrong-and-no-false-alarm",
+  "rules": ["S11","S12","S22"],
+  "note": "Declaring 'not an incident' about a real plain incident is a wrong declaration and not a false alarm.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/wrong-then-right-in-time",
+  "rules": ["S6","S8","S11"],
+  "note": "Wrong at 15 s, right at 20 s, deadline 40 s: correct by deadline with one wrong declaration. The wrong one does not cancel the right one.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":4}}},"outcome":{"Declared":{"index":0}}},
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":1,"first_correct_at":20000000000,"time_to_first_correct_ns":10000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/right-then-wrong",
+  "rules": ["S6","S11"],
+  "note": "Right at 15 s, then wrong at 20 s: still correct by deadline, one wrong declaration. There is no retraction.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":4}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":1,"first_correct_at":15000000000,"time_to_first_correct_ns":5000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/two-correct-declarations",
+  "rules": ["S4","S8"],
+  "note": "Two correct declarations: both counted, first_correct_at is the earlier.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":16000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":2,"wrong_declarations":0,"first_correct_at":15000000000,"time_to_first_correct_ns":5000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/late-then-wrong-keeps-the-late-time",
+  "rules": ["S7","S8","S11"],
+  "note": "Correct only at 50 s (late), wrong at 55 s: missed, one correct and one wrong declaration.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":50000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":55000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":4}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":1,"first_correct_at":50000000000,"time_to_first_correct_ns":40000000000,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/hypothesis-anchored-in-the-other-incident",
+  "rules": ["S2","S4","S11"],
+  "note": "Incident 0's truth declared with an anchor in incident 1: wrong about incident 1, nothing about incident 0. The anchor chooses the incident, not the hypothesis.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+    {"tier":"Plain","critical":false,"onset_ns":20000000000,"deadline_ns":50000000000,"truth":{"kind":{"Known":"DependencyDown"},"site":2}}
+   ],
+   "labels": [0,0,1,1]
+  },
+  "trajectory": [
+   {"at":25000000000,"action":{"Declare":{"anchor":2,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":1,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":2,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":2,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "plain/recurrence-is-told-apart-by-the-anchor",
+  "rules": ["S2","S6","S7"],
+  "note": "Incident 1 repeats incident 0 (same kind and site). The truth anchored in incident 0 at 105 s is late for incident 0 and does nothing for incident 1; anchored in incident 1 at 110 s it is on time.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+    {"tier":"Plain","critical":false,"onset_ns":100000000000,"deadline_ns":130000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0,0,1,1]
+  },
+  "trajectory": [
+   {"at":105000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":110000000000,"action":{"Declare":{"anchor":3,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":105000000000,"time_to_first_correct_ns":95000000000,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":1,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":110000000000,"time_to_first_correct_ns":10000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":2,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "hard/correct-on-time",
+  "rules": ["S4","S6","S19","S20"],
+  "note": "Hard incident declared with its hard kind and site, inside the deadline.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":30000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Hard":"Compound"},"site":5}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":30000000000,"time_to_first_correct_ns":20000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":1},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "hard/imitated-known-kind-is-wrong",
+  "rules": ["S5","S11"],
+  "note": "The cheap rung's answer: the imitated known kind at the hard incident's true site. Wrong.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":30000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"ResourceExhausted"},"site":5}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "hard/right-hard-kind-at-the-wrong-site",
+  "rules": ["S5","S11"],
+  "note": "The hard kind is right and the site is not.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":30000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Hard":"Compound"},"site":6}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "hard/a-different-hard-family-is-wrong",
+  "rules": ["S5","S11"],
+  "note": "Truth is a cascade at service 2; the declaration says split brain at service 2.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Cascade"},"site":2}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":30000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Hard":"SplitBrain"},"site":2}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "hard/critical-silent-is-a-critical-miss",
+  "rules": ["S9","S10","S20"],
+  "note": "Critical hard incident, nothing declared.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":true,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":true,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":true,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":1,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":1},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "hard/critical-late-is-a-critical-miss",
+  "rules": ["S7","S9","S10"],
+  "note": "Critical hard incident with deadline 40 s, correct at 45 s.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":true,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":45000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Hard":"Compound"},"site":5}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":true,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":45000000000,"time_to_first_correct_ns":35000000000,"correct_by_deadline":false,"missed":true,"critical_miss":true,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":1,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":1},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "hard/all-four-kinds-correct",
+  "rules": ["S4","S6","S8","S19","S20"],
+  "note": "One incident of each hard kind, each declared correctly five seconds after onset.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":60000000000,"truth":{"kind":{"Hard":"Compound"},"site":1}},
+    {"tier":"Hard","critical":false,"onset_ns":70000000000,"deadline_ns":120000000000,"truth":{"kind":{"Hard":"Cascade"},"site":2}},
+    {"tier":"Hard","critical":false,"onset_ns":130000000000,"deadline_ns":180000000000,"truth":{"kind":{"Hard":"SplitBrain"},"site":3}},
+    {"tier":"Hard","critical":false,"onset_ns":190000000000,"deadline_ns":240000000000,"truth":{"kind":{"Hard":"SlowLeak"},"site":4}}
+   ],
+   "labels": [0,1,2,3]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Hard":"Compound"},"site":1}}},"outcome":{"Declared":{"index":0}}},
+   {"at":75000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Hard":"Cascade"},"site":2}}},"outcome":{"Declared":{"index":1}}},
+   {"at":135000000000,"action":{"Declare":{"anchor":2,"diagnosis":{"kind":{"Hard":"SplitBrain"},"site":3}}},"outcome":{"Declared":{"index":2}}},
+   {"at":195000000000,"action":{"Declare":{"anchor":3,"diagnosis":{"kind":{"Hard":"SlowLeak"},"site":4}}},"outcome":{"Declared":{"index":3}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":15000000000,"time_to_first_correct_ns":5000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":1,"tier":"Hard","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":75000000000,"time_to_first_correct_ns":5000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":2,"tier":"Hard","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":135000000000,"time_to_first_correct_ns":5000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":3,"tier":"Hard","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":195000000000,"time_to_first_correct_ns":5000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":4,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":4},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "decoy/declared-as-an-incident",
+  "rules": ["S14","S21","S22"],
+  "note": "A decoy declared as a configuration drift at 12 s: a false alarm.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":12000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":1,"decoys_silent":0,"false_alarms":1,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "decoy/dismissed",
+  "rules": ["S4","S15","S21"],
+  "note": "A decoy declared 'not an incident' at 20 s: a correct dismissal. A decoy has no deadline, so it is never 'by deadline' and never missed.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":1,"diagnosis":null}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":20000000000,"time_to_first_correct_ns":10000000000,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":1,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "decoy/silent-is-neither",
+  "rules": ["S9","S10","S16","S21"],
+  "note": "Nothing declared about a decoy: not a false alarm, not a dismissal, not missed.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":1,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "decoy/alarm-then-dismissal-is-not-netted",
+  "rules": ["S14","S15","S17","S21"],
+  "note": "Alarmed at 12 s, dismissed at 30 s: both counted, neither cancels the other.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":12000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":30000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":1,"wrong_declarations":1,"first_correct_at":30000000000,"time_to_first_correct_ns":20000000000,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":1,"decoys_alarmed":1,"decoys_silent":0,"false_alarms":1,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "decoy/dismissal-long-after-resolution",
+  "rules": ["S15"],
+  "note": "Dismissed at 500 s, long after it resolved: still a correct dismissal. A decoy has no deadline.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":500000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":500000000000,"time_to_first_correct_ns":490000000000,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":1,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "decoy/two-false-alarms-count-twice",
+  "rules": ["S14","S21","S22"],
+  "note": "Two false alarms about one decoy, one with a hard hypothesis: two false alarms, one alarmed decoy.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":12000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":14000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Hard":"SlowLeak"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":2,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":1,"decoys_silent":0,"false_alarms":2,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "decoy/every-decoy-is-in-exactly-one-or-two-categories",
+  "rules": ["S17","S21","S22"],
+  "note": "Four decoys: silent; alarmed; dismissed; alarmed and dismissed. dismissed 2, alarmed 2, silent 1, false alarms 2.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null},
+    {"tier":"Decoy","critical":false,"onset_ns":70000000000,"deadline_ns":null,"truth":null},
+    {"tier":"Decoy","critical":false,"onset_ns":130000000000,"deadline_ns":null,"truth":null},
+    {"tier":"Decoy","critical":false,"onset_ns":190000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0,1,2,3]
+  },
+  "trajectory": [
+   {"at":75000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"DependencyDown"},"site":2}}},"outcome":{"Declared":{"index":0}}},
+   {"at":150000000000,"action":{"Declare":{"anchor":2,"diagnosis":null}},"outcome":{"Declared":{"index":1}}},
+   {"at":195000000000,"action":{"Declare":{"anchor":3,"diagnosis":{"kind":{"Known":"DependencyDown"},"site":2}}},"outcome":{"Declared":{"index":2}}},
+   {"at":210000000000,"action":{"Declare":{"anchor":3,"diagnosis":null}},"outcome":{"Declared":{"index":3}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":1,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":2,"tier":"Decoy","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":150000000000,"time_to_first_correct_ns":20000000000,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":3,"tier":"Decoy","critical":false,"correct_declarations":1,"wrong_declarations":1,"first_correct_at":210000000000,"time_to_first_correct_ns":20000000000,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":4},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":2,"decoys_alarmed":2,"decoys_silent":1,"false_alarms":2,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "background/some-is-a-false-alarm",
+  "rules": ["S2","S18","S22"],
+  "note": "An incident declared with an anchor on a background observation: a false alarm about nothing.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+   ],
+   "labels": [null,null]
+  },
+  "trajectory": [
+   {"at":5000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":1,"false_alarms_on_background":1,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "background/none-is-nothing",
+  "rules": ["S18"],
+  "note": "'Not an incident' anchored on background is correct and counts for nothing.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+   ],
+   "labels": [null,null]
+  },
+  "trajectory": [
+   {"at":5000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "background/mini-burst-beside-an-incident",
+  "rules": ["S2","S18","S22"],
+  "note": "A claim anchored on a background observation, then the truth anchored in the incident: one false alarm on background, the incident correct.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [null,0,null]
+  },
+  "trajectory": [
+   {"at":12000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":13000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":13000000000,"time_to_first_correct_ns":3000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":1,"false_alarms_on_background":1,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "escalation/needed-hard",
+  "rules": ["S13","S23","S24","S25","S26"],
+  "note": "One informed, correct escalation about a hard incident with three references. Cost 460 tokens, 115 ms modelled.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0,0,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1},{"Passive":2}],"question":{"Diagnose":{"focus":1}}}},"outcome":{"Escalated":{"call":0,"ready_at":22006000000,"cost":{"calls":1,"tokens":460,"modelled_ns":115000000,"latency_ns":2006000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22006000000,"focus":null,"refs":3,"informed":true,"correct":true}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":1,"informed_escalations":1,"correct_escalations":1}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":1,"unneeded":0,"background":0,"hard_incidents_escalated":1,"other_incidents_escalated":0,"informed":1,"correct":1},"reasoner":{"calls":1,"refs":3,"tokens":460,"modelled_ns":115000000}}
+  }}
+ },
+ {
+  "name": "escalation/unneeded-plain",
+  "rules": ["S13","S23","S24","S25","S26"],
+  "note": "An uninformed but lucky escalation about a plain incident: unneeded, correct, not informed.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1}],"question":{"Diagnose":{"focus":1}}}},"outcome":{"Escalated":{"call":0,"ready_at":22004000000,"cost":{"calls":1,"tokens":440,"modelled_ns":110000000,"latency_ns":2004000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22004000000,"focus":null,"refs":2,"informed":false,"correct":true}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":1,"informed_escalations":0,"correct_escalations":1}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":1,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":1,"informed":0,"correct":1},"reasoner":{"calls":1,"refs":2,"tokens":440,"modelled_ns":110000000}}
+  }}
+ },
+ {
+  "name": "escalation/unneeded-decoy",
+  "rules": ["S13","S23","S24","S26"],
+  "note": "An escalation about a decoy with an empty context: unneeded; 400 tokens.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":null,"refs":0,"informed":false,"correct":false}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":1,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":1,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":1,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":1,"informed":0,"correct":0},"reasoner":{"calls":1,"refs":0,"tokens":400,"modelled_ns":100000000}}
+  }}
+ },
+ {
+  "name": "escalation/background",
+  "rules": ["S2","S23","S25","S26"],
+  "note": "An informed escalation whose focus is a background observation: background class, no incident touched.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [null,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[{"Passive":0}],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22002000000,"cost":{"calls":1,"tokens":420,"modelled_ns":105000000,"latency_ns":2002000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22002000000,"focus":null,"refs":1,"informed":true,"correct":true}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":1,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":1,"correct":1},"reasoner":{"calls":1,"refs":1,"tokens":420,"modelled_ns":105000000}}
+  }}
+ },
+ {
+  "name": "escalation/informed-and-uninformed-on-one-hard-incident",
+  "rules": ["S13","S23","S24","S25","S26","S6"],
+  "note": "Two calls about one hard incident: an uninformed one with no context, then an informed one with four references; then the correct declaration. Counted per incident and in the totals.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":17000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}},
+   {"at":18000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1},{"Passive":2},{"Passive":3}],"question":{"Diagnose":{"focus":1}}}},"outcome":{"Escalated":{"call":1,"ready_at":20008000000,"cost":{"calls":1,"tokens":480,"modelled_ns":120000000,"latency_ns":2008000000}}}},
+   {"at":21000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Hard":"Compound"},"site":5}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+   {"at":15000000000,"ready_at":17000000000,"focus":null,"refs":0,"informed":false,"correct":false},
+   {"at":18000000000,"ready_at":20008000000,"focus":null,"refs":4,"informed":true,"correct":true}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":21000000000,"time_to_first_correct_ns":11000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":2,"informed_escalations":1,"correct_escalations":1}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":1},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":2,"unneeded":0,"background":0,"hard_incidents_escalated":1,"other_incidents_escalated":0,"informed":1,"correct":1},"reasoner":{"calls":2,"refs":4,"tokens":880,"modelled_ns":220000000}}
+  }}
+ },
+ {
+  "name": "escalation/repeats-count-again",
+  "rules": ["S23","S24","S26"],
+  "note": "Three escalations about one hard incident: three needed calls, one hard incident escalated.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Escalate":{"context":[{"Passive":0}],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":17002000000,"cost":{"calls":1,"tokens":420,"modelled_ns":105000000,"latency_ns":2002000000}}}},
+   {"at":16000000000,"action":{"Escalate":{"context":[{"Passive":0}],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":1,"ready_at":18002000000,"cost":{"calls":1,"tokens":420,"modelled_ns":105000000,"latency_ns":2002000000}}}},
+   {"at":17000000000,"action":{"Escalate":{"context":[{"Passive":0}],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":2,"ready_at":19002000000,"cost":{"calls":1,"tokens":420,"modelled_ns":105000000,"latency_ns":2002000000}}}}
+  ],
+  "calls": [
+   {"at":15000000000,"ready_at":17002000000,"focus":null,"refs":1,"informed":false,"correct":false},
+   {"at":16000000000,"ready_at":18002000000,"focus":null,"refs":1,"informed":false,"correct":false},
+   {"at":17000000000,"ready_at":19002000000,"focus":null,"refs":1,"informed":false,"correct":false}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":3,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":3,"unneeded":0,"background":0,"hard_incidents_escalated":1,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":3,"refs":3,"tokens":1260,"modelled_ns":315000000}}
+  }}
+ },
+ {
+  "name": "escalation/after-the-deadline-is-still-needed",
+  "rules": ["S23"],
+  "note": "Escalating about a hard incident at 70 s, after its 50 s deadline, is still counted needed: the class is the incident's tier, not the timing.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":70000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":72000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":70000000000,"ready_at":72000000000,"focus":null,"refs":0,"informed":true,"correct":true}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":1,"informed_escalations":1,"correct_escalations":1}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":1,"unneeded":0,"background":0,"hard_incidents_escalated":1,"other_incidents_escalated":0,"informed":1,"correct":1},"reasoner":{"calls":1,"refs":0,"tokens":400,"modelled_ns":100000000}}
+  }}
+ },
+ {
+  "name": "escalation/refused-calls-and-declarations-count-for-nothing",
+  "rules": ["S3","S26"],
+  "note": "A refused escalation (reasoner budget), a refused declaration with an unknown anchor, and a refused declaration past the end: no declaration, no escalation, no cost, no check of their anchors.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1},{"Passive":2}],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Refused":{"ReasonerBudgetExceeded":{"needed_ns":115000000}}}},
+   {"at":16000000000,"action":{"Declare":{"anchor":99,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Refused":{"UnknownRef":{"Passive":99}}}},
+   {"at":601000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Refused":"PastDuration"}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "escalation/probes-are-not-scored",
+  "rules": ["S3","S26"],
+  "note": "Accepted probes change nothing in the verdict: the reasoner's cost is counted, probes are the harness's accounting.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":12000000000,"action":{"Probe":{"kind":"HealthCheck","target":3}},"outcome":{"Probed":{"probe":0,"observation":{"Probed":{"probe":{"kind":"HealthCheck","target":3},"result":"Negative"}},"ready_at":12001000000,"cost":{"probes":1,"time_ns":1000000}}}},
+   {"at":13000000000,"action":{"Probe":{"kind":"ResourceUsage","target":3}},"outcome":{"Probed":{"probe":1,"observation":{"Probed":{"probe":{"kind":"ResourceUsage","target":3},"result":"Negative"}},"ready_at":13001000000,"cost":{"probes":1,"time_ns":1000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "escalation/mixed-stream",
+  "rules": ["S2","S11","S13","S14","S18","S19","S20","S21","S22","S23","S24","S25","S26"],
+  "note": "Five incidents of all three tiers, five calls (one about background), declarations including a false alarm on a decoy and one on background. Hand-computed totals.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+    {"tier":"Hard","critical":true,"onset_ns":30000000000,"deadline_ns":60000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}},
+    {"tier":"Decoy","critical":false,"onset_ns":50000000000,"deadline_ns":null,"truth":null},
+    {"tier":"Hard","critical":false,"onset_ns":100000000000,"deadline_ns":160000000000,"truth":{"kind":{"Hard":"Cascade"},"site":6}},
+    {"tier":"Plain","critical":true,"onset_ns":200000000000,"deadline_ns":220000000000,"truth":{"kind":{"Known":"DependencyDown"},"site":2}}
+   ],
+   "labels": [null,0,0,null,1,1,2,3,null,4]
+  },
+  "trajectory": [
+   {"at":12000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":33000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1},{"Passive":2},{"Passive":3},{"Passive":4}],"question":{"Diagnose":{"focus":4}}}},"outcome":{"Escalated":{"call":0,"ready_at":35010000000,"cost":{"calls":1,"tokens":500,"modelled_ns":125000000,"latency_ns":2010000000}}}},
+   {"at":36000000000,"action":{"Declare":{"anchor":4,"diagnosis":{"kind":{"Hard":"Compound"},"site":5}}},"outcome":{"Declared":{"index":1}}},
+   {"at":55000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1}],"question":{"Diagnose":{"focus":6}}}},"outcome":{"Escalated":{"call":1,"ready_at":57004000000,"cost":{"calls":1,"tokens":440,"modelled_ns":110000000,"latency_ns":2004000000}}}},
+   {"at":58000000000,"action":{"Declare":{"anchor":6,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":7}}},"outcome":{"Declared":{"index":2}}},
+   {"at":70000000000,"action":{"Declare":{"anchor":3,"diagnosis":{"kind":{"Known":"ResourceExhausted"},"site":1}}},"outcome":{"Declared":{"index":3}}},
+   {"at":105000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":7}}}},"outcome":{"Escalated":{"call":2,"ready_at":107000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}},
+   {"at":120000000000,"action":{"Escalate":{"context":[{"Passive":0}],"question":{"Diagnose":{"focus":8}}}},"outcome":{"Escalated":{"call":3,"ready_at":122002000000,"cost":{"calls":1,"tokens":420,"modelled_ns":105000000,"latency_ns":2002000000}}}},
+   {"at":165000000000,"action":{"Declare":{"anchor":7,"diagnosis":{"kind":{"Hard":"Cascade"},"site":6}}},"outcome":{"Declared":{"index":4}}},
+   {"at":205000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1},{"Passive":2}],"question":{"Diagnose":{"focus":9}}}},"outcome":{"Escalated":{"call":4,"ready_at":207006000000,"cost":{"calls":1,"tokens":460,"modelled_ns":115000000,"latency_ns":2006000000}}}}
+  ],
+  "calls": [
+   {"at":33000000000,"ready_at":35010000000,"focus":null,"refs":5,"informed":true,"correct":true},
+   {"at":55000000000,"ready_at":57004000000,"focus":null,"refs":2,"informed":false,"correct":false},
+   {"at":105000000000,"ready_at":107000000000,"focus":null,"refs":0,"informed":false,"correct":false},
+   {"at":120000000000,"ready_at":122002000000,"focus":null,"refs":1,"informed":true,"correct":true},
+   {"at":205000000000,"ready_at":207006000000,"focus":null,"refs":3,"informed":false,"correct":true}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":12000000000,"time_to_first_correct_ns":2000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":1,"tier":"Hard","critical":true,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":36000000000,"time_to_first_correct_ns":6000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":1,"informed_escalations":1,"correct_escalations":1},
+    {"id":2,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":1,"informed_escalations":0,"correct_escalations":0},
+    {"id":3,"tier":"Hard","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":165000000000,"time_to_first_correct_ns":65000000000,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":1,"informed_escalations":0,"correct_escalations":0},
+    {"id":4,"tier":"Plain","critical":true,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":true,"escalations":1,"informed_escalations":0,"correct_escalations":1}
+   ],
+   "totals": {"incidents":{"plain":2,"hard":2,"decoy":1},"critical_incidents":2,"correct":{"plain":1,"hard":1},"missed":{"plain":1,"hard":1},"critical_missed":{"plain":1,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":1,"decoys_silent":0,"false_alarms":2,"false_alarms_on_background":1,"escalations":{"needed":2,"unneeded":2,"background":1,"hard_incidents_escalated":2,"other_incidents_escalated":2,"informed":2,"correct":3},"reasoner":{"calls":5,"refs":11,"tokens":2220,"modelled_ns":555000000}}
+  }}
+ },
+ {
+  "name": "totals/empty-stream",
+  "rules": ["S19"],
+  "note": "No incidents, no observations, no steps: all zeros and no per-incident rows.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+   ],
+   "labels": []
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+   ],
+   "totals": {"incidents":{"plain":0,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "totals/untouched-incidents-are-counted",
+  "rules": ["S19","S20","S21"],
+  "note": "Three incidents, one of each tier, one of them critical, and no steps: all counted, the plain and hard ones missed, the decoy silent.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":true,"onset_ns":10000000000,"deadline_ns":30000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+    {"tier":"Hard","critical":false,"onset_ns":60000000000,"deadline_ns":120000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}},
+    {"tier":"Decoy","critical":false,"onset_ns":150000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0,1,2]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":true,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":true,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":1,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":2,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":1,"decoy":1},"critical_incidents":1,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":1},"critical_missed":{"plain":1,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":1,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "totals/wrong-declarations-sum-plain-and-hard-only",
+  "rules": ["S11","S14","S20","S22"],
+  "note": "Two wrong declarations about a plain incident, one about a hard one, and one false alarm about a decoy: wrong_declarations is 3, false_alarms is 1.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+    {"tier":"Hard","critical":false,"onset_ns":70000000000,"deadline_ns":120000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}},
+    {"tier":"Decoy","critical":false,"onset_ns":150000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0,1,2]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Declared":{"index":0}}},
+   {"at":16000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":4}}},"outcome":{"Declared":{"index":1}}},
+   {"at":80000000000,"action":{"Declare":{"anchor":1,"diagnosis":{"kind":{"Known":"ResourceExhausted"},"site":5}}},"outcome":{"Declared":{"index":2}}},
+   {"at":160000000000,"action":{"Declare":{"anchor":2,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":3}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":2,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":1,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0},
+    {"id":2,"tier":"Decoy","critical":false,"correct_declarations":0,"wrong_declarations":1,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":1,"decoy":1},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":3,"decoys_dismissed":0,"decoys_alarmed":1,"decoys_silent":0,"false_alarms":1,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "error/time-goes-backwards",
+  "rules": ["S30"],
+  "note": "A declaration at 20 s, then one at 15 s.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TimeWentBackwards":{"index":1}}}
+ },
+ {
+  "name": "error/equal-instants-are-allowed",
+  "rules": ["S30"],
+  "note": "Two declarations at the same instant are fine.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":4}}},"outcome":{"Declared":{"index":0}}},
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":1,"first_correct_at":20000000000,"time_to_first_correct_ns":10000000000,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":1,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "error/refused-step-going-backwards-is-still-an-error",
+  "rules": ["S3","S30"],
+  "note": "A refused step earlier than its predecessor is still time going backwards.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Refused":"TimeWentBackwards"}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TimeWentBackwards":{"index":1}}}
+ },
+ {
+  "name": "error/declare-answered-by-escalated",
+  "rules": ["S31"],
+  "note": "A Declare whose outcome is Escalated.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"OutcomeMismatch":{"index":0}}}
+ },
+ {
+  "name": "error/probe-answered-by-declared",
+  "rules": ["S31"],
+  "note": "A Probe whose outcome is Declared.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Probe":{"kind":"HealthCheck","target":3}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"OutcomeMismatch":{"index":0}}}
+ },
+ {
+  "name": "error/escalate-answered-by-probed",
+  "rules": ["S31"],
+  "note": "An Escalate whose outcome is Probed, after one good step.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Probed":{"probe":0,"observation":{"Probed":{"probe":{"kind":"HealthCheck","target":3},"result":"Negative"}},"ready_at":21000000000,"cost":{"probes":1,"time_ns":1000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"OutcomeMismatch":{"index":1}}}
+ },
+ {
+  "name": "error/accepted-declaration-after-the-end",
+  "rules": ["S32"],
+  "note": "A Declared outcome one nanosecond after the stream's end.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":600000000001,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"ActionAfterEnd":{"index":0}}}
+ },
+ {
+  "name": "error/accepted-escalation-after-the-end",
+  "rules": ["S32"],
+  "note": "An Escalated outcome after the stream's end.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":600000000001,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":602000000001,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":600000000001,"ready_at":602000000001,"focus":null,"refs":0,"informed":true,"correct":true}
+  ],
+  "expected": {"Error":{"ActionAfterEnd":{"index":0}}}
+ },
+ {
+  "name": "error/accepted-probe-after-the-end",
+  "rules": ["S32"],
+  "note": "A Probed outcome after the stream's end.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":600000000001,"action":{"Probe":{"kind":"HealthCheck","target":3}},"outcome":{"Probed":{"probe":0,"observation":{"Probed":{"probe":{"kind":"HealthCheck","target":3},"result":"Negative"}},"ready_at":600001000001,"cost":{"probes":1,"time_ns":1000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"ActionAfterEnd":{"index":0}}}
+ },
+ {
+  "name": "error/declaration-exactly-at-the-end-is-allowed",
+  "rules": ["S32"],
+  "note": "An accepted declaration at exactly the duration is allowed (late for the incident, so missed).",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":600000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":600000000000,"time_to_first_correct_ns":590000000000,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "error/refused-past-duration-is-an-ordinary-refusal",
+  "rules": ["S3","S32"],
+  "note": "The stream refuses everything past its end with PastDuration; the trajectory may hold that refusal.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":601000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Refused":"PastDuration"}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "error/anchor-is-not-an-observation",
+  "rules": ["S33"],
+  "note": "Two observations exist; the accepted declaration is anchored on the third.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":2,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"UnknownObservation":{"index":0,"obs":2}}}
+ },
+ {
+  "name": "error/focus-is-not-an-observation",
+  "rules": ["S33"],
+  "note": "An accepted escalation whose focus is not in the stream.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":9}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":null,"refs":0,"informed":false,"correct":false}
+  ],
+  "expected": {"Error":{"UnknownObservation":{"index":0,"obs":9}}}
+ },
+ {
+  "name": "error/anchor-before-the-incident-began",
+  "rules": ["S34"],
+  "note": "An accepted declaration anchored in an incident, one nanosecond before its onset.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":9999999999,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"ObservationNotYetEmitted":{"index":0,"obs":0}}}
+ },
+ {
+  "name": "error/focus-before-the-incident-began",
+  "rules": ["S34"],
+  "note": "An accepted escalation whose focus is in an incident that has not begun.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":5000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":7000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":5000000000,"ready_at":7000000000,"focus":null,"refs":0,"informed":false,"correct":false}
+  ],
+  "expected": {"Error":{"ObservationNotYetEmitted":{"index":0,"obs":0}}}
+ },
+ {
+  "name": "error/anchor-at-the-onset-is-allowed",
+  "rules": ["S34"],
+  "note": "A declaration at exactly the incident's onset is allowed.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":10000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":1,"wrong_declarations":0,"first_correct_at":10000000000,"time_to_first_correct_ns":0,"correct_by_deadline":true,"missed":false,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":1,"hard":0},"missed":{"plain":0,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "error/background-anchor-needs-no-onset",
+  "rules": ["S34"],
+  "note": "A background observation is not held to any incident's onset.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [null,0]
+  },
+  "trajectory": [
+   {"at":1000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Plain","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":0,"informed_escalations":0,"correct_escalations":0}
+   ],
+   "totals": {"incidents":{"plain":1,"hard":0,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":1,"hard":0},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":0,"unneeded":0,"background":0,"hard_incidents_escalated":0,"other_incidents_escalated":0,"informed":0,"correct":0},"reasoner":{"calls":0,"refs":0,"tokens":0,"modelled_ns":0}}
+  }}
+ },
+ {
+  "name": "error/escalation-call-index-out-of-order",
+  "rules": ["S35"],
+  "note": "The first accepted escalation carries call 1, not 0.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":1,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":null,"refs":0,"informed":true,"correct":true}
+  ],
+  "expected": {"Error":{"CallRecordMismatch":{"index":0,"call":1}}}
+ },
+ {
+  "name": "error/escalation-without-a-call-summary",
+  "rules": ["S35"],
+  "note": "An accepted escalation and no call summaries.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"CallRecordMismatch":{"index":0,"call":0}}}
+ },
+ {
+  "name": "error/call-summary-at-disagrees",
+  "rules": ["S35"],
+  "note": "The summary says the call was made 1 ns after the step.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000001,"ready_at":22000000000,"focus":null,"refs":0,"informed":true,"correct":true}
+  ],
+  "expected": {"Error":{"CallRecordMismatch":{"index":0,"call":0}}}
+ },
+ {
+  "name": "error/call-summary-ready-at-disagrees",
+  "rules": ["S35"],
+  "note": "The summary's ready_at is not the outcome's.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":23000000000,"focus":null,"refs":0,"informed":true,"correct":true}
+  ],
+  "expected": {"Error":{"CallRecordMismatch":{"index":0,"call":0}}}
+ },
+ {
+  "name": "error/call-summary-refs-disagree",
+  "rules": ["S35"],
+  "note": "The step has two references and the summary one.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[{"Passive":0},{"Passive":1}],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22004000000,"cost":{"calls":1,"tokens":440,"modelled_ns":110000000,"latency_ns":2004000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22004000000,"focus":null,"refs":1,"informed":true,"correct":true}
+  ],
+  "expected": {"Error":{"CallRecordMismatch":{"index":0,"call":0}}}
+ },
+ {
+  "name": "error/call-summary-focus-disagrees",
+  "rules": ["S35"],
+  "note": "The summary names a different focus than the step.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":1,"refs":0,"informed":true,"correct":true}
+  ],
+  "expected": {"Error":{"CallRecordMismatch":{"index":0,"call":0}}}
+ },
+ {
+  "name": "error/call-summary-focus-agrees-is-fine",
+  "rules": ["S35"],
+  "note": "A summary that records the focus and agrees with the step.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0,0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":1}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":1,"refs":0,"informed":true,"correct":true}
+  ],
+  "expected": {"Verdict": {
+   "per_incident": [
+    {"id":0,"tier":"Hard","critical":false,"correct_declarations":0,"wrong_declarations":0,"first_correct_at":null,"time_to_first_correct_ns":null,"correct_by_deadline":false,"missed":true,"critical_miss":false,"escalations":1,"informed_escalations":1,"correct_escalations":1}
+   ],
+   "totals": {"incidents":{"plain":0,"hard":1,"decoy":0},"critical_incidents":0,"correct":{"plain":0,"hard":0},"missed":{"plain":0,"hard":1},"critical_missed":{"plain":0,"hard":0},"wrong_declarations":0,"decoys_dismissed":0,"decoys_alarmed":0,"decoys_silent":0,"false_alarms":0,"false_alarms_on_background":0,"escalations":{"needed":1,"unneeded":0,"background":0,"hard_incidents_escalated":1,"other_incidents_escalated":0,"informed":1,"correct":1},"reasoner":{"calls":1,"refs":0,"tokens":400,"modelled_ns":100000000}}
+  }}
+ },
+ {
+  "name": "error/extra-call-summaries",
+  "rules": ["S36"],
+  "note": "No escalation in the trajectory and one call summary.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":null,"refs":0,"informed":false,"correct":false}
+  ],
+  "expected": {"Error":{"CallCountMismatch":{"escalations":0,"calls":1}}}
+ },
+ {
+  "name": "error/one-extra-call-summary-after-an-escalation",
+  "rules": ["S36"],
+  "note": "One accepted escalation and two call summaries.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":null,"refs":0,"informed":true,"correct":true},
+   {"at":30000000000,"ready_at":32000000000,"focus":null,"refs":0,"informed":false,"correct":false}
+  ],
+  "expected": {"Error":{"CallCountMismatch":{"escalations":1,"calls":2}}}
+ },
+ {
+  "name": "error/incident-ids-are-not-positions",
+  "rules": ["S27"],
+  "note": "The second incident has id 2.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+    {"tier":"Plain","critical":false,"onset_ns":60000000000,"deadline_ns":90000000000,"truth":{"kind":{"Known":"DependencyDown"},"site":2},"id":2}
+   ],
+   "labels": [0,1]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"IncidentIdMismatch":{"index":1,"id":2}}}
+ },
+ {
+  "name": "error/decoy-with-a-true-diagnosis",
+  "rules": ["S28"],
+  "note": "A decoy whose truth is Some.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TierContradictsTruth":{"incident":0}}}
+ },
+ {
+  "name": "error/decoy-with-a-deadline",
+  "rules": ["S28"],
+  "note": "A decoy with a deadline.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":null}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TierContradictsTruth":{"incident":0}}}
+ },
+ {
+  "name": "error/decoy-that-is-critical",
+  "rules": ["S28"],
+  "note": "A critical decoy.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":true,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TierContradictsTruth":{"incident":0}}}
+ },
+ {
+  "name": "error/plain-incident-without-a-truth",
+  "rules": ["S28"],
+  "note": "A plain incident whose truth is None.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+    {"tier":"Plain","critical":false,"onset_ns":60000000000,"deadline_ns":90000000000,"truth":null}
+   ],
+   "labels": [0,1]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TierContradictsTruth":{"incident":1}}}
+ },
+ {
+  "name": "error/hard-incident-without-a-deadline",
+  "rules": ["S28"],
+  "note": "A hard incident with no deadline.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TierContradictsTruth":{"incident":0}}}
+ },
+ {
+  "name": "error/label-of-an-unknown-incident",
+  "rules": ["S29"],
+  "note": "An observation labelled with incident 3 in a truth of one incident.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0,3]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"LabelOfUnknownIncident":{"obs":1,"incident":3}}}
+ },
+ {
+  "name": "error/time-beats-outcome-at-the-same-step",
+  "rules": ["S30","S31","S37"],
+  "note": "Step 1 is both earlier than step 0 and has the wrong outcome: time is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":10000000000,"action":{"Probe":{"kind":"HealthCheck","target":3}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TimeWentBackwards":{"index":1}}}
+ },
+ {
+  "name": "error/outcome-beats-the-end",
+  "rules": ["S31","S32","S37"],
+  "note": "A mismatching outcome after the end: the mismatch is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":601000000000,"action":{"Declare":{"anchor":0,"diagnosis":null}},"outcome":{"Probed":{"probe":0,"observation":{"Probed":{"probe":{"kind":"HealthCheck","target":3},"result":"Negative"}},"ready_at":602000000000,"cost":{"probes":1,"time_ns":1000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"OutcomeMismatch":{"index":0}}}
+ },
+ {
+  "name": "error/end-beats-unknown-observation",
+  "rules": ["S32","S33","S37"],
+  "note": "An accepted declaration after the end, anchored on a missing observation: the end is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":601000000000,"action":{"Declare":{"anchor":99,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"ActionAfterEnd":{"index":0}}}
+ },
+ {
+  "name": "error/unknown-observation-beats-call-record",
+  "rules": ["S33","S35","S37"],
+  "note": "An accepted escalation with an unknown focus and no call summary: the observation is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":9}}}},"outcome":{"Escalated":{"call":0,"ready_at":22000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"UnknownObservation":{"index":0,"obs":9}}}
+ },
+ {
+  "name": "error/not-yet-emitted-beats-call-record",
+  "rules": ["S34","S35","S37"],
+  "note": "An accepted escalation about an incident that has not begun and with no call summary: not-yet-emitted is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":50000000000,"truth":{"kind":{"Hard":"Compound"},"site":5}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":5000000000,"action":{"Escalate":{"context":[],"question":{"Diagnose":{"focus":0}}}},"outcome":{"Escalated":{"call":0,"ready_at":7000000000,"cost":{"calls":1,"tokens":400,"modelled_ns":100000000,"latency_ns":2000000000}}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"ObservationNotYetEmitted":{"index":0,"obs":0}}}
+ },
+ {
+  "name": "error/truth-is-checked-before-any-step",
+  "rules": ["S28","S30","S37"],
+  "note": "An invalid truth and a trajectory that goes backwards: the truth is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TierContradictsTruth":{"incident":0}}}
+ },
+ {
+  "name": "error/incident-ids-beat-tier-and-labels",
+  "rules": ["S27","S28","S29","S37"],
+  "note": "Three truth defects at once: ids are reported first.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":{"kind":{"Known":"ConfigDrift"},"site":3},"id":4}
+   ],
+   "labels": [0,9]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"IncidentIdMismatch":{"index":0,"id":4}}}
+ },
+ {
+  "name": "error/tier-beats-labels",
+  "rules": ["S28","S29","S37"],
+  "note": "A tier defect and an unknown label together: the tier defect is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0,9]
+  },
+  "trajectory": [
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TierContradictsTruth":{"incident":0}}}
+ },
+ {
+  "name": "error/first-offending-step-is-reported",
+  "rules": ["S30","S31","S37"],
+  "note": "A good step, then going backwards at index 2 and a bad outcome at index 3: index 2.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":25000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}},
+   {"at":22000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":2}}},
+   {"at":30000000000,"action":{"Probe":{"kind":"HealthCheck","target":3}},"outcome":{"Declared":{"index":3}}}
+  ],
+  "calls": [
+  ],
+  "expected": {"Error":{"TimeWentBackwards":{"index":2}}}
+ },
+ {
+  "name": "error/step-errors-beat-the-call-count",
+  "rules": ["S30","S36","S37"],
+  "note": "A step that goes backwards and an extra call summary: the step is reported.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":40000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+   ],
+   "labels": [0]
+  },
+  "trajectory": [
+   {"at":20000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":0}}},
+   {"at":15000000000,"action":{"Declare":{"anchor":0,"diagnosis":{"kind":{"Known":"ConfigDrift"},"site":3}}},"outcome":{"Declared":{"index":1}}}
+  ],
+  "calls": [
+   {"at":20000000000,"ready_at":22000000000,"focus":null,"refs":0,"informed":false,"correct":false}
+  ],
+  "expected": {"Error":{"TimeWentBackwards":{"index":1}}}
+ }
+]
