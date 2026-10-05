@@ -4,6 +4,31 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A6c decode once — merged; the residue becomes A6d
+
+**Re-verified.** The verdict fixture was committed before the rule change and is untouched by it;
+all 2,200 rows (10 arms, 20 ms, 20 seeds × 11 classes) identical. Gates on exit codes. Rule
+counted-operation fit R² 0.995 (fit) and 0.997 (held out).
+
+**Correction to the plan text.** A6c's premise ("stored outputs are re-decoded every step") was
+wrong: stored outputs never were. What repeated was a component *re-producing* byte-identical
+output each step, which the rule decoded and charged again. The worker implemented the intent by
+content equality and kept the old rule as `Decider::without_reuse`, a test-only reference.
+
+**Effect.** Decoding fell 92%; at 20 ms mean modelled cost fell 40–47% for verifier-running arms
+and 12–34% for the others. At 250 µs `all_components` went from 29.1% to 87.0% success. The
+"failed component raises success" effect fell from 210 to 102 raised episodes but is not gone: the
+rule still re-narrows the verifier's unchanged 46-hypothesis set every step (about 10.5 ns per
+world, declared). Zeroing that term leaves 35 raised episodes, unexplained.
+
+**Meta-finding.** Two defects in a row were the shared rule repeating work on inputs that had not
+changed. Fixing them makes the baseline incremental. Change-triggered execution (recompute only
+when inputs change) is the cheapest form of selective activation, and the charter's baseline
+registry does not name it. A salience mechanism must beat it, not only periodic schedules.
+Coordinator recommendation to the user: add "change-triggered (memoized) execution — whether
+salience adds anything beyond skipping unchanged inputs" to charter section 7. Not made here,
+because the charter is normative.
+
 ## Exploration follow-ups — merged; correction to the Stage B entry
 
 **Re-verified.** Gates on exit codes; the truth table regenerated from

@@ -400,7 +400,12 @@ analysis/gordian_analysis/
 
 ### A6c Decode each component output once (required before any experiment)
 
-Found in the Stage B follow-ups (`experiments/exploration/b3-finding4.md`). The shared rule keeps
+Found in the Stage B follow-ups (`experiments/exploration/b3-finding4.md`). The premise as first
+written ("decodes every stored output on every step") was wrong; as built, the repeated work was a
+component re-producing byte-identical output each step, decoded and charged again (review log, A6c).
+The text below is the original specification, kept for the record.
+
+The shared rule keeps
 the latest output of each component and decodes, and is charged for decoding, every stored output
 on every step, whether or not it changed. Deliverable: the rule decodes an output when it arrives
 (the component ran this step) and keeps the decoded form; a stored output from an earlier step is
@@ -411,6 +416,18 @@ is identical per episode at the 20 ms budget for every arm, with cost and decisi
 allowed to change; the decode units of the rule's counted-operation weights are re-validated
 (A8b's R² bar); the B1 grid is re-run at the four budgets and `experiments/exploration/` gains a
 before/after table.
+
+### A6d Incremental narrowing in the shared rule (required before any experiment)
+
+Residue of A6c. The rule re-narrows each stored hypothesis set against the bought probe results on
+every step even when neither the stored set nor the probes changed. Deliverable: the narrowed view is
+cached and recomputed only when a stored set or the probe results change; declared cost and counted
+operations follow the work actually done. Explain the 35 episodes that A6c's zero-world-cost variant
+still raised under `Fail` (the candidate is the verifier's stale set keeping priority in the rule);
+if the explanation is a second artefact of the same kind, fix it here, and if it is a property of the
+rule's source priority, document it and leave it. Acceptance: per-episode verdict identity at 20 ms
+against a fixture committed before the change, as in A6c; counted-operation fit re-validated; the
+Fail-only comparison re-run, with every remaining raised episode explained.
 
 ### A7b Ratio interval calibration (required before EXP-001 is frozen)
 
