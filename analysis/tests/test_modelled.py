@@ -136,6 +136,21 @@ def test_a_measured_cost_is_labelled_a_secondary_check_and_reports_no_second_one
         cost_basis("bill_compute", False)
 
 
+def test_a_secondary_check_that_cannot_be_computed_does_not_hide_the_primary_result(
+    capsys, tmp_path
+):
+    # No wall time recorded for either arm: the modelled result stands, the check says why not.
+    a = write_run(tmp_path / "a", episodes(6, lambda i: 100, lambda i: 0))
+    b = write_run(tmp_path / "b", episodes(6, lambda i: 60, lambda i: 0))
+    r = analyze_relative_savings(str(a), str(b), threshold=0.2, seed=1, n_resamples=100)
+    assert r["savings"] == pytest.approx(0.4)
+    assert "unavailable" in r["secondary"][MEASURED_POLICY]
+    assert any("secondary check" in w for w in r["warnings"])
+    rc, out, err = run_cli(capsys, "compare", "--a", str(a), "--b", str(b), "--relative-savings",
+                           "--threshold", "0.2", "--seed", "1", "--resamples", "100")  # fmt: skip
+    assert rc == 0 and err == "" and "unavailable" in out
+
+
 def test_an_a_a_comparison_on_the_modelled_cost_is_exactly_zero(tmp_path):
     # Two copies of one arm: the modelled cost is deterministic, so S = 0 and the interval is a
     # point, however different their wall times are (here, wildly).

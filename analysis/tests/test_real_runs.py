@@ -101,7 +101,7 @@ def test_real_fixtures_acceptance_compare_success(capsys, fixtures_dir, tmp_path
     assert undec["ALL"] == pytest.approx(30 / 33)
 
 
-def test_real_fixtures_relative_savings_defaults_to_measured_total(capsys, fixtures_dir, tmp_path):
+def test_real_fixtures_relative_savings_defaults_to_the_modelled_cost(capsys, fixtures_dir, tmp_path):
     j = tmp_path / "o.json"
     rc, out, err = run_cli(
         capsys, "compare", "--a", str(fixtures_dir / "real_a"), "--b", str(fixtures_dir / "real_b"),
@@ -110,18 +110,49 @@ def test_real_fixtures_relative_savings_defaults_to_measured_total(capsys, fixtu
     assert rc == 0 and err == ""
     r = json.loads(j.read_text())
 
-    def total(name):
+    def modelled(name):
         return sum(
-            int(x["measured_component_ns"]) + int(x["measured_sched_ns"]) + int(x["measured_harness_ns"])
-            for x in csv_rows(fixtures_dir / name / "measured.csv")
+            int(x["modelled_component_ns"]) + int(x["modelled_sched_ns"])
+            for x in csv_rows(fixtures_dir / name / "results.csv")
         )
 
-    assert r["metric"] == "measured_total_ns" and r["cost_basis"] == "measured"
-    assert r["a"]["total"] == total("real_a") and r["b"]["total"] == total("real_b")
-    assert r["savings"] == pytest.approx(1 - total("real_b") / total("real_a"))
-    assert "Relative savings on metric: measured_total_ns" in out
-    assert "Cost basis: measured wall time, the charter's cost C" in out
+    def wall(name, columns):
+        return sum(
+            sum(int(x[c]) for c in columns) for x in csv_rows(fixtures_dir / name / "measured.csv")
+        )
+
+    assert r["metric"] == "modelled_cost_ns" and r["cost_basis"] == "modelled"
+    assert r["a"]["total"] == modelled("real_a") and r["b"]["total"] == modelled("real_b")
+    assert modelled("real_a") > 0 and modelled("real_b") > 0
+    assert r["savings"] == pytest.approx(1 - modelled("real_b") / modelled("real_a"))
+    # The measured wall time of the same pairs, recomputed from the raw files, is the secondary
+    # check: the policy part and the whole episode.
+    policy = ("measured_component_ns", "measured_sched_ns")
+    everything = (*policy, "measured_harness_ns")
+    sec = r["secondary"]
+    assert sec["measured_policy_ns"]["sum_a"] == wall("real_a", policy)
+    assert sec["measured_policy_ns"]["sum_b"] == wall("real_b", policy)
+    assert sec["measured_total_ns"]["sum_a"] == wall("real_a", everything)
+    assert sec["measured_total_ns"]["savings"] == pytest.approx(
+        1 - wall("real_b", everything) / wall("real_a", everything)
+    )
+    assert "Relative savings on metric: modelled_cost_ns" in out
+    assert "Cost basis: modelled cost, the charter's cost C" in out
+    assert "Secondary check, MEASURED wall time" in out
     assert "DECLARED" not in out
+
+
+def test_real_fixture_counts_are_present_deterministic_columns(fixtures_dir):
+    # Counted operations (A8b): present in every real row, positive when a component ran, and the
+    # modelled columns are what the harness's weights give. Not checked against expected values:
+    # they are this revision's constants.
+    run = load_run(fixtures_dir / "real_a").results
+    assert (run["ops_component"] > 0).all() and (run["ops_sched"] > 0).all()
+    assert (run["modelled_component_ns"] > 0).all() and (run["modelled_sched_ns"] > 0).all()
+    assert (run["modelled_cost_ns"] == run["modelled_component_ns"] + run["modelled_sched_ns"]).all()
+    # heuristic_only runs one component, so its counted cost is the same order as its wall time.
+    ratio = run["modelled_cost_ns"].sum() / run["measured_policy_ns"].sum()
+    assert 0.3 < ratio < 3.0, ratio
 
 
 # ---- undecided rows -----------------------------------------------------------------------
@@ -428,13 +459,27 @@ def rs(fx, *extra):
             "--relative-savings", "--threshold", "0.2", "--seed", "1", *extra)  # fmt: skip
 
 
-def test_relative_savings_default_is_measured_total(capsys, fixtures_dir, tmp_path):
+def test_relative_savings_default_is_the_modelled_cost(capsys, fixtures_dir, tmp_path):
     j = tmp_path / "o.json"
     rc, out, _ = run_cli(capsys, *rs(fixtures_dir, "--json", str(j)))
     r = json.loads(j.read_text())
+    assert rc == 0 and r["metric"] == "modelled_cost_ns" and r["cost_basis"] == "modelled"
+    # The hand-built fixtures' modelled cost was invented equal to their measured total, so the
+    # hand values that bill_total once had hold for both.
+    assert (r["a"]["total"], r["b"]["total"]) == (360.0, 270.0)
+    assert "Cost basis: modelled cost, the charter's cost C" in out
+
+
+def test_relative_savings_on_the_measured_total_is_a_labelled_secondary_check(
+    capsys, fixtures_dir, tmp_path
+):
+    j = tmp_path / "o.json"
+    rc, out, _ = run_cli(capsys, *rs(fixtures_dir, "--metric", "measured_total_ns", "--json", str(j)))
+    r = json.loads(j.read_text())
     assert rc == 0 and r["metric"] == "measured_total_ns" and r["cost_basis"] == "measured"
-    assert (r["a"]["total"], r["b"]["total"]) == (360.0, 270.0)  # the same hand values as bill_total had
-    assert "Cost basis: measured wall time, the charter's cost C" in out
+    assert (r["a"]["total"], r["b"]["total"]) == (360.0, 270.0)
+    assert "Cost basis: MEASURED wall time, a secondary check, NOT the charter's cost C" in out
+    assert "secondary" not in r
 
 
 def test_relative_savings_on_a_bill_column_needs_the_explicit_flag(capsys, fixtures_dir):
@@ -462,8 +507,9 @@ def test_relative_savings_declared_cost_is_reported_as_such(capsys, fixtures_dir
 
 
 def test_declared_cost_flag_is_refused_where_it_does_not_apply(capsys, fixtures_dir):
-    # on a measured metric (named or defaulted)
-    for extra in (["--declared-cost"], ["--metric", "measured_total_ns", "--declared-cost"]):
+    # on a modelled or measured metric (named or defaulted)
+    for extra in (["--declared-cost"], ["--metric", "measured_total_ns", "--declared-cost"],
+                  ["--metric", "modelled_cost_ns", "--declared-cost"]):  # fmt: skip
         rc, _, err = run_cli(capsys, *rs(fixtures_dir, *extra))
         assert rc == 2 and "--declared-cost applies only to a bill_* column" in err
     # outside --relative-savings
@@ -484,7 +530,7 @@ def test_relative_savings_refuses_metrics_that_are_not_costs(capsys, fixtures_di
 def test_relative_savings_on_a_partial_measured_column_is_labelled_partial(capsys, fixtures_dir):
     rc, out, _ = run_cli(capsys, *rs(fixtures_dir, "--metric", "measured_component_ns"))
     assert rc == 0
-    assert "NOT the charter's cost C (measured_total_ns is C)" in out
+    assert "NOT the charter's cost C (modelled_cost_ns is C)" in out
 
 
 def test_metric_is_required_outside_relative_savings(capsys, fixtures_dir):
@@ -497,11 +543,11 @@ def test_metric_is_required_outside_relative_savings(capsys, fixtures_dir):
 def test_undecided_episodes_stay_in_the_cost_totals(capsys, tmp_path):
     # Cost is spent whether or not the episode decided; dropping undecided rows would reward an
     # arm that burns its budget and fails. A: 3 x 100. B: two decided at 50 and one undecided at 90.
-    a = write_run(tmp_path / "a", [{"seed": s, "measured_component_ns": 100} for s in (1, 2, 3)])
+    a = write_run(tmp_path / "a", [{"seed": s, "modelled_component_ns": 100} for s in (1, 2, 3)])
     b = write_run(
         tmp_path / "b",
-        [{"seed": 1, "measured_component_ns": 50}, {"seed": 2, "measured_component_ns": 50},
-         undecided_row(3, measured_component_ns=90)],
+        [{"seed": 1, "modelled_component_ns": 50}, {"seed": 2, "modelled_component_ns": 50},
+         undecided_row(3, modelled_component_ns=90)],
     )  # fmt: skip
     j = tmp_path / "o.json"
     rc, _, _ = run_cli(capsys, "compare", "--a", str(a), "--b", str(b), "--relative-savings",
@@ -548,6 +594,29 @@ def test_real_aa_positions_are_complementary_and_the_copies_played_identically(f
     # Both orders occur: with 33 fair coin flips the chance of all one way is 2 * 2^-33.
     assert 0 < pa.sum() < 33
     check_same_episodes_same_play(a, b)  # every non-timing column agrees
+
+
+def test_real_aa_modelled_cost_is_identical_between_the_copies(capsys, fixtures_dir, tmp_path):
+    # Work item A8b's acceptance for the A/A run: the modelled cost is deterministic, so two copies
+    # of one arm have exactly the same modelled cost in every episode, whatever the host did to
+    # their wall times, and S is exactly zero with a zero-width interval.
+    root = fixtures_dir / "real_aa"
+    a, b = load_run(root / "a1").results, load_run(root / "a2").results
+    a, b = a.sort_values(["seed", "class"]), b.sort_values(["seed", "class"])
+    assert (a["modelled_cost_ns"].to_numpy() == b["modelled_cost_ns"].to_numpy()).all()
+    assert (a["ops_component"].to_numpy() == b["ops_component"].to_numpy()).all()
+    assert (a["ops_sched"].to_numpy() == b["ops_sched"].to_numpy()).all()
+    j = tmp_path / "o.json"
+    rc, out, err = run_cli(
+        capsys, "compare", "--a", str(root / "a1"), "--b", str(root / "a2"), "--relative-savings",
+        "--threshold", "0", "--seed", "1", "--json", str(j),
+    )  # fmt: skip
+    assert rc == 0 and err == ""
+    r = json.loads(j.read_text())
+    assert r["metric"] == "modelled_cost_ns"
+    assert r["savings"] == 0.0 and r["bootstrap"]["low"] == 0.0 and r["bootstrap"]["high"] == 0.0
+    # The wall time of the same two copies is not identical: that is what this replaces.
+    assert a["measured_total_ns"].to_numpy().tolist() != b["measured_total_ns"].to_numpy().tolist()
 
 
 def test_real_aa_drift_and_position_diagnostics_run_on_real_output(capsys, fixtures_dir):

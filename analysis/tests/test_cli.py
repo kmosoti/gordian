@@ -155,7 +155,7 @@ def test_power_cli_invalid_input(capsys):
 
 
 def rs_args(fx, *extra, threshold="0.20"):
-    # No --metric: relative savings defaults to measured_total_ns.
+    # No --metric: relative savings defaults to modelled_cost_ns.
     return (
         "compare", "--a", str(fx / "run_a"), "--b", str(fx / "run_b"),
         "--relative-savings", "--threshold", threshold, "--seed", "1", *extra,

@@ -2,8 +2,11 @@
   "run_id": "real-b",
   "experiment": "exploration",
   "arm": "real-b",
-  "source_revision": "b187142c9d29a5c37ac4f1256ea946a33d24403c",
-  "lockfile_sha256": "ff2a974f93d23db3acb31e5b435ec4f2dd48e41a1277e77702172cfb4cd4a449",
+  "policy": "heuristic_only",
+  "run_seed": 0,
+  "drift_block": 50,
+  "source_revision": "6feaa7abd615231ba9beee3270360f6198e5468d",
+  "lockfile_sha256": "d56e5d49f32d5bf21f91672e3a7de0019a65a91eef5bd7baeaa6b757f1757a9c",
   "toolchain": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
   "cpu_flags": [
     "fpu",
@@ -179,7 +182,9 @@
       3
     ]
   ],
-  "policy": "heuristic_only",
+  "decide": {
+    "patience_ns": 3000000000
+  },
   "limits": {
     "compute": 20000000,
     "memory": 1073741824,

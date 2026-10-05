@@ -420,10 +420,13 @@ expectations). Their `measured.csv` is invented too: component, scheduler and ha
 nanoseconds were chosen so `measured_total_ns` equals what the old `bill_total` was per row.
 
 `tests/fixtures/real_a` and `real_b` are unedited `gordian-run` output, three seeds by eleven
-classes, `heuristic_only`, from the harness at commit `b187142`:
+classes, `heuristic_only`. They and `real_aa` were regenerated for work item A8b, when
+`results.csv` gained the four counted-operation columns, from the harness at the commit that
+carries the calibrated weights (`source_revision` in each `manifest.json`); the older ones were
+made at `b187142` and `98a27bb`:
 
 ```bash
-CARGO_BUILD_JOBS=1 cargo build --release -p gordian-run
+cargo build --release -p gordian-run
 target/release/gordian-run init --run-id real-a --arm real-a --policy heuristic_only \
     --seed-start 1 --seed-count 3 --trace-sample-rate 0 --out a.json
 # real-b: the same manifest with run_id and arm real-b and limits.max_steps edited 1000 -> 20
@@ -439,8 +442,8 @@ The manifest edit is visible in `real_b/manifest.json`. The measured nanoseconds
 machine's wall times and are only used as numbers in tests, never as expected values.
 
 `tests/fixtures/real_aa` is unedited `gordian-run` output of an interleaved A/A run: two copies
-(`a1`, `a2`) of `heuristic_only`, three seeds by eleven classes, from the harness at commit
-`98a27bb`, with the drift workload every 10 episodes:
+(`a1`, `a2`) of `heuristic_only`, three seeds by eleven classes, with the drift workload every 10
+episodes:
 
 ```bash
 target/release/gordian-run init --run-id real-aa --experiment A8-AA --policy heuristic_only \
@@ -462,6 +465,14 @@ data, bootstrap reproducibility and pair-preservation, loader rejection of dupli
 unmatched keys, of unknown columns, of a results/measured key mismatch, and of an empty
 decision time on a decided row (`tests/test_real_runs.py`, also the real-output fixtures), power textbook cases and monotonicity, a Monte Carlo check of
 `achieved_power_t`, and the CLI end to end on `tests/fixtures/run_a` and `run_b` and on `real_a` and `real_b`.
+
+`tests/test_modelled.py` (A8b): the loader's modelled and measured totals; the modelled cost as
+the default of `--relative-savings` with hand-computed S and a labelled secondary check on wall
+time; an A/A on the modelled cost being exactly zero while the wall times differ; the median of
+episode ratios by hand, and unmoved by a few interrupted episodes where the ratio of totals moves a
+long way; `cost-check` passing when the model tracks wall time and failing when it does not, and
+the CLI end to end. `tests/test_real_runs.py` runs the real fixtures through the same defaults and
+checks that the two copies of `real_aa` have identical modelled cost in every episode.
 
 `tests/test_drift.py` (A8): hand-computed CV and last/first ratio and every `drift.csv`
 rejection; the stratified statistic and the paired statistic against hand-computed values

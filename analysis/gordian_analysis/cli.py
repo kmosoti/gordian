@@ -316,7 +316,14 @@ def analyze_relative_savings(
         # scheduling, which is what the modelled cost covers) and the whole episode.
         secondary = {}
         for name in (MEASURED_POLICY, MEASURED_TOTAL):
-            m = ratio_of_totals_ci(paired, name, seed, n_resamples, conf)
+            try:
+                m = ratio_of_totals_ci(paired, name, seed, n_resamples, conf)
+            except ValueError as e:
+                # The check is secondary: when it cannot be computed (no wall time recorded, an
+                # arm with none) the primary result stands and says why the check is missing.
+                secondary[name] = {"cost_basis": "measured", "unavailable": str(e)}
+                warnings.append(f"secondary check on {name} is unavailable: {e}")
+                continue
             secondary[name] = {
                 "cost_basis": "measured",
                 "savings": m.savings,
@@ -361,6 +368,9 @@ def format_relative(r: dict) -> str:
             "host interference moves it):",
         ]
         for name, m in r["secondary"].items():
+            if "unavailable" in m:
+                lines.append(f"  {name}: unavailable ({m['unavailable']})")
+                continue
             mb = m["bootstrap"]
             part = (
                 "components and scheduling, what the modelled cost covers"
