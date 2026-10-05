@@ -8,9 +8,13 @@
 //!
 //! The full statement, with the reasons for each choice, is in `POLICIES.md`. In short:
 //!
-//! 1. The rule stores the latest output of the verifier, the estimator and the heuristic. A
-//!    component that was not selected leaves its previous output in place, so an arm that skips a
-//!    component is acting on stale output and pays for it in decisions.
+//! 1. The rule stores the latest output of the verifier, the estimator and the heuristic, in
+//!    decoded form. A component that was not selected leaves its previous output in place, so an
+//!    arm that skips a component is acting on stale output and pays for it in decisions. An output
+//!    is decoded once: when one arrives that is byte for byte the entries the rule already holds
+//!    for that component (the component ran again on a window that told it nothing new), the
+//!    decoded form is kept and the decoding is neither done, declared nor counted again
+//!    (work item A6c).
 //! 2. The candidate set is the first available of: the verifier's consistent set, the
 //!    estimator's top-tied hypotheses, the heuristic's candidates. It is then narrowed by the
 //!    probe results in the working state, using the world's public `probe_result` semantics. That
@@ -41,7 +45,7 @@
 use gordian_components::ops::Unit;
 use gordian_components::payload::{HypothesisEntry, decode};
 use gordian_components::{ComponentOutput, ESTIMATOR_ID, HEURISTIC_ID, VERIFIER_ID, WorkingState};
-use gordian_core::{Bill, Charge, ComponentId, Instant, Resource};
+use gordian_core::{Bill, Charge, ComponentId, EntryKind, Instant, Resource};
 use gordian_world::physics::{ENTANGLED, probe_cost, probe_result};
 use gordian_world::{
     Action, Hypothesis, Observation, Probe, ProbeKind, ProbeResult, Service, ServiceId,
@@ -86,16 +90,23 @@ const WORLD_PS: u64 = 10_500;
 const EVAL_PS: u64 = 36_000;
 const DECODE_OUTPUT_PS: u64 = 530_000;
 const DECODE_HYPOTHESIS_PS: u64 = 115_000;
+// Work item A6c: an arriving output is compared with the entries held for its component, and only
+// decoded when they differ. The comparison is charged per byte it looks at (`COMPARED_BYTES`).
+const COMPARE_BYTE_PS: u64 = 0;
 
 // Counted operations (work item A8b; `CALIBRATION.md`, section 9). The shared rule counts the
 // work of the scheduling path it is part of, the same way a component does:
 //
 // - `calls`: one per `decide` or final call (the step's fixed cost: the cost declaration, the
 //   selection and the decision, which run once per step);
-// - `decoded_outputs`: component outputs whose entry was decoded;
+// - `decoded_outputs`: component outputs whose entry was decoded (an output byte for byte equal to
+//   the one already held for its component is not decoded: work item A6c);
 // - `decoded_ranked`: candidates in the entries decoded;
 // - `worlds`: worlds built from a candidate set, and worlds visited when a probe is scored;
-// - `probe_evals`: calls of `probe_result` made to score candidate probes, one per (probe, world).
+// - `probe_evals`: calls of `probe_result` made to score candidate probes, one per (probe, world);
+// - `compared_bytes`: payload bytes of an arriving output that were compared with the held copy
+//   (the entries' shape agreed, so the comparison had to look at the bytes; an upper bound when
+//   they turn out to differ, since the comparison stops at the first differing byte).
 //
 // What is not a unit, and why (`CALIBRATION.md`, section 9): the scan of the window for bought
 // probes (0.3 ns an observation, under 3% of a call at the largest window), the check of bought
@@ -108,8 +119,9 @@ const R_DECODED_OUTPUTS: usize = 1;
 const R_DECODED_RANKED: usize = 2;
 const R_WORLDS: usize = 3;
 const R_PROBE_EVALS: usize = 4;
+const R_COMPARED_BYTES: usize = 5;
 /// How many units the rule has.
-const R_UNITS: usize = 5;
+const R_UNITS: usize = 6;
 
 // Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
 // windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
@@ -128,6 +140,7 @@ pub const RULE_UNITS: &[Unit] = &[
     Unit { name: "decoded_ranked", weight_ps: 133000 },
     Unit { name: "worlds", weight_ps: 18600 },
     Unit { name: "probe_evals", weight_ps: 33300 },
+    Unit { name: "compared_bytes", weight_ps: 0 },
 ];
 
 /// The work the shared rule did, in the units of [`RULE_UNITS`].
@@ -191,10 +204,12 @@ pub struct CostFeatures {
     /// Observations in the window.
     pub window: u64,
     /// Outputs the previous call decoded (at most one each from the verifier, estimator and
-    /// heuristic).
+    /// heuristic). An output equal to the one already held is not decoded and is not here.
     pub decoded_outputs: u64,
     /// Hypotheses in those outputs.
     pub decoded_hypotheses: u64,
+    /// Payload bytes the previous call compared with held outputs (`COMPARE_BYTE_PS` each).
+    pub compared_bytes: u64,
     /// Hypotheses in the first available stored set.
     pub candidates: u64,
     /// Worlds of that set before narrowing.
@@ -436,6 +451,32 @@ fn score_probes_counted(
     out
 }
 
+/// What the rule holds of one component's latest output: the entries as they arrived and what
+/// they decoded to. Keeping the entries is what lets the next output be recognised as the same.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Held {
+    entries: Vec<(EntryKind, Vec<u8>)>,
+    /// What [`offered`] made of `entries`.
+    set: Option<Vec<Hypothesis>>,
+}
+
+/// Payload bytes a comparison of `arriving` with `held` has to look at: all of `arriving`'s when
+/// both have the same entries' kinds and lengths (so `==` must reach the bytes), none otherwise
+/// (it stops at a length). Counting only: nothing reads it but the rule's count and its declared
+/// cost, and it never decides whether an output is the same.
+fn compared_bytes(held: &[(EntryKind, Vec<u8>)], arriving: &[(EntryKind, Vec<u8>)]) -> u64 {
+    let same_shape = held.len() == arriving.len()
+        && held
+            .iter()
+            .zip(arriving)
+            .all(|(a, b)| a.0 == b.0 && a.1.len() == b.1.len());
+    if same_shape {
+        arriving.iter().map(|(_, bytes)| bytes.len() as u64).sum()
+    } else {
+        0
+    }
+}
+
 /// The candidate set the rule acts on, and the worlds behind it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct View {
@@ -469,13 +510,16 @@ fn offered(output: &ComponentOutput, ops: &mut RuleOps) -> Option<Vec<Hypothesis
 #[derive(Debug, Clone)]
 pub struct Decider {
     patience: Instant,
-    verifier: Option<Vec<Hypothesis>>,
-    estimator: Option<Vec<Hypothesis>>,
-    heuristic: Option<Vec<Hypothesis>>,
+    verifier: Option<Held>,
+    estimator: Option<Held>,
+    heuristic: Option<Held>,
     remaining: Remaining,
-    /// Outputs and hypotheses the last `decide` call decoded: the decoding work whose cost the
-    /// next step's declared cost carries.
-    decoded: (u64, u64),
+    /// Whether an arriving output equal to the held one is recognised and not decoded again
+    /// (work item A6c). False only for [`Decider::without_reuse`], the reference.
+    reuse: bool,
+    /// Outputs and hypotheses the last `decide` call decoded, and the bytes it compared: the work
+    /// whose cost the next step's declared cost carries.
+    decoded: (u64, u64, u64),
     /// Work done since the harness last took the count ([`Decider::take_ops`]). Written by the
     /// rule's own steps and read by nothing in them.
     ops: RuleOps,
@@ -496,8 +540,20 @@ impl Decider {
             estimator: None,
             heuristic: None,
             remaining: Remaining::default(),
-            decoded: (0, 0),
+            reuse: true,
+            decoded: (0, 0, 0),
             ops: RuleOps::ZERO,
+        }
+    }
+
+    /// The reference rule: the same rule that decodes every output it is shown, whether or not it
+    /// equals the one it holds. This is the rule as it was before work item A6c. No arm uses it;
+    /// it is the oracle the tests hold [`Decider::new`] to (every decision equal, on the same
+    /// inputs), as the plan asks for a simple reference beside anything optimised on the hot path.
+    pub fn without_reuse(config: DecideConfig) -> Self {
+        Self {
+            reuse: false,
+            ..Self::new(config)
         }
     }
 
@@ -519,6 +575,12 @@ impl Decider {
         std::mem::take(&mut self.ops)
     }
 
+    /// Take an output that arrived: the component ran this step and produced it.
+    ///
+    /// An output whose entries equal, byte for byte, the ones held for the component decodes to
+    /// what the held ones did, so the held decoded form stays and nothing is decoded (work item
+    /// A6c). Otherwise it is decoded and replaces the held one. `==` on the entries is the whole
+    /// test of "the same": the rule assumes nothing about how a component produces its output.
     fn absorb(&mut self, id: ComponentId, output: &ComponentOutput, ops: &mut RuleOps) {
         let slot = if id == VERIFIER_ID {
             &mut self.verifier
@@ -529,17 +591,31 @@ impl Decider {
         } else {
             return;
         };
-        *slot = offered(output, ops);
+        if self.reuse
+            && let Some(held) = slot.as_ref()
+        {
+            let bytes = compared_bytes(&held.entries, &output.entries);
+            ops.add(R_COMPARED_BYTES, bytes);
+            self.decoded.2 += bytes;
+            if held.entries == output.entries {
+                return;
+            }
+        }
+        let set = offered(output, ops);
         if !output.entries.is_empty() {
             self.decoded.0 += 1;
-            self.decoded.1 += slot.as_ref().map_or(0, |set| set.len() as u64);
+            self.decoded.1 += set.as_ref().map_or(0, |set| set.len() as u64);
         }
+        *slot = Some(Held {
+            entries: output.entries.clone(),
+            set,
+        });
     }
 
     fn sources(&self) -> impl Iterator<Item = &Vec<Hypothesis>> {
         [&self.verifier, &self.estimator, &self.heuristic]
             .into_iter()
-            .flatten()
+            .filter_map(|held| held.as_ref()?.set.as_ref())
     }
 
     fn view(&self, state: &WorkingState, bought: &Bought, ops: &mut RuleOps) -> Option<View> {
@@ -562,6 +638,7 @@ impl Decider {
             window: state.size() as u64,
             decoded_outputs: self.decoded.0,
             decoded_hypotheses: self.decoded.1,
+            compared_bytes: self.decoded.2,
             candidates: 0,
             worlds: 0,
             targets: 0,
@@ -612,7 +689,8 @@ impl Decider {
             .saturating_add(SCAN_PS.saturating_mul(f.window))
             .saturating_add(WORLD_PS.saturating_mul(f.worlds))
             .saturating_add(DECODE_OUTPUT_PS.saturating_mul(f.decoded_outputs))
-            .saturating_add(DECODE_HYPOTHESIS_PS.saturating_mul(f.decoded_hypotheses));
+            .saturating_add(DECODE_HYPOTHESIS_PS.saturating_mul(f.decoded_hypotheses))
+            .saturating_add(COMPARE_BYTE_PS.saturating_mul(f.compared_bytes));
         if may_probe && f.probing {
             let evaluations = ProbeKind::ALL.len() as u64 * f.targets * f.worlds;
             ps = ps.saturating_add(EVAL_PS.saturating_mul(evaluations));
@@ -660,7 +738,7 @@ impl Decider {
         last: bool,
         ops: &mut RuleOps,
     ) -> Option<Action> {
-        self.decoded = (0, 0);
+        self.decoded = (0, 0, 0);
         for (id, output) in outputs {
             self.absorb(*id, output, ops);
         }
