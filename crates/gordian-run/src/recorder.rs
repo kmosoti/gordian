@@ -166,22 +166,28 @@ pub(crate) fn class_hash(class: EpisodeClass) -> u64 {
 /// Whether the ledger of `(seed, class)` is kept at `rate`. A pure function of its arguments:
 /// the same episodes are kept in every arm. A rate of 0 keeps none and 1 keeps all.
 pub fn sampled(seed: u64, class: EpisodeClass, rate: f64) -> bool {
+    sampled_keyed(seed, class_hash(class), rate)
+}
+
+/// [`sampled`] with the class replaced by any 64-bit key, for a world with no episode classes
+/// (the stream harness).
+pub fn sampled_keyed(seed: u64, key: u64, rate: f64) -> bool {
     if rate <= 0.0 {
         return false;
     }
     if rate >= 1.0 {
         return true;
     }
-    let h = mix(mix(seed) ^ class_hash(class));
+    let h = mix(mix(seed) ^ key);
     // The top 53 bits as a fraction of 2^53.
     ((h >> 11) as f64) / ((1u64 << 53) as f64) < rate
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn phase_json(phase: Phase) -> Value {
+pub(crate) fn phase_json(phase: Phase) -> Value {
     match phase {
         Phase::Component(id) => json!({ "phase": "Component", "component": id.0 }),
         other => json!({ "phase": format!("{other:?}") }),

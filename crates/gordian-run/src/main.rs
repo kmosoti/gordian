@@ -26,12 +26,33 @@
 //! current checkout, with every episode class on the given seeds and the environment captured
 //! from the machine; edit the file for anything else before running it.
 //!
+//! # Stream runs (work item R3)
+//!
+//! ```text
+//! gordian-run --manifest FILE --out DIR          (a manifest with a `stream_params` key)
+//! gordian-run init-stream --run-id ID --arms ARMS --seed-start N --seed-count N --out FILE
+//!                         [--experiment NAME] [--trace-sample-rate R] [--run-seed N]
+//!                         [--drift-block N] [--duration-ns N]
+//! ```
+//!
+//! The first form tells a stream manifest from an episode manifest by its `stream_params` key and
+//! plays every seed once per arm, interleaved, scoring with the count scorer (the stream
+//! evaluator is wired in by the coordinator). `--arms` is a comma-separated list of `NAME=POLICY`
+//! (policy defaults; edit the manifest for parameters); `POLICY` is one of `never_escalate`,
+//! `always_escalate`, `periodic_escalation`, `change_triggered`, `threshold_score`,
+//! `random_escalation`, `oracle_escalation` (privileged: its name must contain `privileged`) and
+//! `ablation_hidden_rules` (never a comparison arm: its name must contain `ablation`). A bare
+//! `POLICY` names the arm after it, with `_privileged` appended for the oracle.
+//! `--duration-ns` shortens or lengthens the streams and rewrites the limits to match.
+//!
 //! Exit status: 0 on success, 1 when the run failed, 2 on a usage error.
 
 use gordian_run::manifest::{ArmSpec, Manifest, PRIVILEGED};
 use gordian_run::policy::PolicySpec;
 use gordian_run::policy::decide::DecideConfig;
 use gordian_run::recorder::execute_report;
+use gordian_run::stream::manifest::{StreamArmSpec, StreamLimits, StreamManifest};
+use gordian_run::stream::{CountScorer, StreamPolicySpec, execute_stream};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -43,7 +64,10 @@ const USAGE: &str = "usage:
   gordian-run init --run-id ID --policy POLICY --seed-start N --seed-count N --out FILE
                    [--experiment NAME] [--arm NAME] [--trace-sample-rate R]
                    [--components NAMES] [--every K] [--p P] [--patience-ns N]
-                   [--arms ARMS] [--run-seed N] [--drift-block N]";
+                   [--arms ARMS] [--run-seed N] [--drift-block N]
+  gordian-run init-stream --run-id ID --arms ARMS --seed-start N --seed-count N --out FILE
+                          [--experiment NAME] [--trace-sample-rate R] [--run-seed N]
+                          [--drift-block N] [--duration-ns N]";
 
 fn parse_flags(args: &[String], allowed: &[&str]) -> Result<BTreeMap<String, String>, String> {
     let mut flags = BTreeMap::new();
@@ -84,6 +108,11 @@ fn run(args: &[String]) -> Result<(), String> {
     let out = PathBuf::from(required(&flags, "out")?);
     let text = fs::read_to_string(&manifest_path)
         .map_err(|e| format!("cannot read {}: {e}", manifest_path.display()))?;
+    let probe: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", manifest_path.display()))?;
+    if probe.get("stream_params").is_some() {
+        return run_stream(&text, &manifest_path, &out);
+    }
     let manifest: Manifest =
         serde_json::from_str(&text).map_err(|e| format!("{}: {e}", manifest_path.display()))?;
     let report = execute_report(&manifest, &out).map_err(|e| e.to_string())?;
@@ -105,6 +134,107 @@ fn run(args: &[String]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn run_stream(
+    text: &str,
+    manifest_path: &std::path::Path,
+    out: &std::path::Path,
+) -> Result<(), String> {
+    let manifest: StreamManifest =
+        serde_json::from_str(text).map_err(|e| format!("{}: {e}", manifest_path.display()))?;
+    let report = execute_stream(&manifest, out, &CountScorer).map_err(|e| e.to_string())?;
+    eprintln!(
+        "gordian-run: {} segments, {} reasoner calls, {} declarations, {} sampled, {} drift blocks",
+        report.total.segments,
+        report.total.reasoner_calls,
+        report.total.declarations,
+        report.total.sampled,
+        report.drift_blocks
+    );
+    for (arm, s) in &report.arms {
+        eprintln!(
+            "gordian-run:   arm {arm}: {} segments, {} reasoner calls, {} declarations, {} step-capped",
+            s.segments, s.reasoner_calls, s.declarations, s.step_capped
+        );
+    }
+    Ok(())
+}
+
+/// The arms of `--arms` of `init-stream`: `NAME=POLICY` or a bare `POLICY`, with defaults.
+fn parse_stream_arms(list: &str) -> Result<Vec<StreamArmSpec>, String> {
+    let mut arms = Vec::new();
+    for entry in list.split(',') {
+        let entry = entry.trim();
+        let (name, id) = match entry.split_once('=') {
+            Some((name, id)) => (name.trim().to_owned(), id.trim()),
+            None => (String::new(), entry),
+        };
+        let policy = StreamPolicySpec::from_id(id)?;
+        let name = if name.is_empty() {
+            match policy.role() {
+                gordian_run::stream::arms::ArmRole::Privileged => format!("{id}_privileged"),
+                _ => id.to_owned(),
+            }
+        } else {
+            name
+        };
+        arms.push(StreamArmSpec { arm: name, policy });
+    }
+    Ok(arms)
+}
+
+fn init_stream(args: &[String]) -> Result<(), String> {
+    let flags = parse_flags(
+        args,
+        &[
+            "run-id",
+            "arms",
+            "seed-start",
+            "seed-count",
+            "out",
+            "experiment",
+            "trace-sample-rate",
+            "run-seed",
+            "drift-block",
+            "duration-ns",
+        ],
+    )?;
+    let rate = match flags.get("trace-sample-rate") {
+        Some(_) => number::<f64>(&flags, "trace-sample-rate")?,
+        None => 0.01,
+    };
+    let mut manifest = StreamManifest::for_current_environment(
+        required(&flags, "run-id")?,
+        flags
+            .get("experiment")
+            .map_or("exploration", String::as_str),
+        parse_stream_arms(required(&flags, "arms")?)?,
+        number(&flags, "seed-start")?,
+        number(&flags, "seed-count")?,
+        rate,
+    )?;
+    if flags.contains_key("duration-ns") {
+        manifest.stream_params.duration_ns = number(&flags, "duration-ns")?;
+        manifest.limits = StreamLimits::matching(
+            &manifest.stream_params,
+            manifest.limits.compute,
+            manifest.limits.step_ns,
+        );
+    }
+    if flags.contains_key("run-seed") {
+        manifest.run_seed = number(&flags, "run-seed")?;
+    }
+    if flags.contains_key("drift-block") {
+        manifest.drift_block = number(&flags, "drift-block")?;
+    }
+    manifest.validate()?;
+    let out = PathBuf::from(required(&flags, "out")?);
+    if out.exists() {
+        return Err(format!("{} already exists", out.display()));
+    }
+    fs::write(&out, manifest.canonical_json())
+        .map_err(|e| format!("cannot write {}: {e}", out.display()))
 }
 
 /// The arms of `--arms`: `NAME` plays `default`, `NAME=POLICY` plays that policy's defaults.
@@ -234,6 +364,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
         Some("init") => init(&args[1..]),
+        Some("init-stream") => init_stream(&args[1..]),
         Some(_) => run(&args),
     };
     match outcome {

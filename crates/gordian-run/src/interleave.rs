@@ -33,9 +33,16 @@ fn splitmix64(state: &mut u64) -> u64 {
 /// The 32-byte generator seed for `(run_seed, seed, class)`, expanded with splitmix64 rather
 /// than a library's seed expansion, so that no dependency's choice is a hidden input.
 pub fn order_seed(run_seed: u64, seed: u64, class: EpisodeClass) -> [u8; 32] {
+    order_seed_keyed(run_seed, seed, class_hash(class))
+}
+
+/// [`order_seed`] with the class replaced by any 64-bit key. A world with no episode classes (the
+/// stream harness) passes its own constant, so that its draws are a different stream from every
+/// episode's and the same function of `(run_seed, seed, key)`.
+pub fn order_seed_keyed(run_seed: u64, seed: u64, key: u64) -> [u8; 32] {
     let mut state = DOMAIN;
     let mut folded = 0u64;
-    for word in [run_seed, seed, class_hash(class)] {
+    for word in [run_seed, seed, key] {
         state ^= word;
         folded ^= splitmix64(&mut state);
     }
@@ -50,8 +57,13 @@ pub fn order_seed(run_seed: u64, seed: u64, class: EpisodeClass) -> [u8; 32] {
 /// The order in which the arms play `(seed, class)`: a permutation of `0..arms`, where
 /// `order[p]` is the index of the arm at position `p`. One arm gives `[0]`.
 pub fn arm_order(run_seed: u64, seed: u64, class: EpisodeClass, arms: usize) -> Vec<usize> {
+    arm_order_keyed(run_seed, seed, class_hash(class), arms)
+}
+
+/// [`arm_order`] with the class replaced by any 64-bit key (see [`order_seed_keyed`]).
+pub fn arm_order_keyed(run_seed: u64, seed: u64, key: u64, arms: usize) -> Vec<usize> {
     let mut order: Vec<usize> = (0..arms).collect();
-    let mut rng = ChaCha8Rng::from_seed(order_seed(run_seed, seed, class));
+    let mut rng = ChaCha8Rng::from_seed(order_seed_keyed(run_seed, seed, key));
     // Fisher-Yates. `(r * (i + 1)) >> 64` maps a uniform u64 to `0..=i` with a bias of at most
     // `(i + 1) / 2^64`, which no experiment here can see.
     for i in (1..order.len()).rev() {
@@ -91,6 +103,31 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_keyed_draw_with_a_classs_hash_is_that_classs_draw() {
+        // The stream harness keys its draws with a constant of its own instead of a class; the
+        // episode harness's draw is the keyed draw with the class's hash, so nothing about it
+        // changed when the keyed form was added.
+        for class in [EpisodeClass::Ambiguous, EpisodeClass::NoFault] {
+            for seed in 0..20 {
+                assert_eq!(
+                    arm_order(5, seed, class, 4),
+                    arm_order_keyed(5, seed, class_hash(class), 4)
+                );
+                assert_eq!(
+                    order_seed(5, seed, class),
+                    order_seed_keyed(5, seed, class_hash(class))
+                );
+            }
+        }
+        // A different key is a different stream.
+        assert_ne!(order_seed_keyed(5, 6, 1), order_seed_keyed(5, 6, 2));
+        let moved = (0..50u64)
+            .filter(|s| arm_order_keyed(5, *s, 1, 3) != arm_order_keyed(5, *s, 2, 3))
+            .count();
+        assert!(moved > 10, "{moved}");
     }
 
     #[test]

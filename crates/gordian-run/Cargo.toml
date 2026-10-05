@@ -29,6 +29,19 @@ gordian-eval = { path = "../gordian-eval" }
 # drives, and the hypothesis payload decoder.
 # Simpler alternative: none.
 gordian-components = { path = "../gordian-components" }
+# Requirement (work item R3): the stream world the stream harness plays: `generate`,
+# `StreamSimulator`, the actions and events, and `StreamPublic`, the only thing an arm may know
+# about it. Default features only: the hidden-state accessor is switched on by
+# `gordian-stream-reveal`, not by this manifest.
+# Simpler alternative: none; the stream harness exists to drive this world.
+gordian-stream = { path = "../gordian-stream" }
+# Requirement (work item R3): `StreamTruth` and the reasoner's call records, which the stream
+# harness builds at the start of a segment and holds aside for scoring, and from which the
+# privileged escalation arm is built. The crate carries the stream's hidden-state feature, as
+# `gordian-eval` carries the first world's, because this manifest may not (a test and
+# `scripts/check-no-oracle.sh` check that it does not).
+# Simpler alternative: enabling the feature here, which both guards forbid.
+gordian-stream-reveal = { path = "../gordian-stream-reveal" }
 # Requirement: the `random_matched` arm draws from a seeded, reproducible ChaCha8 stream (plan
 # section 4 permits rand_chacha for this). The same crate and version the world already uses, so
 # it adds nothing to the lockfile.

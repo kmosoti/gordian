@@ -227,7 +227,7 @@ impl EpisodeOps {
 }
 
 /// Picoseconds to the nearest nanosecond, saturating.
-fn ps_to_ns(ps: u64) -> u64 {
+pub(crate) fn ps_to_ns(ps: u64) -> u64 {
     ps.saturating_add(500) / 1000
 }
 
@@ -356,17 +356,17 @@ pub fn public_window(spec: &EpisodeSpec, capacity: usize) -> WorkingState {
     state
 }
 
-fn elapsed_ns(since: Wall) -> u64 {
+pub(crate) fn elapsed_ns(since: Wall) -> u64 {
     u64::try_from(since.elapsed().as_nanos()).unwrap_or(u64::MAX)
 }
 
-fn timed<T>(f: impl FnOnce() -> T) -> (T, u64) {
+pub(crate) fn timed<T>(f: impl FnOnce() -> T) -> (T, u64) {
     let started = Wall::now();
     let value = f();
     (value, elapsed_ns(started))
 }
 
-fn provenance(producer: String, inputs: Vec<EntryId>) -> Provenance {
+pub(crate) fn provenance(producer: String, inputs: Vec<EntryId>) -> Provenance {
     Provenance {
         producer,
         producer_version: HARNESS_VERSION.to_owned(),
@@ -374,12 +374,12 @@ fn provenance(producer: String, inputs: Vec<EntryId>) -> Provenance {
     }
 }
 
-fn payload(value: &impl Serialize) -> Result<Vec<u8>, HarnessError> {
+pub(crate) fn payload(value: &impl Serialize) -> Result<Vec<u8>, HarnessError> {
     serde_json::to_vec(value).map_err(|e| HarnessError::Payload(e.to_string()))
 }
 
 /// Declared `Resource::Time` in `charges`, saturating.
-fn time_of(charges: &[Charge]) -> u64 {
+pub(crate) fn time_of(charges: &[Charge]) -> u64 {
     charges
         .iter()
         .filter(|c| c.resource == Resource::Time)
@@ -387,7 +387,7 @@ fn time_of(charges: &[Charge]) -> u64 {
 }
 
 /// Declared `Resource::Compute` in `charges`, saturating.
-fn compute_of(charges: &[Charge]) -> u64 {
+pub(crate) fn compute_of(charges: &[Charge]) -> u64 {
     charges
         .iter()
         .filter(|c| c.resource == Resource::Compute)
@@ -398,7 +398,7 @@ fn compute_of(charges: &[Charge]) -> u64 {
 /// declares a `Resource::Time` charge (even a zero one) takes that long. One that declares none
 /// takes its declared `Resource::Compute` nanoseconds: the A4 review decision that a component's
 /// compute nanoseconds are its time (`HARNESS.md`, section 5).
-fn busy_ns(charges: &[Charge]) -> u64 {
+pub(crate) fn busy_ns(charges: &[Charge]) -> u64 {
     if charges.iter().any(|c| c.resource == Resource::Time) {
         time_of(charges)
     } else {
@@ -422,12 +422,12 @@ fn slowed(charges: Vec<Charge>, factor: u32) -> Vec<Charge> {
 }
 
 /// Whether `charges` would be accepted by `budget`. Changes nothing.
-fn affordable(budget: &Budget, charges: &[Charge]) -> bool {
+pub(crate) fn affordable(budget: &Budget, charges: &[Charge]) -> bool {
     budget.clone().charge_all(charges).is_ok()
 }
 
 /// What happened to a recorded charge.
-enum Charged {
+pub(crate) enum Charged {
     /// Accepted; the bill is debited. The id is the accounting entry.
     Accepted(EntryId),
     /// Refused by the bill; the bill is unchanged. The id is the accounting entry that records
@@ -435,7 +435,7 @@ enum Charged {
     Refused(EntryId),
 }
 
-fn charge(
+pub(crate) fn charge(
     bill: &mut Bill,
     ledger: &mut Ledger,
     at: Instant,
@@ -456,7 +456,7 @@ fn charge(
     }
 }
 
-fn append(
+pub(crate) fn append(
     ledger: &mut Ledger,
     at: Instant,
     kind: EntryKind,
@@ -472,7 +472,7 @@ fn append(
 /// scheduling call, in the order of their unit tables. The counts are deterministic and the
 /// nanoseconds are not, and the entry holds both so that what a call did and what it took can be
 /// read together (the in-situ calibration, `examples/calibrate_insitu.rs`, does exactly that).
-fn record_timing(
+pub(crate) fn record_timing(
     ledger: &mut Ledger,
     at: Instant,
     what: &str,

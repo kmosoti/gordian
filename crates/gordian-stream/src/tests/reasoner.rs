@@ -578,44 +578,6 @@ fn a_hard_incident_and_a_decoy_are_answered_alike_when_no_public_evidence_separa
 // ---- Cost
 
 #[test]
-fn a_call_costs_at_least_ten_thousand_typical_component_calls() {
-    use gordian_components::WorkingState;
-    use gordian_core::Resource;
-    let p = StreamParams::new(0);
-    let (s, _) = with_truth(&p);
-    let public = s.public_info().world_public_info();
-    let mut costs: Vec<u64> = Vec::new();
-    for window in [16usize, 64, 256] {
-        let mut state = WorkingState::new(public.clone(), window);
-        for (at, o) in s.events().iter().take(window) {
-            state.admit(*at, o.clone());
-        }
-        for c in gordian_run::standard_components() {
-            let ns: u64 = c
-                .declared_cost(&state)
-                .iter()
-                .filter(|ch| ch.resource == Resource::Compute)
-                .map(|ch| ch.amount)
-                .sum();
-            costs.push(ns);
-        }
-    }
-    costs.sort();
-    let typical = costs[costs.len() / 2];
-    let base = p.reasoner.cost.cost(0).modelled_ns;
-    println!(
-        "median component call {typical} ns, reasoner base {base} ns, ratio {}",
-        base / typical
-    );
-    assert!(typical > 0);
-    assert!(base >= 10_000 * typical, "base {base} vs typical {typical}");
-    assert!(base >= 1_000 * *costs.last().unwrap());
-    let c100 = p.reasoner.cost.cost(100);
-    assert!(c100.modelled_ns > 3 * base && c100.tokens == 400 + 100 * 20);
-    assert_eq!(c100.calls, 1);
-}
-
-#[test]
 fn cost_is_charged_before_the_answer_exists_and_a_refused_call_leaves_no_trace() {
     let mut params = open_params(7, (-1.0, 5.0, 2.0));
     params.budget.reasoner_ns = params.reasoner.cost.cost(3).modelled_ns;
