@@ -43,13 +43,12 @@ const C_PS: u64 = 156_000;
 
 // Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
 //
-// - `calls`: one per call;
+// - `calls`: one per call, which always emits one entry;
 // - `scanned`: observations touched: the copy of the window into the checker's slice, and the
 //   checker's first pass (so twice the window length unless the pass ends early);
 // - `mask_steps`, `worlds`, `evals`, `probe_evals`: the checker's own counts
 //   (`physics::CheckerOps`): dependents-mask steps, candidate worlds tried, evaluations of a
 //   world against an observation, and against a probe result;
-// - `entries`: entries emitted (always 1);
 // - `ranked`: hypotheses written into the entry, which is the whole consistent set.
 const U_CALLS: usize = 0;
 const U_SCANNED: usize = 1;
@@ -57,8 +56,7 @@ const U_MASK_STEPS: usize = 2;
 const U_WORLDS: usize = 3;
 const U_EVALS: usize = 4;
 const U_PROBE_EVALS: usize = 5;
-const U_ENTRIES: usize = 6;
-const U_RANKED: usize = 7;
+const U_RANKED: usize = 6;
 
 /// The verifier's units and their weights.
 pub const UNITS: &[Unit] = &[
@@ -84,10 +82,6 @@ pub const UNITS: &[Unit] = &[
     },
     Unit {
         name: "probe_evals",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "entries",
         weight_ps: 0,
     },
     Unit {
@@ -132,7 +126,6 @@ impl Component for ConsistencyVerifier {
         ops.add(U_WORLDS, checked.worlds_tried);
         ops.add(U_EVALS, checked.evals);
         ops.add(U_PROBE_EVALS, checked.probe_evals);
-        ops.add(U_ENTRIES, 1);
         if set.is_empty() {
             let entry = HypothesisEntry::EvidenceDamaged {
                 source: "verifier".to_string(),

@@ -68,24 +68,26 @@ const C_PS: u64 = 101_000;
 //
 // - `calls`: one per call (the entry's envelope: it always lists the top five);
 // - `scanned`: observations the one pass over the window looked at;
-// - `graph`: services visited plus dependencies read when the ancestor sets are built;
 // - `permit_scans`: informative observations, each of which scans the five fault kinds' permit
 //   tables at its own service;
 // - `ancestors`: ancestors examined to find the sites an observation at a dependent is
 //   anchored at;
 // - `site_updates`: anchored sites updated, each scanning the five kinds again;
 // - `probe_evals`: calls of `probe_result` made to judge a probe result against a hypothesis;
-// - `hyp_visits`: hypotheses visited by a probe result or a correction (each visits all of them);
-// - `hypotheses`: hypotheses scored and ranked (`1 + 5 * services`).
+// - `hypotheses`: hypotheses scored (`1 + 5 * services`), which is also what the ancestor sets
+//   built from the graph scale with (services, a factor of five apart), so the graph has no unit
+//   of its own;
+// - `sort_cmps`: comparisons the ranking sort made, which follow how much the scores differ: a
+//   window with nothing informative leaves every score equal and the sort finds that out in one
+//   pass, while a window that separates the hypotheses makes it work.
 const U_CALLS: usize = 0;
 const U_SCANNED: usize = 1;
-const U_GRAPH: usize = 2;
-const U_PERMIT_SCANS: usize = 3;
-const U_ANCESTORS: usize = 4;
-const U_SITE_UPDATES: usize = 5;
-const U_PROBE_EVALS: usize = 6;
-const U_HYP_VISITS: usize = 7;
-const U_HYPOTHESES: usize = 8;
+const U_PERMIT_SCANS: usize = 2;
+const U_ANCESTORS: usize = 3;
+const U_SITE_UPDATES: usize = 4;
+const U_PROBE_EVALS: usize = 5;
+const U_HYPOTHESES: usize = 6;
+const U_SORT_CMPS: usize = 7;
 
 /// The estimator's units and their weights.
 pub const UNITS: &[Unit] = &[
@@ -95,10 +97,6 @@ pub const UNITS: &[Unit] = &[
     },
     Unit {
         name: "scanned",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "graph",
         weight_ps: 0,
     },
     Unit {
@@ -118,11 +116,11 @@ pub const UNITS: &[Unit] = &[
         weight_ps: 0,
     },
     Unit {
-        name: "hyp_visits",
+        name: "hypotheses",
         weight_ps: 0,
     },
     Unit {
-        name: "hypotheses",
+        name: "sort_cmps",
         weight_ps: 0,
     },
 ];
@@ -207,7 +205,6 @@ fn tally(input: &WorkingState, ops: &mut Ops) -> (Vec<u32>, u32) {
     // higher to lower index, so one forward pass closes the relation.
     let mut anc = vec![0u64; s_count];
     for (v, service) in services.iter().enumerate() {
-        ops.add(U_GRAPH, 1 + service.depends_on.len() as u64);
         for d in &service.depends_on {
             let di = d.index();
             if di < v && di < 64 {
@@ -344,7 +341,6 @@ fn tally(input: &WorkingState, ops: &mut Ops) -> (Vec<u32>, u32) {
                 }
                 let drift_hash = drift[target].unwrap_or(start.wrapping_add(1));
                 if consistent_drift {
-                    ops.add(U_HYP_VISITS, permits.len() as u64);
                     let mut evaluated = 0u64;
                     for (i, count) in permits.iter_mut().enumerate() {
                         if probe_permits(
@@ -366,7 +362,6 @@ fn tally(input: &WorkingState, ops: &mut Ops) -> (Vec<u32>, u32) {
                 if site.index() >= s_count {
                     continue;
                 }
-                ops.add(U_HYP_VISITS, permits.len() as u64);
                 for (i, count) in permits.iter_mut().enumerate() {
                     let at_site = hypothesis_at(i).is_some_and(|(_, s)| s == *site);
                     if at_site == *resolved {
@@ -423,8 +418,14 @@ impl Component for CountEstimator {
         ops.add(U_HYPOTHESES, scores.len() as u64);
         let mut order: Vec<usize> = (0..scores.len()).collect();
         // Best score first; equal scores keep hypothesis order. Indices are unique, so the sort
-        // is total and the result does not depend on the sort algorithm.
-        order.sort_unstable_by_key(|i| (Reverse(scores[*i].1), *i));
+        // is total and the result does not depend on the sort algorithm. The comparator counts
+        // its own calls.
+        let mut comparisons = 0u64;
+        order.sort_unstable_by(|a, b| {
+            comparisons += 1;
+            (Reverse(scores[*a].1), *a).cmp(&(Reverse(scores[*b].1), *b))
+        });
+        ops.add(U_SORT_CMPS, comparisons);
         let top = scores[order[0]].1;
         let tied = order.iter().take_while(|i| scores[**i].1 == top).count() as u32;
         let ranked: Vec<Ranked> = order

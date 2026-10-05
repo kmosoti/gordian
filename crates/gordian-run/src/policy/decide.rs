@@ -91,17 +91,18 @@ const DECODE_HYPOTHESIS_PS: u64 = 115_000;
 // work of the scheduling path it is part of, the same way a component does:
 //
 // - `calls`: one per `decide` or final call (the step's fixed cost: the cost declaration, the
-//   selection and the decision, which run once per step);
+//   selection and the decision, which run once per step; the cost declaration reads the stored
+//   candidate set, which is as large as the worlds built from it, so it has no unit of its
+//   own);
 // - `scanned`: observations looked at when the probe results and corrections are collected;
 // - `decoded_outputs`: component outputs whose entry was decoded;
 // - `decoded_ranked`: candidates in the entries decoded;
 // - `worlds`: worlds built from a candidate set, and worlds visited when a probe is scored;
-// - `agree_checks`: probe results checked against a world;
-// - `drift_steps`: probe results scanned to find the drifted hash a check needs;
+// - `agree_steps`: probe results checked against a world, and probe results scanned to find the
+//   drifted hash a check needs;
 // - `probe_evals`: calls of `probe_result` made to score candidate probes;
 // - `group_steps`: steps of grouping worlds by the result a probe gives them;
-// - `probes_scored`: candidate probes scored and compared (service times probe kind);
-// - `cost_candidates`: hypotheses of the stored set read to declare the step's cost.
+// - `probes_scored`: candidate probes scored and compared (service times probe kind).
 //
 // Corrections are not counted: the rule never buys one, and a check of one is a comparison of two
 // integers.
@@ -110,12 +111,12 @@ const R_SCANNED: usize = 1;
 const R_DECODED_OUTPUTS: usize = 2;
 const R_DECODED_RANKED: usize = 3;
 const R_WORLDS: usize = 4;
-const R_AGREE_CHECKS: usize = 5;
-const R_DRIFT_STEPS: usize = 6;
-const R_PROBE_EVALS: usize = 7;
-const R_GROUP_STEPS: usize = 8;
-const R_PROBES_SCORED: usize = 9;
-const R_COST_CANDIDATES: usize = 10;
+const R_AGREE_STEPS: usize = 5;
+const R_PROBE_EVALS: usize = 6;
+const R_GROUP_STEPS: usize = 7;
+const R_PROBES_SCORED: usize = 8;
+/// How many units the rule has.
+const R_UNITS: usize = 9;
 
 /// The shared rule's units and their weights.
 pub const RULE_UNITS: &[Unit] = &[
@@ -140,11 +141,7 @@ pub const RULE_UNITS: &[Unit] = &[
         weight_ps: 0,
     },
     Unit {
-        name: "agree_checks",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "drift_steps",
+        name: "agree_steps",
         weight_ps: 0,
     },
     Unit {
@@ -159,10 +156,6 @@ pub const RULE_UNITS: &[Unit] = &[
         name: "probes_scored",
         weight_ps: 0,
     },
-    Unit {
-        name: "cost_candidates",
-        weight_ps: 0,
-    },
 ];
 
 /// The work the shared rule did, in the units of [`RULE_UNITS`].
@@ -173,12 +166,14 @@ pub const RULE_UNITS: &[Unit] = &[
 /// harness after a call ([`crate::policy::Policy::take_ops`]), never passed to a policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuleOps {
-    counts: [u64; 11],
+    counts: [u64; R_UNITS],
 }
 
 impl RuleOps {
     /// No work.
-    pub const ZERO: RuleOps = RuleOps { counts: [0; 11] };
+    pub const ZERO: RuleOps = RuleOps {
+        counts: [0; R_UNITS],
+    };
 
     fn add(&mut self, unit: usize, n: u64) {
         self.counts[unit] = self.counts[unit].saturating_add(n);
@@ -320,7 +315,7 @@ fn drift_hash(
 ) -> Option<u64> {
     let start = services.get(target.index())?.config_hash;
     let seen = bought.probes.iter().find_map(|(probe, result)| {
-        ops.add(R_DRIFT_STEPS, 1);
+        ops.add(R_AGREE_STEPS, 1);
         match result {
             ProbeResult::ConfigHash(h)
                 if probe.kind == ProbeKind::ConfigSnapshot
@@ -352,7 +347,7 @@ fn probe_agrees(
     bought: &Bought,
     ops: &mut RuleOps,
 ) -> bool {
-    ops.add(R_AGREE_CHECKS, 1);
+    ops.add(R_AGREE_STEPS, 1);
     let Some(drift) = drift_hash(services, probe.target, bought, ops) else {
         // A probe at a service that is not in the graph says nothing about these worlds.
         return true;
@@ -569,15 +564,6 @@ impl Decider {
         std::mem::take(&mut self.ops)
     }
 
-    /// Count the work of declaring the step's cost, which reads the stored candidate set
-    /// ([`Decider::cost_features`]). Called once per step from `select`, which is timed with the
-    /// cost declaration, because `declared_cost` takes `&self` and the harness calls it again
-    /// outside the timed region.
-    pub fn count_cost_declaration(&mut self) {
-        let candidates = self.sources().next().map_or(0, |set| set.len() as u64);
-        self.ops.add(R_COST_CANDIDATES, candidates);
-    }
-
     fn absorb(&mut self, id: ComponentId, output: &ComponentOutput, ops: &mut RuleOps) {
         let slot = if id == VERIFIER_ID {
             &mut self.verifier
@@ -696,8 +682,6 @@ impl Decider {
     /// the first-ranked, and with none it abstains. It never buys a probe: at the deadline the
     /// rule does not either.
     pub fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
-        // The final call's cost declaration reads the stored set too, and is timed with it.
-        self.count_cost_declaration();
         self.decide_at(state, &[], true)
     }
 

@@ -210,7 +210,6 @@ impl<S: Selector> Policy for Arm<S> {
 
     fn select(&mut self, state: &WorkingState, bill: &Bill) -> Vec<ComponentId> {
         self.decider.note_remaining(Remaining::of(bill));
-        self.decider.count_cost_declaration();
         self.selector.select(state, bill)
     }
 

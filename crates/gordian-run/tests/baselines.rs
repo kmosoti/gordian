@@ -160,7 +160,6 @@ impl Policy for Mirror {
     }
     fn select(&mut self, state: &WorkingState, bill: &Bill) -> Vec<ComponentId> {
         self.reference.note_remaining(Remaining::of(bill));
-        self.reference.count_cost_declaration();
         self.inner.select(state, bill)
     }
     fn decide(

@@ -61,13 +61,15 @@ const C_PS: u64 = 2_710;
 // - `calls`: one per call;
 // - `scanned`: observations the one pass over the window looked at;
 // - `records`: prior records whose signature was compared with the window's;
-// - `entries`: entries emitted (0 or 1; a window with no symptom or no matching record emits none);
-// - `ranked`: candidates written into the entry.
+// - `entries`: entries emitted (0 or 1; a window with no symptom or no matching record emits none).
+//
+// The candidates in the entry are not a unit: the lookup ranks the kinds its matching records
+// vote for, which is one kind in every window of the calibration and at most five, so they cannot
+// be told apart from the entry itself.
 const U_CALLS: usize = 0;
 const U_SCANNED: usize = 1;
 const U_RECORDS: usize = 2;
 const U_ENTRIES: usize = 3;
-const U_RANKED: usize = 4;
 
 /// The lookup's units and their weights.
 pub const UNITS: &[Unit] = &[
@@ -85,10 +87,6 @@ pub const UNITS: &[Unit] = &[
     },
     Unit {
         name: "entries",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "ranked",
         weight_ps: 0,
     },
 ];
@@ -183,7 +181,6 @@ impl Component for PriorRecordLookup {
             return (ComponentOutput::default(), ops);
         };
         ops.add(U_ENTRIES, 1);
-        ops.add(U_RANKED, ranked.len() as u64);
         let tied = ranked.iter().take_while(|r| r.score == Some(top)).count() as u32;
         let proposal: Option<Hypothesis> = unique_best(&ranked, tied);
         let mut requests = Vec::new();
