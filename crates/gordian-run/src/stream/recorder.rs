@@ -293,14 +293,15 @@ pub fn execute_stream(
         for (position, index) in order.iter().copied().enumerate() {
             let spec = &manifest.arms[index];
             let arm = &mut arms[index];
-            let record = match privileged_factory(&spec.policy, &manifest.rung) {
+            let rung = manifest.rung_for(spec);
+            let record = match privileged_factory(&spec.policy, &rung) {
                 Some(factory) => {
                     run_segment_privileged(&params, &factory, &manifest.limits, &manifest.exchange)
                 }
                 None => run_segment(
                     &params,
                     &|public| {
-                        build_public(&spec.policy, &manifest.rung, public, &spec.arm, seed)
+                        build_public(&spec.policy, &rung, public, &spec.arm, seed)
                             .expect("a policy that is not privileged builds a public arm")
                     },
                     &manifest.limits,

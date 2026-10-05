@@ -18,6 +18,7 @@
 //! The binary tells a stream manifest from an episode manifest by its `stream_params` key.
 
 use super::arms::ArmRole;
+use super::arms::context::ContextBuilder;
 use super::arms::rung::RungConfig;
 use super::spec::StreamPolicySpec;
 use crate::manifest::{Environment, IsolationSpec, RatioTolerance};
@@ -146,6 +147,12 @@ pub struct StreamArmSpec {
     pub arm: String,
     /// The arm's policy and its parameters.
     pub policy: StreamPolicySpec,
+    /// How the shared rung builds this arm's escalation contexts (work item R6), when the arm
+    /// names a builder; otherwise the manifest's `rung.context`, which is `rung` unless set. Not
+    /// written when absent, so a manifest written before builders existed is the same text as one
+    /// written now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<ContextBuilder>,
 }
 
 /// Everything that determines a stream run.
@@ -261,6 +268,11 @@ impl StreamManifest {
                 return Err(format!("arm name {:?} is used twice", spec.arm));
             }
             validate_arm(&spec.arm, &spec.policy)?;
+            if let Some(context) = &spec.context {
+                context
+                    .validate(self.stream_params.normalized().max_context)
+                    .map_err(|e| format!("arm {:?}: {e}", spec.arm))?;
+            }
         }
         if self.seeds.is_empty() {
             return Err("seeds is empty".to_owned());
@@ -293,6 +305,10 @@ impl StreamManifest {
             return Err("isolation needs a positive quota, memory and timeout".to_owned());
         }
         self.rung.validate()?;
+        self.rung
+            .context
+            .validate(self.stream_params.normalized().max_context)
+            .map_err(|e| format!("rung: {e}"))?;
         self.limits.validate()?;
         let expected = self
             .limits
@@ -304,6 +320,15 @@ impl StreamManifest {
             ));
         }
         Ok(())
+    }
+
+    /// The cheap rung of `spec`'s arm: the manifest's, with the arm's own context builder in place
+    /// of the manifest's when it names one. The one place an arm's rung is derived.
+    pub fn rung_for(&self, spec: &StreamArmSpec) -> RungConfig {
+        RungConfig {
+            context: spec.context.unwrap_or(self.rung.context),
+            ..self.rung.clone()
+        }
     }
 
     /// The role of arm `index`.

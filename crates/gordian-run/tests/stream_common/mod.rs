@@ -44,6 +44,7 @@ pub fn manifest(
         .map(|(name, policy)| StreamArmSpec {
             arm: (*name).to_owned(),
             policy: StreamPolicySpec::from_id(policy).unwrap(),
+            context: None,
         })
         .collect();
     let stream_params = params(0, duration_s);
@@ -71,7 +72,7 @@ pub fn manifest(
 }
 
 /// Every arm of the registry, by id.
-pub const ALL_ARMS: [&str; 11] = [
+pub const ALL_ARMS: [&str; 12] = [
     "never_escalate",
     "always_escalate",
     "periodic_escalation",
@@ -82,13 +83,14 @@ pub const ALL_ARMS: [&str; 11] = [
     "oracle_escalation",
     "oracle_selection",
     "oracle_decoy",
+    "oracle_selection_context",
     "ablation_hidden_rules",
 ];
 
 /// The arm name a manifest must give `policy`.
 pub fn arm_name(policy: &str) -> String {
     match policy {
-        "oracle_escalation" | "oracle_selection" | "oracle_decoy" => {
+        "oracle_escalation" | "oracle_selection" | "oracle_decoy" | "oracle_selection_context" => {
             format!("{policy}_privileged")
         }
         other => other.to_owned(),
@@ -108,15 +110,24 @@ pub fn play(
     spec: &StreamPolicySpec,
     limits: &StreamLimits,
 ) -> Result<SegmentRecord, StreamHarnessError> {
-    let rung = RungConfig::default();
+    play_with_rung(params, spec, limits, &RungConfig::default())
+}
+
+/// [`play`] with the shared cheap rung `rung` (a context builder, for one).
+pub fn play_with_rung(
+    params: &StreamParams,
+    spec: &StreamPolicySpec,
+    limits: &StreamLimits,
+    rung: &RungConfig,
+) -> Result<SegmentRecord, StreamHarnessError> {
     let exchange = Exchange::default();
     let seed = params.seed;
-    match privileged_factory(spec, &rung) {
+    match privileged_factory(spec, rung) {
         Some(factory) => run_segment_privileged(params, &factory, limits, &exchange),
         None => run_segment(
             params,
             &|public: &StreamPublic| {
-                build_public(spec, &rung, public, &spec.id().0, seed).expect("a public arm")
+                build_public(spec, rung, public, &spec.id().0, seed).expect("a public arm")
             },
             limits,
             &exchange,

@@ -12,6 +12,7 @@
 //! {"policy": "always_escalate", "delay_ns": 8000000000}
 //! {"policy": "contradiction_escalation", "delay_ns": 8000000000, "persist_ns": 2000000000}
 //! {"policy": "oracle_selection", "delay_ns": 8000000000}
+//! {"policy": "oracle_selection_context", "delay_ns": 8000000000}
 //! ```
 //!
 //! `delay_ns` (`always_escalate`, `random_escalation`, `contradiction_escalation` and
@@ -30,8 +31,8 @@
 //!
 //! # Roles
 //!
-//! Five arms are not comparison arms. `oracle_escalation`, `oracle_selection` and `oracle_decoy`
-//! are privileged (they are built from the stream's truth) and `ablation_hidden_rules` encodes
+//! Six arms are not comparison arms. `oracle_escalation`, `oracle_selection`,
+//! `oracle_selection_context` (R6's supplementary ceiling) and `oracle_decoy` are privileged (they are built from the stream's truth) and `ablation_hidden_rules` encodes
 //! the hidden rules of the stream's hard incidents. [`StreamManifest::validate`](super::manifest::StreamManifest::validate) rejects a
 //! privileged arm whose name lacks `privileged` and an ablation arm whose name lacks `ablation`,
 //! so that every output that carries the arm's name says what it is, and every `results.csv` row
@@ -64,6 +65,7 @@ pub const KNOWN: &[&str] = &[
     privileged::ID,
     privileged::SELECTION_ID,
     privileged::DECOY_ID,
+    privileged::SELECTION_CONTEXT_ID,
     ablation::ID,
 ];
 
@@ -114,6 +116,12 @@ pub enum StreamPolicySpec {
     },
     /// `oracle_decoy`: privileged; dismisses exactly the decoy anomalies.
     OracleDecoy,
+    /// `oracle_selection_context` (R6, supplementary): privileged; escalates exactly the hard
+    /// anomalies with the decisive evidence delivered so far as the context.
+    OracleSelectionContext {
+        /// Nanoseconds after notice before a hard anomaly is escalated.
+        delay_ns: u64,
+    },
     /// `ablation_hidden_rules`: encodes the stream's hidden rules.
     Ablation,
 }
@@ -178,6 +186,12 @@ impl StreamPolicySpec {
             privileged::DECOY_ID => {
                 only(&[])?;
                 Self::OracleDecoy
+            }
+            privileged::SELECTION_CONTEXT_ID => {
+                only(&["delay_ns"])?;
+                Self::OracleSelectionContext {
+                    delay_ns: delay_ns.unwrap_or(0),
+                }
             }
             contradiction::ID => {
                 only(&["delay_ns", "persist_ns"])?;
@@ -244,6 +258,7 @@ impl StreamPolicySpec {
             Self::Oracle => privileged::ID,
             Self::OracleSelection { .. } => privileged::SELECTION_ID,
             Self::OracleDecoy => privileged::DECOY_ID,
+            Self::OracleSelectionContext { .. } => privileged::SELECTION_CONTEXT_ID,
             Self::Ablation => ablation::ID,
         }
     }
@@ -256,7 +271,10 @@ impl StreamPolicySpec {
     /// What the arm is: its name must say so unless it is a comparison arm.
     pub fn role(&self) -> ArmRole {
         match self {
-            Self::Oracle | Self::OracleSelection { .. } | Self::OracleDecoy => ArmRole::Privileged,
+            Self::Oracle
+            | Self::OracleSelection { .. }
+            | Self::OracleSelectionContext { .. }
+            | Self::OracleDecoy => ArmRole::Privileged,
             Self::Ablation => ArmRole::Ablation,
             _ => ArmRole::Comparison,
         }
@@ -321,7 +339,9 @@ impl Serialize for StreamPolicySpec {
                 tagged(None, None, None, None, delay(*delay_ns), delay(*persist_ns))
                     .serialize(serializer)
             }
-            Self::OracleSelection { delay_ns } if *delay_ns != 0 => {
+            Self::OracleSelection { delay_ns } | Self::OracleSelectionContext { delay_ns }
+                if *delay_ns != 0 =>
+            {
                 tagged(None, None, None, None, Some(*delay_ns), None).serialize(serializer)
             }
             other => serializer.serialize_str(other.id_str()),
@@ -357,6 +377,9 @@ pub fn privileged_factory(
         StreamPolicySpec::Oracle => Some(privileged::OracleFactory::new(rung.clone())),
         StreamPolicySpec::OracleSelection { delay_ns } => Some(
             privileged::OracleFactory::selection(rung.clone(), *delay_ns),
+        ),
+        StreamPolicySpec::OracleSelectionContext { delay_ns } => Some(
+            privileged::OracleFactory::selection_context(rung.clone(), *delay_ns),
         ),
         StreamPolicySpec::OracleDecoy => Some(privileged::OracleFactory::decoy(rung.clone())),
         _ => None,
@@ -411,6 +434,7 @@ pub fn build_public(
         )),
         StreamPolicySpec::Oracle
         | StreamPolicySpec::OracleSelection { .. }
+        | StreamPolicySpec::OracleSelectionContext { .. }
         | StreamPolicySpec::OracleDecoy => return None,
     })
 }

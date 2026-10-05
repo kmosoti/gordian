@@ -1,0 +1,7 @@
+setting,r6_arm,r5_arm,results_equal_but_run_id,incidents_equal_but_run_id,streams
+b2.5-rho0,sel_rung_privileged,oracle_selection_d14_privileged,True,True,200
+b2.5-rho0.7,sel_rung_privileged,oracle_selection_d16_privileged,True,True,200
+b5-rho0,sel_rung_privileged,oracle_selection_d16_privileged,True,True,200
+b5-rho0.7,sel_rung_privileged,oracle_selection_d16_privileged,True,True,200
+b8-rho0,sel_rung_privileged,oracle_selection_d16_privileged,True,True,200
+b8-rho0.7,sel_rung_privileged,oracle_selection_d16_privileged,True,True,200

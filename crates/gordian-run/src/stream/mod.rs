@@ -11,8 +11,8 @@
 //! |---|---|
 //! | `harness.rs` | the loop, the accounting, the privileged entry point; the only place a stream is generated and its truth built |
 //! | `meter.rs` | the one way an arm runs a component or the shared rule: charged first, timed, counted, recorded |
-//! | `arms/` | the shared cheap rung (`rung.rs`) and the escalation rules (`never`, `always`, `periodic`, `change`, `threshold`, `random`, `contradiction`), and the labelled ablation (`ablation.rs`) |
-//! | `oracle.rs` | the privileged arms (`oracle_escalation`, and R5's `oracle_selection` and `oracle_decoy`), declared as module `privileged` |
+//! | `arms/` | the shared cheap rung (`rung.rs`), its context builders (`context.rs`, R6) and the escalation rules (`never`, `always`, `periodic`, `change`, `threshold`, `random`, `contradiction`), and the labelled ablation (`ablation.rs`) |
+//! | `oracle.rs` | the privileged arms (`oracle_escalation`, R5's `oracle_selection` and `oracle_decoy`, and R6's supplementary `oracle_selection_context`), declared as module `privileged` |
 //! | `score.rs` | the stream evaluator's types as the harness uses them, the counts read from the trajectory alone, the hard-fault family names |
 //! | `manifest.rs`, `spec.rs` | the manifest, the arms as it writes them, the registry |
 //! | `results.rs`, `recorder.rs` | `results.csv`, `incidents.csv`, `measured.csv`, `drift.csv`, the events sample, interleaving |

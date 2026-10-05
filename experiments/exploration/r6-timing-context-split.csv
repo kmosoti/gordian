@@ -1,0 +1,31 @@
+setting,difference,a,b,quality_diff,lo,hi
+b2.5-rho0,R4 oracle minus selection oracle with rung (timing + context + selection of evidence),oracle_escalation_privileged,sel_rung_privileged,0.274194,0.217391,0.328571
+b2.5-rho0,R4 oracle minus context-only ceiling (timing),oracle_escalation_privileged,oracle_selection_context_d14_privileged,0.0645161,0.0327456,0.0966851
+b2.5-rho0,context-only ceiling minus selection oracle with rung (context),oracle_selection_context_d14_privileged,sel_rung_privileged,0.209677,0.159091,0.259777
+b2.5-rho0,"context-only ceiling minus best public builder, any references (context left after the best public builder)",oracle_selection_context_d14_privileged,sel_win_w20_n256_privileged,0.0430108,-0.015748,0.104972
+b2.5-rho0,"best public builder, any references, minus selection oracle with rung (what a public builder buys)",sel_win_w20_n256_privileged,sel_rung_privileged,0.166667,0.113372,0.218391
+b2.5-rho0.7,R4 oracle minus selection oracle with rung (timing + context + selection of evidence),oracle_escalation_privileged,sel_rung_privileged,0.290323,0.24147,0.339744
+b2.5-rho0.7,R4 oracle minus context-only ceiling (timing),oracle_escalation_privileged,oracle_selection_context_d16_privileged,0.0672043,0.0437018,0.091954
+b2.5-rho0.7,context-only ceiling minus selection oracle with rung (context),oracle_selection_context_d16_privileged,sel_rung_privileged,0.223118,0.180822,0.265583
+b2.5-rho0.7,"context-only ceiling minus best public builder, any references (context left after the best public builder)",oracle_selection_context_d16_privileged,sel_win_w40_n512_privileged,0.016129,-0.0279898,0.0583756
+b2.5-rho0.7,"best public builder, any references, minus selection oracle with rung (what a public builder buys)",sel_win_w40_n512_privileged,sel_rung_privileged,0.206989,0.161725,0.253264
+b5-rho0,R4 oracle minus selection oracle with rung (timing + context + selection of evidence),oracle_escalation_privileged,sel_rung_privileged,0.473118,0.422572,0.523669
+b5-rho0,R4 oracle minus context-only ceiling (timing),oracle_escalation_privileged,oracle_selection_context_d16_privileged,0.120968,0.092545,0.150943
+b5-rho0,context-only ceiling minus selection oracle with rung (context),oracle_selection_context_d16_privileged,sel_rung_privileged,0.352151,0.30504,0.398964
+b5-rho0,"context-only ceiling minus best public builder, any references (context left after the best public builder)",oracle_selection_context_d16_privileged,sel_win_w40_n512_privileged,0.0322581,0.00534759,0.059322
+b5-rho0,"best public builder, any references, minus selection oracle with rung (what a public builder buys)",sel_win_w40_n512_privileged,sel_rung_privileged,0.319892,0.266476,0.372493
+b5-rho0.7,R4 oracle minus selection oracle with rung (timing + context + selection of evidence),oracle_escalation_privileged,sel_rung_privileged,0.462366,0.418675,0.506494
+b5-rho0.7,R4 oracle minus context-only ceiling (timing),oracle_escalation_privileged,oracle_selection_context_d16_privileged,0.13172,0.102564,0.16188
+b5-rho0.7,context-only ceiling minus selection oracle with rung (context),oracle_selection_context_d16_privileged,sel_rung_privileged,0.330645,0.290761,0.370927
+b5-rho0.7,"context-only ceiling minus best public builder, any references (context left after the best public builder)",oracle_selection_context_d16_privileged,sel_win_w40_n256_privileged,0.0241935,0,0.0505618
+b5-rho0.7,"best public builder, any references, minus selection oracle with rung (what a public builder buys)",sel_win_w40_n256_privileged,sel_rung_privileged,0.306452,0.264624,0.34891
+b8-rho0,R4 oracle minus selection oracle with rung (timing + context + selection of evidence),oracle_escalation_privileged,sel_rung_privileged,0.344086,0.302872,0.387268
+b8-rho0,R4 oracle minus context-only ceiling (timing),oracle_escalation_privileged,oracle_selection_context_d16_privileged,0.137097,0.108959,0.167131
+b8-rho0,context-only ceiling minus selection oracle with rung (context),oracle_selection_context_d16_privileged,sel_rung_privileged,0.206989,0.172775,0.242424
+b8-rho0,"context-only ceiling minus best public builder, any references (context left after the best public builder)",oracle_selection_context_d16_privileged,sel_win_w40_n512_privileged,0.0134409,0,0.0275482
+b8-rho0,"best public builder, any references, minus selection oracle with rung (what a public builder buys)",sel_win_w40_n512_privileged,sel_rung_privileged,0.193548,0.155673,0.233146
+b8-rho0.7,R4 oracle minus selection oracle with rung (timing + context + selection of evidence),oracle_escalation_privileged,sel_rung_privileged,0.306452,0.266491,0.347222
+b8-rho0.7,R4 oracle minus context-only ceiling (timing),oracle_escalation_privileged,oracle_selection_context_d16_privileged,0.137097,0.107417,0.166667
+b8-rho0.7,context-only ceiling minus selection oracle with rung (context),oracle_selection_context_d16_privileged,sel_rung_privileged,0.169355,0.136232,0.203252
+b8-rho0.7,"context-only ceiling minus best public builder, any references (context left after the best public builder)",oracle_selection_context_d16_privileged,sel_win_w40_n512_privileged,0.0134409,0.00507614,0.024
+b8-rho0.7,"best public builder, any references, minus selection oracle with rung (what a public builder buys)",sel_win_w40_n512_privileged,sel_rung_privileged,0.155914,0.121891,0.190981

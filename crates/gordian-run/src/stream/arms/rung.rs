@@ -37,6 +37,7 @@
 //! declared again. At the end of the stream every anomaly still undecided gets the rule's final
 //! call. Declaring is free in the stream's bill, as in the first world's.
 
+use super::context::{self, ContextBuilder, PublicView};
 use super::{Applied, Proposed, Source};
 use crate::policy::decide::{DecideConfig, Decider};
 use crate::stream::meter::{Meter, RuleCall};
@@ -98,6 +99,12 @@ pub struct RungConfig {
     /// Most references in a context built by the rung. Past this the rung keeps the first quarter
     /// (the burst) and the most recent rest.
     pub context_max_refs: u32,
+    /// How the context of an escalation is built (work item R6). The default is the rung's own,
+    /// which is not written to a manifest; an arm may name another in the manifest
+    /// ([`crate::stream::manifest::StreamArmSpec::context`]), which takes the place of this one
+    /// for that arm.
+    #[serde(default, skip_serializing_if = "ContextBuilder::is_rung")]
+    pub context: ContextBuilder,
 }
 
 impl Default for RungConfig {
@@ -117,6 +124,7 @@ impl Default for RungConfig {
             prior_ns: 30_000_000_000,
             context_lookback_ns: 2_000_000_000,
             context_max_refs: 128,
+            context: ContextBuilder::Rung,
         }
     }
 }
@@ -163,8 +171,16 @@ pub struct Store {
 }
 
 impl Store {
+    /// A store holding `items`, oldest first. The rung fills its own as the stream delivers; this
+    /// is for tests and tools that need a store of known content.
+    pub fn with(items: impl IntoIterator<Item = Held>) -> Self {
+        Self {
+            items: items.into_iter().collect(),
+        }
+    }
+
     /// The held observations, oldest first.
-    pub fn iter(&self) -> impl Iterator<Item = &Held> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Held> {
         self.items.iter()
     }
 
@@ -484,6 +500,8 @@ pub struct Rung {
     world: PublicInfo,
     store: Store,
     delivered: u32,
+    /// The instant of the latest step taken in: the instant of a call, for a context builder.
+    now: Instant,
     abnormal_seen: u64,
     anomalies: Vec<Anomaly>,
     next_id: u32,
@@ -552,6 +570,7 @@ impl Rung {
             cfg,
             store: Store::default(),
             delivered: 0,
+            now: Instant(0),
             abnormal_seen: 0,
             anomalies: Vec::new(),
             next_id: 0,
@@ -626,6 +645,7 @@ impl Rung {
         probe_results: &[(u32, Instant, Observation)],
         now: Instant,
     ) -> Vec<(ObsId, Diagnosis)> {
+        self.now = now;
         let mut answers = Vec::new();
         for event in events {
             match event {
@@ -863,11 +883,30 @@ impl Rung {
     /// are evidence about it (at its site, and at its dependents within the burst) from
     /// `context_lookback_ns` before its anchor to now, benign and free-form ones included (the rung has no cheap way to tell which matter), and to the
     /// probes bought for it. Capped as [`RungConfig::context_max_refs`] says.
+    ///
+    /// That is the `rung` builder, the default. With another builder in [`RungConfig::context`]
+    /// the references are that builder's ([`super::context`]), a function of public information
+    /// only: the observations held, the public graph, the instant of the latest step and the
+    /// anomaly's site and anchor.
     pub fn context(&self, id: u32) -> Vec<ObsRef> {
         let Some(i) = self.index_of(id) else {
             return Vec::new();
         };
         let a = &self.anomalies[i];
+        if !self.cfg.context.is_rung() {
+            let view = PublicView {
+                store: &self.store,
+                services: &self.public.services,
+                now: self.now,
+                anchor_at: a.anchor_at,
+                site: a.site,
+                burst_gap_ns: self.cfg.burst_gap_ns,
+                lookback_ns: self.cfg.context_lookback_ns,
+            };
+            if let Some(refs) = context::build(&self.cfg.context, &view) {
+                return refs;
+            }
+        }
         let from = a.anchor_at.0.saturating_sub(self.cfg.context_lookback_ns);
         let mut refs: Vec<ObsRef> = self
             .store

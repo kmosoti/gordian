@@ -47,6 +47,22 @@
 //! does: through the plan, by the harness, and nothing else. Their rules are private to this
 //! file.
 //!
+//! # Work item R6
+//!
+//! `oracle_selection` uses whichever context builder its rung is configured with
+//! ([`super::arms::context`]): the builder is an option of the shared rung, so the selection
+//! oracle takes any public builder with no change here, and its only privilege stays the choice of
+//! anomalies. `oracle_escalation` stays the decisive-evidence ceiling, unchanged.
+//!
+//! `oracle_selection_context` is a **supplementary** arm, labelled as such in R6's report and not
+//! used by R6's criterion. It separates context from timing in `oracle_escalation`'s ceiling: it
+//! knows which noticed anomalies are hard (as `oracle_selection` does) and asks `delay_ns` after
+//! each is noticed (as `oracle_selection` does), but its context is the incident's decisive
+//! evidence among what has been delivered by then, which is a context privilege and nothing
+//! else. The difference between it and `oracle_selection` is what a perfect context is worth at a
+//! public instant; the difference between `oracle_escalation` and it is what firing at the
+//! instant the evidence has all arrived is worth.
+//!
 //! # How the truth reaches it, and only it
 //!
 //! [`StreamPolicy`] and [`EscalationRule`] have no place for a truth. [`OracleFactory::build`]
@@ -73,7 +89,7 @@ use super::arms::{ArmRole, DirectCtx, DirectRequest, EscalationRule, StreamArm, 
 use crate::policy::PolicyId;
 use gordian_core::Instant;
 use gordian_stream::{ObsId, ObsRef, StreamPublic};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The id of `oracle_escalation`.
 pub const ID: &str = "oracle_escalation";
@@ -83,6 +99,10 @@ pub const SELECTION_ID: &str = "oracle_selection";
 
 /// The id of `oracle_decoy`: dismisses exactly the decoy anomalies and escalates nothing.
 pub const DECOY_ID: &str = "oracle_decoy";
+
+/// The id of `oracle_selection_context` (R6, supplementary): `oracle_selection`'s choice of
+/// anomalies and delay, with the decisive evidence delivered so far as the context.
+pub const SELECTION_CONTEXT_ID: &str = "oracle_selection_context";
 
 /// What the privileged arm is told about one incident of the segment: facts the harness read from
 /// the truth it holds aside.
@@ -140,6 +160,8 @@ enum Mode {
     Selection { delay_ns: u64 },
     /// `oracle_decoy`.
     Decoy,
+    /// `oracle_selection_context`, with its delay after notice.
+    SelectionContext { delay_ns: u64 },
 }
 
 impl OracleFactory {
@@ -157,6 +179,16 @@ impl OracleFactory {
         Self {
             rung,
             mode: Mode::Selection { delay_ns },
+        }
+    }
+
+    /// A factory of `oracle_selection_context` (R6, supplementary), which escalates each hard
+    /// anomaly `delay_ns` after it is noticed, with the incident's decisive evidence delivered by
+    /// then as the context.
+    pub fn selection_context(rung: RungConfig, delay_ns: u64) -> Self {
+        Self {
+            rung,
+            mode: Mode::SelectionContext { delay_ns },
         }
     }
 
@@ -207,6 +239,21 @@ impl OracleFactory {
                     owner: plan.owner.clone(),
                     hard_ids: ids_where(&|i| i.hard),
                     delay_ns,
+                },
+                public,
+                self.rung.clone(),
+            )),
+            Mode::SelectionContext { delay_ns } => Box::new(StreamArm::with(
+                SelectionContextOracle {
+                    owner: plan.owner.clone(),
+                    decisive: plan
+                        .incidents
+                        .iter()
+                        .filter(|i| i.hard)
+                        .map(|i| (i.id, i.decisive.clone()))
+                        .collect(),
+                    delay_ns,
+                    asked: BTreeSet::new(),
                 },
                 public,
                 self.rung.clone(),
@@ -326,6 +373,71 @@ impl EscalationRule for SelectionOracle {
             })
             .map(|v| v.id)
             .collect()
+    }
+}
+
+/// The privileged selection-and-context rule (R6, supplementary). Has no public constructor.
+struct SelectionContextOracle {
+    /// The incident each observation belongs to.
+    owner: Vec<Option<u32>>,
+    /// Each hard incident's decisive observations, in stream order.
+    decisive: BTreeMap<u32, Vec<ObsId>>,
+    delay_ns: u64,
+    /// The noticed anomalies already asked about.
+    asked: BTreeSet<u32>,
+}
+
+impl EscalationRule for SelectionContextOracle {
+    fn id(&self) -> PolicyId {
+        PolicyId::new(SELECTION_CONTEXT_ID)
+    }
+
+    fn role(&self) -> ArmRole {
+        ArmRole::Privileged
+    }
+
+    /// Every escalation of this arm is direct: its context is not the rung's.
+    fn targets(&mut self, _now: Instant, _views: &[AnomalyView]) -> Vec<u32> {
+        Vec::new()
+    }
+
+    /// The cheap rung's declaration is held back, as for `oracle_selection`, while the call about
+    /// the anomaly is unanswered.
+    fn holds(&self, view: &AnomalyView) -> bool {
+        view.pending > 0 || (self.asked.contains(&view.id) && view.answered == 0)
+    }
+
+    /// Each noticed anomaly whose anchor belongs to a hard incident, once, `delay_ns` after it was
+    /// noticed, with the incident's decisive observations that have been delivered.
+    fn direct(&mut self, ctx: &DirectCtx<'_>) -> Vec<DirectRequest> {
+        let mut out = Vec::new();
+        for v in ctx.views {
+            if v.attempts != 0
+                || self.asked.contains(&v.id)
+                || ctx.now.0 < v.noticed_at.0.saturating_add(self.delay_ns)
+            {
+                continue;
+            }
+            let Some(evidence) = self
+                .owner
+                .get(v.anchor.0 as usize)
+                .copied()
+                .flatten()
+                .and_then(|i| self.decisive.get(&i))
+            else {
+                continue;
+            };
+            self.asked.insert(v.id);
+            out.push(DirectRequest {
+                focus: v.anchor,
+                context: evidence
+                    .iter()
+                    .filter(|o| o.0 < ctx.delivered)
+                    .map(|o| ObsRef::Passive(*o))
+                    .collect(),
+            });
+        }
+        out
     }
 }
 
