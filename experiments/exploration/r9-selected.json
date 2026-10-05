@@ -1,0 +1,95 @@
+{
+  "r9-tune-b5-rho0.7-d0.0055": {
+    "setting": "b5-rho0.7",
+    "b": 5.0,
+    "rho": 0.7,
+    "delta": 0.0055,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w80_n512",
+      "win_w40_n256",
+      "win_w20_n256",
+      "win_w20_n128",
+      "coc_d16000_n256",
+      "coc_d08000_n256",
+      "coc_d04000_n256",
+      "coc_d02000_n256",
+      "nbh_k4_n256",
+      "nbh_k3_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n128"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w80_n512",
+      "cooccur": "coc_d16000_n256",
+      "neighbourhood": "nbh_k4_n256"
+    },
+    "selected": "win_w80_n512",
+    "selected_tuning_quality": 0.7587939698492462,
+    "ceiling_tuning_quality": 0.7587939698492462
+  },
+  "r9-tune-b5-rho0.7-d0.0135": {
+    "setting": "b5-rho0.7",
+    "b": 5.0,
+    "rho": 0.7,
+    "delta": 0.0135,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w40_n512",
+      "win_w40_n256",
+      "win_w20_n256",
+      "win_w80_n512",
+      "coc_d16000_n256",
+      "coc_d08000_n256",
+      "coc_d04000_n256",
+      "coc_d02000_n256",
+      "nbh_k4_n256",
+      "nbh_k3_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n128"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w40_n512",
+      "cooccur": "coc_d16000_n256",
+      "neighbourhood": "nbh_k4_n256"
+    },
+    "selected": "coc_d16000_n256",
+    "selected_tuning_quality": 0.7336683417085427,
+    "ceiling_tuning_quality": 0.7587939698492462
+  },
+  "r9-tune-b5-rho0.7-d0.0225": {
+    "setting": "b5-rho0.7",
+    "b": 5.0,
+    "rho": 0.7,
+    "delta": 0.0225,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w40_n512",
+      "win_w40_n256",
+      "win_w20_n256",
+      "win_w80_n512",
+      "coc_d16000_n256",
+      "coc_d08000_n256",
+      "coc_d04000_n256",
+      "coc_d02000_n256",
+      "nbh_k4_n256",
+      "nbh_k3_n256",
+      "nbh_k2_n256",
+      "nbh_k1_n256"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w40_n512",
+      "cooccur": "coc_d16000_n256",
+      "neighbourhood": "nbh_k4_n256"
+    },
+    "selected": "nbh_k4_n256",
+    "selected_tuning_quality": 0.7185929648241206,
+    "ceiling_tuning_quality": 0.7587939698492462
+  }
+}

@@ -1,0 +1,14 @@
+version,what_changed,set,hard_m0,hard_m50,hard_m100,hard_m200,hard_m400,plain_m0,plain_m50,plain_m100,plain_m200,plain_m400,kept,source
+baseline,R8's rule reader (the prompt's stated rules; windowed) on R9's pool,795 hard 300 plain (in-sample by construction),0.883,0.522,0.453,0.457,0.519,0.947,0.750,0.643,0.427,0.190,reference,r9_dev.py --reader r9_baseline_r8
+v1,rule features of phase 2 and the burst plus a softmax fitted on development questions,795 hard 300 plain 5-fold CV over streams,0.945,0.892,0.860,0.840,0.864,1.000,0.997,0.997,0.977,0.970,superseded,r9_train.py
+v2,partner-centric features: the best unconnected and best connected candidate service,795 hard 300 plain 5-fold CV,0.946,0.913,0.887,0.868,0.891,1.000,1.000,1.000,0.980,0.970,superseded,r9_train.py
+v3,adds candidate repeated ids and a density feature with absence-times-density interactions to v2,320 hard 150 plain 5-fold CV (v2 on the same set: 0.950 0.922 0.891 0.853 0.878),0.956,0.912,0.881,0.853,0.884,1.000,1.000,1.000,0.980,0.947,no (no gain beyond noise),r9_train.py
+v4,three candidate groups (unconnected / dependent / upstream) and MixedSignals tied to an alarm at the same service and MixedSignals at the site in the burst,795 hard 300 plain 5-fold CV,0.946,0.918,0.916,0.907,0.932,1.000,1.000,1.000,0.983,0.973,superseded,r9_train.py
+v5,adds the site-plus-candidate pair count and repeated-id score to v4,795 hard 300 plain 5-fold CV,0.945,0.917,0.917,0.907,0.930,1.000,1.000,1.000,0.987,0.973,no (no gain),r9_train.py
+v6,v4 with the background rate read over the time the context covers instead of a fixed 69 s (the frozen reader),795 hard 300 plain 5-fold CV,0.943,0.918,0.919,0.907,0.931,1.000,0.997,1.000,0.983,0.973,yes (frozen),r9_train.py
+lam 0.1,v4 features with L2 weight 0.1 (default 1.0),795 hard 300 plain 5-fold CV,0.946,0.918,0.917,0.901,0.927,1.000,0.993,1.000,0.980,0.960,no,r9_train.py --lam
+lam 0.3,v4 features with L2 weight 0.3,795 hard 300 plain 5-fold CV,0.946,0.921,0.916,0.903,0.930,1.000,0.997,1.000,0.980,0.967,no,r9_train.py --lam
+lam 3,v4 features with L2 weight 3,795 hard 300 plain 5-fold CV,0.945,0.916,0.911,0.907,0.933,1.000,1.000,1.000,0.987,0.977,no,r9_train.py --lam
+lam 10,v4 features with L2 weight 10,795 hard 300 plain 5-fold CV,0.945,0.911,0.903,0.898,0.931,1.000,1.000,1.000,0.993,0.973,no,r9_train.py --lam
+mlp8,v6 features through one hidden layer of 8 tanh units (L2 3),795 hard 300 plain 5-fold CV,0.942,0.922,0.919,0.916,0.928,1.000,1.000,1.000,0.983,0.967,no (at most +0.9 points at one level; within the noise of a 5-fold CV; more machinery),scratch (not committed)
+mlp16,v6 features through one hidden layer of 16 tanh units (L2 10),795 hard 300 plain 5-fold CV,0.943,0.925,0.912,0.914,0.935,1.000,1.000,1.000,0.983,0.973,no (same),scratch (not committed)

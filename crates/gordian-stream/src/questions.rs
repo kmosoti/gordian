@@ -13,16 +13,20 @@
 //! - the incident's **decisive evidence**, in full and in stream order;
 //! - its **truth**;
 //! - a **pool** of candidate distractors: every other observation within `window_ns` of the
-//!   focus (both sides) that belongs to the background or to another incident, in stream order.
-//!   The focus incident's own observations that are not decisive (its first moments, its
-//!   heartbeats, its closure) are in neither the decisive evidence nor the pool.
+//!   focus (both sides) that is not the focus and not decisive evidence of the incident, in
+//!   stream order. By default ([`Pool::Others`], R8's reading) the pool holds only observations
+//!   of the background and of other incidents, so the focus incident's own observations that are
+//!   not decisive (its first moments, its heartbeats, its closure) are in neither the decisive
+//!   evidence nor the pool. With [`Pool::IncludingOwn`] (R9's reading, because the simulator's
+//!   `m` counts those observations as distractors and a window builder carries them) the pool
+//!   also holds them.
 //!
 //! A slow leak is never a question (its evidence is a benign series, a different kind of
 //! question); decoys are never questions. Which questions a run uses, how many distractors it
 //! draws and how it renders them are the runner's, not this module's.
 
 use crate::kinds::{Diagnosis, ObsId, Tier};
-use crate::labels::ObsLabel;
+use crate::labels::{EvidenceRole, ObsLabel};
 use crate::oracle::{IncidentTruth, reveal};
 use crate::stream::Stream;
 use gordian_world::{FaultKind, Observation, Service, ServiceId};
@@ -30,6 +34,19 @@ use serde::Serialize;
 
 /// The half-width of the distractor pool's window around the focus: the plan's 40 s.
 pub const POOL_WINDOW_NS: u64 = 40_000_000_000;
+
+/// Which observations a question's pool of candidate distractors holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Pool {
+    /// R8's pool: the background and other incidents. The focus incident's own observations
+    /// are all left out, decisive or not. This is the default.
+    #[default]
+    Others,
+    /// R9's pool: everything within the window except the focus and the incident's decisive
+    /// evidence, so the incident's own non-decisive observations (heartbeats, closure, flaps) are
+    /// in it. This is what the simulated reasoner counts in `m`.
+    IncludingOwn,
+}
 
 /// One observation of the stream as a question carries it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -76,6 +93,12 @@ pub struct QuestionRecord {
     pub pool_size: usize,
     /// Candidate distractors, in stream order.
     pub pool: Vec<ObsRecord>,
+    /// Only with [`Pool::IncludingOwn`]: what each pool observation is, one string per entry of
+    /// `pool` (`background:<noise kind>`, `own:<role>`, `other:<role>`), for the evaluator's
+    /// analysis of what a reader was fooled by. Absent in the default mode, so that mode's
+    /// output is byte for byte what it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pool_roles: Option<Vec<String>>,
 }
 
 fn record(stream: &Stream, id: ObsId) -> ObsRecord {
@@ -111,6 +134,17 @@ fn family_name(inc: &IncidentTruth) -> Option<String> {
 /// other than a slow leak (when `hard`), in incident order, each with its pool of distractors
 /// within `window_ns` of the focus.
 pub fn questions(stream: &Stream, window_ns: u64, plain: bool, hard: bool) -> Vec<QuestionRecord> {
+    questions_with_pool(stream, window_ns, plain, hard, Pool::Others)
+}
+
+/// [`questions`] with the choice of pool: [`Pool::Others`] is what [`questions`] uses.
+pub fn questions_with_pool(
+    stream: &Stream,
+    window_ns: u64,
+    plain: bool,
+    hard: bool,
+    pool_kind: Pool,
+) -> Vec<QuestionRecord> {
     let truth = reveal(stream);
     let mut out = Vec::new();
     for inc in &truth.incidents {
@@ -131,7 +165,7 @@ pub fn questions(stream: &Stream, window_ns: u64, plain: bool, hard: bool) -> Ve
         let focus = record(stream, focus_id);
         let lo = focus.at_ns.saturating_sub(window_ns);
         let hi = focus.at_ns.saturating_add(window_ns);
-        let pool: Vec<ObsRecord> = stream
+        let pool_ids: Vec<usize> = stream
             .events()
             .iter()
             .enumerate()
@@ -140,11 +174,30 @@ pub fn questions(stream: &Stream, window_ns: u64, plain: bool, hard: bool) -> Ve
                     && at.0 <= hi
                     && match truth.labels[*i] {
                         ObsLabel::Background(_) => true,
-                        ObsLabel::Incident { id, .. } => id != inc.id,
+                        ObsLabel::Incident { id, .. } if id != inc.id => true,
+                        ObsLabel::Incident { role, .. } => {
+                            pool_kind == Pool::IncludingOwn
+                                && *i != focus_id.0 as usize
+                                && role != EvidenceRole::Decisive
+                        }
                     }
             })
-            .map(|(i, _)| record(stream, ObsId(i as u32)))
+            .map(|(i, _)| i)
             .collect();
+        let pool: Vec<ObsRecord> = pool_ids
+            .iter()
+            .map(|i| record(stream, ObsId(*i as u32)))
+            .collect();
+        let pool_roles = (pool_kind == Pool::IncludingOwn).then(|| {
+            pool_ids
+                .iter()
+                .map(|i| match truth.labels[*i] {
+                    ObsLabel::Background(k) => format!("background:{k:?}"),
+                    ObsLabel::Incident { id, role } if id == inc.id => format!("own:{role:?}"),
+                    ObsLabel::Incident { role, .. } => format!("other:{role:?}"),
+                })
+                .collect()
+        });
         out.push(QuestionRecord {
             seed: stream.params.seed,
             incident: inc.id,
@@ -167,6 +220,7 @@ pub fn questions(stream: &Stream, window_ns: u64, plain: bool, hard: bool) -> Ve
             decisive: inc.decisive.iter().map(|id| record(stream, *id)).collect(),
             pool_size: pool.len(),
             pool,
+            pool_roles,
         });
     }
     out

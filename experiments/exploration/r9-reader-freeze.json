@@ -1,0 +1,10 @@
+{
+  "frozen": "the R9 reader: experiments/exploration/scripts/r9_reader.py and r9_reader_weights.json",
+  "sha256": {
+    "r9_reader.py": "8bb362b0300cac8106408c54d74214cd1a6633b1222f9b5495cdd7ed162068cb",
+    "r9_reader_weights.json": "fc08706b69e7d24614ca1b249781c708c7ee1a5e8e7e9f4a371622c031cddd73"
+  },
+  "developed_on": "seeds 29000-29999 only: 795 hard questions (one per stream) and 300 plain; see r9-dev-history.csv",
+  "evaluation": "seeds 30000-30399 (400 streams), one hard question per stream by seed mod k, 100 plain questions; no evaluation number had been computed when this file was written",
+  "after_the_freeze": "a change to the reader or its weights starts a new evaluation on seeds 32000 upward; both are reported"
+}
