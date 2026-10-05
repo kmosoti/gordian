@@ -8,6 +8,15 @@
 //! The environment fields (revision, lockfile hash, toolchain, CPU flags) are written *into* the
 //! manifest before the run. `scripts/run-driver.sh` refuses a manifest whose revision is not the
 //! current clean `HEAD`; the other three are recorded, not checked.
+//!
+//! # One arm or several
+//!
+//! A manifest has either `arm` and `policy` (one arm, the layout every earlier manifest has) or
+//! `arms`, a list of `{arm, policy}` (an interleaved run, work item A8): every arm shares the
+//! seeds, classes, limits, episode parameters and decision rule, and each episode is played once
+//! per arm, back to back, in an order drawn per episode from `run_seed` ([`crate::interleave`]).
+//! Giving both forms is an error. In memory `arm` and `policy` always hold the first arm, so code
+//! that reads them sees a valid arm either way; [`Manifest::arm_specs`] is the list to iterate.
 
 use crate::harness::Limits;
 use crate::policy::PolicySpec;
@@ -94,14 +103,39 @@ impl Default for EpisodeParams {
     }
 }
 
-/// Everything that determines a run.
+/// Names an arm of an interleaved run may not take: files the run directory holds beside the arm
+/// directories.
+pub const RESERVED_ARM_NAMES: [&str; 3] = ["manifest.json", "drift.csv", "usage.json"];
+
+/// The default number of episodes between two drift-control workloads (plan A8).
+pub const DEFAULT_DRIFT_BLOCK: u32 = 50;
+
+/// One arm of an interleaved run: its name and the policy it plays.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArmSpec {
+    /// The arm's name: the treatment this arm is. In an interleaved run it is also the name of
+    /// the arm's subdirectory, so it uses the characters of a `run_id`.
+    pub arm: String,
+    /// The arm's policy and its parameters.
+    pub policy: PolicySpec,
+}
+
+fn default_drift_block() -> u32 {
+    DEFAULT_DRIFT_BLOCK
+}
+
+/// Everything that determines a run.
+///
+/// Serialized through a private form in which `arm` and `policy` are the one-arm spelling and
+/// `arms` the several-arm one (see the module documentation).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "RawManifest", into = "RawManifest")]
 pub struct Manifest {
     /// Names the run directory and the cgroup. Letters, digits, `.`, `_` and `-` only.
     pub run_id: String,
     /// The experiment this run belongs to, for example `EXP-001` or `exploration`.
     pub experiment: String,
-    /// The arm: which treatment this run is.
+    /// The arm: which treatment this run is. In an interleaved run, the first arm of `arms`.
     pub arm: String,
     /// `git rev-parse HEAD` at manifest time.
     pub source_revision: String,
@@ -121,6 +155,17 @@ pub struct Manifest {
     /// defaults, so manifests written before the baselines existed still parse; see
     /// [`PolicySpec`].
     pub policy: PolicySpec,
+    /// The arms of an interleaved run, in the order listed (the order of play is drawn per
+    /// episode, not this one). Empty for a one-arm manifest. When not empty, `arm` and `policy`
+    /// equal the first entry; [`Manifest::validate`] checks it.
+    pub arms: Vec<ArmSpec>,
+    /// Seeds the per-episode draw of the arm order, together with the episode's seed and class
+    /// ([`crate::interleave::arm_order`]). Unused by a one-arm manifest.
+    pub run_seed: u64,
+    /// The drift-control workload runs before the first episode, then before every
+    /// `drift_block`-th episode after that, and once after the last ([`crate::drift`]). Counts
+    /// `(seed, class)` units, not arm-episodes. At least 1.
+    pub drift_block: u32,
     /// The parameters of the decision rule every non-privileged arm shares. Not part of the
     /// policy: arms may differ only in selection. Absent in older manifests, which get the
     /// defaults they were run with.
@@ -137,7 +182,177 @@ pub struct Manifest {
     pub internal_external_ratio: Option<RatioTolerance>,
 }
 
+/// The serialized form of a [`Manifest`].
+#[derive(Serialize, Deserialize)]
+struct RawManifest {
+    run_id: String,
+    experiment: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    arm: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    policy: Option<PolicySpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    arms: Vec<ArmSpec>,
+    #[serde(default)]
+    run_seed: u64,
+    #[serde(default = "default_drift_block")]
+    drift_block: u32,
+    source_revision: String,
+    lockfile_sha256: String,
+    toolchain: String,
+    cpu_flags: Vec<String>,
+    isolation: IsolationSpec,
+    seeds: Vec<u64>,
+    episode_classes: Vec<(EpisodeClass, u32)>,
+    #[serde(default)]
+    decide: DecideConfig,
+    limits: Limits,
+    episode_params: EpisodeParams,
+    trace_sample_rate: f64,
+    internal_external_ratio: Option<RatioTolerance>,
+}
+
+impl From<Manifest> for RawManifest {
+    fn from(m: Manifest) -> Self {
+        let (arm, policy, arms) = if m.arms.is_empty() {
+            (Some(m.arm), Some(m.policy), Vec::new())
+        } else {
+            (None, None, m.arms)
+        };
+        RawManifest {
+            run_id: m.run_id,
+            experiment: m.experiment,
+            arm,
+            policy,
+            arms,
+            run_seed: m.run_seed,
+            drift_block: m.drift_block,
+            source_revision: m.source_revision,
+            lockfile_sha256: m.lockfile_sha256,
+            toolchain: m.toolchain,
+            cpu_flags: m.cpu_flags,
+            isolation: m.isolation,
+            seeds: m.seeds,
+            episode_classes: m.episode_classes,
+            decide: m.decide,
+            limits: m.limits,
+            episode_params: m.episode_params,
+            trace_sample_rate: m.trace_sample_rate,
+            internal_external_ratio: m.internal_external_ratio,
+        }
+    }
+}
+
+impl TryFrom<RawManifest> for Manifest {
+    type Error = String;
+
+    fn try_from(r: RawManifest) -> Result<Self, String> {
+        let (arm, policy) = if let Some(first) = r.arms.first() {
+            if r.arm.is_some() || r.policy.is_some() {
+                return Err(
+                    "a manifest gives either `arm` and `policy` or `arms`, not both".to_owned(),
+                );
+            }
+            (first.arm.clone(), first.policy.clone())
+        } else {
+            match (r.arm, r.policy) {
+                (Some(arm), Some(policy)) => (arm, policy),
+                _ => {
+                    return Err(
+                        "a manifest needs `arm` and `policy`, or a non-empty `arms`".to_owned()
+                    );
+                }
+            }
+        };
+        Ok(Manifest {
+            run_id: r.run_id,
+            experiment: r.experiment,
+            arm,
+            policy,
+            arms: r.arms,
+            run_seed: r.run_seed,
+            drift_block: r.drift_block,
+            source_revision: r.source_revision,
+            lockfile_sha256: r.lockfile_sha256,
+            toolchain: r.toolchain,
+            cpu_flags: r.cpu_flags,
+            isolation: r.isolation,
+            seeds: r.seeds,
+            episode_classes: r.episode_classes,
+            decide: r.decide,
+            limits: r.limits,
+            episode_params: r.episode_params,
+            trace_sample_rate: r.trace_sample_rate,
+            internal_external_ratio: r.internal_external_ratio,
+        })
+    }
+}
+
+/// Whether `name` is a safe single path component made of a `run_id`'s characters.
+fn safe_name(name: &str, max: usize) -> bool {
+    !name.is_empty()
+        && name.len() <= max
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        && name != "."
+        && name != ".."
+}
+
+/// An arm's policy must be valid, and a privileged one must say so in its name.
+fn validate_arm(arm: &str, policy: &PolicySpec) -> Result<(), String> {
+    policy.validate()?;
+    if policy.is_privileged() && !arm.contains(PRIVILEGED) {
+        return Err(format!(
+            "arm {arm:?} runs the privileged policy {:?}; its arm name must contain {PRIVILEGED:?}",
+            policy.id().0
+        ));
+    }
+    Ok(())
+}
+
 impl Manifest {
+    /// Whether the manifest lists its arms (an interleaved run, with one subdirectory per arm).
+    pub fn is_interleaved(&self) -> bool {
+        !self.arms.is_empty()
+    }
+
+    /// The arms in the order the manifest lists them: `arms`, or the one `arm` and `policy`.
+    pub fn arm_specs(&self) -> Vec<ArmSpec> {
+        if self.arms.is_empty() {
+            vec![ArmSpec {
+                arm: self.arm.clone(),
+                policy: self.policy.clone(),
+            }]
+        } else {
+            self.arms.clone()
+        }
+    }
+
+    /// The one-arm manifest of arm `index`: the same run with only that arm, so that running it
+    /// alone gives the arm's `results.csv` byte for byte (protocol replay is per arm). For an
+    /// interleaved manifest its `run_id` is `<run_id>.<arm>`, which is what the arm's rows carry
+    /// and what the arm's own `manifest.json` says. For a one-arm manifest, `index` must be 0
+    /// and the manifest is returned as it is.
+    ///
+    /// # Panics
+    ///
+    /// If `index` is not an arm of the manifest.
+    pub fn single_arm(&self, index: usize) -> Manifest {
+        if self.arms.is_empty() {
+            assert_eq!(index, 0, "a one-arm manifest has only arm 0");
+            return self.clone();
+        }
+        let spec = &self.arms[index];
+        Manifest {
+            run_id: format!("{}.{}", self.run_id, spec.arm),
+            arm: spec.arm.clone(),
+            policy: spec.policy.clone(),
+            arms: Vec::new(),
+            ..self.clone()
+        }
+    }
+
     /// Check that the manifest can be run. Does not check that the policy is known; the recorder
     /// does.
     pub fn validate(&self) -> Result<(), String> {
@@ -155,13 +370,35 @@ impl Manifest {
                 self.run_id
             ));
         }
-        self.policy.validate()?;
-        if self.policy.is_privileged() && !self.arm.contains(PRIVILEGED) {
-            return Err(format!(
-                "arm {:?} runs the privileged policy {:?}; its arm name must contain {PRIVILEGED:?}",
-                self.arm,
-                self.policy.id().0
-            ));
+        if self.drift_block == 0 {
+            return Err("drift_block must be at least 1".to_owned());
+        }
+        if self.arms.is_empty() {
+            validate_arm(&self.arm, &self.policy)?;
+        } else {
+            if self.arm != self.arms[0].arm || self.policy != self.arms[0].policy {
+                return Err("`arm` and `policy` must equal the first of `arms`".to_owned());
+            }
+            let mut names = BTreeSet::new();
+            for spec in &self.arms {
+                // The derived run id `<run_id>.<arm>` must itself be a valid run id.
+                if !safe_name(&spec.arm, 50) || self.run_id.len() + 1 + spec.arm.len() > 100 {
+                    return Err(format!(
+                        "arm name {:?} must be 1 to 50 of letters, digits, '.', '_', '-' and short enough that `<run_id>.<arm>` is at most 100: it names a directory and a run id",
+                        spec.arm
+                    ));
+                }
+                if RESERVED_ARM_NAMES.contains(&spec.arm.as_str()) {
+                    return Err(format!(
+                        "arm name {:?} is the name of a file in the run directory",
+                        spec.arm
+                    ));
+                }
+                if !names.insert(spec.arm.as_str()) {
+                    return Err(format!("arm name {:?} is used twice", spec.arm));
+                }
+                validate_arm(&spec.arm, &spec.policy)?;
+            }
         }
         if self.seeds.is_empty() {
             return Err("seeds is empty".to_owned());
@@ -276,6 +513,9 @@ impl Manifest {
                 .map(|class| (*class, seed_count))
                 .collect(),
             policy: policy.clone(),
+            arms: Vec::new(),
+            run_seed: 0,
+            drift_block: DEFAULT_DRIFT_BLOCK,
             decide,
             limits: Limits::default(),
             episode_params: EpisodeParams::default(),

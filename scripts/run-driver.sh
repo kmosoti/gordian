@@ -17,9 +17,13 @@
 #   2. pin this shell to core 3 (cores 0-2 are for arms; core 3 is for the driver and recorder);
 #   3. launch gordian-run through scripts/cgroup-run.sh with the manifest's isolation limits and
 #      timeout(1) as a backstop;
-#   4. after it exits, divide the sum of the measured columns of measured.csv by the CPU
-#      nanoseconds in usage.json, record the quotient in usage.json as internal_external_ratio,
-#      and compare it with the tolerance the manifest declares.
+#   4. after it exits, divide the sum of the three measured columns of every arm's measured.csv
+#      (the run directory's own for a one-arm manifest, one per arm directory for an interleaved
+#      one) plus the drift workload's timings (drift.csv, column ns) by the CPU nanoseconds in
+#      usage.json, record the quotient in usage.json as internal_external_ratio (and the parts as
+#      measured_ns_arms and drift_ns_sum, the total as measured_ns_sum), and compare it with the
+#      tolerance the manifest declares. The plan's A8 asks for the sum over all arms because the
+#      process ran them all; a ratio over one arm would be off by the number of arms.
 #
 # Exit status:
 #    0  run completed and the ratio is inside the declared tolerance (or none is declared)
@@ -111,7 +115,11 @@ if [ -n "$(git -C "$root" status --porcelain --untracked-files=normal)" ]; then
   die 13 "refusing: the working tree at $root is not clean. Commit or stash first; keep run outputs under artifacts/runs (git-ignored)."
 fi
 
-if [ -e "$out/results.csv" ] || [ -e "$out/measured.csv" ]; then
+held=0
+for f in "$out"/results.csv "$out"/measured.csv "$out"/drift.csv "$out"/*/results.csv "$out"/*/measured.csv; do
+  [ ! -e "$f" ] || held=1
+done
+if [ "$held" -eq 1 ]; then
   die 14 "refusing: $out already holds results; a recorded run is never overwritten"
 fi
 [ -x "$bin" ] || die 21 "gordian-run binary $bin is missing or not executable (build it first, with no run in progress)"
@@ -145,12 +153,30 @@ if [ ! -f "$report" ]; then
 fi
 
 measured_sum="null"
+arm_sum="null"
+drift_sum="null"
 ratio="null"
-if [ -f "$out/measured.csv" ]; then
-  measured_sum="$(awk -F, '
-    NR == 1 { for (i = 1; i <= NF; i++) col[$i] = i; next }
+# A one-arm run keeps measured.csv in the run directory; an interleaved one has one per arm
+# directory. Either way every arm's three measured columns count, and so does the drift workload
+# (drift.csv, column ns), which no arm is charged for but the process spent (plan A8).
+measured_files=()
+[ ! -f "$out/measured.csv" ] || measured_files+=("$out/measured.csv")
+for f in "$out"/*/measured.csv; do
+  [ ! -f "$f" ] || measured_files+=("$f")
+done
+if [ "${#measured_files[@]}" -gt 0 ]; then
+  arm_sum="$(awk -F, '
+    FNR == 1 { delete col; for (i = 1; i <= NF; i++) col[$i] = i; next }
     { s += $col["measured_component_ns"] + $col["measured_sched_ns"] + $col["measured_harness_ns"] }
-    END { printf "%.0f", s }' "$out/measured.csv")"
+    END { printf "%.0f", s }' "${measured_files[@]}")"
+  drift_sum=0
+  if [ -f "$out/drift.csv" ]; then
+    drift_sum="$(awk -F, '
+      NR == 1 { for (i = 1; i <= NF; i++) col[$i] = i; next }
+      { s += $col["ns"] }
+      END { printf "%.0f", s }' "$out/drift.csv")"
+  fi
+  measured_sum="$(awk -v a="$arm_sum" -v d="$drift_sum" 'BEGIN { printf "%.0f", a + d }')"
   cpu_ns="$(jq -r '.cpu_ns // empty' "$report")"
   if [ -n "$cpu_ns" ] && [ "$cpu_ns" != "null" ] && [ "$cpu_ns" -gt 0 ]; then
     ratio="$(jq -n --argjson s "$measured_sum" --argjson c "$cpu_ns" '$s / $c')"
@@ -165,11 +191,12 @@ fi
 
 tmp="$report.tmp"
 jq --argjson r "$ratio" --argjson s "$measured_sum" --argjson t "$tolerance" --argjson w "$within" \
-  '. + {internal_external_ratio: $r, measured_ns_sum: $s, ratio_tolerance: $t, ratio_within_tolerance: $w}' \
+  --argjson a "$arm_sum" --argjson d "$drift_sum" \
+  '. + {internal_external_ratio: $r, measured_ns_sum: $s, measured_ns_arms: $a, drift_ns_sum: $d, ratio_tolerance: $t, ratio_within_tolerance: $w}' \
   "$report" > "$tmp"
 mv "$tmp" "$report"
 
-echo "run-driver: measured ${measured_sum} ns, internal_external_ratio ${ratio}, tolerance ${tolerance}" >&2
+echo "run-driver: measured ${measured_sum} ns (arms ${arm_sum}, drift ${drift_sum}), internal_external_ratio ${ratio}, tolerance ${tolerance}" >&2
 if [ "$status" -eq 0 ] && [ "$tolerance" = "null" ] && [ "$ratio" != "null" ]; then
   echo "run-driver: no tolerance declared; this first value is the starting point for one" >&2
 fi

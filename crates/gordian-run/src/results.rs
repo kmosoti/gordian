@@ -41,8 +41,14 @@
 //! # `measured.csv` columns
 //!
 //! ```text
-//! run_id, seed, class, measured_component_ns, measured_sched_ns, measured_harness_ns
+//! run_id, seed, class, measured_component_ns, measured_sched_ns, measured_harness_ns,
+//! arm_position
 //! ```
+//!
+//! `arm_position` is the arm's position in the order its episode was played in: 0 for the arm
+//! that played the episode first, 1 for the next, and always 0 in a one-arm run
+//! ([`crate::interleave`]). It is a function of the manifest, not a timing, but it lives here
+//! because it is only used to read the timings.
 
 use crate::harness::EpisodeRecord;
 use gordian_core::{Bill, Phase, Resource};
@@ -53,7 +59,7 @@ pub const RESULTS_HEADER: &str = "run_id,seed,class,success,critical_miss,false_
 
 /// The header of `measured.csv`.
 pub const MEASURED_HEADER: &str =
-    "run_id,seed,class,measured_component_ns,measured_sched_ns,measured_harness_ns";
+    "run_id,seed,class,measured_component_ns,measured_sched_ns,measured_harness_ns,arm_position";
 
 const RESOURCES: [Resource; 5] = [
     Resource::Compute,
@@ -139,10 +145,11 @@ pub fn results_row(run_id: &str, record: &EpisodeRecord) -> String {
     row
 }
 
-/// One line of `measured.csv` for `record`, without a trailing newline.
-pub fn measured_row(run_id: &str, record: &EpisodeRecord) -> String {
+/// One line of `measured.csv` for `record`, which was played at `arm_position` in the order of
+/// its episode, without a trailing newline.
+pub fn measured_row(run_id: &str, record: &EpisodeRecord, arm_position: usize) -> String {
     format!(
-        "{run_id},{seed},{class},{c},{s},{h}",
+        "{run_id},{seed},{class},{c},{s},{h},{arm_position}",
         seed = record.seed,
         class = class_name(record.class),
         c = record.measured.component_ns,

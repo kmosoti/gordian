@@ -23,7 +23,15 @@ gordian-analyze compare --a RUNDIR --b RUNDIR --relative-savings --declared-cost
     --metric bill_compute --threshold 0.20 --seed 1
 gordian-analyze power --sd 1 --margin 0.5 --alpha 0.05 --power 0.8 \
     [--true-diff 0] [--equivalence] [--json FILE]
+gordian-analyze drift --run RUNDIR [--json FILE]
+gordian-analyze position --arm ARMDIR [--paired-with ARMDIR] [--metric measured_total_ns] \
+    [--margin 0.05] --seed 1 [--alpha 0.05] [--resamples 10000] [--permutations 10000] [--json FILE]
 ```
+
+`drift` and `position` are the diagnostics of interleaved runs (work item A8); they are described
+in "Drift and position diagnostics" below. An interleaved run directory holds one arm directory
+per arm (`RUN/a1`, `RUN/a2`, ...), each of which `compare` reads exactly as it reads a one-arm run
+directory, and `RUN/drift.csv`, which `drift --run RUN` reads.
 
 `--seed` is required, and exactly one of `--higher-is-better` / `--lower-is-better` is
 required (there is no default, so a cost metric cannot silently be read with the wrong sign).
@@ -80,7 +88,10 @@ fails (`LoadError`) on:
 - a missing file or column, or any column that is not in the schema the harness writes
   (`crates/gordian-run/src/results.rs`; a test compares the loader's lists with the header
   constants in that file). `confidence` is the one named optional column in `results.csv`,
-  kept for the risk-coverage curve; the harness does not write it yet;
+  kept for the risk-coverage curve; the harness does not write it yet. `arm_position` is the one
+  named optional column in `measured.csv` (work item A8: the arm's position in the order its
+  episode was played in, 0 first, a non-negative integer); runs written before A8 lack it and
+  still load, and a run that has it carries it in `Run.results`. It is not a metric;
 - a value that is not boolean or not finite-numeric, more than one `run_id`, or duplicate
   `(seed, class)` in either file;
 - `decision_at_ns` empty on a decided row, or present on an undecided one. It is empty exactly
@@ -182,6 +193,131 @@ existing small-n and degenerate-sample warnings are kept in every mode.
 The category is computed from the bootstrap interval by default (`--interval t` for the t
 interval). The report always shows both intervals, both categories, and the TOST p-values.
 
+### drift.py: drift and position diagnostics (A8)
+
+Why they exist: wall time on this VM drifts within a session and differs between sessions, and
+the first play of an episode in a process may cost more than the next. The harness therefore
+plays every arm of an experiment on each episode, back to back, in a randomly drawn order, and
+times a fixed reference workload between episodes (`crates/gordian-run/HARNESS.md`, section 10).
+These two diagnostics say how much machine variation the run saw. Neither sets a margin or a
+tolerance; the experiment that uses a run preregisters them.
+
+**`drift --run RUN`** reads `RUN/drift.csv` (`run_id, block, units_done, reps, ns, min_ns`: one
+row per block of the fixed workload, which is the verifier run `reps` times on one fixed window;
+`ns` sums the runs, `min_ns` is the shortest single run). It reports, for `ns` and for
+`min_ns`, the coefficient of variation across blocks (sample sd, `ddof = 1`, over the mean) and
+the ratio of the last block to the first, and prints the blocks. `ns` moves with preemption and
+with interference from other processes on the VM; `min_ns` mostly does not, so a large CV of
+`ns` beside a small CV of `min_ns` says the machine was disturbed rather than slowly drifting.
+It needs two blocks or more. The first block runs right after process start-up and may be cold,
+which pulls last/first below 1; the ratio is the specification's, and the table is there to read
+it against. Nothing is concluded from a CV or a ratio without a tolerance preregistered by the
+experiment. Run-to-run values from this package's own A/A runs are in `HARNESS.md`, section 10.
+
+**`position --arm ARM [--paired-with ARM2]`** tests whether measured cost depends on
+`arm_position`: whether playing first costs more (a cold cache, an allocator that is warm for the
+second arm) or less than playing later. The estimand is on the log scale,
+
+```text
+theta = mean log(cost at arm_position 0) - mean log(cost at a later position)
+```
+
+so `exp(theta)` is a ratio of geometric means (1.03 means playing first costs 3% more). Costs
+are multiplicative and span orders of magnitude across episode classes, which the log scale
+handles; the relative-savings measure S is a ratio of totals, which is dominated by the dearest
+episodes, and theta is not S. A position effect that is the same for every arm does not bias S
+when the order is drawn at random (each arm is first about half the time), but it adds
+variance, and a position effect that differs between arms (a dearer arm warms the cache for the
+next one more) would bias S and is not detected by either estimator; see "What neither
+estimator shows".
+
+The plan says to use "a paired bootstrap interval on the log ratio where the same episode is not
+available in both positions" and otherwise a permutation test over episodes. Read literally this
+names the paired method for exactly the case in which pairing is impossible; it is read here as
+"where the same episode *is* available in both positions". That gives two estimators, and the
+data decide which applies:
+
+1. *One arm, no copy (`--arm` alone): stratified permutation test.* Within one arm an episode is
+   played once, at one position, so no episode is available in both positions and nothing can be
+   paired. What is available is the design: the position of each arm in each episode was drawn
+   independently of the episode (`crates/gordian-run/src/interleave.rs`). Under the sharp null
+   that position does not change any episode's cost, the position labels are exchangeable among
+   episodes, so permuting them is the exact randomization distribution of any statistic, with no
+   distributional assumption on the costs. Classes differ in cost by an order of magnitude, so
+   the labels are permuted within each class, and the statistic is stratified by class:
+   `T = sum_c w_c d_c / sum_c w_c`, `d_c` = mean log cost at position 0 minus mean log cost
+   later in class `c`, `w_c = n0_c n1_c / (n0_c + n1_c)`. The interval is the percentile
+   bootstrap of `T`, resampling episodes with replacement *inside* each (class, first-or-later)
+   cell so that each weight is kept. The p-value is two-sided, `(1 + #{|T*| >= |T|}) / (1 + B)`.
+2. *Two copies of one policy (`--paired-with`), as in an A/A run: paired bootstrap.* If another
+   arm played every episode identically, the copy that was not first played the same episode in
+   the other position, and the two timings are repeat measurements of the same work. For each
+   episode in which one copy was at position 0, `d_e = log(cost at position 0) - log(cost at the
+   other position)`. The interval is the percentile paired bootstrap of `mean(d_e)` over episodes
+   (`paired_bootstrap_ci`, so a pair is never split) and the p-value is a sign-flip test (if
+   position does nothing, which copy was first is a fair coin independent of the work, so `d_e`
+   and `-d_e` are equally likely). The loader *checks* the premise: every `results.csv` column
+   except `run_id` (the bill, the probes, the outcome, the stop reason) must agree on every
+   episode, or the command refuses. Two arms that differ, including a `random_matched` pair
+   (its generator is seeded by the arm name), are refused and need estimator 1.
+
+Both are seeded (`--seed`, required) and report their resamples and permutations.
+
+**Why both, and what the A/A showed about them.** Within a class, episodes differ a great deal
+in cost (different worlds), and estimator 1 cannot remove that: which episodes happened to land
+first is part of its noise. Estimator 2 removes it, because the two timings of an episode share
+it. On the A/A runs of `HARNESS.md` section 10 (21 runs, 220 episodes per arm) the stratified
+interval's median width on the log scale was 0.111 against 0.054 for the paired one (about
++/-5.5% against +/-2.7%), and the estimates themselves varied 2.7 times as much from run to run
+(sd 0.043 against 0.016). In the first run the two copies' stratified estimates differed in sign
+(+10% and -4%) while the paired one said +3%. The two stratified estimates of a two-arm run are
+`theta + D` and `theta - D`, where `D` is the imbalance in episode cost between the episodes
+that arm happened to play first and the rest; their mean is the paired estimate. Estimator 1
+is the only one available for a real comparison of two *different* arms, and its interval must
+be read with that width.
+
+**Margin.** `--margin M` (a relative cost, 0.05 for 5%) prints where the interval lies against
+`L = log(1 + M)`, symmetric on the log scale: `exceeds_margin` if the whole interval is beyond
+`+L` or beyond `-L` (a position effect larger than the margin is established; this is what
+invalidates a run's cost comparison, per the plan), `within_margin` if the whole interval is
+inside `(-L, +L)`, and `unresolved` otherwise. The comparisons are strict, an interval that is
+merely wide is never `within_margin`, and a p-value above alpha is never reported as "no
+effect". Without `--margin` no verdict is printed. The margin is preregistered by the
+experiment; this package supplies none.
+
+#### Assumptions
+
+- *Randomized order.* Position is independent of the episode and of cost. The harness draws it
+  from `(run_seed, seed, class)` before any arm plays, so it cannot depend on a result; the
+  tests check the draw is a permutation and balanced. A run made some other way (a hand-edited
+  `arm_position`) voids the permutation test.
+- *Position-0 versus later is the only contrast.* With three or more arms, positions 1 and
+  beyond are pooled. A gradient across later positions is not estimated.
+- *Estimator 1 treats episodes in a class as exchangeable under the null.* That is what the
+  randomization gives; it is not an assumption about the cost distribution. The *bootstrap
+  interval* is approximate: it needs cells of more than a few episodes (a cell of one episode
+  has no resampling variance, so many tiny cells make the interval too narrow). The A/A design,
+  20 seeds per class and two arms, has about ten per cell.
+- *Estimator 2 treats two copies as repeat measurements.* True when `results.csv` agrees (checked)
+  and the policy is deterministic given the episode, which the reference core guarantees. It
+  says nothing about arms that differ.
+- *Costs are positive.* A zero measured cost has no log and is refused.
+- *Measured cost is wall time in one process.* A position effect here is the sum of everything
+  that depends on order within the process: instruction and data caches, branch predictors, the
+  allocator, CPU frequency. It does not separate them.
+
+#### What neither estimator shows
+
+- *An arm-by-position interaction.* If arm X is more sensitive to being first than arm Y (a
+  cheap arm that follows a dear one inherits a warm cache; the reverse does not), then X's
+  and Y's costs are biased in opposite directions, S is biased, and a comparison of copies of
+  one arm cannot see it: the copies have the same sensitivity. Estimator 1 applied to each arm
+  of the real comparison is the only check, with its width.
+- *Drift.* The two diagnostics are separate. An A/A in which each arm is first half the time
+  has a drift effect that is symmetric noise, not bias, and it widens S's interval; `drift`
+  reports how large the drift was.
+- *Equivalence.* A position effect whose interval contains 0 is not shown to be zero.
+
 ### power.py
 
 Normal approximation, `z_q` the standard normal quantile, `sd` the sd of the per-episode
@@ -270,6 +406,22 @@ range or trace rate would not give a pair (the trace rate does not change `resul
 The manifest edit is visible in `real_b/manifest.json`. The measured nanoseconds are one
 machine's wall times and are only used as numbers in tests, never as expected values.
 
+`tests/fixtures/real_aa` is unedited `gordian-run` output of an interleaved A/A run: two copies
+(`a1`, `a2`) of `heuristic_only`, three seeds by eleven classes, from the harness at commit
+`98a27bb`, with the drift workload every 10 episodes:
+
+```bash
+target/release/gordian-run init --run-id real-aa --experiment A8-AA --policy heuristic_only \
+    --arms a1,a2 --run-seed 1 --drift-block 10 --seed-start 1 --seed-count 3 \
+    --trace-sample-rate 0 --out real-aa.manifest.json
+target/release/gordian-run --manifest real-aa.manifest.json --out tests/fixtures/real_aa
+```
+
+It was made with the binary directly, not through the driver, so it is neither pinned nor
+isolated; its timings are one unpinned machine's and are never used as expected values. The
+fixture is kept whole: the run's `manifest.json`, `drift.csv` and each arm's `manifest.json`,
+`results.csv` and `measured.csv`.
+
 ## Tests
 
 `python -m pytest -q` from `analysis/`. Tests include hand-computed values (arithmetic in
@@ -278,3 +430,15 @@ data, bootstrap reproducibility and pair-preservation, loader rejection of dupli
 unmatched keys, of unknown columns, of a results/measured key mismatch, and of an empty
 decision time on a decided row (`tests/test_real_runs.py`, also the real-output fixtures), power textbook cases and monotonicity, a Monte Carlo check of
 `achieved_power_t`, and the CLI end to end on `tests/fixtures/run_a` and `run_b` and on `real_a` and `real_b`.
+
+`tests/test_drift.py` (A8): hand-computed CV and last/first ratio and every `drift.csv`
+rejection; the stratified statistic and the paired statistic against hand-computed values
+(the sign-flip p-value against its exact enumeration for four episodes); recovery of a known
+position effect with the interval covering it; Monte Carlo checks that both p-values reject
+about 5% of the time under no effect (200 simulated runs each, with a floor so a test that never
+rejects fails); that class heterogeneity does not produce an effect under the null; that the
+paired estimator cancels episode difficulty the stratified one cannot (its interval is more than
+ten times narrower on the same data); refusal of copies that did not play identically, of
+different episode sets, of one-arm runs and of non-positive costs; the margin verdict's three
+categories and its strict edges; and the CLI end to end. `tests/test_real_runs.py` runs all of it
+on `fixtures/real_aa`.

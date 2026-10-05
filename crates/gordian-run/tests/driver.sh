@@ -129,8 +129,25 @@ printf 'run_id,seed,class,measured_component_ns,measured_sched_ns,measured_harne
 printf 'run_id,seed,class\nr,1,Ambiguous\n' > "$out/results.csv"
 exit "${FAKE_RUN_EXIT:-0}"
 EOF
+# A stand-in for an interleaved run: one measured.csv per arm directory (the second with the
+# columns in another order and arm_position, as the loader of the real files tolerates), and the
+# drift file. The three-column sums are 400,000,000 (a1) and 60,000,000 (a2); drift is 12,000,000.
+cat > "$work/fake-run-multi" <<'EOF'
+#!/usr/bin/env bash
+out=""
+while [ $# -gt 0 ]; do
+  case "$1" in --out) out="$2"; shift 2 ;; *) shift ;; esac
+done
+mkdir -p "$out/a1" "$out/a2"
+printf 'run_id,seed,class,measured_component_ns,measured_sched_ns,measured_harness_ns,arm_position\nr.a1,1,Ambiguous,100000000,50000000,250000000,0\n' > "$out/a1/measured.csv"
+printf 'run_id,seed,class,arm_position,measured_harness_ns,measured_component_ns,measured_sched_ns\nr.a2,1,Ambiguous,1,30000000,10000000,20000000\n' > "$out/a2/measured.csv"
+printf 'run_id,block,units_done,reps,ns,min_ns\nr,0,0,2000,5000000,2000\nr,1,1,2000,7000000,3000\n' > "$out/drift.csv"
+printf 'run_id,seed,class\nr.a1,1,Ambiguous\n' > "$out/a1/results.csv"
+printf 'run_id,seed,class\nr.a2,1,Ambiguous\n' > "$out/a2/results.csv"
+exit 0
+EOF
 printf '#!/usr/bin/env bash\nsleep 30\n' > "$work/fake-sleep"
-chmod +x "$work/fake-run" "$work/fake-sleep"
+chmod +x "$work/fake-run" "$work/fake-run-multi" "$work/fake-sleep"
 
 reset_logs() { : > "$TASKSET_LOG"; rm -f "$STUB_ARGS_FILE"; }
 driver() { # driver ARGS... ; runs the copied driver, stderr to $work/err, returns its status
@@ -234,6 +251,36 @@ check "a failing run passes its exit status through (7)" equals \
   "$(status_of --manifest "$work/ok.json" --out "$work/o-fail" --bin "$work/fake-run")" 7
 check "  and the report is kept" test -f "$work/o-fail/usage.json"
 unset FAKE_RUN_EXIT
+
+# ---- an interleaved run: every arm's measured columns and the drift workload ----
+
+manifest "$work/multi.json" "$head" "t-multi" '{"min": 0.4, "max": 0.5}' 60
+reset_logs
+check "an interleaved run whose ratio is inside the tolerance exits 0" equals \
+  "$(status_of --manifest "$work/multi.json" --out "$work/o-multi" --bin "$work/fake-run-multi")" 0
+check "  measured sum is both arms plus drift: 400M + 60M + 12M" equals \
+  "$(jq '.measured_ns_sum' "$work/o-multi/usage.json")" 472000000
+check "  the arms' part is recorded" equals "$(jq '.measured_ns_arms' "$work/o-multi/usage.json")" 460000000
+check "  and the drift part" equals "$(jq '.drift_ns_sum' "$work/o-multi/usage.json")" 12000000
+check "  ratio is 0.472 of the CPU nanoseconds" equals "$(jq '.internal_external_ratio' "$work/o-multi/usage.json")" 0.472
+check "  and is judged inside the tolerance" equals "$(jq '.ratio_within_tolerance' "$work/o-multi/usage.json")" true
+
+manifest "$work/multi-tight.json" "$head" "t-multi-tight" '{"min": 0.5, "max": 1.0}' 60
+check "an interleaved ratio outside the tolerance exits 4" equals \
+  "$(status_of --manifest "$work/multi-tight.json" --out "$work/o-multi-tight" --bin "$work/fake-run-multi")" 4
+# a one-arm run with no drift file reports a drift part of zero
+check "a one-arm run records a drift part of zero" equals "$(jq '.drift_ns_sum' "$work/o-ok/usage.json")" 0
+check "  and its arm part is the whole sum" equals \
+  "$(jq '.measured_ns_arms == .measured_ns_sum' "$work/o-ok/usage.json")" true
+
+mkdir -p "$work/held-arm/a1"
+echo x > "$work/held-arm/a1/results.csv"
+check "an arm directory that holds results is never overwritten (14)" equals \
+  "$(status_of --manifest "$work/multi.json" --out "$work/held-arm" --bin "$work/fake-run-multi")" 14
+mkdir -p "$work/held-drift"
+echo x > "$work/held-drift/drift.csv"
+check "an existing drift.csv is never overwritten (14)" equals \
+  "$(status_of --manifest "$work/multi.json" --out "$work/held-drift" --bin "$work/fake-run-multi")" 14
 
 # ---- the backstop ----
 

@@ -3,7 +3,8 @@
 Work item A4 of `docs/local-test-plan.md`: the episode loop, the recorder, the driver. This file
 states what the loop does, which budget enforces which resource, what is recorded where, and every
 place the build departs from or fills a gap in the plan. What is built and what is not is stated
-in section 9. The code is authoritative; this file explains it.
+in section 9. Interleaved arms and the drift control (item A8) are section 10. The code is
+authoritative; this file explains it.
 
 ## 1. The loop
 
@@ -182,7 +183,7 @@ Declared cost is what policies see and what the `Bill` enforces. The charter's c
 - Each timing is appended as `EntryKind::Measurement` from producer `harness/timer`, never as
   `Accounting`, so `Bill::replay` is undisturbed.
 - Nothing the loop decides reads a timing, and a policy is never shown one.
-- Per episode, three sums go to `measured.csv`: `measured_component_ns` (the component runs),
+- Per episode, three sums and the arm's position go to `measured.csv`: `measured_component_ns` (the component runs),
   `measured_sched_ns` (the policy's declared-cost, `select` and `decide` calls, exactly the
   `select` and `decide` timer entries), and `measured_harness_ns` (the rest of the episode's wall
   time: generation, simulator, charging, ledger, scoring, and the affordability check). A test
@@ -192,10 +193,12 @@ Declared cost is what policies see and what the `Bill` enforces. The charter's c
 
 Per-class declared-to-measured ratios are the analysis package's job, from the two CSVs.
 
-`internal_external_ratio` is the sum of the three measured columns divided by the runner's
-`cpu_ns`. The harness does not include process start-up, manifest parsing, or writing the files, so
-the ratio is expected to be a little under 1; its first measured value is the starting point of
-the tolerance (plan A4), and is in the unit's report.
+`internal_external_ratio` is the sum of the three measured columns, over every arm, plus the drift
+workload's timings (section 10), divided by the runner's `cpu_ns`. The harness does not include
+process start-up, manifest parsing, or writing the files, so the ratio is expected to be a little
+under 1; its first measured value is the starting point of the tolerance (plan A4), and is in the
+unit's report. For an interleaved run the process plays every arm, so the numerator is over all
+arms; a ratio over one arm would be low by the number of arms.
 
 ## 5. Harness directives
 
@@ -232,12 +235,17 @@ is part of the run. An index with no such component is ignored and counted in `d
 |---|---|---|
 | `manifest.json` | the canonical manifest | yes |
 | `results.csv` | one row per episode, plan columns then `directives_ignored`, `stop_reason` (column semantics: `src/results.rs`) | yes, byte for byte |
-| `measured.csv` | the three measured sums per episode | no, same keys |
+| `measured.csv` | the three measured sums per episode, and `arm_position` | the timings no; `arm_position` and the keys yes |
+| `drift.csv` | one timing of the fixed reference workload per block (section 10) | no |
 | `events-sample.jsonl` | for a hashed sample of episodes: the public information, the passive stream, every ledger entry | except `harness/timer` payloads |
 | `usage.json` | written by `scripts/cgroup-run.sh` into the run directory, then extended by the driver with `internal_external_ratio` and the tolerance verdict | no |
 
 Rows are keyed by `(seed, class)` and written in execution order: the manifest's classes as listed,
-each over the first `count` seeds as listed. A manifest may not repeat a seed or a class.
+each over the first `count` seeds as listed. A manifest may not repeat a seed or a class. An
+interleaved manifest writes one subdirectory per arm holding that arm's `manifest.json`,
+`results.csv`, `measured.csv` and events sample, with `manifest.json` and `drift.csv` in the run
+directory itself (section 10); a one-arm manifest writes the first four into the run directory as
+before, plus `drift.csv`.
 
 **The events sample** is chosen by a hash of `(seed, class)` and `trace_sample_rate` alone, so
 every arm of an experiment keeps the same episodes. It contains no verdict and no hidden state.
@@ -258,6 +266,11 @@ default `trace_sample_rate` of 0.01 matters.
 whose entries are identical except the payloads of `harness/timer` entries (tested). It does not
 claim the same wall times. The ledger's accounting replays to the live bill
 (`Bill::replay`), tested over every class and two policies.
+
+*Per arm, in an interleaved run.* Each arm's `results.csv` is byte-identical to the `results.csv`
+of a single-arm run of that arm on the same manifest (`Manifest::single_arm`, which is also the
+arm directory's own `manifest.json`), and does not depend on the order the arms played in, the
+run seed, or how often the drift workload ran (all tested; section 10).
 
 *Not claimed.* Numerical replay and statistical replication (charter section 11) are out of this
 unit's scope.
@@ -339,7 +352,37 @@ unit's scope.
       makes no final declaration, at default and two binding budgets, and requires every
       difference to be a row that would have ended `budget_exhausted` or `horizon`.
 
+15. **Three manifest fields and a second spelling (A8).** `arms` (a list of `{arm, policy}`),
+    `run_seed` and `drift_block`. A manifest gives `arm` and `policy` or `arms`, never both; in
+    memory `arm` and `policy` hold the first arm either way. `run_seed` defaults to 0 and
+    `drift_block` to 50 in a manifest that lacks them, so every earlier manifest parses and means
+    what it meant, except that it now also writes `drift.csv`. The serialized form is a private
+    struct, so the public `Manifest` still has the plan's field names.
+16. **Rows of an arm in an interleaved run carry `run_id = <run_id>.<arm>`.** The analysis package
+    needs one `run_id` per directory and the report names it; two arms with one run id would be
+    indistinguishable in its output. The arm directory's `manifest.json` is the one-arm manifest
+    with that `run_id`, so the arm's results are reproducible from the file alone.
+17. **`measured.csv` gains a last column, `arm_position` (A8, plan A8 item 1).** A one-arm run
+    writes 0 in it.
+18. **The drift workload's parameters are not in the manifest.** Its seed, class, noise rate,
+    service count, window and repetition count are constants in `src/drift.rs`, so that the
+    workload is the same bytes in every run and on every machine; a run's `drift.csv` is
+    comparable with another's. It runs before the first episode, before every `drift_block`-th
+    after, and once after the last (the plan says "every `drift_block` episodes"; the closing one
+    is added so that the last timing is taken at the end of the run, not up to a block before).
+    Blocks count `(seed, class)` units, not arm-episodes.
+19. **`harness.rs` gains `public_window`** (twelve lines, before `elapsed_ns`). The drift workload
+    needs a fixed generated window, and a structural test allows `generate(` only in this file.
+    The function builds no truth and no simulator. Nothing else in `harness.rs` changed.
+20. **`RunError::Harness` gains an `arm` field**, because a harness defect in an interleaved run
+    needs to say which arm was playing. `execute` still returns the totals; `execute_report` also
+    returns each arm's counts and the number of drift blocks.
+
 ## 9. Built and not built
+
+Built in A8: interleaved arms (`src/interleave.rs`, `src/recorder.rs`), the drift workload
+(`src/drift.rs`), `arm_position` in `measured.csv`, the driver's ratio over all arms plus the drift
+workload, and the analysis diagnostics (`analysis/gordian_analysis/drift.py`); section 10.
 
 Built: the loop, the policy trait, the scripted policy, the manifest, both CSV files, the events
 sample, the `gordian-run` binary (`--manifest`/`--out`, and `init` to write a manifest for the
@@ -350,3 +393,116 @@ share; `POLICIES.md` states them. Built in A6b: the final call.
 
 Not built: any training or forking of counterfactual episodes, the analysis of a run, and anything
 that charges `Memory`, `Communication` or `Storage`.
+
+## 10. Interleaved arms and drift control (A8)
+
+Why: wall time on this VM drifts within a session (one benchmark moved 249, 268, 324, 325 µs over
+four consecutive runs) and differs between sessions, and the VM exposes no hardware counters.
+Measured cost compared across arms run one after another would carry that drift as a treatment
+effect. Section 4 makes measured cost the primary cost, so this is a threat to every comparison.
+
+**Interleaving.** A manifest with `arms` runs all of them in this process. For each `(seed, class)`
+the episode is played once per arm, back to back, in an order drawn from a ChaCha8 stream seeded by
+`(run_seed, seed, class)` (`interleave::arm_order`, a Fisher-Yates shuffle; the seed is expanded
+with splitmix64 rather than a library's seed expansion). The draw is a function of three public
+numbers and the number of arms: it does not read a clock, a result or an arm's name, and it happens
+before any arm plays. Each arm builds a fresh policy and fresh components for each of its episodes,
+as before. Arm `i`'s position in the draw is its `arm_position` in `measured.csv`.
+
+```json
+{
+  "run_id": "aa-1", "experiment": "A8-AA",
+  "arms": [{"arm": "a1", "policy": "heuristic_only"},
+           {"arm": "a2", "policy": "heuristic_only"}],
+  "run_seed": 1, "drift_block": 50,
+  "source_revision": "...", "seeds": [1, 2, "..."], "episode_classes": [["Ambiguous", 20], "..."],
+  "decide": {"patience_ns": 3000000000}, "limits": {"...": "..."}, "...": "..."
+}
+```
+
+Everything else is shared by every arm: seeds, classes, limits, episode parameters, decision rule.
+A policy with parameters is spelled as in a one-arm manifest, `{"policy": "random_matched", "p":
+0.3}`. `gordian-run init --policy P --arms a1,a2 --run-seed N --drift-block N` writes one with
+the same policy under several names, or `--arms a1=heuristic_only,a2=all_components` for
+different ones (policy defaults); anything else is a manifest edit.
+
+**Privileged arms** are allowed in a multi-arm manifest and keep the naming rule: the arm name
+must contain `privileged`, checked per arm. Truth reaches only `policy/oracle.rs`, as before: the
+interleaving code names no truth, and an oracle arm is built by the same `policy::build` and
+`run_episode_privileged` calls; a test runs an oracle arm beside a public one and checks that both
+give their single-arm `results.csv`. The text guard `scripts/check-no-oracle.sh` passes.
+
+**Drift control.** `src/drift.rs`: the consistency verifier run 2,000 times on one fixed window, each
+run timed with `std::time::Instant`. The window is the first 256 observations of the public stream
+of the episode `(seed 8675309, class NoiseFlood)` generated with noise rate 50 and 12 services (the
+generator's maxima, so that the window is full; at the default noise rate the stream holds fewer
+than 100 observations), built once per run outside every timer. One block takes about 5 ms
+(about 2.5 µs per verifier run). `drift.csv` has `run_id, block, units_done, reps, ns, min_ns`:
+the sum of the runs and the shortest single run.
+
+- *It never influences an arm.* It shares nothing with an episode: its own episode, its own
+  component instance, no random stream, no ledger, no bill, output discarded. A test plays one
+  manifest with a block before every episode and one with almost none and compares every
+  arm's `results.csv` byte for byte. What it can touch is the machine's state (caches, frequency)
+  as seen by the next episode; it runs between units, so that state is seen by whichever arm
+  plays first, which the draw makes any arm with equal probability.
+- *It is not charged.* It runs outside every timing bracket an episode has, so it is in no arm's
+  `measured.csv` and no bill. A test checks the invariant that makes this checkable: the arms'
+  measured nanoseconds plus the drift nanoseconds are at most the wall time of the whole
+  call (the intervals are disjoint).
+- *It is recorded as harness overhead*: in `drift.csv`, and in the driver's
+  `internal_external_ratio` numerator (`usage.json` has `measured_ns_arms` and `drift_ns_sum`
+  beside `measured_ns_sum`). On a run of cheap episodes it is a large share of the process
+  (26% of the measured total, 34% of the arms' measured time, in the first A/A below, where an
+  episode costs about 0.2 ms); on `all_components` episodes it is not.
+
+**The analysis package** (`analysis/README.md`): `gordian-analyze drift --run RUN` reports the
+coefficient of variation and the last-over-first ratio; `gordian-analyze position --arm ARM
+[--paired-with ARM2]` tests whether measured cost depends on `arm_position`, by a stratified
+permutation test for one arm and a paired bootstrap for two copies of one policy.
+
+### The A/A check
+
+Two copies of `heuristic_only`, named `a1` and `a2`, 20 seeds by 11 classes (220 episodes per
+arm), through `scripts/run-driver.sh` (cgroup v1, cores 0-2, the shell pinned to core 3),
+`--run-seed 1`, `--drift-block 50`, built from commit `7f69856`'s code (the harness is unchanged
+since). **Conditions were not controlled**: the VM is shared with another worker, and I did not
+check what else ran during these runs (the driver's own check found no `cargo` or `rustc`
+process at each start). The drift CVs below are large for that reason or another, and a rerun
+on an idle machine may differ.
+
+| | S = 1 - sum(a2)/sum(a1), 90% interval | drift CV of `ns` | last/first `ns` | position effect, paired (playing first) |
+|---|---|---|---|---|
+| the A/A run (`--run-seed 1`) | +0.0097, [-0.0146, +0.0333] | 0.203 | 0.629 | +3.1%, [+0.8%, +5.3%], p = 0.023 |
+
+The interval contains 0. `gordian-analyze compare --a RUN/a1 --b RUN/a2 --relative-savings
+--threshold 0 --seed 1` is the command. `internal_external_ratio` was 0.912 (the first
+interleaved value); `min_ns` varied far less than `ns` (CV 0.013, last/first 0.968), which says the
+machine was disturbed, not that the verifier changed speed.
+
+Twenty further A/A runs, identical but for `--run-seed 2` to `21`, as a check that the first one
+was not luck. They were run after the first one and none was dropped:
+
+| | result |
+|---|---|
+| S's 90% interval contains 0 | 20 of 20 (21 of 21 with the first run); a nominal 90% interval excludes 0 about 1 time in 10 if it is calibrated, so 0 of 21 has probability about 0.11 if the runs were independent (they replay the same 220 episodes) and is not alarming, but the intervals may be a little conservative |
+| S across the 20 | mean -0.0005, sd 0.037, range -0.079 to +0.082 |
+| position effect, paired, theta | mean +0.016 (playing first costs about 1.6% more); 5 of 20 have p < 0.05 (1 expected under no effect) |
+| drift CV of `ns` | median 0.085, range 0.030 to 0.407; of `min_ns`, median 0.040, range 0.024 to 0.216 |
+| `internal_external_ratio` | 0.903 to 0.9998 across the 21 runs |
+
+So there is a small position effect, about +1.6% to +3% for the arm that plays first in this
+process, which the random order turns into noise instead of bias, and which A/A cannot rule out
+varying between arms (`analysis/README.md`, "What neither estimator shows"). It is small next to
+EXP-001's 0.20 threshold, but no position-effect margin has been preregistered, so this says
+nothing about whether it would invalidate a comparison.
+
+**Why interleaving is needed**, for contrast: the same A/A, but the two copies run as separate
+one-arm runs, one after the other, the way arms ran before A8 (20 pairs, same machine conditions):
+12 of 20 intervals for S exclude 0, S has sd 0.151 and ranges to -0.458. Interleaved: 0 of 21
+exclude 0 and sd 0.037. This is evidence about this machine under these (noisy) conditions, not a
+general rate. It is not an argument that a quiet machine needs no interleaving: the between-session
+differences the plan cites (13-34%) are of this order.
+
+The coordinator reruns the A/A pinned and idle. If an interval then excludes 0, the plan calls for
+the counted-operations alternative, and nothing here should be tuned to avoid that.
