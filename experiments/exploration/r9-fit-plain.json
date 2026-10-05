@@ -1,0 +1,81 @@
+{
+  "n_incidents": 100,
+  "A": [
+    0.97,
+    0.97,
+    0.96,
+    0.94,
+    0.91
+  ],
+  "A_interval": [
+    [
+      0.94,
+      0.99
+    ],
+    [
+      0.94,
+      0.99
+    ],
+    [
+      0.93,
+      0.99
+    ],
+    [
+      0.9,
+      0.98
+    ],
+    [
+      0.86,
+      0.95
+    ]
+  ],
+  "p0": 0.23,
+  "p0_interval": [
+    0.16,
+    0.3
+  ],
+  "delta": 0.020500000000000407,
+  "delta_status": 0,
+  "delta_interval": [
+    0.007500000000000506,
+    0.03650000000000042
+  ],
+  "delta_unidentified_resamples": 0,
+  "delta_edge_resamples": 0,
+  "delta_interval_p0_fixed": [
+    0.007500000000000506,
+    0.036000000000000476
+  ],
+  "delta_unidentified_resamples_p0_fixed": 0,
+  "A0_lower": 0.94,
+  "A0_minus_p0_interval": [
+    0.6699999999999999,
+    0.8099999999999999
+  ],
+  "bootstrap": {
+    "resamples": 10000,
+    "seed": 9900
+  },
+  "fit_free_amplitude": {
+    "delta": 0.02250000000000041,
+    "amplitude": 0.7443409364017313,
+    "misfit": 0.004340936401731277
+  },
+  "precondition": {
+    "A0": 0.97,
+    "A0_lower": 0.94,
+    "A0_at_least_0.80": true,
+    "lower_above_0.70": true,
+    "holds": true
+  },
+  "residuals": [
+    0.0,
+    0.007546259351864704,
+    0.005015564608857104,
+    -0.0002735561613705917,
+    -0.0017412494352968544
+  ],
+  "misfit": 0.007546259351864704,
+  "tier": "plain",
+  "reader": "r9_reader"
+}
