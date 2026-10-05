@@ -1,0 +1,56 @@
+[package]
+name = "gordian-stream"
+version = "0.1.0"
+description = "Stream world: one long-running service graph with plain, hard and decoy incidents, deadlines, recurrence, regime changes, and a simulated expensive reasoner"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Compiles `oracle`, the only accessor for hidden stream state (tiers, decisive-evidence labels,
+# true hypotheses, deadlines, regime changes, the reasoner's accuracy draws). Only the stream
+# evaluator and the privileged oracle arm may enable it. Cargo unifies features across a build, so
+# this is a guard, not a proof; scripts/check-no-oracle.sh is the second guard. The name matches
+# gordian-world's feature so that the check on gordian-run's manifest covers both crates.
+reveal-hidden-state = []
+
+[dependencies]
+# Requirement: one accounting vocabulary (Charge, Resource, Budget, Instant) for the hard limits
+# the stream enforces, as in the first world.
+# Simpler alternative: local copies of those types; rejected, they would drift from core.
+gordian-core = { path = "../gordian-core" }
+# Requirement: the first world's observation vocabulary, service graph, fault kinds, probe
+# semantics and public physics, which plain incidents obey and hard incidents overlap. Default
+# features only: the first world's hidden-state accessor is not compiled in on this crate's account.
+# Simpler alternative: re-deriving them; rejected, a second copy could disagree with the checker
+# the cheap rung uses.
+gordian-world = { path = "../gordian-world" }
+# Requirement: seeded, reproducible generation and reasoner draws (ChaCha output is fixed by the
+# algorithm). The same crates and versions the first world uses, so nothing new in Cargo.lock.
+# Simpler alternative: a hand-rolled PRNG; possible, but gains nothing over a vetted one.
+rand_chacha = "0.10.0"
+rand_core = "0.10.1"
+# Requirement: parameters, public information, actions and outcomes are written into manifests
+# and read by the analysis package as JSON. Hidden state is deliberately not Serialize outside
+# the feature-gated oracle.
+# Simpler alternative: hand-written JSON; rejected, these schemas will grow.
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+# Requirement: the tier guarantees are tested by running the first world's four components and the
+# shared decision rule on this world's incidents.
+# Simpler alternative: re-implementing them in the tests; rejected, a copy could drift.
+gordian-components = { path = "../gordian-components" }
+# Requirement: the shared decision rule (`Decider`) is the "shared rule's candidate logic" the
+# plan names. Used by tests only. gordian-run does not depend on this crate yet; when it does
+# (plan item R3) this becomes a dev-dependency cycle, which cargo allows, and the tests here pass
+# only gordian-world and gordian-components types through it.
+# Simpler alternative: a test-local copy of the rule; rejected, it would test a copy.
+gordian-run = { path = "../gordian-run" }
+# Requirement: parameter round-trip test.
+# Simpler alternative: none.
+serde_json = "1.0.151"
+
+[lints]
+workspace = true

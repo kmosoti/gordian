@@ -5,6 +5,7 @@ members = [
     "crates/gordian-eval",
     "crates/gordian-components",
     "crates/gordian-run",
+    "crates/gordian-stream",
 ]
 resolver = "3"
 
