@@ -15,6 +15,12 @@ repository.workspace = true
 # gordian-world's feature so that the check on gordian-run's manifest covers both crates.
 reveal-hidden-state = []
 
+# R8's evaluator-side question dumper. It prints the truth beside the evidence, so it is built only
+# with the hidden-state feature (cargo skips it otherwise).
+[[example]]
+name = "questions"
+required-features = ["reveal-hidden-state"]
+
 [dependencies]
 # Requirement: one accounting vocabulary (Charge, Resource, Budget, Instant) for the hard limits
 # the stream enforces, as in the first world.

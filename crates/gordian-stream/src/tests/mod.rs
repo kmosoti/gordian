@@ -7,6 +7,7 @@ mod cheap;
 mod determinism;
 mod indistinguishable;
 mod noise;
+mod questions;
 mod reasoner;
 mod recurrence;
 mod soundness;
