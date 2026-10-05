@@ -4,6 +4,87 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R8 real-model distractor sensitivity — merged; unidentifiable with these models
+
+**Provenance.**
+
+- **Code:** an evaluator-side question dumper behind the oracle feature, allowlisted in the guard;
+  llama.cpp pinned at tag `b11429`, built outside the workspace in `artifacts/runtime/` (ignored);
+  Qwen2.5 1.5B and 3B, Q4_K_M, with sha256 equal to the published values, in `artifacts/models/`
+  (ignored).
+- **Calls:** 277 in total, 260 of them scored. No parse failures, no errors, none truncated, none
+  repeated.
+- **Gates:** on exit codes on the merged tree: fmt, clippy `--locked`, 560 Rust tests, the oracle
+  guard, 326 analysis tests.
+- **Run outputs:** in `artifacts/runs/r8/`. The coordinator checked that they are identical to the
+  worktree's before removing it.
+
+**Re-verified from `calls.jsonl`.**
+
+| Model | Hard questions | A(0) | 90% lower bound | Guess rate (control) |
+|---|---|---|---|---|
+| 1.5B | 28 | 0.500 | 0.357 | 0.357 |
+| 3B | 16 | 0.250 | — | 0.250 |
+
+- For the 1.5B, A(m) at m = 50, 100, 200 and 400 is 0.357, 0.393, 0.429 and 0.357, all at the guess
+  rate. All of these match the worker's report.
+
+**Verdict as written: unidentifiable with these models.** The failure is structural, not a matter
+of sample size.
+
+- The 1.5B model gains only 0.14 from having all of the evidence. That is below the 0.15 the
+  precondition requires, so it would fail at any N.
+- The 3B does no better than its own guess rate on the main questions.
+- Neither model reads this world's evidence well enough for its loss to distractors to be
+  measured.
+
+**Coordinator notes.**
+
+- **The plan's sizing was optimistic.**
+  - The reasoner prompt needs about 5,200 tokens: the rules plus 14 worked examples.
+  - Prompt evaluation on three cores runs at about 50–75 tokens per second.
+  - So the 4-hour envelope allowed 28 hard questions, not up to 120.
+  - The worker computed, before the main run, that even a model passing the precondition could not
+    have produced an interval narrow enough for either regime at this N. The pilot did its job;
+    the plan should have expected this.
+- **Prompt development used 12 rounds on pilot-range questions.**
+  - The 3B scored 6/12 on development questions and 4/16 on the main ones. That is within sampling
+    error, but some fitting to the development questions cannot be excluded.
+  - No change was made after a scored call.
+- **The reference rule-reader is the more informative output, and it needs careful reading.**
+  - It is a program that applies the prompt's rules to the rendered context.
+  - On the same contexts it falls from 0.93 at m = 0 to 0.36 at m = 400 (δ̂ 0.44 [0.24, 0.88]).
+  - The cause is that hard-incident evidence messages share an ID pool with background messages,
+    so distractors include look-alikes that the reader's crude windowed rule accepts.
+  - This is not the loss an optimal public reader would suffer; a reader that learned each stream's
+    vocabulary from its own history might lose much less.
+- **What it does establish is a property of the simulated reasoner.**
+  - Its `q` is counted from hidden labels, so at δ = 0 it behaves as a reader that always knows
+    which references are evidence.
+  - No reader without hidden labels has that ability in this world.
+  - The δ = 0 law is therefore not "a strong model". It is an oracle-labelled reader. R6's
+    "simple builders suffice" was measured under that oracle.
+  - This moves the prior toward R7's regime, without estimating δ.
+- **Deviation accepted.** The incident's own non-decisive observations were kept out of both the
+  contexts and the pool, whereas the simulator's `m` counts them as distractors. It does not affect
+  the verdict.
+
+**Decided.**
+
+1. EXP-102 is not preregistered on the current reasoner law. The law's δ = 0 default is an
+   oracle-labelled reader, and no real model available here can estimate δ.
+2. The options are put to the user:
+   - **(a) Simulation-only.** Ground the distractor law in the world itself: measure how a strong
+     public reader degrades with look-alike distractors, then let the simulated reasoner's
+     informed probability depend on confusable distractors rather than on a free δ.
+   - **(b) A stronger real model.**
+     - A local 7B model is not practical on this CPU: about 4–5 minutes per call at these context
+       sizes.
+     - A remote model needs credentials and money, which only the user can supply.
+   - **(c) The salience ceiling for EXP-101.** This is independent of the context question.
+3. The models (3.1 GB) and runtime (325 MB) are kept for now; free disk is 7.7 GB. They can be
+   deleted if (b) is not chosen.
+
 ## R7 reasoner-law sensitivity — merged; R6's context finding is fragile
 
 **Provenance.**
