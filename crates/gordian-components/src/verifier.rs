@@ -64,36 +64,21 @@ const U_EVALS: usize = 4;
 const U_PROBE_EVALS: usize = 5;
 const U_RANKED: usize = 6;
 
+// Weights, picoseconds per unit: fitted 2026-10-05 on the 4 vCPU Xeon, core 2 under scripts/cgroup-run.sh, minimum over 5 runs of 25 timings per datum.
+// Non-negative least squares on the minimum time per call, weighted by 1/time, with no
+// intercept beyond the explicit per-call unit; rounded to three figures. What each unit
+// counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
+// after a change to the CPU, the release profile, or the code that is counted.
+#[rustfmt::skip]
 /// The verifier's units and their weights.
 pub const UNITS: &[Unit] = &[
-    Unit {
-        name: "candidates",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "damaged",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "scanned",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "worlds",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "evals",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "probe_evals",
-        weight_ps: 0,
-    },
-    Unit {
-        name: "ranked",
-        weight_ps: 0,
-    },
+    Unit { name: "candidates", weight_ps: 262000 },
+    Unit { name: "damaged", weight_ps: 34400 },
+    Unit { name: "scanned", weight_ps: 1540 },
+    Unit { name: "worlds", weight_ps: 7440 },
+    Unit { name: "evals", weight_ps: 6710 },
+    Unit { name: "probe_evals", weight_ps: 21600 },
+    Unit { name: "ranked", weight_ps: 61500 },
 ];
 
 /// The consistency verifier.
