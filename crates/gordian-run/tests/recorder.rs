@@ -429,6 +429,7 @@ fn the_events_sample_holds_no_hidden_state() {
         "reason",
         "what",
         "ns",
+        "ops",
         "refused",
         "Candidates",
         "EvidenceDamaged",

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Write fitted weights into the unit tables of the Rust sources.
 
-Reads the JSON written by `calibrate_ops.py --json`, rounds each weight to three significant
+Reads the JSON written by `calibrate_ops.py --json` (weights fitted on fixed windows in a loop) or
+by `calibrate_insitu.py --json` (those weights scaled to what the harness pays), rounds each weight to three significant
 figures (picoseconds per unit: a fit of noisy timings has no more precision than that), and
 rewrites the `UNITS` table of each component and the `RULE_UNITS` table of the shared rule, one
 `Unit` per line. The record of what was measured and when is the comment above each table; this
@@ -17,6 +18,7 @@ import argparse
 import json
 import math
 import re
+import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -70,12 +72,25 @@ def main() -> None:
         lines = "".join(
             f'    Unit {{ name: "{n}", weight_ps: {w} }},\n' for n, w in zip(units, weights)
         )
+        scaled = ""
+        if "alpha" in fit[target]:
+            scaled = (
+                f"// In situ: {fit[target]['alpha']:.3g} x the weights fitted on fixed windows in a loop, plus\n"
+                f"// {fit[target]['beta_ns']:.3g} ns on the per-call unit(s) (`calibrate_insitu.py`).\n"
+            )
+        record = textwrap.fill(
+            f"Weights, picoseconds per unit: {args.record}.",
+            width=96,
+            initial_indent="// ",
+            subsequent_indent="// ",
+        )
         block = (
-            f"// Weights, picoseconds per unit: {args.record}.\n"
+            f"{record}\n"
+            f"{scaled}"
             "// Non-negative least squares on the minimum time per call, weighted by 1/time, with no\n"
             "// intercept beyond the explicit per-call unit; rounded to three figures. What each unit\n"
             "// counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate\n"
-            "// after a change to the CPU, the release profile, or the code that is counted.\n"
+            "// after a change to the CPU, the release profile, the harness, or the code that is counted.\n"
             "#[rustfmt::skip]\n"
             f"{m.group(1)}pub const {const}: &[Unit] = &[\n{lines}];\n"
         )

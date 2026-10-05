@@ -153,8 +153,10 @@ def main():
         if not mine:
             continue
         units = list(mine[0]["counts"].keys())
-        # The rule has no fixed windows; its fit set is the first episodes recorded.
-        fit_label = "real_fit" if target == "rule" else "fit"
+        # The rule has no fixed windows in `calibrate_ops`, so there its fit set is the first
+        # episodes recorded (`real_fit`); everything else, and everything `calibrate_insitu`
+        # writes, is fitted on `fit`.
+        fit_label = "fit" if any(r["set"] == "fit" for r in mine) else "real_fit"
         fit_rows = [r for r in mine if r["set"] == fit_label]
         w = fit(fit_rows, units)
         print(f"\n=== {target}  ({len(units)} units, {len(fit_rows)} fit rows)")

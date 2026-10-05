@@ -89,22 +89,26 @@ const U_PROBE_EVALS: usize = 5;
 const U_HYPOTHESES: usize = 6;
 const U_SORT_CMPS: usize = 7;
 
-// Weights, picoseconds per unit: fitted 2026-10-05 on the 4 vCPU Xeon, core 2 under scripts/cgroup-run.sh, minimum over 5 runs of 25 timings per datum.
+// Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
+// windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
+// (calibrate_insitu.py, 3 runs of 5 passes).
+// In situ: 1.39 x the weights fitted on fixed windows in a loop, plus
+// 23.6 ns on the per-call unit(s) (`calibrate_insitu.py`).
 // Non-negative least squares on the minimum time per call, weighted by 1/time, with no
 // intercept beyond the explicit per-call unit; rounded to three figures. What each unit
 // counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
-// after a change to the CPU, the release profile, or the code that is counted.
+// after a change to the CPU, the release profile, the harness, or the code that is counted.
 #[rustfmt::skip]
 /// The estimator's units and their weights.
 pub const UNITS: &[Unit] = &[
-    Unit { name: "calls", weight_ps: 563000 },
-    Unit { name: "scanned", weight_ps: 2470 },
-    Unit { name: "permit_scans", weight_ps: 5740 },
-    Unit { name: "ancestors", weight_ps: 604 },
-    Unit { name: "site_updates", weight_ps: 2380 },
-    Unit { name: "probe_evals", weight_ps: 6390 },
-    Unit { name: "hypotheses", weight_ps: 1170 },
-    Unit { name: "sort_cmps", weight_ps: 3230 },
+    Unit { name: "calls", weight_ps: 805000 },
+    Unit { name: "scanned", weight_ps: 3430 },
+    Unit { name: "permit_scans", weight_ps: 7970 },
+    Unit { name: "ancestors", weight_ps: 838 },
+    Unit { name: "site_updates", weight_ps: 3310 },
+    Unit { name: "probe_evals", weight_ps: 8870 },
+    Unit { name: "hypotheses", weight_ps: 1620 },
+    Unit { name: "sort_cmps", weight_ps: 4480 },
 ];
 
 /// The count-based estimator.

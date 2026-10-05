@@ -111,19 +111,23 @@ const R_PROBE_EVALS: usize = 4;
 /// How many units the rule has.
 const R_UNITS: usize = 5;
 
-// Weights, picoseconds per unit: fitted 2026-10-05 on the 4 vCPU Xeon, core 2 under scripts/cgroup-run.sh, minimum over 5 runs of 25 timings per datum.
+// Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
+// windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
+// (calibrate_insitu.py, 3 runs of 5 passes).
+// In situ: 1.21 x the weights fitted on fixed windows in a loop, plus
+// 196 ns on the per-call unit(s) (`calibrate_insitu.py`).
 // Non-negative least squares on the minimum time per call, weighted by 1/time, with no
 // intercept beyond the explicit per-call unit; rounded to three figures. What each unit
 // counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
-// after a change to the CPU, the release profile, or the code that is counted.
+// after a change to the CPU, the release profile, the harness, or the code that is counted.
 #[rustfmt::skip]
 /// The shared rule's units and their weights.
 pub const RULE_UNITS: &[Unit] = &[
-    Unit { name: "calls", weight_ps: 70900 },
-    Unit { name: "decoded_outputs", weight_ps: 223000 },
-    Unit { name: "decoded_ranked", weight_ps: 110000 },
-    Unit { name: "worlds", weight_ps: 15400 },
-    Unit { name: "probe_evals", weight_ps: 27600 },
+    Unit { name: "calls", weight_ps: 281000 },
+    Unit { name: "decoded_outputs", weight_ps: 270000 },
+    Unit { name: "decoded_ranked", weight_ps: 133000 },
+    Unit { name: "worlds", weight_ps: 18600 },
+    Unit { name: "probe_evals", weight_ps: 33300 },
 ];
 
 /// The work the shared rule did, in the units of [`RULE_UNITS`].

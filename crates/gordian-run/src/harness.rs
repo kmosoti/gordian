@@ -467,19 +467,25 @@ fn append(
     Ok(ledger.append(at, kind, provenance(producer, inputs), body)?)
 }
 
-/// Record one timing as a `Measurement` from `harness/timer`.
+/// Record one timing as a `Measurement` from `harness/timer`, with the operation counts of the call
+/// it timed (work item A8b): the component's units for a component call, the rule's for a
+/// scheduling call, in the order of their unit tables. The counts are deterministic and the
+/// nanoseconds are not, and the entry holds both so that what a call did and what it took can be
+/// read together (the in-situ calibration, `examples/calibrate_insitu.rs`, does exactly that).
 fn record_timing(
     ledger: &mut Ledger,
     at: Instant,
     what: &str,
     component: Option<ComponentId>,
     ns: u64,
+    counts: &[u64],
     inputs: Vec<EntryId>,
 ) -> Result<(), HarnessError> {
     let body = payload(&json!({
         "what": what,
         "component": component.map(|c| c.0),
         "ns": ns,
+        "ops": counts,
     }))?;
     append(
         ledger,
@@ -747,7 +753,8 @@ fn play(
             }
             Charged::Refused(refusal) => (Vec::new(), 0, refusal),
         };
-        sched_ops.accumulate(&policy.take_ops());
+        let select_ops = policy.take_ops();
+        sched_ops.accumulate(&select_ops);
         let ns = cost_ns.saturating_add(select_ns);
         measured.sched_ns = measured.sched_ns.saturating_add(ns);
         record_timing(
@@ -756,6 +763,7 @@ fn play(
             "select",
             None,
             ns,
+            select_ops.counts(),
             vec![accounting],
         )?;
 
@@ -821,6 +829,7 @@ fn play(
                 "component",
                 Some(id),
                 ns,
+                counted.counts(),
                 vec![accounting],
             )?;
             for (kind, body) in &output.entries {
@@ -852,9 +861,18 @@ fn play(
 
         // Decide, and act.
         let (action, ns) = timed(|| policy.decide(&state, &outputs));
-        sched_ops.accumulate(&policy.take_ops());
+        let decide_ops = policy.take_ops();
+        sched_ops.accumulate(&decide_ops);
         measured.sched_ns = measured.sched_ns.saturating_add(ns);
-        record_timing(&mut ledger, clock.now(), "decide", None, ns, Vec::new())?;
+        record_timing(
+            &mut ledger,
+            clock.now(),
+            "decide",
+            None,
+            ns,
+            decide_ops.counts(),
+            Vec::new(),
+        )?;
         let mut terminal = false;
         if let Some(action) = action {
             let decision = append(
@@ -1036,7 +1054,8 @@ fn play(
             Charged::Refused(refusal) => refusal,
         };
         let (action, decide_ns) = timed(|| policy.decide_final(&state));
-        sched_ops.accumulate(&policy.take_ops());
+        let final_ops = policy.take_ops();
+        sched_ops.accumulate(&final_ops);
         let ns = cost_ns.saturating_add(decide_ns);
         measured.sched_ns = measured.sched_ns.saturating_add(ns);
         record_timing(
@@ -1045,6 +1064,7 @@ fn play(
             "decide",
             None,
             ns,
+            final_ops.counts(),
             vec![accounting],
         )?;
 
