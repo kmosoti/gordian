@@ -740,6 +740,116 @@ never folded in. The same numbers are reported at b = 2.5 and b = 8. Seeds as in
 neither clause holds, simple context builders capture the lever, and EXP-102 has too little to win
 as designed.
 
+### R7 Reasoner-law sensitivity: does R6 survive a reasoner hurt by irrelevant context?
+
+R6 found that simple public builders come within 0.024 [0.000, 0.051] of the context-only
+ceiling, at about 33 times the references per call. That finding rests on one property of the
+simulated reasoner: extra references cost tokens but never lower accuracy (`HIDDEN-DESIGN.md`,
+section 11). Published work reports the opposite for real models. Shi et al. 2023 report
+irrelevant context lowering accuracy; Liu et al. 2023 ("Lost in the Middle") report accuracy
+falling with context length and position. Both are cited from memory and must be checked against
+the primary texts before any claim relies on them. R7 asks whether R6's conclusion holds when the
+reasoner is hurt by references that are not evidence.
+
+**World change** (`crates/gordian-stream`, hidden side only).
+
+- Add `distractor_penalty: f64` to `ReasonerSpec`. It defaults to 0 through `serde(default)`, so
+  existing manifests parse unchanged, and `normalized()` clamps it to at least 0.
+- The informed probability becomes `h_δ = h(q, d) · exp(−δ · m / 100)`. Here `m` is the number of
+  references in the context that are not decisive evidence of the focus incident, probes included.
+- Accuracy stays `p0 + (1 − p0) h_δ`.
+- The penalty uses the deterministic `det_exp`. It takes no new draw, so at δ = 0 every answer and
+  every draw is unchanged.
+
+This preserves the invariant: `h_δ(0, d) = 0`, so the answer still depends on the truth only
+through the decisive evidence in the context.
+
+`StreamPublic` must not carry δ. Extend the test that public information does not depend on any
+hidden parameter.
+
+**Tests** (in addition to the existing law tests):
+
+1. At δ = 0, R6's held-out manifest at b = 5, ρ = 0.7 replays byte-identical in `results.csv` and
+   `incidents.csv` for every arm, against `experiments/exploration/r6-results-sha256.csv`.
+2. At δ > 0, the marginal law test (cluster-robust, as R1) passes, with `h_δ` recomputed in the
+   test.
+3. `h_δ` is non-increasing in `m` and equals `h` at `m = 0`.
+4. Mutual information with no decisive evidence stays within its permutation baseline.
+
+**Grid.** δ ∈ {0.05, 0.1, 0.2, 0.4} per 100 non-decisive references. At m = 250 these multiply `h`
+by 0.88, 0.78, 0.61 and 0.37; at m = 50, by 0.98, 0.95, 0.90 and 0.82. δ = 0 is R6 itself and is
+not re-run; test 1 establishes the identity.
+
+- Primary setting: b = 5, ρ = 0.7, every δ.
+- Sensitivity: b = 2.5 and b = 8, at ρ = 0.7 and δ = 0.2.
+
+**Arms.** Selection is held at the selection oracle with its R6 delay. Only the context differs.
+
+- The ceiling is `oracle_selection_context` (the selection oracle's anomalies and delay, with the
+  decisive evidence delivered so far). It is the one privilege in the comparison. Its contexts
+  hold only decisive evidence, so the penalty cannot touch it, and that is intended: the question
+  is whether public builders lose ground.
+- The public arms are the selection oracle with each R6 builder grid: `window`, `cooccur`,
+  `neighbourhood` and the rung.
+- R4's oracle is a reference row only.
+
+No new builder, no `always_escalate` pairing, and no change to R6's grids.
+
+**Tuning.** Per δ, every grid configuration runs on R6's 100 tuning streams. For each builder, the
+configuration with the highest tuning quality is carried to the 200 held-out streams, with the
+three next-best on R6's frontier. "The selected builder" is the carried configuration with the
+highest tuning quality across builders.
+
+R6 used the best builder on the held-out streams, which flatters the builders. R7 reports both
+and uses the tuning-selected one in the criterion. At δ = 0, from R6's own files, the
+tuning-selected builder is `window` 80 s, N 512: held-out 0.793, gap 0.027.
+
+**Criterion, fixed by the coordinator before any R7 code or run (2026-10-05).** Definitions:
+
+- G(δ) is the context-only ceiling's hard-incident quality minus the selected builder's, slow
+  leak excluded, on the same 200 held-out streams at the primary setting.
+- Its interval is a paired 90% cluster bootstrap over streams, with seeds as in R6.
+
+Outcomes:
+
+- **Robust:** at every δ in the grid, the upper bound of G(δ) is below 0.10. R6's conclusion
+  survives, and EXP-102 claims references or cost at matched quality.
+- **Fragile:** at some δ ≤ 0.2, G(δ) ≥ 0.10 with its lower bound above 0.05. Context construction
+  has quality headroom under a plausible reasoner, and EXP-102 claims quality and references
+  together, with δ as a preregistered sweep.
+- **Fragile only under a strong penalty:** the fragile condition holds at δ = 0.4 and nowhere
+  below.
+- **Unresolved:** anything else.
+
+Feasibility, checked before fixing the criterion:
+
+- The ceiling is unaffected by δ (about 0.82).
+- The selected builder can lie anywhere from 0 to about 0.80.
+- So G can lie anywhere from about 0.02 to about 0.8, and every outcome is reachable.
+- One privilege separates ceiling and comparator.
+
+**Reported beside the criterion, never folded in:**
+
+- For each δ:
+  - critical misses and plain accuracy for every row;
+  - references per call and cost per stream for every row;
+  - the fewest references per call within 0.05 of the ceiling, with its ratio to the ceiling's;
+  - the held-out-best builder and its gap.
+- Each builder's tuning frontier per δ: quality against references per call. The question is
+  whether the optimum moves to smaller contexts.
+- The per-reference price, re-priced analytically from counted references at 5, 20 and 80 tokens
+  per reference, for selection-oracle rows only.
+  - It is valid only where no call was refused; the worker checks, per row, that no call was
+    refused and that the re-priced total stays inside the budget.
+  - The price changes cost, not quality, so this shows how the 8–11× cost ratio scales.
+
+**Resource envelope.** About six tuning runs and six held-out runs. Each takes about 650 s and
+240 s at R6's arm counts, and fewer arms here, so about 1.5 hours. Every run goes through the
+driver; nothing is built while one runs.
+
+**Reading the hidden record.** This worker changes the reasoner and so may read `HIDDEN-DESIGN.md`
+section 11. It builds no public arm.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
