@@ -13,6 +13,15 @@ import pandas as pd
 
 from . import equivalence as eq
 from .breakdown import coverage_error_table, paired_class_table, risk_coverage_curve
+from .drift import (
+    DEFAULT_PERMUTATIONS,
+    METHOD_PAIRED,
+    drift_report,
+    load_drift,
+    margin_verdict,
+    position_effect_paired,
+    position_effect_stratified,
+)
 from .intervals import DEFAULT_RESAMPLES, paired_bootstrap_ci, ratio_of_totals_ci
 from .load import (
     BILL_COLUMNS,
@@ -23,6 +32,7 @@ from .load import (
     LoadError,
     check_metric,
     load_pair,
+    load_run,
 )
 from .power import equivalence_n, noninferiority_n
 
@@ -421,6 +431,150 @@ def format_power(r: dict) -> str:
     return "\n".join(lines)
 
 
+def analyze_drift(run_dir: str) -> dict:
+    """The drift diagnostics of one run directory: CV and last/first ratio of `drift.csv`."""
+    df = load_drift(run_dir)
+    report = drift_report(df)
+    return _clean(
+        {
+            "mode": "drift",
+            "path": str(run_dir),
+            "run_id": str(df["run_id"].iloc[0]),
+            "n_blocks": report.n_blocks,
+            "reps_per_block": report.reps_per_block,
+            "ns": asdict(report.ns),
+            "min_ns": asdict(report.min_ns),
+            "blocks": report.blocks,
+        }
+    )
+
+
+def format_drift(r: dict) -> str:
+    def row(name, d):
+        return (
+            f"  {name:<7} first={_f(d['first'], '.6g')}  last={_f(d['last'], '.6g')}  "
+            f"mean={_f(d['mean'], '.6g')}  sd={_f(d['sd'], '.6g')}  "
+            f"CV={_f(d['cv'], '.4f')}  last/first={_f(d['ratio_last_first'], '.4f')}"
+        )
+
+    lines = [
+        f"Drift control: {r['path']}  run_id={r['run_id']}",
+        f"Blocks: {r['n_blocks']}, each the fixed verifier workload run {r['reps_per_block']} "
+        "times (block 0 before the first episode, the last after the last episode)",
+        "Timings in nanoseconds; CV = sample sd / mean across blocks.",
+        row("ns", r["ns"]),
+        row("min_ns", r["min_ns"]),
+        "",
+        _frame_text(r["blocks"], ["block", "units_done", "ns", "min_ns"]),
+        "",
+        "No tolerance is applied here: a tolerance on the drift is preregistered by the "
+        "experiment that uses the run. The first block runs right after process start-up and "
+        "may be cold; read last/first with the per-block table.",
+    ]
+    return "\n".join(lines)
+
+
+def analyze_position(
+    arm_dir: str,
+    *,
+    paired_with: str | None = None,
+    metric: str = MEASURED_TOTAL,
+    margin: float | None = None,
+    seed: int,
+    alpha: float = 0.05,
+    n_resamples: int = DEFAULT_RESAMPLES,
+    n_permutations: int = DEFAULT_PERMUTATIONS,
+) -> dict:
+    """Does measured cost depend on arm_position, for one arm?
+
+    Without `paired_with` the arm is compared with itself across positions (stratified
+    permutation test and bootstrap interval, because an episode is played once per arm). With
+    `paired_with`, a second arm directory that played every episode identically (a copy of the
+    same policy), the two copies' timings of each episode are paired.
+    """
+    if not 0.0 < alpha < 0.5:
+        raise ValueError("alpha must be in (0, 0.5)")
+    conf = 1.0 - 2.0 * alpha
+    run = load_run(arm_dir)
+    kwargs = dict(
+        metric=metric, seed=seed, confidence=conf, n_resamples=n_resamples,
+        n_permutations=n_permutations,
+    )  # fmt: skip
+    if paired_with is None:
+        effect = position_effect_stratified(run, **kwargs)
+        other = None
+    else:
+        other = load_run(paired_with)
+        effect = position_effect_paired(run, other, **kwargs)
+    verdict = None if margin is None else margin_verdict(effect, margin)
+    return _clean(
+        {
+            "mode": "position",
+            "arm": {"path": str(run.path), "run_id": run.run_id},
+            "paired_with": (
+                None if other is None else {"path": str(other.path), "run_id": other.run_id}
+            ),
+            "effect": asdict(effect),
+            "alpha": alpha,
+            "margin": margin,
+            "verdict": verdict,
+        }
+    )
+
+
+def format_position(r: dict) -> str:
+    e = r["effect"]
+    pct = f"{100 * e['confidence']:g}%"
+    lines = [
+        f"Position effect on {e['metric']} (log scale; cost at arm_position 0 over cost later)",
+        f"Arm: {r['arm']['path']}  run_id={r['arm']['run_id']}",
+    ]
+    if e["method"] == METHOD_PAIRED:
+        lines += [
+            f"Method: paired copies; the same episodes played by {r['paired_with']['path']} "
+            f"(run_id={r['paired_with']['run_id']}) in the other position; "
+            f"{e['n_first']} episodes with one copy first.",
+            f"Interval: paired bootstrap of the mean log ratio ({pct}, {e['n_resamples']} "
+            f"resamples, seed {e['seed']}). p: sign-flip test, {e['n_permutations']} draws.",
+        ]
+    else:
+        lines += [
+            "Method: stratified permutation (an episode is played once per arm, so no episode "
+            "is available in both positions); labels permuted within episode class; "
+            f"{e['n_first']} episodes first, {e['n_later']} later, {e['n_strata']} classes.",
+            f"Interval: bootstrap within class and position ({pct}, {e['n_resamples']} "
+            f"resamples, seed {e['seed']}). p: {e['n_permutations']} permutations.",
+        ]
+    lines += [
+        "",
+        f"log ratio = {_f(e['log_ratio'], '.5f')}  ratio = {_f(e['ratio'], '.5f')}  "
+        f"({_f(100 * (e['ratio'] - 1), '+.2f')}% for playing first)",
+        f"{pct} interval for the log ratio: [{_f(e['low'], '.5f')}, {_f(e['high'], '.5f')}]  "
+        f"ratio: [{_f(math.exp(e['low']), '.5f')}, {_f(math.exp(e['high']), '.5f')}]",
+        f"two-sided p = {_f(e['p_value'], '.4f')}",
+    ]
+    if r["margin"] is None:
+        lines += [
+            "",
+            "No margin given; none is applied. A p above alpha does not show that there is no "
+            "position effect.",
+        ]
+    else:
+        text = {
+            "exceeds_margin": "the interval lies beyond the margin: a position effect larger "
+            "than the margin is established, and the run's cost comparison is invalidated",
+            "within_margin": "the whole interval is inside the margin",
+            "unresolved": "the interval reaches beyond the margin and does not lie wholly "
+            "beyond it; this is NOT 'no effect'",
+        }[r["verdict"]]
+        lines += [
+            "",
+            f"Margin: {100 * r['margin']:g}% relative cost  "
+            f"VERDICT: {r['verdict'].upper()} ({text})",
+        ]
+    return "\n".join(lines)
+
+
 def _metric_arg(value: str) -> str:
     try:
         check_metric(value)
@@ -469,6 +623,32 @@ def build_parser() -> argparse.ArgumentParser:
     w.add_argument("--true-diff", type=float, default=0.0)
     w.add_argument("--equivalence", action="store_true", help="TOST design instead of non-inferiority")
     w.add_argument("--json", metavar="FILE", help="also write the result as JSON")
+
+    d = sub.add_parser("drift", help="spread and trend of the drift-control workload (drift.csv)")
+    d.add_argument("--run", required=True, metavar="RUNDIR",
+                   help="the run directory holding drift.csv (the interleaved run's root, "
+                   "not an arm directory)")  # fmt: skip
+    d.add_argument("--json", metavar="FILE", help="also write the result as JSON")
+
+    q = sub.add_parser("position", help="does measured cost depend on arm_position, for one arm")
+    q.add_argument("--arm", required=True, metavar="ARMDIR",
+                   help="an arm directory of an interleaved run")  # fmt: skip
+    q.add_argument("--paired-with", metavar="ARMDIR",
+                   help="another arm directory that played every episode identically (a copy of "
+                   "the same policy, as in an A/A run): pair the two copies' timings by "
+                   "episode. Refused if the two did not play identically")  # fmt: skip
+    q.add_argument("--metric", default=MEASURED_TOTAL,
+                   choices=[MEASURED_TOTAL, *MEASURED_VALUE_COLUMNS],
+                   help=f"measured cost to test (default {MEASURED_TOTAL})")  # fmt: skip
+    q.add_argument("--margin", type=float,
+                   help="relative cost, e.g. 0.05 for 5%%; report where the interval lies against "
+                   "it. None is applied unless given: it is preregistered by the "
+                   "experiment")  # fmt: skip
+    q.add_argument("--seed", required=True, type=int, help="resampling RNG seed")
+    q.add_argument("--alpha", type=float, default=0.05)
+    q.add_argument("--resamples", type=int, default=DEFAULT_RESAMPLES)
+    q.add_argument("--permutations", type=int, default=DEFAULT_PERMUTATIONS)
+    q.add_argument("--json", metavar="FILE", help="also write the result as JSON")
     return p
 
 
@@ -523,6 +703,21 @@ def main(argv: list[str] | None = None) -> int:
                 planned_n=args.planned_n,
             )
             text = format_compare(result)
+        elif args.command == "drift":
+            result = analyze_drift(args.run)
+            text = format_drift(result)
+        elif args.command == "position":
+            result = analyze_position(
+                args.arm,
+                paired_with=args.paired_with,
+                metric=args.metric,
+                margin=args.margin,
+                seed=args.seed,
+                alpha=args.alpha,
+                n_resamples=args.resamples,
+                n_permutations=args.permutations,
+            )
+            text = format_position(result)
         else:
             result = analyze_power(
                 sd=args.sd,

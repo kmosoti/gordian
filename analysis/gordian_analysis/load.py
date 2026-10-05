@@ -30,8 +30,14 @@ MEASURED_COLUMNS = [
     "measured_harness_ns",
 ]  # fmt: skip
 # Kept for compatibility with breakdown.risk_coverage_curve. The harness does not write it yet;
-# it is the one named optional column, and any other extra column is still an error.
+# it is the one named optional column of results.csv, and any other extra column is still an
+# error.
 OPTIONAL_CONFIDENCE = "confidence"
+# The last column of measured.csv since the interleaved runs of work item A8: the arm's position
+# in the order its episode was played in (0 = first). Optional so that runs written before A8,
+# including the fixtures, still load; a run that has it carries it as `arm_position` in
+# `Run.results`.
+OPTIONAL_ARM_POSITION = "arm_position"
 
 BOOL_COLUMNS = ["success", "critical_miss", "false_alarm", "abstained", "undecided"]
 BILL_COLUMNS = [
@@ -202,10 +208,15 @@ def _load_results(path: Path) -> pd.DataFrame:
 
 def _load_measured(path: Path) -> pd.DataFrame:
     where = str(path)
-    raw = _read_csv(path, MEASURED_COLUMNS)
+    raw = _read_csv(path, MEASURED_COLUMNS, optional=[OPTIONAL_ARM_POSITION])
     df = raw.copy()
     for c in MEASURED_VALUE_COLUMNS:
         df[c] = _parse_numeric(raw[c], c, where)
+    if OPTIONAL_ARM_POSITION in df.columns:
+        position = _parse_numeric(raw[OPTIONAL_ARM_POSITION], OPTIONAL_ARM_POSITION, where)
+        if (position != np.floor(position)).any() or (position < 0).any():
+            raise LoadError(f"{where}: column {OPTIONAL_ARM_POSITION!r} must be a non-negative integer")
+        df[OPTIONAL_ARM_POSITION] = position.astype("int64")
     _parse_key(raw, df, where)
     return df
 
@@ -228,6 +239,8 @@ def _join_measured(results: pd.DataFrame, measured: pd.DataFrame, where: Path) -
     out = results.copy()
     for c in MEASURED_VALUE_COLUMNS:
         out[c] = m[c].to_numpy()
+    if OPTIONAL_ARM_POSITION in m.columns:
+        out[OPTIONAL_ARM_POSITION] = m[OPTIONAL_ARM_POSITION].to_numpy()
     return out
 
 

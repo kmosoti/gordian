@@ -160,3 +160,41 @@ def test_pair_runs_values_are_numpy(tmp_path):
     b = load_run(write_run(tmp_path / "b", rows(2)))
     va, vb = pair_runs(a, b).values("success")
     assert isinstance(va, np.ndarray) and va.dtype == float
+
+
+# ---- arm_position (work item A8) ------------------------------------------------------------
+
+
+def test_arm_position_is_optional_and_loads_as_an_integer(tmp_path, fixtures_dir):
+    from conftest import write_positioned_run
+
+    assert "arm_position" not in load_run(fixtures_dir / "run_a").results.columns
+    p = write_positioned_run(
+        tmp_path / "r", [{"seed": 1, "arm_position": 0}, {"seed": 2, "arm_position": 2}]
+    )
+    df = load_run(p).results
+    assert df["arm_position"].tolist() == [0, 2]
+    assert df["arm_position"].dtype == np.int64
+
+
+@pytest.mark.parametrize("bad", ["-1", "0.5", "x", ""])
+def test_arm_position_must_be_a_non_negative_integer(tmp_path, bad):
+    from conftest import write_positioned_run
+
+    p = write_positioned_run(tmp_path / "r", [{"seed": 1, "arm_position": bad}])
+    with pytest.raises(LoadError, match="arm_position"):
+        load_run(p)
+
+
+def test_arm_position_survives_pairing(tmp_path):
+    from conftest import write_positioned_run
+
+    a = write_positioned_run(
+        tmp_path / "a", [{"seed": 1, "arm_position": 0}, {"seed": 2, "arm_position": 1}], "r.a"
+    )
+    b = write_positioned_run(
+        tmp_path / "b", [{"seed": 1, "arm_position": 1}, {"seed": 2, "arm_position": 0}], "r.b"
+    )
+    paired = load_pair(a, b)
+    assert paired.a["arm_position"].tolist() == [0, 1]
+    assert paired.b["arm_position"].tolist() == [1, 0]

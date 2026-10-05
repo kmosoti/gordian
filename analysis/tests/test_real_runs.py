@@ -281,7 +281,9 @@ def test_real_schema_is_the_harness_header():
     results = re.search(r'RESULTS_HEADER: &str = "([^"]+)"', src).group(1).split(",")
     measured = re.search(r'MEASURED_HEADER: &str =\s*"([^"]+)"', src).group(1).split(",")
     assert load_module.RESULTS_COLUMNS == results
-    assert load_module.MEASURED_COLUMNS == measured
+    # arm_position (work item A8) is the harness's last measured column; the loader requires the
+    # others and accepts it, so that runs written before A8 still load.
+    assert [*load_module.MEASURED_COLUMNS, load_module.OPTIONAL_ARM_POSITION] == measured
 
 
 # ---- measured.csv and the join ------------------------------------------------------------
