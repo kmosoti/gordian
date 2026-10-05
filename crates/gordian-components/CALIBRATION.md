@@ -334,7 +334,8 @@ differently).
 | | `worlds`, `evals`, `probe_evals` | the checker's counts: candidate worlds tried; evaluations of a world against an observation; against a probe result |
 | | `ranked` | hypotheses written into the entry (the whole consistent set) |
 | rule | `calls` | one per `decide` or final call: the step's fixed cost (cost declaration, selection, decision) |
-| | `decoded_outputs`, `decoded_ranked` | component outputs decoded; candidates in them |
+| | `decoded_outputs`, `decoded_ranked` | component outputs decoded; candidates in them. An output that arrives byte for byte equal to the one held for its component is not decoded (work item A6c, 9.10) |
+| | `compared_bytes` | payload bytes of an arriving output compared with the held copy (added by A6c) |
 | | `worlds` | worlds built from a candidate set, and visited when probes are scored |
 | | `probe_evals` | `probe_result` calls made to score candidate probes |
 
@@ -390,7 +391,7 @@ nanoseconds per operation:
 | estimator | calls 563, scanned 2.47, permit_scans 5.74, ancestors 0.604, site_updates 2.38, probe_evals 6.39, hypotheses 1.17, sort_cmps 3.23 |
 | memory | calls 19.5, scanned 1.62, records 2.84, entries 301 |
 | verifier | candidates 262, damaged 34.4, scanned 1.54, worlds 7.44, evals 6.71, probe_evals 21.6, ranked 61.5 |
-| rule | calls 70.9, decoded_outputs 223, decoded_ranked 110, worlds 15.4, probe_evals 27.6 |
+| rule | calls 70.9, decoded_outputs 223, decoded_ranked 110, worlds 15.4, probe_evals 27.6 (A8b; superseded by 9.10: calls 83.9, decoded_outputs 266, decoded_ranked 115, worlds 14.6, probe_evals 24.2, compared_bytes 0.0325) |
 
 Across the five runs the well-determined weights move by 1 to 6% (heuristic `scanned` 1.93 to 1.96,
 `entries` 202 to 205; estimator `sort_cmps` 3.28 to 3.35; memory `records` 2.83 to 2.87; verifier
@@ -415,7 +416,7 @@ measured):
 | verifier | fit | 674 | 0.981 | 5.0% | 11.1% | -0.4% | 101 ns | DelayedConfigChange +6.8% |
 | | heldout | 612 | 0.984 | 4.6% | 10.0% | -0.7% | 98 ns | DelayedConfigChange +5.3% |
 | | real | 1,368 | 0.989 | 2.9% | 8.7% | -0.2% | 82 ns | FeedbackBait +2.2% |
-| rule | fit (real states) | 1,999 | 0.996 | 2.8% | 11.8% | -0.2% | 76 ns | DelayedConfigChange +1.2% |
+| rule (A8b; redone in 9.10) | fit (real states) | 1,999 | 0.996 | 2.8% | 11.8% | -0.2% | 76 ns | DelayedConfigChange +1.2% |
 | | real (held-out seeds) | 1,443 | 0.997 | 2.2% | 7.7% | -0.1% | 43 ns | DelayedConfigChange -1.0% |
 
 **Every component and the rule pass R^2 >= 0.9 on every set; the lowest is 0.981.** The bar was not
@@ -475,7 +476,7 @@ seeds 0 to 19) are in neither set.**
 | estimator | 1.388 | 23.6 ns |
 | memory | 1.845 | 19.6 ns |
 | verifier | 1.196 | 484 ns |
-| rule | 1.208 | 196 ns |
+| rule | 1.208 | 196 ns (A8b; 9.10: 1.374 and 130 ns) |
 
 The beta goes onto the per-call unit (`calls`; for the verifier both `candidates` and `damaged`,
 exactly one of which counts per call). The shipped weights, in nanoseconds per unit, are in the
@@ -591,3 +592,69 @@ python3 crates/gordian-run/apply_weights.py target/weights.json --record "<what 
 the bar. `calibrate_insitu.py HOT.json RUNS --from-source` judges the constants that are in the
 code. Run every measurement alone; a build must not overlap one. Regenerate the analysis fixtures
 (`analysis/README.md`) after changing weights, since they hold `modelled_*_ns`.
+
+### 9.10 The rule after work item A6c (decode each output once)
+
+The shared rule recognises an output that arrives byte for byte equal to the one it holds and does
+not decode it (`POLICIES.md`, section 3.1). That changes what the rule's calls do, so the rule's
+units were re-measured. Nothing else was: the components' code, units and weights are those of
+9.4 and 9.5, and `apply_weights.py --only rule` rewrote only the rule's table. Everything below was
+produced by the commands of 9.9 on 2026-10-05, same host and setup as 9.3, after the change.
+
+**A new unit and a new measurement.** `compared_bytes` counts the payload bytes the comparison of an
+arriving output with the held one had to look at (all of them when the entries have the held ones'
+shape; an upper bound when they differ, because the comparison stops at the first differing byte).
+`calibrate_ops` used to time the rule by calling the same step in a loop, which now only ever
+reaches the comparison path: after the first call the rule holds the outputs it is handed. It
+therefore times each recorded state twice. One is the repeated call (comparison, no decoding). The
+other alternates the outputs with a copy of them with one trailing space appended to every payload,
+which decodes to exactly the same candidates but is never equal to the other, so that every call
+decodes what it is handed, as a call that brings a new output does. Without the second timing the
+fit would have seen no decoding at all and the decoding weights would have been undetermined. In
+the fit data the rule has 4,282 `real_fit` rows (was 1,999) and 3,124 held-out `real` rows (was
+1,443); the new ones are the decoding-path rows (source `episode_decode`).
+
+**Hot weights** (five runs of 25 timings; ns per unit; in brackets the A8b figure):
+
+| unit | weight | across the five runs |
+|---|---:|---|
+| calls | 83.9 (70.9) | 86.6 to 92.0 |
+| decoded_outputs | 266 (223) | 269 to 288 |
+| decoded_ranked | 115 (110) | 117 to 124 |
+| worlds | 14.6 (15.4) | 15.0 to 15.9 |
+| probe_evals | 24.2 (27.6) | 24.7 to 25.8 |
+| compared_bytes | 0.0325 | 0.030 to 0.038 |
+
+(The last column is the fit of each run alone; the first is the fit of the minimum over the five
+runs, which is what is used.) `compared_bytes` carries 1.0% of the fitted time and
+`decoded_ranked` 58%. A hit on 1 KB costs about 32 ns over a call that compares nothing, which
+agrees with the weight. Validity, weights as fitted, R^2 of the weighted counts against the minimum
+time per call: **rule, `real_fit` 4,282 calls R^2 0.9954 (median |relative error| 5.1%, 90th
+percentile 15.9%, mean -0.7%, worst class DelayedConfigChange +4.0%); `real` held-out seeds 3,124
+calls R^2 0.9966 (4.5%, 11.2%, -0.7%, worst class Duplicates -2.7%). The bar of A8b, R^2 >= 0.9, is
+met on both.** The components, run again in the same five runs on the same windows, also met it
+(lowest 0.983, memory heldout), and their fits are not applied.
+
+**In situ** (three runs of five passes, 51,446 rule calls fitted): the rule is 1.374 x hot + 130 ns
+per call (A8b: 1.208 x and 196 ns). Shipped weights, ps per unit: calls 246,000, decoded_outputs
+365,000, decoded_ranked 158,000, worlds 20,000, probe_evals 33,200, compared_bytes 45. Single calls
+(R^2 of the model against the minimum in-situ time of each call): rule 0.905 fit, 0.911 held out,
+0.932 on the check arms (A8b: 0.96 on each); median |relative error| 8.3%, 8.4% and 17.9% on the check
+arms. Totals per arm, model over measured, for the rule: 0.94 to 1.04 on the four fit and held-out
+arms, 1.04 for `all_components` and 1.15 for `heuristic_only` (A8b: 1.09 and 1.15), the same
+over-pricing of the cheapest rule steps as before. The judgement of the constants as shipped
+(`calibrate_insitu.py --from-source`): `all_components` over `heuristic_only` on the check's own
+calls, 10.44 measured, 9.77 modelled.
+
+**The non-identical-arm check again** (`heuristic_only` against `all_components`, interleaved,
+20 seeds by 11 classes, through `scripts/run-driver.sh`, `--run-seed` 1, 2 and 3,
+`gordian-analyze cost-check ... --seed 1`): modelled ratio 9.77, identical in the three runs; the
+wall-time ratio, median of episodes, 9.73 (90% interval 9.28 to 10.38), 9.54 (9.22 to 10.02) and 10.04
+(9.53 to 10.41). **Inside in all three** (A8b: 12.18 against 12.24, 12.66, 12.48). The ratio fell
+because the rule's steps in `all_components` became much cheaper (the verifier's output is no
+longer decoded at every step), and the model followed. The same limits apply as in 9.6: intervals 8
+to 11% wide, and a check on two arms.
+
+**What was not refitted.** The declared cost's decoding constants (`POLICIES.md`, section 3): they
+are what the bill enforces, were fitted on another host, and a refit would move every binding
+budget; the comparison term is declared at the hot weight, 33 ps per byte.

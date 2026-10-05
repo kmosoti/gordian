@@ -167,18 +167,69 @@ The declared cost of one `decide` call is, in `Resource::Compute` nanoseconds (c
 45 + 0.95 * window + 10.5 * worlds
    + 36 * (6 * targets * worlds)        only when the candidate set could be probed
    + 530 * outputs_decoded_last_call + 115 * hypotheses_decoded_last_call
+   + 0.033 * bytes_compared_last_call
 ```
 
 `window` is the observations in the working state; `worlds` and `targets` come from the first
 available stored candidate set (before narrowing, so the figure is an upper bound); the decoding
-terms carry the *previous* call's decoding to the next step. That is a lag, chosen because which
-outputs a step brings is not known when the harness asks for the scheduling cost, before `select`.
+terms carry the *previous* call's decoding to the next step, and the comparison term the bytes the
+previous call compared (3.1). That is a lag, chosen because which outputs a step brings is not known
+when the harness asks for the scheduling cost, before `select`.
 The decoding of every step is charged at the next one, so an episode is charged for all of it
 except the last step's, which the final call (2.6) picks up when the harness makes one: its declared
 cost is this formula without the probe-evaluation term (`Decider::declared_final_cost`), because
 the call never scores a probe, and it is charged under `Phase::Scheduling` like any other call,
 for the rule alone (no selector's cost). If the bill cannot pay it the call is made anyway
 (`HARNESS.md`, section 1). A step that has no stored set pays only the base and the window.
+
+### 3.1 An output is decoded once (work item A6c)
+
+**What was found.** `b3-finding4.md` traced a failed verifier raising an arm's success to the rule's
+charge for decoding. The diagnosis there was that the rule re-decodes every stored output at every
+step. The code did not do that: the harness hands `decide` only the outputs of components that ran
+at this step, and the rule keeps decoded sets between steps, so a stored output from an earlier step
+was never decoded, charged or counted again (a test has asserted it since A8b: a call with no
+outputs counts no decoding). What was decoded again at every step was an output a component
+*produced again*: the verifier selected at every step, on a window that has not changed, returns the
+same bytes, and the rule decoded and was charged for them each time, 530 + 115 x 46 = 5,820 ns on a
+symptom-free window against about 7,600 ns for the whole call.
+
+**What the rule does now.** It keeps, per component, the entries it last decoded from beside the
+decoded candidate set. An arriving output whose entries equal them, kind and bytes (`Vec ==`),
+keeps the held decoded form: nothing is decoded, `decoded_outputs` and `decoded_ranked` do not
+count it, and the next step's declared cost has no decoding term for it. An output that differs, a
+first output, and an output that comes back after a different one are decoded as before. "The same"
+is decided by byte equality of the entries and nothing else, so the rule assumes nothing about how
+a component produces its output. How the rule learns an output is new is therefore *by comparing
+it*, not by the harness telling it: `Decider::decide`'s signature and the `Policy` trait are
+unchanged, and so is the harness.
+
+**What the comparison costs.** It is real work, so it is counted and declared: the unit
+`compared_bytes` (payload bytes of an arriving output whose entries have the shape of the held ones,
+so that `==` has to reach the bytes; an upper bound when they differ, since it stops at the first
+differing byte) at a calibrated weight of 45 ps in the counted cost and 33 ps declared (the hot
+weight, 32.5 ps; measured on a 1 KB output about 32 ns over a call that compares nothing, with a mean of 1,045 bytes compared per state). It is
+about 1% of the time of the calls the weights were fitted to, and a repeated verifier output on a
+silent window compares a few kilobytes, on the order of 100 ns, against 5,820 ns decoded.
+
+**What is unchanged.** Every decision. `Decider::without_reuse` is the rule as it was (it decodes
+whatever it is handed): the reference the tests hold the new rule to. On the inputs of real
+episodes, four arms by 11 classes by four seeds at the default budget and at 250,000 and 60,000 ns
+(18,619 calls, including the final call), the two rules decide identically at every call;
+the reference decodes 25,990 outputs and 410,044 candidates and the rule 2,007 and 20,029 (92% and
+95% fewer), and the declared cost over those calls falls from 137.8 to 24.8 million ns. All other
+counted units are equal call by call. End to end, `tests/decode_once.rs` compares every verdict
+column (success, critical miss, false alarm, abstained, undecided, probes used, corrections) of the
+ten B1 arms at 20 ms over 20 seeds by 11 classes, per episode, with a record written by the code of
+`da73030`: identical in all 2,200 rows.
+
+**What it does not do.** It does not remove every charge that grows with an unchanged input. Each
+step the rule still narrows the stored candidate set against the bought probes (10.5 ns declared and
+20 ns counted per world) and, when the set can be probed, scores every probe against every world,
+although neither the set nor the probes bought may have changed since the previous step. On a
+symptom-free window the verifier's 46-hypothesis set costs the rule about 600 ns a step in
+narrowing alone, against about 110 ns when a failed verifier leaves the estimator's five. That is
+the residue of "a failed component raises success" that A6c leaves (`a6c-before-after.md`).
 
 **How it was fitted.** An ignored test, `measure_the_rule_against_its_declared_cost`
 (`cargo test --release -p gordian-run --test baselines -- --ignored --nocapture`), builds 396
@@ -205,12 +256,23 @@ over the 396 states, declared over measured, with decoding, has median 1.03 and 
 the measured one in states past the patience, where the rule declares without scoring, which is
 the terminal step.
 
+**After A6c.** The measurement test now also times the comparison path (`hit_ns`, `cmp_bytes`). On
+the same 396 states, on 2026-10-05 on the 2.10 GHz host under `cargo test --release`, declared over
+measured for a fresh rule decoding its outputs has median 1.14 (10th to 90th percentile 1.06 to
+1.20, range 0.72 to 1.26): the decoding constants above were fitted on another host and were not
+refitted for A6c, because they are what the bill enforces and a refit would move every binding
+budget for a reason that is not the change; the clone of the held entries that decoding now makes
+is inside that figure. For a rule handed outputs it already holds the median is 1.22. Without
+decoding or comparing the declared cost is again an upper bound, about ten times the measured one
+past the patience, as above.
+
 **What this does not establish.** It was measured on a shared machine while another worker was
 benchmarking, unpinned, because the sandbox refused `taskset` for the build; recalibrate under
 `scripts/cgroup-run.sh` before B1. Measured cost is the primary cost anyway (plan A4):
 `measured_sched_ns` in `measured.csv` includes the rule exactly as timed, and the declared cost
 here is what the bill enforces. At the default limits (20 ms of compute) no arm comes near the
-limit: the heaviest, `all_components`, spends about 0.5 ms per episode on average (section 8), so
+limit: the heaviest, `all_components`, spent about 0.5 ms per episode on average when this was measured
+(section 8; since A6c, 0.19 ms on seeds 1000 to 1499 against 0.42 ms before it), so
 the compute limit does not bind in any condition measured so far.
 
 ## 4. JointlyDecisive
@@ -381,7 +443,9 @@ runs are not kept (`artifacts/runs/` is git-ignored). `internal_external_ratio` 
 runs, first values and no tolerance declared: `heuristic_only` 0.879, `fixed_pipeline` 0.961,
 `all_components` 0.967, `random_matched` 0.965, `oracle_immediate` 0.442 (about 3 ms of work, so
 start-up dominates), `oracle_evidence` 0.879. It is exploration: nothing here is a confirmation of
-anything.
+anything. This table is the record of A6, taken before work item A6c; its `bill_compute` figures for
+the arms that run components are higher than the rule now declares (3.1), and nothing else in it moved
+(a test pins the verdict columns).
 
 | policy | class | success | critical misses | false alarms | abstained | undecided | mean probes | mean bill_compute (ns) |
 |---|---|---|---|---|---|---|---|---|
