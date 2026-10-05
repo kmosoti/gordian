@@ -4,6 +4,67 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Stage B exploration (B1–B4) — merged; EXP-001 not freezable as designed
+
+**Re-verified.** Gates on exit codes; per-arm success, modelled cost and critical-miss rates
+recomputed from `b1-variance.csv` match the worker's report. 220,000 B1 episodes, no failed or
+excluded run, replay checks byte-identical.
+
+**What the data say (exploration, not confirmation).**
+
+- A periodic heuristic (`every` = 4) holds success 0.954 at every budget level for about 22k modelled
+  ns per episode; `all_components` needs 522k for 0.965 and collapses to 0.16–0.29 when the budget
+  binds. A strong simple baseline captures nearly all achievable quality at a few percent of the
+  cost. This is the charter's baseline registry doing its job.
+- The shared decision rule costs about 17.1k ns per episode, is charged at every step for every
+  arm, and is 65–89% of the heuristic arms' cost. Against the tuned periodic pipeline, even a
+  perfectly timed component selector can save at most about 10–18% (B4's estimate; arithmetic, not
+  a run), below EXP-001's preregistered 20% margin. Quality headroom against that baseline is
+  0.01–0.02.
+- The one large oracle gap, JointlyDecisive (0.38), belongs to the shared rule's one-step probe
+  choice; no component schedule can close it.
+- Five of six stressors cannot fail any current arm: noise is separable for free by catalogue id,
+  no arm has a salience mechanism, and the final declaration makes unbounded waiting invisible.
+- Effective ambiguity in the ambiguous classes is 2.85 kinds, not 5; a prior-aware arm that never
+  probes is right 41.6% of the time.
+
+**Interpretation.** In the current small world, *which component runs* is not where the cost is.
+The dominant computation is deliberation (the shared rule) and sensing (probes, which modelled cost
+does not price). EXP-001 as designed would very likely return H0 for structural reasons of this
+environment, not because selective activation fails in general. The charter anticipated the
+mirror-image danger (a weak baseline making anything look good); here the strong baseline shows the
+environment offers little to select.
+
+**Instrument findings (not yet fixed).**
+
+1. The rule is not schedulable: a selector cannot decide when to deliberate. Whether deliberation
+   is part of what selective activation controls is a design decision.
+2. Probes are not in the modelled cost, though the charter's `C` includes sensing; arms buy about
+   two probes where one would do.
+3. Stressors are toothless at default noise (see above).
+4. A failed component can raise an arm's score at binding budgets (3 cells); suspected rule
+   behaviour on an empty verifier output; not confirmed.
+5. `b4.py` reads a truth table produced outside the repository; one exploration input is not
+   regenerable.
+
+**Decision required from the user** (not taken by the coordinator, because it shapes every later
+experiment and freezing is irreversible):
+
+- (a) Freeze EXP-001 in the current world and expect a bounded negative result.
+- (b) Revise before freezing: make deliberation schedulable, price probes, and revise the world
+  so that relevance is costly to determine (non-separable noise, specialist components with
+  partial views), with the revision's properties fixed from the charter before any arm is run on
+  it, and the generalist and periodic baselines kept.
+- (c) Record (a) as an exploration finding only, and do (b).
+
+Coordinator recommendation: (c). A preregistered experiment whose negative outcome is already
+implied by exploration arithmetic has low information value, while the fixes in (b) are needed for
+EXP-002 to EXP-004 anyway.
+
+Independent of the decision, started now: A7b (ratio-interval calibration on B1's cost
+distribution) and the two small exploration follow-ups (truth-table regeneration from the
+repository; diagnosing finding 4).
+
 ## A8b counted operations — merged with a freeze gate
 
 **Re-verified.** fmt, clippy (`--locked`), workspace tests with `--no-fail-fast`, oracle guard,
