@@ -8,7 +8,8 @@ episode; nothing here is computed per event.
 ```bash
 python3 -m venv analysis/.venv
 analysis/.venv/bin/pip install -e 'analysis[dev]'
-cd analysis && .venv/bin/python -m pytest -q
+cd analysis && .venv/bin/python -W error -m pytest -q          # the default suite (fast)
+cd analysis && .venv/bin/python -W error -m pytest -m slow -q  # the long calibration simulation
 ```
 
 ## Commands
@@ -18,7 +19,8 @@ gordian-analyze compare --a RUNDIR --b RUNDIR --metric success --margin 0.01 \
     --higher-is-better --seed 1 [--alpha 0.05] [--interval bootstrap|t] \
     [--resamples 10000] [--planned-n N] [--json FILE]
 gordian-analyze compare --a RUNDIR --b RUNDIR --relative-savings \
-    --threshold 0.20 --seed 1 [--planned-n N] [--alpha 0.05] [--resamples 10000] [--json FILE]
+    --threshold 0.20 --seed 1 [--planned-n N] [--alpha 0.05] [--resamples 10000] \
+    [--interval-method percentile|bca|studentized] [--json FILE]
 gordian-analyze compare --a RUNDIR --b RUNDIR --relative-savings --declared-cost \
     --metric bill_compute --threshold 0.20 --seed 1
 gordian-analyze power --sd 1 --margin 0.5 --alpha 0.05 --power 0.8 \
@@ -160,21 +162,61 @@ S = 1 - sum_i B_i / sum_i A_i                (ratio of totals, not a mean of rat
 ```
 
 Each resample draws episode indices with replacement, applies the same indices to A and B,
-and recomputes S from the resampled totals; the interval is the equal-tailed percentile
-interval of those S values. Positive S means B costs less. It applies no sign flip and is only
-meaningful for cost-like metrics (lower is better), so the CLI mode refuses `--higher-is-better`.
-It raises on negative values, on `sum(A) == 0`, and if any resample has `sum(A) == 0`.
-`equivalence.exceeds(ci_low, threshold)` is `ci_low > threshold` (strict); for EXP-001 the
-threshold is 0.20. `compare --relative-savings --threshold T` reports S, its interval, and
-whether the lower limit exceeds T; `--margin` and `--interval` do not apply and are refused,
-as is `--threshold` outside this mode. This mode does not produce a four-way category, only
-exceeds / does not exceed (and, below the planned n, unresolved).
+and recomputes S from the resampled totals. Positive S means B costs less. It applies no sign
+flip and is only meaningful for cost-like metrics (lower is better), so the CLI mode refuses
+`--higher-is-better`. It raises on negative values, on `sum(A) == 0`, and if any resample has
+`sum(A) == 0`. `equivalence.exceeds(ci_low, threshold)` is `ci_low > threshold` (strict); for
+EXP-001 the threshold is 0.20. `compare --relative-savings --threshold T` reports S, its
+interval, and whether the lower limit exceeds T; `--margin` and `--interval` do not apply and
+are refused, as is `--threshold` outside this mode. This mode does not produce a four-way
+category, only exceeds / does not exceed (and, below the planned n, unresolved).
 
-Caveat measured here, not proved: with skewed per-episode costs (lognormal, true S exactly
-0.20), the percentile bootstrap lower limit exceeded 0.20 in 12% of 300 simulated experiments at
-n = 30, 8% at n = 100, and 7% at n = 300, against a nominal 5%. The decision is therefore
-somewhat liberal at moderate n when costs are heavy-tailed. Treat a borderline `exceeds` with
-that in mind; a bias-corrected interval was not added because it is outside the specification.
+Three interval methods turn the same resamples into an interval (work item A7b):
+`ratio_of_totals_ci(..., method=...)` and `--interval-method`.
+
+```text
+percentile   equal-tailed percentile interval of S*                       (the A7 interval)
+bca          Efron's BCa interval of S: z0 = Phi^-1(share of S* below S-hat), acceleration from
+             the leave-one-episode-out jackknife of S, adjusted levels read off the S* quantiles
+studentized  bootstrap-t on theta = log(sum B / sum A):
+               t*_b = (theta*_b - theta-hat) / se*_b,   se = sd_i(B_i - R A_i) / (sqrt(n) mean(B))
+               theta in [theta-hat - se q_{0.95}(t*), theta-hat - se q_{0.05}(t*)]
+             q are order statistics ceil((B+1) p); the interval is mapped back by S = 1 - exp(theta).
+             se* is the same delta-method formula evaluated on each resample (no nested bootstrap).
+```
+
+**The default is `studentized`.** The percentile interval is anti-conservative on skewed costs
+(A7 review); the calibration of A7b (`experiments/exploration/a7b-ratio-calibration.md`)
+simulated true S exactly at 0.20 with B1's per-episode costs and with lognormal costs, 2,000
+experiments per cell, and counted how often the 90% interval's lower limit exceeded 0.20. On the
+four empirical populations the studentized interval had a false-exceedance rate of at most 0.0545
+at every n from 40 to 1,713, including EXP-001's planning sizes (1,237 and 1,713; the worst cell,
+0.0545 in 2,000 experiments, was 0.0484 in 10,000), where the percentile interval reached 0.064
+(0.117 at n = 40) and BCa 0.0545 (0.0675 at n = 40). Heavy-tailed lognormal costs (sigma = 1.0) are
+worse for every method, studentized included (0.072 at n = 1,237, 0.065 at n = 1,713), so a
+borderline `exceeds` on costs much more skewed than B1's deserves the same caution as before.
+Power at true S = 0.25 and 0.30 is 1.000 at the planning sizes on the empirical populations; at
+n = 40 on the most skewed one the studentized interval's power is 0.16 at S = 0.25 where the
+percentile interval's is 0.61 (which includes its excess false rejections). Size and power are
+for the proxy pairs of B1, not for a selector.
+
+Edge cases, by design and tested: a resample whose standard error is zero (for example one
+episode drawn n times) has t = +-infinity, kept, not dropped, so the studentized lower limit can be
+-infinity at tiny n (shown as `-inf`, null in JSON, with a warning; the decision is "does not
+exceed"); a zero total in arm B makes the studentized interval undefined and it raises (percentile
+and BCa do not); B proportional to A on every episode gives a point interval for all three; BCa
+raises when every resample lies on one side of S-hat or an adjusted level is undefined, with no
+clamp.
+
+`calibration.py` is the simulation machinery of A7b, shared by the tests and by
+`experiments/exploration/scripts/a7b_calibrate.py`: a sampler for an empirical null (paired
+episodes resampled from a population whose arm B is rescaled by one constant so the true S is
+exactly the chosen value) or a lognormal null, one random stream per experiment
+(`SeedSequence(BASE_SEED, spawn_key=(population id, 1000 S, n, experiment index))`), and
+`simulate_cell`, which builds every method's interval from one set of resamples per experiment.
+`experiments/exploration/data/a7b-paired-costs.csv.gz` holds the per-episode modelled costs of two
+of B1's proxy pairs at its four compute levels (regenerated from the repository by
+`a7b_generate.py`; it matches `b1-variance.csv` cell by cell).
 
 ### equivalence.py
 
@@ -473,6 +515,20 @@ episode ratios by hand, and unmoved by a few interrupted episodes where the rati
 long way; `cost-check` passing when the model tracks wall time and failing when it does not, and
 the CLI end to end. `tests/test_real_runs.py` runs the real fixtures through the same defaults and
 checks that the two copies of `real_aa` have identical modelled cost in every episode.
+
+`tests/test_ratio_methods.py` (A7b): BCa against `scipy.stats.bootstrap(method="BCa")` and its
+adjusted levels by hand; the studentized interval against a plain-loop bootstrap-t on the same
+indices, and its standard error against the bootstrap spread of the log ratio; that the three
+methods read the same resamples; the percentile interval unchanged; infinite t kept (n = 3 gives an
+unbounded lower limit); a zero total in arm B; B proportional to A; method selection, refusal and
+JSON through the CLI. `tests/test_calibration.py`: the null has the true S it claims (exact
+rescaling, lognormal `E[B]/E[A]`, the committed paired costs equal B2's T3), experiments replay
+from their own seeds and split by index, a failing method is counted not dropped, Wilson interval
+by hand, and a small seeded run shows the percentile interval liberal and the studentized one
+closer on skewed empirical costs. `tests/test_calibration_slow.py` (marker `slow`, excluded from
+the default run; `pytest -m slow`) is the plan's acceptance: false exceedance of the default at
+most 0.06 at n = 1,237 and 1,713 over 2,000 experiments, per empirical population (about 11
+minutes each).
 
 `tests/test_drift.py` (A8): hand-computed CV and last/first ratio and every `drift.csv`
 rejection; the stratified statistic and the paired statistic against hand-computed values

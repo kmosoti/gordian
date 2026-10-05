@@ -551,11 +551,20 @@ def test_undecided_episodes_stay_in_the_cost_totals(capsys, tmp_path):
     )  # fmt: skip
     j = tmp_path / "o.json"
     rc, _, _ = run_cli(capsys, "compare", "--a", str(a), "--b", str(b), "--relative-savings",
-                       "--threshold", "0.2", "--seed", "1", "--json", str(j))  # fmt: skip
+                       "--threshold", "0.2", "--seed", "1", "--interval-method", "percentile",
+                       "--json", str(j))  # fmt: skip
     r = json.loads(j.read_text())
     assert rc == 0 and r["b"]["total"] == 190.0 and r["savings"] == pytest.approx(1 - 190 / 300)
     assert r["n_pairs"] == 3
     assert np.isfinite(r["bootstrap"]["low"])
+    # The default (studentized) interval at n = 3 is unbounded, not an error and not finite by
+    # luck: a resample of one repeated episode has zero standard error, an infinite t.
+    j2 = tmp_path / "o2.json"
+    rc, out, _ = run_cli(capsys, "compare", "--a", str(a), "--b", str(b), "--relative-savings",
+                         "--threshold", "0.2", "--seed", "1", "--json", str(j2))  # fmt: skip
+    r2 = json.loads(j2.read_text())
+    assert rc == 0 and r2["b"]["total"] == 190.0 and r2["decision_raw"] == "does_not_exceed"
+    assert r2["bootstrap"]["low"] is None and "-inf" in out
 
 
 def test_defaults_row_matches_harness_column_count():
