@@ -8,7 +8,14 @@
 //! {"policy": "periodic_escalation", "period_ns": 10000000000}
 //! {"policy": "threshold_score", "tau": 3.5, "wait_ns": 6000000000}
 //! {"policy": "random_escalation", "p": 0.5}
+//! {"policy": "random_escalation", "p": 0.5, "delay_ns": 8000000000}
+//! {"policy": "always_escalate", "delay_ns": 8000000000}
 //! ```
+//!
+//! `delay_ns` (`always_escalate` and `random_escalation`) is how long after an anomaly is noticed
+//! the arm escalates it. Its default is 0, the arm as R3 built it; a delay of 0 is not written
+//! (`always_escalate` is then its bare id, and `random_escalation` has no `delay_ns`), so a
+//! manifest written before the parameter existed is the same text as one written now.
 //!
 //! A parameter an arm does not have, or an out-of-range one, is a parse error. Every parameter is
 //! written (a defaulted one is filled in at parse time), so a manifest records what ran. The
@@ -55,8 +62,11 @@ pub const KNOWN: &[&str] = &[
 pub enum StreamPolicySpec {
     /// `never_escalate`.
     Never,
-    /// `always_escalate`.
-    Always,
+    /// `always_escalate` with its delay after notice.
+    Always {
+        /// Nanoseconds after notice before the anomaly is escalated.
+        delay_ns: u64,
+    },
     /// `periodic_escalation` with its period.
     Periodic {
         /// Nanoseconds between reviews.
@@ -71,10 +81,12 @@ pub enum StreamPolicySpec {
         /// How long after notice an anomaly below `tau` is waited on.
         wait_ns: u64,
     },
-    /// `random_escalation` with its probability.
+    /// `random_escalation` with its probability and delay after notice.
     Random {
         /// The probability a noticed anomaly is escalated.
         p: f64,
+        /// Nanoseconds after notice before a selected anomaly is escalated.
+        delay_ns: u64,
     },
     /// `oracle_escalation`: privileged.
     Oracle,
@@ -85,7 +97,7 @@ pub enum StreamPolicySpec {
 impl StreamPolicySpec {
     /// The arm with `id` and its default configuration, or why there is none.
     pub fn from_id(id: &str) -> Result<Self, String> {
-        Self::from_parts(id, None, None, None, None)
+        Self::from_parts(id, None, None, None, None, None)
     }
 
     /// The arm `id` with the given parameters. A parameter the arm does not have is an error.
@@ -95,6 +107,7 @@ impl StreamPolicySpec {
         tau: Option<f64>,
         wait_ns: Option<u64>,
         p: Option<f64>,
+        delay_ns: Option<u64>,
     ) -> Result<Self, String> {
         let stray = |name: &str| format!("policy {id:?} has no parameter {name:?}");
         let only = |allowed: &[&str]| -> Result<(), String> {
@@ -103,6 +116,7 @@ impl StreamPolicySpec {
                 ("tau", tau.is_some()),
                 ("wait_ns", wait_ns.is_some()),
                 ("p", p.is_some()),
+                ("delay_ns", delay_ns.is_some()),
             ] {
                 if given && !allowed.contains(&name) {
                     return Err(stray(name));
@@ -116,8 +130,10 @@ impl StreamPolicySpec {
                 Self::Never
             }
             always::ID => {
-                only(&[])?;
-                Self::Always
+                only(&["delay_ns"])?;
+                Self::Always {
+                    delay_ns: delay_ns.unwrap_or(always::DEFAULT_DELAY_NS),
+                }
             }
             change::ID => {
                 only(&[])?;
@@ -145,9 +161,10 @@ impl StreamPolicySpec {
                 }
             }
             random::ID => {
-                only(&["p"])?;
+                only(&["p", "delay_ns"])?;
                 Self::Random {
                     p: p.unwrap_or(random::DEFAULT_P),
+                    delay_ns: delay_ns.unwrap_or(random::DEFAULT_DELAY_NS),
                 }
             }
             other => return Err(format!("unknown policy {other:?}; known: {KNOWN:?}")),
@@ -165,7 +182,7 @@ impl StreamPolicySpec {
             Self::Threshold { tau, .. } if !tau.is_finite() => {
                 Err("threshold_score needs a finite tau".to_owned())
             }
-            Self::Random { p } if !(p.is_finite() && (0.0..=1.0).contains(p)) => {
+            Self::Random { p, .. } if !(p.is_finite() && (0.0..=1.0).contains(p)) => {
                 Err(format!("random_escalation needs p in [0, 1], got {p}"))
             }
             _ => Ok(()),
@@ -175,7 +192,7 @@ impl StreamPolicySpec {
     fn id_str(&self) -> &'static str {
         match self {
             Self::Never => never::ID,
-            Self::Always => always::ID,
+            Self::Always { .. } => always::ID,
             Self::Periodic { .. } => periodic::ID,
             Self::Change => change::ID,
             Self::Threshold { .. } => threshold::ID,
@@ -212,6 +229,8 @@ struct Tagged {
     wait_ns: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     p: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    delay_ns: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -223,21 +242,29 @@ enum Repr {
 
 impl Serialize for StreamPolicySpec {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let tagged = |period_ns, tau, wait_ns, p| Tagged {
+        let tagged = |period_ns, tau, wait_ns, p, delay_ns| Tagged {
             policy: self.id_str().to_owned(),
             period_ns,
             tau,
             wait_ns,
             p,
+            delay_ns,
         };
+        // A delay of zero is the arm as it was before the parameter existed and is not written.
+        let delay = |d: u64| (d != 0).then_some(d);
         match self {
             Self::Periodic { period_ns } => {
-                tagged(Some(*period_ns), None, None, None).serialize(serializer)
+                tagged(Some(*period_ns), None, None, None, None).serialize(serializer)
             }
             Self::Threshold { tau, wait_ns } => {
-                tagged(None, Some(*tau), Some(*wait_ns), None).serialize(serializer)
+                tagged(None, Some(*tau), Some(*wait_ns), None, None).serialize(serializer)
             }
-            Self::Random { p } => tagged(None, None, None, Some(*p)).serialize(serializer),
+            Self::Random { p, delay_ns } => {
+                tagged(None, None, None, Some(*p), delay(*delay_ns)).serialize(serializer)
+            }
+            Self::Always { delay_ns } if *delay_ns != 0 => {
+                tagged(None, None, None, None, Some(*delay_ns)).serialize(serializer)
+            }
             other => serializer.serialize_str(other.id_str()),
         }
     }
@@ -247,7 +274,9 @@ impl<'de> Deserialize<'de> for StreamPolicySpec {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let result = match Repr::deserialize(deserializer)? {
             Repr::Id(id) => Self::from_id(&id),
-            Repr::Full(t) => Self::from_parts(&t.policy, t.period_ns, t.tau, t.wait_ns, t.p),
+            Repr::Full(t) => {
+                Self::from_parts(&t.policy, t.period_ns, t.tau, t.wait_ns, t.p, t.delay_ns)
+            }
         };
         result.map_err(serde::de::Error::custom)
     }
@@ -278,7 +307,9 @@ pub fn build_public(
     let config = rung.clone();
     Some(match spec {
         StreamPolicySpec::Never => Box::new(StreamArm::with(Never, public, config)),
-        StreamPolicySpec::Always => Box::new(StreamArm::with(Always, public, config)),
+        StreamPolicySpec::Always { delay_ns } => {
+            Box::new(StreamArm::with(Always::new(*delay_ns), public, config))
+        }
         StreamPolicySpec::Periodic { period_ns } => {
             Box::new(StreamArm::with(Periodic::new(*period_ns), public, config))
         }
@@ -288,8 +319,8 @@ pub fn build_public(
             public,
             config,
         )),
-        StreamPolicySpec::Random { p } => Box::new(StreamArm::with(
-            Random::new(*p, rng_seed(stream_seed, arm)),
+        StreamPolicySpec::Random { p, delay_ns } => Box::new(StreamArm::with(
+            Random::with_delay(*p, *delay_ns, rng_seed(stream_seed, arm)),
             public,
             config,
         )),

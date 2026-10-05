@@ -695,3 +695,13 @@ loader and `gordian-analyze stream-summary` (`analysis/`). Not built: any interv
 headroom check's), tuned baseline parameters (every arm's parameters are the R3 placeholders and a
 run of them is a smoke test, not a comparison), and any calibration of the arms' own bookkeeping
 cost (section 4 of `src/stream/mod.rs`).
+
+**The escalation delay (R4).** `always_escalate` and `random_escalation` take `delay_ns`: how long
+after an anomaly is noticed it is escalated (default 0, and a zero is not written to a manifest, so
+manifests written before the parameter existed are the same text). It is a public timing knob: the
+rung builds the context at the moment the call is made, from public observations, so a delayed call
+carries what arrived in the meantime. For `random_escalation` the draw still happens at notice, so
+the selected anomalies do not depend on the delay. `tests/stream_delay.rs` pins that a delay of zero
+reproduces `results.csv` and `incidents.csv` byte for byte against fixtures written by the binary
+built before the parameter existed. The R3b smoke result that `always_escalate` escalates before any
+decisive evidence exists was checked on a sample of hard incidents (`experiments/exploration/r4-headroom.md`).

@@ -476,6 +476,27 @@ recall, and total modelled cost per stream. `--json` writes the same plus the pe
 **`tier`, `family`, `critical` and the verdict columns are evaluator output about hidden state.**
 They are for analysis; they must never be a policy input or training data.
 
+### Frontiers and cluster-bootstrap intervals (R4): `gordian_analysis/frontier.py`
+
+The headroom check's arithmetic, so that the script that runs it decides nothing
+(`docs/local-test-plan.md`, 5R, R4, "Margin"). `arm_point` / `points_table` give, per arm of a run
+(with the arm's policy and parameters read from `manifest.json`), the **quality** (pooled fraction
+of hard incidents declared correctly by their deadline, **excluding the slow-leak family**, which
+is reported as `leak_rate`) and the **cost** (mean total modelled cost per stream), with plain
+accuracy, critical misses, wrong declarations and false alarms beside them and never folded in.
+`pareto_mask` / `frontier` give the non-dominated points (per policy family, or over everything);
+`best_at_cost` and `cheapest_reaching` read a table of points. `cluster_bootstrap` resamples whole
+streams (all arms of a run played the same streams, so one resample is applied to every arm),
+recomputes every arm's quality and cost, picks in each resample the best baseline affordable at the
+oracle's resampled cost, and returns the gap to the oracle, the cost the best baseline needs to
+reach the oracle's quality, and equal-tailed percentile intervals (seed required and recorded).
+The best of many noisy configurations is biased upward, which biases the gap against finding
+headroom; `best_at_cost` on a table from *other* streams removes it. `headroom_verdict` applies a
+margin and a lower bound that the caller passes in; it has no opinion about which settings count.
+The tests (`tests/test_frontier.py`) check the ratio-of-sums rule, the slow-leak exclusion, dominance
+with ties, that the interval is as wide as streams (not incidents) imply, and the affordability
+rule inside a resample.
+
 ## Specification issues found and how they were resolved
 
 1. The plan's A7 listing (`--margin-success`, `--margin-cost`, `equivalence.py` tested against

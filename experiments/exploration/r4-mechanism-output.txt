@@ -1,0 +1,255 @@
+# r4_mechanism.py output.
+# Run r4-mech-base (revision 30091e3, the binary before the delay existed): r4_mechanism.py artifacts/runs/r4-mech-base always_escalate
+            arm  seed  incident      family  last_decisive_after_onset_s  oracle_call_after_onset_s  n_decisive  calls_attributed  calls_evaluator  informed_evaluator  first_call_after_onset_s  first_q  best_q first_before_last_decisive
+always_escalate   900        13   slow_leak                        14.43                      14.46           4                 1                1                   0                     10.46     0.50    0.50                       True
+always_escalate   900        18 split_brain                        15.57                      16.03           7                 1                1                   0                     20.03     0.29    0.29                      False
+always_escalate   901         7   slow_leak                        15.34                      15.42           4                 1                1                   0                     17.42     1.00    1.00                      False
+always_escalate   901        11 split_brain                        14.94                      15.27           4                 1                1                   0                      4.27     0.00    0.00                       True
+always_escalate   901        23 split_brain                        15.72                      15.92           4                 1                1                   1                      6.92     0.50    0.50                       True
+always_escalate   902         0   slow_leak                        13.25                      13.58           3                 1                0                   0                     13.08     0.67    0.67                       True
+always_escalate   902         3    compound                         7.98                       8.29           3                 1                2                   0                      0.29     0.00    0.00                       True
+always_escalate   902        11 split_brain                        13.86                      13.89           7                 1                1                   0                      7.89     0.00    0.00                       True
+always_escalate   902        22    compound                        11.58                      11.85           3                 1                1                   0                      0.35     0.00    0.00                       True
+always_escalate   902        23 split_brain                        13.22                      13.25           3                 1                1                   0                      5.25     0.00    0.00                       True
+always_escalate   903        25     cascade                        14.48                      14.90           5                 1                1                   0                      5.40     0.00    0.00                       True
+always_escalate   904        13   slow_leak                        13.72                      13.92           4                 1                1                   1                     17.42     0.75    0.75                      False
+always_escalate   904        27     cascade                        13.25                      13.69           8                 1                1                   0                      3.19     0.00    0.00                       True
+always_escalate   905         6   slow_leak                        12.88                      13.35           4                 1                1                   0                     16.35     0.25    0.25                      False
+always_escalate   905        17    compound                        14.81                      15.01           3                 1                1                   0                     20.51     0.00    0.00                      False
+always_escalate   906        12     cascade                        15.22                      15.57           8                 2                1                   0                      0.07     0.00    0.12                       True
+always_escalate   906        14   slow_leak                        15.87                      16.04           3                 1                1                   0                     15.04     0.00    0.00                       True
+always_escalate   906        18 split_brain                        12.82                      12.95           6                 1                1                   0                     23.95     0.33    0.33                      False
+always_escalate   906        19   slow_leak                        15.87                      15.91           5                 1                0                   0                     15.91     0.60    0.60                      False
+always_escalate   907         3 split_brain                        15.85                      15.96           5                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_escalate   907         5     cascade                        15.76                      16.25           8                 1                1                   0                      0.25     0.00    0.00                       True
+always_escalate   907        12     cascade                        15.70                      16.03           5                 1                1                   0                     14.53     0.40    0.40                       True
+always_escalate   907        20     cascade                        12.70                      12.77           8                 1                1                   0                      1.27     0.00    0.00                       True
+always_escalate   907        21   slow_leak                        11.62                      11.84           5                 1                0                   0                     18.84     0.40    0.40                      False
+always_escalate   907        26    compound                        15.87                      16.07           4                 1                1                   0                      4.07     0.00    0.00                       True
+always_escalate   908         5   slow_leak                        12.26                      12.76           3                 1                1                   1                     15.26     1.00    1.00                      False
+always_escalate   908         6   slow_leak                        12.35                      12.82           5                 1                1                   1                     17.82     0.40    0.40                      False
+always_escalate   908         9   slow_leak                        14.36                      14.73           3                 1                0                   0                     12.73     0.33    0.33                       True
+always_escalate   908        13   slow_leak                        12.11                      12.20           5                 1                1                   0                     20.70     0.60    0.60                      False
+always_escalate   908        30   slow_leak                        15.42                      15.68           5                 1                0                   0                     17.18     0.80    0.80                      False
+always_escalate   908        35     cascade                        15.71                      15.86           3                 1                1                   0                      6.86     0.00    0.00                       True
+always_escalate   909         0     cascade                        15.14                      15.49           4                 1                1                   0                      1.49     0.00    0.00                       True
+always_escalate   909         7     cascade                        15.84                      16.04           5                 1                1                   0                      4.04     0.00    0.00                       True
+always_escalate   909        14   slow_leak                        14.21                      14.37           4                 1                0                   0                     14.87     0.25    0.25                      False
+always_escalate   909        22    compound                        14.52                      14.84           8                 1                1                   1                      6.84     0.62    0.62                       True
+always_escalate   910        13 split_brain                        11.38                      11.51           7                 1                1                   0                      3.01     0.00    0.00                       True
+always_escalate   910        24   slow_leak                        15.44                      15.66           3                 1                1                   0                     21.16     0.00    0.00                      False
+always_escalate   911         8   slow_leak                        13.69                      13.73           5                 1                0                   0                     20.73     1.00    1.00                      False
+always_escalate   911        12     cascade                        13.73                      14.01           8                 1                1                   0                      3.01     0.00    0.00                       True
+always_escalate   911        15 split_brain                        14.93                      15.07           4                 1                1                   0                      3.57     0.00    0.00                       True
+always_escalate   911        16 split_brain                        14.97                      15.37           7                 1                1                   0                      6.37     0.00    0.00                       True
+
+== always_escalate: 41 hard incidents matched to a privileged call, in sampled streams
+attribution agrees with the evaluator's call count on 32 of 41
+-- all matched: 40 incidents with at least one attributed call
+   first call after onset (s): median 9.17 (min 0.07, max 23.95); last decisive evidence arrives at median 14.45
+   first call before the last decisive observation was delivered: 25 of 40
+   first-call q: mean 0.267; q == 0 for 21; q == 1 for 3
+   best q over the incident's calls: mean 0.270; q == 1 for 3
+-- attribution agrees: 31 incidents with at least one attributed call
+   first call after onset (s): median 6.86 (min 0.25, max 23.95); last decisive evidence arrives at median 14.52
+   first call before the last decisive observation was delivered: 21 of 31
+   first-call q: mean 0.214; q == 0 for 19; q == 1 for 2
+   best q over the incident's calls: mean 0.214; q == 1 for 2
+-- attribution agrees, burst families (compound, cascade, split_brain): 22 incidents
+   median first call after onset 4.76 s; median last decisive observation at 14.87 s; first call before it: 19 of 22
+   first-call q: mean 0.097, q == 0 for 17, q == 1 for 0
+-- attribution agrees, slow_leak: 9 incidents
+   median first call after onset 17.42 s; median last decisive observation at 13.72 s; first call before it: 2 of 9
+   first-call q: mean 0.500, q == 0 for 2, q == 1 for 2
+evaluator, all matched incidents: 34 calls, 5 informed
+
+# Run r4-mech2-b5-rho0.7: r4_mechanism.py artifacts/runs/r4-mech2-b5-rho0.7 always_d06 always_d14
+       arm  seed  incident      family  last_decisive_after_onset_s  oracle_call_after_onset_s  n_decisive  calls_attributed  calls_evaluator  informed_evaluator  first_call_after_onset_s  first_q  best_q first_before_last_decisive
+always_d06   930        11 split_brain                        15.58                      16.06           8                 1                1                   0                      9.56     0.00    0.00                       True
+always_d06   931         4     cascade                        12.91                      13.21           4                 1                1                   0                      6.21     0.00    0.00                       True
+always_d06   931         8    compound                        15.61                      15.64           6                 1                1                   0                     10.14     0.50    0.50                       True
+always_d06   931        10    compound                        15.78                      15.84           7                 1                1                   1                     10.84     0.86    0.86                       True
+always_d06   931        15     cascade                        15.51                      15.64           7                 1                1                   0                     35.64     0.29    0.29                      False
+always_d06   932         6    compound                        15.39                      15.41           4                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d06   932        17    compound                        15.37                      15.83           6                 1                1                   0                      9.33     0.67    0.67                       True
+always_d06   932        20 split_brain                        13.45                      13.51           4                 1                1                   0                     12.51     0.00    0.00                       True
+always_d06   933        12   slow_leak                        10.56                      10.68           3                 1                1                   1                     21.18     1.00    1.00                      False
+always_d06   933        14   slow_leak                        14.06                      14.13           4                 1                1                   0                     29.13     0.50    0.50                      False
+always_d06   934        12    compound                        13.92                      14.04           4                 1                1                   0                      6.04     0.00    0.00                       True
+always_d06   934        25 split_brain                        14.29                      14.41           5                 1                1                   0                      6.41     0.00    0.00                       True
+always_d06   936         6     cascade                        15.17                      15.54           4                 1                1                   0                      6.04     0.00    0.00                       True
+always_d06   936        22   slow_leak                        14.64                      14.97           4                 1                0                   0                     20.97     1.00    1.00                      False
+always_d06   937        13 split_brain                        14.00                      14.20           4                 1                1                   0                      6.20     0.00    0.00                       True
+always_d06   937        20    compound                        12.21                      12.30           3                 1                1                   0                      8.30     0.33    0.33                       True
+always_d06   937        23 split_brain                        14.01                      14.23           5                 1                1                   0                     53.73     0.60    0.60                      False
+always_d06   938         4 split_brain                        14.29                      14.68           3                 1                1                   0                     11.18     0.00    0.00                       True
+always_d06   938         7 split_brain                        15.59                      16.04           6                 1                1                   0                     10.04     0.17    0.17                       True
+always_d06   938         8     cascade                        15.43                      15.52           3                 1                1                   0                      6.52     0.00    0.00                       True
+always_d06   938        11 split_brain                        15.80                      15.80           6                 1                1                   1                      7.80     0.33    0.33                       True
+always_d06   938        16     cascade                        10.54                      10.92           4                 1                2                   1                     10.42     0.50    0.50                       True
+always_d06   939        14    compound                        15.90                      16.31           6                 1                1                   1                     22.31     0.50    0.50                      False
+always_d06   939        16   slow_leak                        13.17                      13.50           5                 1                0                   0                     23.50     0.20    0.20                      False
+always_d06   939        23    compound                        14.91                      15.07           7                 1                1                   0                     11.57     0.29    0.29                       True
+always_d06   940         0     cascade                        15.45                      15.65           3                 1                2                   0                      6.15     0.00    0.00                       True
+always_d06   940         1   slow_leak                        11.10                      11.32           4                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d06   940         5     cascade                        14.04                      14.32           5                 1                1                   0                      6.32     0.00    0.00                       True
+always_d06   941         6   slow_leak                        15.99                      16.46           5                 1                0                   0                     21.96     1.00    1.00                      False
+always_d06   941        12   slow_leak                        14.19                      14.45           3                 1                0                   0                     32.95     0.00    0.00                      False
+always_d06   941        15   slow_leak                        15.81                      16.17           4                 1                0                   0                     25.67     1.00    1.00                      False
+always_d06   942         4 split_brain                        13.17                      13.36           7                 2                2                   1                      9.86     0.29    0.57                       True
+always_d06   942        12     cascade                        15.36                      15.68           5                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d06   942        20     cascade                        15.19                      15.21           8                 1                1                   0                     12.21     0.25    0.25                       True
+always_d06   943        13 split_brain                        13.71                      13.99           6                 1                1                   0                     23.49     0.33    0.33                      False
+always_d06   943        14 split_brain                        15.85                      16.19           8                 1                1                   1                      9.19     0.12    0.12                       True
+always_d06   943        17   slow_leak                        15.46                      15.70           3                 1                1                   1                     22.70     1.00    1.00                      False
+always_d06   943        19 split_brain                        11.26                      11.35           7                 1                1                   0                      9.35     0.00    0.00                       True
+always_d06   944         0   slow_leak                        13.65                      13.84           3                 1                1                   1                     19.84     1.00    1.00                      False
+always_d06   944         3   slow_leak                        13.17                      13.56           5                 1                1                   1                     25.06     1.00    1.00                      False
+always_d06   944        26    compound                        11.58                      11.98           7                 1                1                   1                      8.48     0.57    0.57                       True
+always_d06   946         7     cascade                        13.22                      13.38           3                 1                1                   0                     11.88     0.33    0.33                       True
+always_d06   946         8    compound                        15.14                      15.59           6                 1                1                   0                      9.09     0.17    0.17                       True
+always_d06   946        15    compound                        14.53                      14.55           8                 1                1                   1                     12.55     0.75    0.75                       True
+always_d06   946        17 split_brain                        15.84                      15.86           5                 1                1                   0                     12.36     0.00    0.00                       True
+always_d06   947         7   slow_leak                        14.71                      14.80           5                 1                0                   0                     20.80     0.20    0.20                      False
+always_d06   948        10 split_brain                        14.15                      14.57           4                 1                1                   0                      8.57     0.00    0.00                       True
+always_d06   948        18     cascade                        14.81                      15.10           7                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d06   949         5   slow_leak                        15.41                      15.59           5                 1                0                   0                     23.09     1.00    1.00                      False
+always_d06   950        14   slow_leak                        11.28                      11.63           3                 1                0                   0                     23.63     0.00    0.00                      False
+always_d06   951        19 split_brain                        10.86                      11.26           7                 1                1                   1                      9.76     0.14    0.14                       True
+always_d06   952        13 split_brain                        14.47                      14.70           8                 1                1                   0                     10.20     0.00    0.00                       True
+always_d06   952        18 split_brain                        13.68                      13.84           6                 1                1                   0                      8.84     0.17    0.17                       True
+always_d06   953         9 split_brain                        14.35                      14.53           8                 1                1                   0                     11.03     0.12    0.12                       True
+always_d06   953        27   slow_leak                        10.39                      10.62           4                 1                0                   0                     34.62     0.00    0.00                      False
+always_d06   953        29     cascade                        12.49                      12.55           3                 1                1                   1                     15.05     0.67    0.67                      False
+always_d06   954         4     cascade                        11.28                      11.50           6                 1                1                   0                     11.00     0.17    0.17                       True
+always_d06   955         5     cascade                        14.66                      15.14           4                 1                1                   0                      6.14     0.00    0.00                       True
+always_d06   955        14    compound                        15.72                      15.89           5                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d06   955        19   slow_leak                        15.17                      15.17           4                 1                1                   1                     21.67     0.75    0.75                      False
+always_d06   955        20     cascade                        15.37                      15.59           5                 1                1                   1                     12.09     0.60    0.60                       True
+always_d06   956         8 split_brain                        14.99                      15.35           8                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d06   956         9    compound                        13.88                      13.92           5                 1                1                   1                     12.92     0.80    0.80                       True
+always_d06   956        10   slow_leak                        12.52                      12.84           5                 1                0                   0                     19.34     0.80    0.80                      False
+always_d06   956        11     cascade                        14.49                      14.96           9                 2                1                   0                     10.46     0.22    0.22                       True
+always_d06   956        14 split_brain                        10.67                      11.00           6                 1                1                   0                     10.00     0.17    0.17                       True
+always_d06   957         0    compound                        12.33                      12.77           7                 1                1                   1                     10.77     0.86    0.86                       True
+always_d06   957        18 split_brain                        13.54                      13.98           6                 1                1                   0                      9.48     0.00    0.00                       True
+always_d06   959         4    compound                        13.42                      13.53           4                 1                1                   1                     11.03     0.75    0.75                       True
+always_d06   959         7   slow_leak                        14.13                      14.42           5                 1                0                   0                     26.42     1.00    1.00                      False
+always_d06   959        16   slow_leak                        15.09                      15.42           3                 1                1                   1                     23.42     1.00    1.00                      False
+always_d06   959        20   slow_leak                        13.85                      13.91           4                 1                1                   1                     24.91     0.50    0.50                      False
+always_d06   959        22   slow_leak                        15.18                      15.29           4                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d06   959        27   slow_leak                        14.01                      14.22           5                 1                0                   0                     21.22     0.80    0.80                      False
+always_d14   930        11 split_brain                        15.58                      16.06           8                 1                1                   0                     17.56     0.38    0.38                      False
+always_d14   931         4     cascade                        12.91                      13.21           4                 1                1                   1                     14.21     0.50    0.50                      False
+always_d14   931         8    compound                        15.61                      15.64           6                 1                1                   1                     18.14     1.00    1.00                      False
+always_d14   931        10    compound                        15.78                      15.84           7                 1                1                   1                     18.84     1.00    1.00                      False
+always_d14   931        15     cascade                        15.51                      15.64           7                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   932         6    compound                        15.39                      15.41           4                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   932        17    compound                        15.37                      15.83           6                 1                1                   1                     17.33     1.00    1.00                      False
+always_d14   932        20 split_brain                        13.45                      13.51           4                 1                1                   1                     20.51     0.50    0.50                      False
+always_d14   933        12   slow_leak                        10.56                      10.68           3                 1                1                   1                     29.18     1.00    1.00                      False
+always_d14   933        14   slow_leak                        14.06                      14.13           4                 1                1                   0                     37.13     0.50    0.50                      False
+always_d14   934        12    compound                        13.92                      14.04           4                 1                1                   1                     14.04     1.00    1.00                      False
+always_d14   934        25 split_brain                        14.29                      14.41           5                 1                1                   1                     14.41     0.60    0.60                      False
+always_d14   936         6     cascade                        15.17                      15.54           4                 1                1                   0                     14.04     0.25    0.25                       True
+always_d14   936        22   slow_leak                        14.64                      14.97           4                 1                0                   0                     28.97     1.00    1.00                      False
+always_d14   937        13 split_brain                        14.00                      14.20           4                 1                1                   0                     14.20     0.50    0.50                      False
+always_d14   937        20    compound                        12.21                      12.30           3                 1                1                   1                     16.30     1.00    1.00                      False
+always_d14   937        23 split_brain                        14.01                      14.23           5                 1                1                   1                     61.73     0.60    0.60                      False
+always_d14   938         4 split_brain                        14.29                      14.68           3                 1                1                   1                     19.18     0.67    0.67                      False
+always_d14   938         7 split_brain                        15.59                      16.04           6                 1                1                   0                     18.04     0.33    0.33                      False
+always_d14   938         8     cascade                        15.43                      15.52           3                 1                1                   0                     14.52     0.00    0.00                       True
+always_d14   938        11 split_brain                        15.80                      15.80           6                 1                1                   1                     15.80     0.33    0.33                      False
+always_d14   938        16     cascade                        10.54                      10.92           4                 1                2                   1                     18.42     0.50    0.50                      False
+always_d14   939        14    compound                        15.90                      16.31           6                 1                1                   0                     30.31     0.50    0.50                      False
+always_d14   939        16   slow_leak                        13.17                      13.50           5                 1                0                   0                     31.50     0.20    0.20                      False
+always_d14   939        23    compound                        14.91                      15.07           7                 1                1                   1                     19.57     1.00    1.00                      False
+always_d14   940         0     cascade                        15.45                      15.65           3                 1                1                   0                     14.15     0.67    0.67                       True
+always_d14   940         1   slow_leak                        11.10                      11.32           4                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   940         5     cascade                        14.04                      14.32           5                 1                1                   1                     14.32     0.60    0.60                      False
+always_d14   941         6   slow_leak                        15.99                      16.46           5                 1                0                   0                     29.96     1.00    1.00                      False
+always_d14   941        12   slow_leak                        14.19                      14.45           3                 1                0                   0                     40.95     0.00    0.00                      False
+always_d14   941        15   slow_leak                        15.81                      16.17           4                 1                0                   0                     33.67     1.00    1.00                      False
+always_d14   942         4 split_brain                        13.17                      13.36           7                 1                1                   1                     17.86     0.29    0.29                      False
+always_d14   942        12     cascade                        15.36                      15.68           5                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   942        20     cascade                        15.19                      15.21           8                 1                1                   0                     20.21     0.38    0.38                      False
+always_d14   943        13 split_brain                        13.71                      13.99           6                 1                1                   0                     31.49     0.33    0.33                      False
+always_d14   943        14 split_brain                        15.85                      16.19           8                 1                1                   1                     17.19     0.38    0.38                      False
+always_d14   943        17   slow_leak                        15.46                      15.70           3                 1                1                   1                     30.70     1.00    1.00                      False
+always_d14   943        19 split_brain                        11.26                      11.35           7                 1                1                   0                     17.35     0.29    0.29                      False
+always_d14   944         0   slow_leak                        13.65                      13.84           3                 1                1                   1                     27.84     1.00    1.00                      False
+always_d14   944         3   slow_leak                        13.17                      13.56           5                 1                1                   1                     33.06     1.00    1.00                      False
+always_d14   944        26    compound                        11.58                      11.98           7                 1                1                   1                     16.48     1.00    1.00                      False
+always_d14   946         7     cascade                        13.22                      13.38           3                 1                1                   1                     19.88     0.67    0.67                      False
+always_d14   946         8    compound                        15.14                      15.59           6                 1                1                   1                     17.09     1.00    1.00                      False
+always_d14   946        15    compound                        14.53                      14.55           8                 1                1                   1                     20.55     1.00    1.00                      False
+always_d14   946        17 split_brain                        15.84                      15.86           5                 1                1                   1                     20.36     0.60    0.60                      False
+always_d14   947         7   slow_leak                        14.71                      14.80           5                 1                0                   0                     28.80     0.20    0.20                      False
+always_d14   948        10 split_brain                        14.15                      14.57           4                 1                1                   1                     16.57     0.50    0.50                      False
+always_d14   948        18     cascade                        14.81                      15.10           7                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   949         5   slow_leak                        15.41                      15.59           5                 1                0                   0                     31.09     1.00    1.00                      False
+always_d14   950        14   slow_leak                        11.28                      11.63           3                 1                0                   0                     31.63     0.00    0.00                      False
+always_d14   951        19 split_brain                        10.86                      11.26           7                 1                1                   1                     17.76     0.29    0.29                      False
+always_d14   952        13 split_brain                        14.47                      14.70           8                 1                1                   0                     18.20     0.38    0.38                      False
+always_d14   952        18 split_brain                        13.68                      13.84           6                 1                1                   0                     16.84     0.33    0.33                      False
+always_d14   953         9 split_brain                        14.35                      14.53           8                 1                1                   0                     19.03     0.38    0.38                      False
+always_d14   953        27   slow_leak                        10.39                      10.62           4                 1                0                   0                     42.62     0.00    0.00                      False
+always_d14   953        29     cascade                        12.49                      12.55           3                 1                1                   1                     23.05     0.67    0.67                      False
+always_d14   954         4     cascade                        11.28                      11.50           6                 1                1                   0                     19.00     0.33    0.33                      False
+always_d14   955         5     cascade                        14.66                      15.14           4                 1                1                   0                     14.14     0.50    0.50                       True
+always_d14   955        14    compound                        15.72                      15.89           5                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   955        19   slow_leak                        15.17                      15.17           4                 1                1                   1                     29.67     0.75    0.75                      False
+always_d14   955        20     cascade                        15.37                      15.59           5                 1                1                   0                     20.09     0.60    0.60                      False
+always_d14   956         8 split_brain                        14.99                      15.35           8                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   956         9    compound                        13.88                      13.92           5                 1                1                   1                     20.92     1.00    1.00                      False
+always_d14   956        10   slow_leak                        12.52                      12.84           5                 1                0                   0                     27.34     0.80    0.80                      False
+always_d14   956        11     cascade                        14.49                      14.96           9                 2                1                   0                     18.46     0.22    0.22                      False
+always_d14   956        14 split_brain                        10.67                      11.00           6                 1                1                   0                     18.00     0.33    0.33                      False
+always_d14   957         0    compound                        12.33                      12.77           7                 1                1                   1                     18.77     1.00    1.00                      False
+always_d14   957        18 split_brain                        13.54                      13.98           6                 1                1                   0                     17.48     0.33    0.33                      False
+always_d14   959         4    compound                        13.42                      13.53           4                 1                1                   1                     19.03     1.00    1.00                      False
+always_d14   959         7   slow_leak                        14.13                      14.42           5                 1                0                   0                     34.42     1.00    1.00                      False
+always_d14   959        16   slow_leak                        15.09                      15.42           3                 1                1                   1                     31.42     1.00    1.00                      False
+always_d14   959        20   slow_leak                        13.85                      13.91           4                 1                1                   1                     32.91     0.50    0.50                      False
+always_d14   959        22   slow_leak                        15.18                      15.29           4                 0                0                   0                       NaN      NaN     NaN                        NaN
+always_d14   959        27   slow_leak                        14.01                      14.22           5                 1                0                   0                     29.22     0.80    0.80                      False
+
+== always_d06: 74 hard incidents matched to a privileged call, in sampled streams
+attribution agrees with the evaluator's call count on 59 of 74
+-- all matched: 67 incidents with at least one attributed call
+   first call after onset (s): median 11.18 (min 6.04, max 53.73); last decisive evidence arrives at median 14.15
+   first call before the last decisive observation was delivered: 42 of 67
+   first-call q: mean 0.392; q == 0 for 20; q == 1 for 10
+   best q over the incident's calls: mean 0.396; q == 1 for 10
+-- attribution agrees: 52 incidents with at least one attributed call
+   first call after onset (s): median 10.80 (min 6.04, max 53.73); last decisive evidence arrives at median 14.11
+   first call before the last decisive observation was delivered: 39 of 52
+   first-call q: mean 0.356; q == 0 for 16; q == 1 for 5
+   best q over the incident's calls: mean 0.362; q == 1 for 5
+-- attribution agrees, burst families (compound, cascade, split_brain): 44 incidents
+   median first call after onset 10.02 s; median last decisive observation at 14.22 s; first call before it: 39 of 44
+   first-call q: mean 0.268, q == 0 for 16, q == 1 for 0
+-- attribution agrees, slow_leak: 8 incidents
+   median first call after onset 23.06 s; median last decisive observation at 13.96 s; first call before it: 0 of 8
+   first-call q: mean 0.844, q == 0 for 0, q == 1 for 5
+evaluator, all matched incidents: 58 calls, 21 informed
+
+== always_d14: 74 hard incidents matched to a privileged call, in sampled streams
+attribution agrees with the evaluator's call count on 60 of 74
+-- all matched: 66 incidents with at least one attributed call
+   first call after onset (s): median 19.11 (min 14.04, max 61.73); last decisive evidence arrives at median 14.14
+   first call before the last decisive observation was delivered: 4 of 66
+   first-call q: mean 0.613; q == 0 for 4; q == 1 for 22
+   best q over the incident's calls: mean 0.613; q == 1 for 22
+-- attribution agrees: 52 incidents with at least one attributed call
+   first call after onset (s): median 18.49 (min 14.04, max 61.73); last decisive evidence arrives at median 14.11
+   first call before the last decisive observation was delivered: 4 of 52
+   first-call q: mean 0.629; q == 0 for 1; q == 1 for 17
+   best q over the incident's calls: mean 0.629; q == 1 for 17
+-- attribution agrees, burst families (compound, cascade, split_brain): 44 incidents
+   median first call after onset 17.93 s; median last decisive observation at 14.22 s; first call before it: 4 of 44
+   first-call q: mean 0.591, q == 0 for 1, q == 1 for 12
+-- attribution agrees, slow_leak: 8 incidents
+   median first call after onset 31.06 s; median last decisive observation at 13.96 s; first call before it: 0 of 8
+   first-call q: mean 0.844, q == 0 for 0, q == 1 for 5
+evaluator, all matched incidents: 55 calls, 34 informed

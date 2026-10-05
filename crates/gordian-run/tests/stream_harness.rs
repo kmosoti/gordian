@@ -270,7 +270,7 @@ fn a_malformed_call_is_refused_without_charge() {
 #[test]
 fn the_reasoner_limit_holds_for_an_arm_that_asks_about_everything() {
     let (p, l) = with_tokens(5, 200, 3_000);
-    let record = play(&p, &StreamPolicySpec::Always, &l).unwrap();
+    let record = play(&p, &StreamPolicySpec::Always { delay_ns: 0 }, &l).unwrap();
     assert!(record.bill.total(Resource::Communication) <= 3_000);
     assert!(record.verdict.totals.reasoner.tokens <= 3_000);
     assert!(record.verdict.totals.reasoner.modelled_ns <= 3_000 * 250_000);
@@ -293,7 +293,7 @@ fn the_reasoner_limit_holds_for_an_arm_that_asks_about_everything() {
 #[test]
 fn the_reasoners_cost_is_in_its_own_units_and_through_the_exchange_rate() {
     let (p, l) = with_tokens(5, 200, 80_000);
-    let spec = StreamPolicySpec::Always;
+    let spec = StreamPolicySpec::Always { delay_ns: 0 };
     let rung = RungConfig::default();
     let run = |rate: u64| {
         run_segment(
@@ -439,14 +439,14 @@ fn a_binding_compute_limit_stops_the_arm_working_and_the_bill_holds() {
     let p = params(6, 150);
     let mut l = limits(&p);
     l.compute = 5_000;
-    let record = play(&p, &StreamPolicySpec::Always, &l).unwrap();
+    let record = play(&p, &StreamPolicySpec::Always { delay_ns: 0 }, &l).unwrap();
     assert!(record.bill.total(Resource::Compute) <= 5_000);
     assert!(
         record.components_run + record.components_skipped + record.rule_skipped > 0
             || record.bill.total(Resource::Compute) > 0
     );
     // With the limit this tight the arm cannot do the work that notices and concludes.
-    let free = play(&p, &StreamPolicySpec::Always, &limits(&p)).unwrap();
+    let free = play(&p, &StreamPolicySpec::Always { delay_ns: 0 }, &limits(&p)).unwrap();
     assert!(free.components_run > record.components_run);
     assert!(free.trajectory_counts.declarations >= record.trajectory_counts.declarations);
 }
@@ -471,7 +471,10 @@ fn the_arm_is_built_from_public_information_and_nothing_else() {
 fn the_trajectory_holds_every_action_the_stream_answered_in_order() {
     let p = params(8, 200);
     let l = limits(&p);
-    for spec in [StreamPolicySpec::Never, StreamPolicySpec::Always] {
+    for spec in [
+        StreamPolicySpec::Never,
+        StreamPolicySpec::Always { delay_ns: 0 },
+    ] {
         let record = play(&p, &spec, &l).unwrap();
         let mut last = Instant::ZERO;
         let (mut probes, mut calls, mut decls) = (0u32, 0u32, 0u32);
@@ -506,7 +509,7 @@ fn the_trajectory_holds_every_action_the_stream_answered_in_order() {
 #[test]
 fn timings_are_measurements_from_the_timer_and_sum_to_what_measured_csv_holds() {
     let p = params(5, 200);
-    let record = play(&p, &StreamPolicySpec::Always, &limits(&p)).unwrap();
+    let record = play(&p, &StreamPolicySpec::Always { delay_ns: 0 }, &limits(&p)).unwrap();
     let (mut component_ns, mut sched_ns) = (0u64, 0u64);
     let mut component_ops: std::collections::BTreeMap<u64, Vec<u64>> = Default::default();
     let mut rule_ops: Vec<u64> = Vec::new();
@@ -562,7 +565,7 @@ fn timings_are_measurements_from_the_timer_and_sum_to_what_measured_csv_holds() 
         }
     }
     assert_eq!(rule_ops.as_slice(), record.ops.sched.counts());
-    let again = play(&p, &StreamPolicySpec::Always, &limits(&p)).unwrap();
+    let again = play(&p, &StreamPolicySpec::Always { delay_ns: 0 }, &limits(&p)).unwrap();
     assert_eq!(again.ops.ops_component(), record.ops.ops_component());
     assert_eq!(again.ops.ops_sched(), record.ops.ops_sched());
     assert_eq!(
