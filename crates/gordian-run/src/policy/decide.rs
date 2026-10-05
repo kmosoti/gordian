@@ -20,7 +20,10 @@
 //!    probe results in the working state, using the world's public `probe_result` semantics. That
 //!    narrowing is the rule's own bookkeeping for the probes it bought and nothing else: no
 //!    consistency checking of passive observations happens here, because that is the verifier's
-//!    job and an arm that never selects the verifier must not get it free.
+//!    job and an arm that never selects the verifier must not get it free. The narrowed view of
+//!    a stored set, and the scores of the probes that could be bought from it, are kept with the
+//!    set and recomputed only when the set is replaced or the probe results and corrections in
+//!    the working state are no longer those they were made against (work item A6d).
 //! 3. One hypothesis left: declare it (a lone "no fault" only once the patience has passed,
 //!    because silence is also what a fault looks like before its onset).
 //! 4. Several hypotheses, none of them "no fault": buy the affordable probe with the smallest
@@ -83,7 +86,10 @@ impl Default for DecideConfig {
 // 4 vCPU Xeon (release profile, not pinned: the sandbox refused `taskset` for builds, and another
 // worker was benchmarking) by the ignored test `measure_the_rule_against_its_declared_cost` in
 // `tests/baselines.rs`, weighted least squares on relative error, rounded. What was measured and
-// what the constants do not cover: `POLICIES.md`, section 3.
+// what the constants do not cover: `POLICIES.md`, section 3. Work item A6d changed what the world
+// and evaluation constants multiply (the work the previous call did, not an upper bound on the
+// work of the set held), not the constants: a world narrowed or a probe evaluated costs what it
+// did.
 const BASE_PS: u64 = 45_000;
 const SCAN_PS: u64 = 950;
 const WORLD_PS: u64 = 10_500;
@@ -102,7 +108,9 @@ const COMPARE_BYTE_PS: u64 = 33;
 // - `decoded_outputs`: component outputs whose entry was decoded (an output byte for byte equal to
 //   the one already held for its component is not decoded: work item A6c);
 // - `decoded_ranked`: candidates in the entries decoded;
-// - `worlds`: worlds built from a candidate set, and worlds visited when a probe is scored;
+// - `worlds`: worlds built from a candidate set, and worlds visited when a probe is scored. A
+//   stored set is narrowed, and its probes scored, only when the set or the probe results change
+//   (work item A6d), so a call that did neither counts none;
 // - `probe_evals`: calls of `probe_result` made to score candidate probes, one per (probe, world);
 // - `compared_bytes`: payload bytes of an arriving output that were compared with the held copy
 //   (the entries' shape agreed, so the comparison had to look at the bytes; an upper bound when
@@ -166,6 +174,10 @@ impl RuleOps {
         self.counts[unit] = self.counts[unit].saturating_add(n);
     }
 
+    fn count(&self, unit: usize) -> u64 {
+        self.counts[unit]
+    }
+
     /// The counts, one per unit of [`RULE_UNITS`], in the same order.
     pub fn counts(&self) -> &[u64] {
         &self.counts
@@ -201,6 +213,12 @@ impl Default for RuleOps {
 }
 
 /// The quantities the rule's declared cost is a function of; see [`Decider::declared_cost`].
+///
+/// Everything but the window is the work of the *previous* call, carried to the next step because
+/// what a step brings (an output, a probe result) is not known when the harness asks for the
+/// scheduling cost. The last three fields are the work of narrowing and scoring and are zero for
+/// the reference rule ([`Decider::without_cache`]), which is declared by the forward fields
+/// instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CostFeatures {
     /// Observations in the window.
@@ -212,14 +230,32 @@ pub struct CostFeatures {
     pub decoded_hypotheses: u64,
     /// Payload bytes the previous call compared with held outputs (`COMPARE_BYTE_PS` each).
     pub compared_bytes: u64,
-    /// Hypotheses in the first available stored set.
+    /// Worlds the previous call built when it narrowed a stored set (work item A6d).
+    pub narrowed_worlds: u64,
+    /// Worlds the previous call visited when it scored the probes of a narrowed set.
+    pub scored_worlds: u64,
+    /// `probe_result` calls the previous call made to score them (`EVAL_PS` each).
+    pub probe_evals: u64,
+    /// Reference rule only: hypotheses in the first available stored set.
     pub candidates: u64,
-    /// Worlds of that set before narrowing.
+    /// Reference rule only: worlds of that set before narrowing, declared every step.
     pub worlds: u64,
-    /// Distinct sites among its hypotheses.
+    /// Reference rule only: distinct sites among its hypotheses.
     pub targets: u64,
-    /// Whether the rule could buy a probe from it: several hypotheses, none of them "no fault".
+    /// Reference rule only: whether the rule could buy a probe from it: several hypotheses, none
+    /// of them "no fault".
     pub probing: bool,
+}
+
+/// The work of one call that the next step's declared cost carries (see [`CostFeatures`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Last {
+    decoded_outputs: u64,
+    decoded_hypotheses: u64,
+    compared_bytes: u64,
+    narrowed_worlds: u64,
+    scored_worlds: u64,
+    probe_evals: u64,
 }
 
 /// A world: a hypothesis and the two hidden parity bits. For hypotheses outside the entangled
@@ -455,11 +491,34 @@ fn score_probes_counted(
 
 /// What the rule holds of one component's latest output: the entries as they arrived and what
 /// they decoded to. Keeping the entries is what lets the next output be recognised as the same.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The narrowed view of the set lives here too (work item A6d), so that it cannot outlive the set:
+/// an arriving output that differs from the held one replaces the whole `Held`, cache included.
+#[derive(Debug, Clone)]
 struct Held {
     entries: Vec<(EntryKind, Vec<u8>)>,
     /// What [`offered`] made of `entries`.
     set: Option<Vec<Hypothesis>>,
+    /// `set` narrowed against the probe results and corrections of the working state, as last
+    /// computed. `None` until a call has needed it.
+    narrowed: Option<Narrowed>,
+}
+
+/// A stored set narrowed against what the arm bought, and what a call derives from it.
+///
+/// Valid for exactly the [`Bought`] it was made against: the narrowing is a function of the set,
+/// of that, and of the world's public services (fixed for the episode, and a rule plays one
+/// episode, as every [`crate::policy::Policy`] does), and of nothing else. The probe scores are
+/// functions of the same inputs, so they are kept with the view and cleared with it.
+#[derive(Debug, Clone)]
+struct Narrowed {
+    /// The probe results and corrections this was narrowed against.
+    bought: Bought,
+    /// What narrowing left; `None` when it left no world, in which case the rule tries the next
+    /// stored set.
+    view: Option<View>,
+    /// [`score_probes_counted`] of the view's worlds, made the first call that needed them.
+    scores: Option<Vec<ProbeScore>>,
 }
 
 /// Payload bytes a comparison of `arriving` with `held` has to look at: all of `arriving`'s when
@@ -519,9 +578,12 @@ pub struct Decider {
     /// Whether an arriving output equal to the held one is recognised and not decoded again
     /// (work item A6c). False only for [`Decider::without_reuse`], the reference.
     reuse: bool,
-    /// Outputs and hypotheses the last `decide` call decoded, and the bytes it compared: the work
-    /// whose cost the next step's declared cost carries.
-    decoded: (u64, u64, u64),
+    /// Whether the narrowed view of a stored set, and the scores of its probes, are kept until the
+    /// set or the probes bought change (work item A6d). False only for [`Decider::without_cache`]
+    /// and [`Decider::without_reuse`], the references.
+    cache: bool,
+    /// The work the last call did that the next step's declared cost carries.
+    last: Last,
     /// Work done since the harness last took the count ([`Decider::take_ops`]). Written by the
     /// rule's own steps and read by nothing in them.
     ops: RuleOps,
@@ -543,18 +605,32 @@ impl Decider {
             heuristic: None,
             remaining: Remaining::default(),
             reuse: true,
-            decoded: (0, 0, 0),
+            cache: true,
+            last: Last::default(),
             ops: RuleOps::ZERO,
         }
     }
 
-    /// The reference rule: the same rule that decodes every output it is shown, whether or not it
-    /// equals the one it holds. This is the rule as it was before work item A6c. No arm uses it;
-    /// it is the oracle the tests hold [`Decider::new`] to (every decision equal, on the same
-    /// inputs), as the plan asks for a simple reference beside anything optimised on the hot path.
+    /// The reference rule of work item A6d: the rule as it was after A6c, which recognises a
+    /// repeated output but narrows the first stored set against the probes bought, and scores the
+    /// probes it could buy, at every call, and declares both for every step from the set it holds.
+    /// No arm uses it; it is the oracle the tests hold [`Decider::new`] to (every decision equal,
+    /// on the same inputs), as the plan asks for a simple reference beside anything optimised on
+    /// the hot path.
+    pub fn without_cache(config: DecideConfig) -> Self {
+        Self {
+            cache: false,
+            ..Self::new(config)
+        }
+    }
+
+    /// The reference rule of work item A6c: the same rule that decodes every output it is shown,
+    /// whether or not it equals the one it holds, and re-narrows at every call. This is the rule as
+    /// it was before work item A6c. No arm uses it.
     pub fn without_reuse(config: DecideConfig) -> Self {
         Self {
             reuse: false,
+            cache: false,
             ..Self::new(config)
         }
     }
@@ -581,8 +657,9 @@ impl Decider {
     ///
     /// An output whose entries equal, byte for byte, the ones held for the component decodes to
     /// what the held ones did, so the held decoded form stays and nothing is decoded (work item
-    /// A6c). Otherwise it is decoded and replaces the held one. `==` on the entries is the whole
-    /// test of "the same": the rule assumes nothing about how a component produces its output.
+    /// A6c), and neither does the narrowed view kept with it (A6d). Otherwise it is decoded and
+    /// replaces the held one, narrowed view included. `==` on the entries is the whole test of
+    /// "the same": the rule assumes nothing about how a component produces its output.
     fn absorb(&mut self, id: ComponentId, output: &ComponentOutput, ops: &mut RuleOps) {
         let slot = if id == VERIFIER_ID {
             &mut self.verifier
@@ -598,19 +675,20 @@ impl Decider {
         {
             let bytes = compared_bytes(&held.entries, &output.entries);
             ops.add(R_COMPARED_BYTES, bytes);
-            self.decoded.2 += bytes;
+            self.last.compared_bytes += bytes;
             if held.entries == output.entries {
                 return;
             }
         }
         let set = offered(output, ops);
         if !output.entries.is_empty() {
-            self.decoded.0 += 1;
-            self.decoded.1 += set.as_ref().map_or(0, |set| set.len() as u64);
+            self.last.decoded_outputs += 1;
+            self.last.decoded_hypotheses += set.as_ref().map_or(0, |set| set.len() as u64);
         }
         *slot = Some(Held {
             entries: output.entries.clone(),
             set,
+            narrowed: None,
         });
     }
 
@@ -620,33 +698,89 @@ impl Decider {
             .filter_map(|held| held.as_ref()?.set.as_ref())
     }
 
-    fn view(&self, state: &WorkingState, bought: &Bought, ops: &mut RuleOps) -> Option<View> {
-        self.sources().find_map(|set| {
-            let worlds = worlds_of_counted(&state.public.services, set, bought, ops);
-            if worlds.is_empty() {
-                None
-            } else {
-                Some(View {
+    /// Which stored set the rule acts on: the first, in source order, whose narrowing against the
+    /// probes bought leaves a world. A set whose kept narrowing was made against these same probes
+    /// is not narrowed again (work item A6d); any other is narrowed, counted, and kept. The sets
+    /// after the one that is returned are not looked at.
+    fn view_source(
+        &mut self,
+        state: &WorkingState,
+        bought: &Bought,
+        ops: &mut RuleOps,
+    ) -> Option<usize> {
+        for index in 0..3 {
+            let slot = match index {
+                0 => &mut self.verifier,
+                1 => &mut self.estimator,
+                _ => &mut self.heuristic,
+            };
+            let Some(held) = slot.as_mut() else {
+                continue;
+            };
+            let Some(set) = held.set.as_ref() else {
+                continue;
+            };
+            let kept = self.cache
+                && held
+                    .narrowed
+                    .as_ref()
+                    .is_some_and(|narrowed| narrowed.bought == *bought);
+            if !kept {
+                let before = ops.count(R_WORLDS);
+                let worlds = worlds_of_counted(&state.public.services, set, bought, ops);
+                self.last.narrowed_worlds += ops.count(R_WORLDS) - before;
+                let view = (!worlds.is_empty()).then(|| View {
                     hypotheses: distinct(&worlds),
                     worlds,
-                })
+                });
+                held.narrowed = Some(Narrowed {
+                    bought: bought.clone(),
+                    view,
+                    scores: None,
+                });
             }
-        })
+            if held
+                .narrowed
+                .as_ref()
+                .is_some_and(|narrowed| narrowed.view.is_some())
+            {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    /// The narrowed view [`Decider::view_source`] returned the index of.
+    fn view_at(&self, index: usize) -> &View {
+        let slot = match index {
+            0 => &self.verifier,
+            1 => &self.estimator,
+            _ => &self.heuristic,
+        };
+        slot.as_ref()
+            .and_then(|held| held.narrowed.as_ref())
+            .and_then(|narrowed| narrowed.view.as_ref())
+            .expect("view_source returned a stored set with a view")
     }
 
     /// The quantities the declared cost is a function of.
     pub fn cost_features(&self, state: &WorkingState) -> CostFeatures {
         let mut features = CostFeatures {
             window: state.size() as u64,
-            decoded_outputs: self.decoded.0,
-            decoded_hypotheses: self.decoded.1,
-            compared_bytes: self.decoded.2,
+            decoded_outputs: self.last.decoded_outputs,
+            decoded_hypotheses: self.last.decoded_hypotheses,
+            compared_bytes: self.last.compared_bytes,
+            narrowed_worlds: self.last.narrowed_worlds,
+            scored_worlds: self.last.scored_worlds,
+            probe_evals: self.last.probe_evals,
             candidates: 0,
             worlds: 0,
             targets: 0,
             probing: false,
         };
-        if let Some(set) = self.sources().next() {
+        if !self.cache
+            && let Some(set) = self.sources().next()
+        {
             features.candidates = set.len() as u64;
             features.worlds = set.iter().map(|h| bit_options(*h).len() as u64).sum();
             features.probing = set.len() > 1 && !set.contains(&None);
@@ -661,26 +795,30 @@ impl Decider {
 
     /// The declared cost of one `decide` call at `state`, in `Resource::Compute` nanoseconds.
     ///
-    /// A function of [`CostFeatures`] only: a base; a scan of the window for bought probes; the
-    /// narrowing of the candidate set's worlds; when a probe could be chosen, the evaluation of
-    /// every candidate probe against every world; and the decoding of the outputs the *previous*
-    /// call received. That last term is a lag, not a guess: which outputs a step brings is not
-    /// known before `select`, but the decoding work of every step is charged at the next one, so
-    /// the whole episode's decoding is charged except the last step's, which the final call
-    /// ([`Decider::declared_final_cost`]) picks up when the harness makes one. The narrowing and
-    /// scoring terms are upper bounds, because narrowing by bought probes only removes worlds. Constants
-    /// and their fit: `POLICIES.md`, section 3.
+    /// A function of [`CostFeatures`] only: a base; a scan of the window for bought probes; and
+    /// the work the *previous* call did, which is not known before `select` (which outputs a step
+    /// brings, which probe results it shows): decoding and comparing the outputs it received,
+    /// narrowing a stored set, and scoring the probes of a narrowed set. That is a lag, not a
+    /// guess, and it is exact: the whole episode's work is charged except the last step's, which
+    /// the final call ([`Decider::declared_final_cost`]) picks up when the harness makes one. A step
+    /// that did none of it, because its stored sets and its probe results were those of the step
+    /// before, is charged the base and the scan alone. Constants and their fit: `POLICIES.md`,
+    /// section 3.
+    ///
+    /// The reference rule ([`Decider::without_cache`]) declares as it did before work item A6d:
+    /// the narrowing of the first stored set, and when a probe could be bought from it the scoring
+    /// of every probe, at every step from the set it holds, as upper bounds.
     pub fn declared_cost(&self, state: &WorkingState) -> Charge {
         self.cost(state, true)
     }
 
     /// The declared cost of the final call ([`Decider::decide_final`]) at `state`.
     ///
-    /// [`Decider::declared_cost`] without the probe-evaluation term: the final call declares or
-    /// abstains and never scores a probe, so charging for the evaluation would bill work the call
-    /// does not do. It still carries the decoding of the previous call's outputs, because the
-    /// final call is the next call after the last step, so the whole episode's decoding is
-    /// charged.
+    /// For the rule that keeps its narrowed views this is [`Decider::declared_cost`]: every term
+    /// is the work of the previous call, so there is no forward term to leave out, and the final
+    /// call still carries what the last step did. The reference rule's is without the
+    /// probe-evaluation term, as before: the final call declares or abstains and never scores a
+    /// probe, so charging for the evaluation would bill work the call does not do.
     pub fn declared_final_cost(&self, state: &WorkingState) -> Charge {
         self.cost(state, false)
     }
@@ -689,13 +827,19 @@ impl Decider {
         let f = self.cost_features(state);
         let mut ps = BASE_PS
             .saturating_add(SCAN_PS.saturating_mul(f.window))
-            .saturating_add(WORLD_PS.saturating_mul(f.worlds))
             .saturating_add(DECODE_OUTPUT_PS.saturating_mul(f.decoded_outputs))
             .saturating_add(DECODE_HYPOTHESIS_PS.saturating_mul(f.decoded_hypotheses))
             .saturating_add(COMPARE_BYTE_PS.saturating_mul(f.compared_bytes));
-        if may_probe && f.probing {
-            let evaluations = ProbeKind::ALL.len() as u64 * f.targets * f.worlds;
-            ps = ps.saturating_add(EVAL_PS.saturating_mul(evaluations));
+        if self.cache {
+            ps = ps
+                .saturating_add(WORLD_PS.saturating_mul(f.narrowed_worlds))
+                .saturating_add(EVAL_PS.saturating_mul(f.probe_evals));
+        } else {
+            ps = ps.saturating_add(WORLD_PS.saturating_mul(f.worlds));
+            if may_probe && f.probing {
+                let evaluations = ProbeKind::ALL.len() as u64 * f.targets * f.worlds;
+                ps = ps.saturating_add(EVAL_PS.saturating_mul(evaluations));
+            }
         }
         Charge::new(Resource::Compute, ps.div_ceil(1000))
     }
@@ -740,19 +884,20 @@ impl Decider {
         last: bool,
         ops: &mut RuleOps,
     ) -> Option<Action> {
-        self.decoded = (0, 0, 0);
+        self.last = Last::default();
         for (id, output) in outputs {
             self.absorb(*id, output, ops);
         }
         let bought = Bought::from_evidence(state.evidence());
-        let view = self.view(state, &bought, ops);
+        let source = self.view_source(state, &bought, ops);
         // The final call is the only thing `last` changes: it makes the deadline due.
         let due = last || state.now >= self.patience;
 
-        let Some(view) = view else {
+        let Some(source) = source else {
             return due.then_some(Action::Abstain);
         };
-        if let [only] = view.hypotheses.as_slice() {
+        let hypotheses = &self.view_at(source).hypotheses;
+        if let [only] = hypotheses.as_slice() {
             return match only {
                 Some(fault) => Some(Action::Declare {
                     fault: Some(*fault),
@@ -762,14 +907,14 @@ impl Decider {
         }
         if due {
             return Some(Action::Declare {
-                fault: view.hypotheses[0],
+                fault: hypotheses[0],
             });
         }
-        if view.hypotheses.contains(&None) {
+        if hypotheses.contains(&None) {
             // Silence is what every fault looks like before its onset; wait for evidence.
             return None;
         }
-        self.best_probe(state, &view, &bought, ops)
+        self.best_probe(source, state, &bought, ops)
             .map(|probe| Action::Probe {
                 kind: probe.kind,
                 target: probe.target,
@@ -777,19 +922,48 @@ impl Decider {
     }
 
     /// The affordable probe with the smallest expected remaining set, if it beats the present
-    /// size. Ties go to the cheaper probe (units, then time), then to the earlier kind and the
-    /// lower service id.
+    /// size, among the probes of the narrowed set at `source`. Their scores are made the first
+    /// time they are needed and kept with the narrowed view (work item A6d); which of them is
+    /// affordable is not kept, because what is left to spend changes. Ties go to the cheaper probe
+    /// (units, then time), then to the earlier kind and the lower service id.
     fn best_probe(
-        &self,
+        &mut self,
+        source: usize,
         state: &WorkingState,
-        view: &View,
         bought: &Bought,
         ops: &mut RuleOps,
     ) -> Option<Probe> {
+        let remaining = self.remaining;
+        let slot = match source {
+            0 => &mut self.verifier,
+            1 => &mut self.estimator,
+            _ => &mut self.heuristic,
+        };
+        let narrowed = slot
+            .as_mut()
+            .and_then(|held| held.narrowed.as_mut())
+            .expect("view_source returned a stored set with a view");
+        let view = narrowed
+            .view
+            .as_ref()
+            .expect("view_source returned a stored set with a view");
         let bound = view.hypotheses.len() as u64 * view.worlds.len() as u64;
-        score_probes_counted(&state.public.services, &view.worlds, bought, ops)
-            .into_iter()
-            .filter(|s| s.numerator < bound && self.remaining.affords(s.probe))
+        if narrowed.scores.is_none() {
+            let (worlds, evals) = (ops.count(R_WORLDS), ops.count(R_PROBE_EVALS));
+            narrowed.scores = Some(score_probes_counted(
+                &state.public.services,
+                &view.worlds,
+                bought,
+                ops,
+            ));
+            self.last.scored_worlds += ops.count(R_WORLDS) - worlds;
+            self.last.probe_evals += ops.count(R_PROBE_EVALS) - evals;
+        }
+        narrowed
+            .scores
+            .iter()
+            .flatten()
+            .filter(|s| s.numerator < bound && remaining.affords(s.probe))
             .min_by_key(|s| {
                 let (units, time) = probe_units(s.probe.kind);
                 (

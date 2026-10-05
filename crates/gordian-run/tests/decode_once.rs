@@ -76,52 +76,14 @@ fn verdicts_at_the_default_budget_are_those_the_rule_gave_before_decode_once() {
 
 // ---- the mechanism and its accounting ----
 
-use gordian_components::payload::{HypothesisEntry, Ranked, hypothesis_entry};
 use gordian_components::{ComponentOutput, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId};
-use gordian_run::policy::decide::{Decider, RULE_UNITS, Remaining, RuleOps};
+use gordian_run::policy::decide::{Decider, Remaining, RuleOps};
 use gordian_run::policy::{self, Built, Policy, PolicyId};
 use gordian_run::standard_components;
-use gordian_world::{Action, FaultKind, Hypothesis, ServiceId, generate};
+use gordian_world::{Action, FaultKind};
 use std::cell::Cell;
 use std::rc::Rc;
-
-fn count(ops: &RuleOps, unit: &str) -> u64 {
-    let at = RULE_UNITS.iter().position(|u| u.name == unit).unwrap();
-    ops.counts()[at]
-}
-
-fn candidates(source: &str, ranked: Vec<Hypothesis>) -> ComponentOutput {
-    let n = ranked.len() as u32;
-    let entry = HypothesisEntry::Candidates {
-        source: source.to_owned(),
-        basis: "test".to_owned(),
-        ranked: ranked
-            .into_iter()
-            .map(|hypothesis| Ranked {
-                hypothesis,
-                score: None,
-            })
-            .collect(),
-        tied_at_top: n,
-    };
-    ComponentOutput {
-        entries: vec![hypothesis_entry(&entry)],
-        ..ComponentOutput::default()
-    }
-}
-
-fn fault(kind: FaultKind, site: u32) -> Hypothesis {
-    Some((kind, ServiceId(site)))
-}
-
-fn fresh_state() -> WorkingState {
-    let l = limits();
-    WorkingState::new(
-        generate(&spec(3, EpisodeClass::Ambiguous, &l)).public_info(),
-        l.window,
-    )
-}
 
 /// The first time an output arrives it is decoded and counted; the same output arriving again is
 /// recognised, not decoded, not counted as decoded and not declared; an output that differs is
@@ -297,9 +259,13 @@ impl Policy for AgainstReference {
         add(&t.decoded_reference, count(&want, "decoded_outputs"));
         add(&t.ranked_arm, count(&got, "decoded_ranked"));
         add(&t.ranked_reference, count(&want, "decoded_ranked"));
-        // Everything but the decoding and the comparison is the same work.
-        for unit in ["calls", "worlds", "probe_evals"] {
-            assert_eq!(count(&got, unit), count(&want, unit), "{unit}");
+        // One call per call. The reference narrows and scores at every call, which the arm no
+        // longer does when nothing it narrows against has changed (work item A6d), so the arm's
+        // count of those can only be lower; `incremental_narrowing.rs` holds it to the rule as
+        // it was after A6c, which does equal work in everything but that.
+        assert_eq!(count(&got, "calls"), count(&want, "calls"), "calls");
+        for unit in ["worlds", "probe_evals"] {
+            assert!(count(&got, unit) <= count(&want, unit), "{unit}");
         }
         assert_eq!(
             count(&want, "compared_bytes"),

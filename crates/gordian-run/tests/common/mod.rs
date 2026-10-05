@@ -344,3 +344,50 @@ pub fn verdicts(dir: &Path, arms: &[ArmSpec]) -> BTreeMap<(String, u64, String),
     }
     out
 }
+
+// ---- synthetic outputs and counts, shared by the tests of the shared rule ----
+
+use gordian_components::payload::{HypothesisEntry, Ranked, hypothesis_entry};
+use gordian_run::policy::decide::RULE_UNITS;
+use gordian_world::Hypothesis;
+
+/// The count of `unit` in `ops`, by name.
+pub fn count(ops: &RuleOps, unit: &str) -> u64 {
+    let at = RULE_UNITS.iter().position(|u| u.name == unit).unwrap();
+    ops.counts()[at]
+}
+
+/// A component output listing `ranked` as tied candidates.
+pub fn candidates(source: &str, ranked: Vec<Hypothesis>) -> ComponentOutput {
+    let n = ranked.len() as u32;
+    let entry = HypothesisEntry::Candidates {
+        source: source.to_owned(),
+        basis: "test".to_owned(),
+        ranked: ranked
+            .into_iter()
+            .map(|hypothesis| Ranked {
+                hypothesis,
+                score: None,
+            })
+            .collect(),
+        tied_at_top: n,
+    };
+    ComponentOutput {
+        entries: vec![hypothesis_entry(&entry)],
+        ..ComponentOutput::default()
+    }
+}
+
+/// The hypothesis of a fault of `kind` at service `site`.
+pub fn fault(kind: FaultKind, site: u32) -> Hypothesis {
+    Some((kind, ServiceId(site)))
+}
+
+/// A working state over the world of `Ambiguous` seed 3 with nothing admitted.
+pub fn fresh_state() -> WorkingState {
+    let l = limits();
+    WorkingState::new(
+        generate(&spec(3, EpisodeClass::Ambiguous, &l)).public_info(),
+        l.window,
+    )
+}
