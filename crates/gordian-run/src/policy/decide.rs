@@ -24,6 +24,12 @@
 //! 5. At the patience deadline: declare the first-ranked hypothesis, or abstain with none.
 //!    Otherwise wait.
 //!
+//! The harness also gives the rule one *final call* ([`Decider::decide_final`]) when it has found
+//! that no affordable work is left or that the horizon was reached. The final call is the
+//! patience deadline arriving early: `due` is true whatever the clock says, and nothing else about
+//! the rule changes, so an arm that has run out of means declares what it has instead of ending
+//! undecided. A test pins `decide_final` to `decide` at a state whose clock is at the deadline.
+//!
 //! The expected size is over *hypotheses* (the size of what `consistent_hypotheses` returns),
 //! under a uniform prior over the consistent *worlds* (hypothesis plus the two hidden parity
 //! bits). A probe that removes worlds but no hypothesis therefore scores no gain, which is why
@@ -446,17 +452,33 @@ impl Decider {
     /// every candidate probe against every world; and the decoding of the outputs the *previous*
     /// call received. That last term is a lag, not a guess: which outputs a step brings is not
     /// known before `select`, but the decoding work of every step is charged at the next one, so
-    /// the whole episode's decoding is charged except the final step's. The narrowing and scoring
-    /// terms are upper bounds, because narrowing by bought probes only removes worlds. Constants
+    /// the whole episode's decoding is charged except the last step's, which the final call
+    /// ([`Decider::declared_final_cost`]) picks up when the harness makes one. The narrowing and
+    /// scoring terms are upper bounds, because narrowing by bought probes only removes worlds. Constants
     /// and their fit: `POLICIES.md`, section 3.
     pub fn declared_cost(&self, state: &WorkingState) -> Charge {
+        self.cost(state, true)
+    }
+
+    /// The declared cost of the final call ([`Decider::decide_final`]) at `state`.
+    ///
+    /// [`Decider::declared_cost`] without the probe-evaluation term: the final call declares or
+    /// abstains and never scores a probe, so charging for the evaluation would bill work the call
+    /// does not do. It still carries the decoding of the previous call's outputs, because the
+    /// final call is the next call after the last step, so the whole episode's decoding is
+    /// charged.
+    pub fn declared_final_cost(&self, state: &WorkingState) -> Charge {
+        self.cost(state, false)
+    }
+
+    fn cost(&self, state: &WorkingState, may_probe: bool) -> Charge {
         let f = self.cost_features(state);
         let mut ps = BASE_PS
             .saturating_add(SCAN_PS.saturating_mul(f.window))
             .saturating_add(WORLD_PS.saturating_mul(f.worlds))
             .saturating_add(DECODE_OUTPUT_PS.saturating_mul(f.decoded_outputs))
             .saturating_add(DECODE_HYPOTHESIS_PS.saturating_mul(f.decoded_hypotheses));
-        if f.probing {
+        if may_probe && f.probing {
             let evaluations = ProbeKind::ALL.len() as u64 * f.targets * f.worlds;
             ps = ps.saturating_add(EVAL_PS.saturating_mul(evaluations));
         }
@@ -469,13 +491,34 @@ impl Decider {
         state: &WorkingState,
         outputs: &[(ComponentId, ComponentOutput)],
     ) -> Option<Action> {
+        self.decide_at(state, outputs, false)
+    }
+
+    /// The final call: the rule as at the patience deadline, whatever the clock says. No
+    /// component ran, so there are no outputs; the rule acts on the last it was shown.
+    ///
+    /// The one difference from [`Decider::decide`] is that the deadline counts as passed. That is
+    /// the whole of it, so with a single hypothesis left it declares it, with several it declares
+    /// the first-ranked, and with none it abstains. It never buys a probe: at the deadline the
+    /// rule does not either.
+    pub fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
+        self.decide_at(state, &[], true)
+    }
+
+    fn decide_at(
+        &mut self,
+        state: &WorkingState,
+        outputs: &[(ComponentId, ComponentOutput)],
+        last: bool,
+    ) -> Option<Action> {
         self.decoded = (0, 0);
         for (id, output) in outputs {
             self.absorb(*id, output);
         }
         let bought = Bought::from_evidence(state.evidence());
         let view = self.view(state, &bought);
-        let due = state.now >= self.patience;
+        // The final call is the only thing `last` changes: it makes the deadline due.
+        let due = last || state.now >= self.patience;
 
         let Some(view) = view else {
             return due.then_some(Action::Abstain);

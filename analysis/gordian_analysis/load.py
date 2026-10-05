@@ -46,6 +46,17 @@ NUMERIC_COLUMNS = [
 # separately and is NaN for those rows.
 DECISION_COLUMN = "decision_at_ns"
 STRING_COLUMNS = ["stop_reason"]
+# The values `stop_reason` takes (`StopReason::as_str` in crates/gordian-run/src/harness.rs), and
+# whether each is a decided episode (the others are undecided, evaluator R9). `final_declaration`
+# is a terminal step made at the harness's final call, after the arm ran out of affordable work or
+# reached the horizon: scored like any other decision, and kept apart so that "answered while it
+# had means" and "answered when it had none" can be told apart. The loader does not check values
+# against this table (a new reason must not make a run unreadable); a test compares the table
+# with the harness.
+STOP_REASON_DECIDED = {
+    "terminal": True, "final_declaration": True, "budget_exhausted": False, "horizon": False,
+    "step_cap": False,
+}  # fmt: skip
 # Derived in code only; input files are never modified.
 MEASURED_TOTAL = "measured_total_ns"
 DERIVED_METRICS = [MEASURED_TOTAL]

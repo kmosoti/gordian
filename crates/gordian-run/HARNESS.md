@@ -33,16 +33,75 @@ Per step:
 | 6 | keep the harness-owned parts of the working state: the top (at most eight) scored hypotheses of the latest scored output, and the pending requests (a request for another component stays pending until that component has run) | |
 | 7 | a step lasts at least `step_ns` of logical time; stop checks | |
 
-Stop, at the end of a step, in this order: a terminal outcome (checked first); the clock past the
-horizon (`Horizon`); no affordable work left (`BudgetExhausted`); the step cap (`StepCap`). The
-stop reason is a column of `results.csv`. A stop other than `Terminal` means the arm never decided
-and the verdict is `undecided` (evaluator R9).
+Stop, at the end of a step, in this order: a terminal outcome (checked first, `Terminal`); the
+clock past the horizon (`Horizon`); no affordable work left (`BudgetExhausted`); the step cap
+(`StepCap`). The stop reason is a column of `results.csv`. For the horizon and for no affordable
+work the policy then gets its final call (below) and the loop stops after it. `Terminal` and
+`FinalDeclaration` are decided episodes; every other stop means the arm never decided and the
+verdict is `undecided` (evaluator R9).
 
 *No affordable work* means: after paying the policy's declared scheduling cost, no component's
 declared cost fits, and no probe and no correction fits. Declaring and abstaining are free and do
 not count: an arm that can no longer compute or sense is out of means, even though it could still
 declare. The policy has already had its `decide` call for that step. It is a stronger rule than
 "the budget is spent": `Budget::exhausted` is true as soon as any declared resource reaches zero.
+
+**The final call (A6b).** Because declaring is free, "out of means" must not mean "undecided": an
+arm that ran out of affordable work before its own deadline would otherwise be scored on how long
+its budget lasted and not on what it concluded (`docs/review-log.md`, A6, headroom probe). So when
+the loop would stop for `Horizon` or `BudgetExhausted`, it first calls
+`Policy::declared_final_cost` and `Policy::decide_final`, once. What happens, in order:
+
+1. *Sensing.* The passive observations that arrived by `min(clock, horizon)` and the results of
+   earlier probes that are ready by then are admitted into the working state, as at the start of
+   any step, so that a probe bought in the last step is not wasted on a policy that cannot look at
+   it. A result that is ready only after the horizon is not shown. `state.now` is that instant.
+2. *Charge.* The declared final cost is charged under `Phase::Scheduling` at the clock, like any
+   `decide`. **If the bill refuses it, the refusal is recorded (a refused `Accounting` entry) and
+   the call is made anyway.** Declaring is free; making the verdict depend on whether the last few
+   microseconds of compute remained would reintroduce the artifact the call removes. If accepted,
+   the clock advances by the declared `Time`, if any (the shared rule declares none). The shared
+   rule declares its ordinary cost without the probe-evaluation term, because the call never
+   scores a probe (`POLICIES.md`, section 3).
+3. *Decide.* `decide_final` is timed with the declared-cost call and recorded as one `decide`
+   `Measurement`, so the `select` and `decide` entries still sum to `measured_sched_ns`. The call
+   is not a step: `steps` does not count it.
+4. *Act.* Only `Declare` and `Abstain` are carried out. Any other action is recorded as a
+   `Decision` followed by an `Outcome` from `harness/final` (`{"refused": "final"}`), and not
+   sent to the world, because nothing could follow it. The terminal step enters the trajectory
+   like any other and is scored by the ordinary rules; `decision_at` is its instant.
+
+*Its instant.* `min(clock, horizon)`, and never before the last trajectory step (evaluator R15).
+The world refuses anything after the horizon, and at a `Horizon` stop the clock is already past it
+(the step that crossed it ended at the next quantum), so the call is made *at* the horizon. Ledger
+entries are stamped with the clock, which cannot go backwards, so for that stop the `Decision` and
+`Outcome` entries are stamped later than the trajectory step's instant. If the last ordinary step
+was itself refused as past the horizon (a component's busy time carried it over), the final call's
+instant cannot be earlier than that and the world refuses it too: the episode stays undecided with
+its original stop reason. Not a harness error, and rare (a test pins it).
+
+*Stop reasons.* `final_declaration` means the terminal step came from the final call, and only
+that. If the final call returns `None`, or an action that is not terminal, or the world refuses it,
+the stop reason stays `budget_exhausted` or `horizon`: those now say "the arm had its final call
+and did not close the episode". `terminal` means the episode closed at an ordinary step, so at
+default limits, where every arm decides before it runs out of means, `results.csv` is byte for
+byte what it was before the final call existed (checked: section 8, item 15).
+
+*The step cap gets no final call.* It is a runaway guard, not a decision point. `Horizon` and
+`BudgetExhausted` are facts about the episode's time and the arm's means, and an arm that hits
+either did not decide *because it ran out of something*; the final call exists to remove that
+artifact. The cap says nothing like that: the default cap (1000 steps of at least 50 ms) is five
+times the number of steps that fit in the horizon, so an arm reaches it only by a configuration
+that shortens the step quantum, or a policy that makes no progress. In either case the useful
+output is a visible `step_cap`, undecided, row. A final call there would turn a runaway into an
+ordinary-looking declaration. When the cap and the horizon coincide, the horizon (checked first)
+wins and the call is made.
+
+*The oracles.* A final call is the arm's own deadline arriving. `oracle_immediate` declares the
+truth, as at every call (it never reaches the final call: it declared at step 1).
+`oracle_evidence` declares if the public evidence identifies the truth and otherwise abstains,
+exactly as at its patience deadline; it does not buy a probe and does not use the hidden state to
+declare. Neither changes at default limits.
 
 The scored trajectory is exactly the steps the simulator answered, in order. The loop ends at the
 terminal step, so no attempt after the close exists to record (evaluator R14). `gordian_eval::score`
@@ -259,6 +318,26 @@ unit's scope.
     an object with parameters; `decide` is a new section with a default, so a manifest written
     before A6 still parses and means what it meant (`heuristic_only` now runs the shared rule,
     which is a change of behaviour, not of syntax).
+15. **The final call (A6b); departures and choices.** Section 1 states the call. What was chosen
+    where the plan was silent:
+    - *Two trait methods, not a flag on `decide`.* The plan says "a final `decide` call flagged as
+      final". `Policy` gains `declared_final_cost` and `decide_final`, both required, so a policy
+      cannot forget to say what it does there; `Decider::decide_final` and `decide` share one
+      private function whose only difference is that the deadline counts as passed, and a test
+      checks `decide_final` equals `decide` at a clock at the deadline. A flag on `decide` would
+      have changed every existing call site and left the cost question open: the selector's cost
+      must not be charged for a selection that does not happen.
+    - *The step cap gets no call, and the horizon's call is made at the horizon* (section 1).
+    - *The call senses first* (section 1), a thing the plan did not specify. Without it an arm that
+      bought a probe in its last step declares without looking at the answer.
+    - *Measured at default limits.* Eight arms (`heuristic_only`, `all_components`,
+      `random_matched` p = 0.5, `fixed_pipeline` defaults, verifier only and estimator only, both
+      oracles), 20 seeds by 11 classes, through `scripts/cgroup-run.sh`: `results.csv` is
+      byte-identical to the one the pre-A6b binary wrote for the same manifest, for every arm. No
+      row differs, because no arm at default limits ends undecided (every stop is `terminal`). A
+      permanent test (`tests/final_call.rs`) compares each arm with itself wrapped so that it
+      makes no final declaration, at default and two binding budgets, and requires every
+      difference to be a row that would have ended `budget_exhausted` or `horizon`.
 
 ## 9. Built and not built
 
@@ -267,7 +346,7 @@ sample, the `gordian-run` binary (`--manifest`/`--out`, and `init` to write a ma
 current checkout, with every policy's parameters), `scripts/run-driver.sh`, and the shell test
 `tests/driver.sh`. Built in A6: the baselines (`heuristic_only`, `fixed_pipeline`,
 `all_components`, `random_matched`, and the two privileged oracle arms) and the decision rule they
-share; `POLICIES.md` states them.
+share; `POLICIES.md` states them. Built in A6b: the final call.
 
 Not built: any training or forking of counterfactual episodes, the analysis of a run, and anything
 that charges `Memory`, `Communication` or `Storage`.

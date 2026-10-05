@@ -145,6 +145,7 @@ struct Mirror {
     reference: Decider,
     calls: std::rc::Rc<std::cell::Cell<u32>>,
     probes: std::rc::Rc<std::cell::Cell<u32>>,
+    finals: std::rc::Rc<std::cell::Cell<u32>>,
 }
 
 impl Policy for Mirror {
@@ -166,42 +167,85 @@ impl Policy for Mirror {
         let got = self.inner.decide(state, outputs);
         let want = self.reference.decide(state, outputs);
         assert_eq!(got, want, "decide differs from the shared rule");
+        // The final call is the deadline arriving early and nothing else: from the state the
+        // rule is in now, `decide_final` equals `decide` at a clock at the patience deadline,
+        // with no outputs. The flag changes nothing but the deadline.
+        let mut at_deadline = state.clone();
+        at_deadline.now = at_deadline.now.max(self.reference.patience());
+        assert_eq!(
+            self.reference.clone().decide_final(state),
+            self.reference.clone().decide(&at_deadline, &[]),
+            "the final call is not the rule at its deadline"
+        );
         self.calls.set(self.calls.get() + 1);
         if matches!(got, Some(Action::Probe { .. })) {
             self.probes.set(self.probes.get() + 1);
         }
         got
     }
+    fn declared_final_cost(&self, state: &WorkingState) -> Vec<Charge> {
+        let got = self.inner.declared_final_cost(state);
+        assert_eq!(
+            got,
+            vec![self.reference.declared_final_cost(state)],
+            "the final call's declared cost differs from the shared rule's"
+        );
+        // The final call never evaluates probes, so it never costs more than an ordinary call.
+        assert!(
+            self.reference.declared_final_cost(state).amount
+                <= self.reference.declared_cost(state).amount
+        );
+        got
+    }
+    fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
+        let got = self.inner.decide_final(state);
+        let want = self.reference.decide_final(state);
+        assert_eq!(got, want, "decide_final differs from the shared rule");
+        self.finals.set(self.finals.get() + 1);
+        got
+    }
 }
 
 #[test]
 fn every_non_privileged_arm_reports_the_shared_rule_and_decides_exactly_as_it_does() {
-    let l = limits();
     let decide = DecideConfig::default();
     let calls = std::rc::Rc::new(std::cell::Cell::new(0));
     let probes = std::rc::Rc::new(std::cell::Cell::new(0));
-    for spec in non_privileged_specs() {
-        for class in EpisodeClass::ALL {
-            for seed in 0..4u64 {
-                let Built::Public(inner) = policy::build(&spec, &decide, &arm_name(&spec), seed)
-                else {
-                    panic!("{:?} is not public", spec.id());
-                };
-                assert_eq!(inner.decision_rule(), RULE, "{:?}", spec.id());
-                let mut mirror = Mirror {
-                    inner,
-                    reference: Decider::new(decide),
-                    calls: calls.clone(),
-                    probes: probes.clone(),
-                };
-                let mut components = standard_components();
-                play(seed, class, &mut mirror, &mut components, &l).unwrap();
+    let finals = std::rc::Rc::new(std::cell::Cell::new(0));
+    // The default limits, and two binding compute budgets under which arms run out of affordable
+    // work and the harness makes its final call: the final call is part of the shared rule too.
+    for compute in [None, Some(250_000), Some(60_000)] {
+        let mut l = limits();
+        if let Some(compute) = compute {
+            l.compute = compute;
+        }
+        for spec in non_privileged_specs() {
+            for class in EpisodeClass::ALL {
+                for seed in 0..4u64 {
+                    let Built::Public(inner) =
+                        policy::build(&spec, &decide, &arm_name(&spec), seed)
+                    else {
+                        panic!("{:?} is not public", spec.id());
+                    };
+                    assert_eq!(inner.decision_rule(), RULE, "{:?}", spec.id());
+                    let mut mirror = Mirror {
+                        inner,
+                        reference: Decider::new(decide),
+                        calls: calls.clone(),
+                        probes: probes.clone(),
+                        finals: finals.clone(),
+                    };
+                    let mut components = standard_components();
+                    play(seed, class, &mut mirror, &mut components, &l).unwrap();
+                }
             }
         }
     }
-    // Not vacuous: the rule was called many times, and it bought probes.
+    // Not vacuous: the rule was called many times, it bought probes, and it was called as the
+    // final call.
     assert!(calls.get() > 1_000, "{} calls", calls.get());
     assert!(probes.get() > 50, "{} probes", probes.get());
+    assert!(finals.get() > 50, "{} final calls", finals.get());
 }
 
 #[test]
@@ -227,6 +271,10 @@ fn only_the_arm_wrapper_the_test_policy_and_the_oracle_implement_policy() {
                 !text.contains("fn decide("),
                 "{name} defines its own decide"
             );
+            assert!(
+                !text.contains("fn decide_final(") && !text.contains("fn declared_final_cost("),
+                "{name} defines its own final call"
+            );
         }
     }
     assert_eq!(
@@ -235,6 +283,9 @@ fn only_the_arm_wrapper_the_test_policy_and_the_oracle_implement_policy() {
     );
     let wrapper = fs::read_to_string(dir.join("mod.rs")).unwrap();
     assert!(wrapper.contains("self.decider.decide(state, outputs)"));
+    // The final call goes through the same rule, and the arm adds nothing to it.
+    assert!(wrapper.contains("self.decider.decide_final(state)"));
+    assert!(wrapper.contains("self.decider.declared_final_cost(state)"));
 }
 
 #[test]

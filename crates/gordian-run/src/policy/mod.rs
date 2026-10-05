@@ -32,6 +32,15 @@
 //! and records the timing in the ledger, but a policy never sees a timing, so a timing cannot
 //! influence a decision.
 //!
+//! # The final call
+//!
+//! When the harness finds that no affordable work is left, or that the horizon was reached, it
+//! calls [`Policy::decide_final`] once before it stops. An [`Arm`] answers it with the shared
+//! rule at its patience deadline ([`decide::Decider::decide_final`]), so every non-privileged arm
+//! declares what it has, or abstains with nothing, instead of ending undecided. Its cost is
+//! [`Policy::declared_final_cost`]; a refused charge does not stop the call. `HARNESS.md`,
+//! section 1, has the rest.
+//!
 //! # The privileged arms
 //!
 //! `oracle_immediate` and `oracle_evidence` need the episode's truth. The [`Policy`] trait does
@@ -101,6 +110,23 @@ pub trait Policy {
         state: &WorkingState,
         outputs: &[(ComponentId, ComponentOutput)],
     ) -> Option<Action>;
+
+    /// What the final call is declared to cost.
+    ///
+    /// The harness makes one final call when it has found that no affordable work is left or that
+    /// the horizon was reached (`HARNESS.md`, section 1). It charges this under
+    /// `Phase::Scheduling` before [`Policy::decide_final`], and calls `decide_final` whether or
+    /// not the charge is accepted, because declaring is free. It is the cost of the decision work
+    /// alone: no selection happens, so a selector's cost is not part of it. A function of `state`
+    /// and the policy's own fields, with no side effects. [`zero_cost`] declares a free call.
+    fn declared_final_cost(&self, state: &WorkingState) -> Vec<Charge>;
+
+    /// The final call: the policy's last chance to act, with no component output because none ran.
+    ///
+    /// A policy should declare or abstain here, as it would at its own deadline. Only `Declare`
+    /// and `Abstain` are carried out; any other action is recorded in the ledger and ignored,
+    /// since nothing could follow it. `None` leaves the episode undecided.
+    fn decide_final(&mut self, state: &WorkingState) -> Option<Action>;
 }
 
 /// The explicit declaration that a policy's selection costs nothing: one `Compute` charge of
@@ -181,6 +207,14 @@ impl<S: Selector> Policy for Arm<S> {
         outputs: &[(ComponentId, ComponentOutput)],
     ) -> Option<Action> {
         self.decider.decide(state, outputs)
+    }
+
+    fn declared_final_cost(&self, state: &WorkingState) -> Vec<Charge> {
+        vec![self.decider.declared_final_cost(state)]
+    }
+
+    fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
+        self.decider.decide_final(state)
     }
 }
 

@@ -90,7 +90,13 @@ fails (`LoadError`) on:
   is no silent drop, fill or outer join.
 
 `stop_reason` and `directives_ignored` load as is; `stop_reason` must be non-empty and its
-values are not checked against a list. `pair_runs` / `load_pair` join two arms on
+values are not checked against a list, so a new reason does not make a run unreadable.
+`load.STOP_REASON_DECIDED` is the table of the harness's values: `terminal` and
+`final_declaration` are decided episodes, `budget_exhausted`, `horizon` and `step_cap` are
+undecided. `final_declaration` is a decision the arm made at the final call the harness gives it
+when it has run out of affordable work or reached the horizon; it is scored like any decision
+and is kept apart so that answers given with means and without can be separated. A test compares
+the table with `crates/gordian-run/src/harness.rs`. `pair_runs` / `load_pair` join two arms on
 `(seed, class)` and fail on any key present in only one arm; rows are aligned by sorted key,
 not file order.
 

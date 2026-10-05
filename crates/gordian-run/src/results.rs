@@ -20,6 +20,14 @@
 //!
 //! - Booleans are `true` or `false`.
 //! - `probes_used` counts probe actions the world carried out; `bill_probes` is probe units.
+//! - `stop_reason` is one of `terminal`, `final_declaration`, `budget_exhausted`, `horizon` and
+//!   `step_cap` (`harness::StopReason`). The first two are decided episodes: `terminal` closed
+//!   at an ordinary step, `final_declaration` closed at the final call the loop gives an arm
+//!   that has run out of affordable work or reached the horizon. The other three are `undecided`.
+//!   `budget_exhausted` and `horizon` mean the arm had its final call and did not close the
+//!   episode with it; `step_cap` is the runaway guard and has no final call. Compare arms on
+//!   success and cost together: a `final_declaration` is an answer given without means, and an
+//!   arm that gives many of them is not the same as one that decided while it still had some.
 //! - `decision_at_ns` is empty when the episode is `undecided`. It is not replaced by the stop
 //!   time: an episode that never decided has no decision time.
 //! - `bill_compute`, `bill_memory`, `bill_time`, `bill_probes` and `bill_comm` are the bill's
