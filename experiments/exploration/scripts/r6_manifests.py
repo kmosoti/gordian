@@ -5,6 +5,7 @@ Usage:
                                          (at its R5-tuned delay, r5-selected.json) with every builder
                                          configuration of the sweep, the context-only ceiling at that
                                          delay, R4's oracle, never_escalate
+  r6_manifests.py pilot                  b = 5, rho = 0.7, 10 tuning streams, the tune1 arms (to size the work)
   r6_manifests.py tune2 R6-FRONTIER.json every setting, the 100 tuning streams: `always_escalate`
                                          over its delay grid, for every builder configuration on a
                                          tuning frontier (and the rung)
@@ -89,6 +90,16 @@ def tune1():
         write("tune1", b, rho, C.TUNING_SEEDS, arms, 0.0, 6100 + i, "exploration-r6-tuning")
 
 
+def pilot():
+    b, rho = C.PRIMARY
+    d = r5_delay(C.setting_id(b, rho))
+    arms = [C.sel_arm(key, d) for key, _, _ in C.all_builders()]
+    arms.append(C.ctxonly_arm(d))
+    arms += [a for a in C.reference_arms() if a[0] in (C.ORACLE, C.NEVER)]
+    arms += [C.always_arm(key, 14) for key in ("rung", "win_w20_n064", "coc_d02000", "nbh_k2")]
+    write("pilot", b, rho, (C.TUNING_SEEDS[0], 10), arms, 0.0, 6000, "exploration-r6-pilot")
+
+
 def tune2(frontier):
     for i, (b, rho) in enumerate(C.SETTINGS):
         sid = C.setting_id(b, rho)
@@ -146,7 +157,9 @@ def xcheck():
 
 def main():
     stage = sys.argv[1]
-    if stage == "tune1":
+    if stage == "pilot":
+        pilot()
+    elif stage == "tune1":
         tune1()
     elif stage == "tune2":
         tune2(C.load_json(sys.argv[2]))
