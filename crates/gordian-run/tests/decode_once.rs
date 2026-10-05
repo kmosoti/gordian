@@ -455,6 +455,16 @@ fn the_rule_decides_as_the_reference_that_decodes_every_output_and_does_less_wor
         }
     }
     let t = &totals;
+    eprintln!(
+        "decode-once totals over {} calls: outputs decoded {} against {}, candidates decoded {} against {}, declared {} against {} ns",
+        t.calls.get(),
+        t.decoded_arm.get(),
+        t.decoded_reference.get(),
+        t.ranked_arm.get(),
+        t.ranked_reference.get(),
+        t.declared_arm.get(),
+        t.declared_reference.get()
+    );
     assert!(t.calls.get() > 1_000, "{} calls", t.calls.get());
     // Not vacuous, and a real saving: outputs repeat, and the old rule decoded them again.
     assert!(
