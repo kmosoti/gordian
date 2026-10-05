@@ -5,7 +5,7 @@
   "policy": "heuristic_only",
   "run_seed": 1,
   "drift_block": 10,
-  "source_revision": "6feaa7abd615231ba9beee3270360f6198e5468d",
+  "source_revision": "fbcf4e9fa96a92a5cbe0d0a66b08c9b6bd9e3d99",
   "lockfile_sha256": "d56e5d49f32d5bf21f91672e3a7de0019a65a91eef5bd7baeaa6b757f1757a9c",
   "toolchain": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
   "cpu_flags": [
