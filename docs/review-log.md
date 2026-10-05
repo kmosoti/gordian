@@ -4,6 +4,88 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R7 reasoner-law sensitivity — merged; R6's context finding is fragile
+
+**Provenance.**
+
+- The world change adds a distractor penalty to the hidden reasoner. It multiplies the informed
+  probability by `exp(−δ·m/100)` and takes no new draw.
+  - The coordinator read the `reasoner.rs`, `params.rs` and `sim.rs` diffs.
+  - `m` counts references that are not decisive evidence of the focus incident, probes included,
+    as R7 specifies.
+- At δ = 0, R6's held-out run at b = 5, ρ = 0.7 replays byte-identical: 62 of 62 arms.
+- In all six held-out runs, the context-only ceiling and R4's oracle are byte-identical to R6's.
+- 13 runs, all exit 0, none excluded.
+  - Five tuning runs were refused by the driver's clean-tree preflight before starting, because the
+    worker had created untracked files during a run.
+  - They were set aside and rerun at the new HEAD (`r7-stale-manifests.csv`). No output was
+    affected.
+- Gates on exit codes on the merged tree: fmt, clippy `--locked`, 553 Rust tests, the oracle guard,
+  308 analysis tests.
+- Run outputs moved to `artifacts/runs/r7/` (ignored).
+
+**Re-verified from raw files.** The coordinator rebuilt the tuning selection from the raw tuning
+`incidents.csv` and recomputed G(δ) with its own cluster bootstrap:
+
+| δ | Selected builder | G [90%] |
+|---|---|---|
+| 0.05 | `window` 20 s, N 256 | 0.097 [0.066, 0.129] |
+| 0.1 | `window` 20 s, N 256 | 0.137 [0.104, 0.170] |
+| 0.2 | `cooccur` 1 s, N 256 | 0.280 [0.233, 0.327] |
+| 0.4 | `cooccur` 1 s, N 128 or N 256 | 0.34 |
+
+- The builder choices match the worker's. The bounds agree to within 0.001.
+- At δ = 0.4, two configurations tie on tuning quality. The worker's tie-break toward fewer
+  references gives 0.339, and the other gives 0.341.
+
+**Verdict as written: Fragile.** At δ = 0.1 and 0.2, G ≥ 0.10 with the lower bound above 0.05.
+"Robust" fails at every δ in the grid. The sensitivity settings (b = 2.5 and b = 8, at δ = 0.2)
+agree.
+
+**What it means.**
+
+- **The result is conditional, and the condition is the finding.**
+  - The ceiling's context holds only decisive evidence, so it is immune to the penalty by
+    construction, and G must rise with δ.
+  - What R7 measures is where R6's conclusion breaks. "Simple builders capture the context lever"
+    holds only while the penalty is about 0.05 per 100 irrelevant references or less. That is at
+    most about a 12% relative loss of informed probability at 250 references.
+  - Above that, choosing which references to send is worth 0.14 to 0.34 of hard-incident quality.
+- **Under a penalty, the best public context shrinks.**
+  - The best context goes from about 490 references per call to about 85.
+  - The winning builder changes from a broad `window` to a narrow `cooccur`.
+  - At δ = 0.4 the best builder is barely above the rung's own context.
+  - So compaction becomes the lever: deciding which few references carry the evidence. A
+    substrate could plausibly do this, but no public builder here does it well.
+- **EXP-102's design therefore depends on one unknown: the δ of a real reasoner** on contexts
+  like these.
+  - Simulation cannot supply it.
+  - The charter puts real-model work in EXP-106, after EXP-101 and EXP-102.
+  - R7 shows that the order matters: without an estimate of δ, EXP-102 cannot say whether its
+    claim is quality or references.
+
+**Accepted with notes.**
+
+- The worker's readings were fixed in scripts before the runs, and are reasonable.
+- The functional form (exponential in count, no position effect) is the plan's assumption, not a
+  measurement.
+- The selection delay was not re-tuned at δ > 0, as the plan said. A shorter delay might change
+  context sizes slightly.
+- The literature anchors (Shi et al. 2023; Liu et al. 2023) are still unchecked against the
+  primary texts. No number relies on them.
+
+**Decided.**
+
+1. Before EXP-102 is preregistered, estimate δ on a real model. The smallest form is a local
+   small model on this CPU, asked R1-style diagnosis questions with controlled numbers of
+   irrelevant references.
+   - This needs a model download, a runtime dependency and disk.
+   - It is put to the user before it is planned in detail.
+2. EXP-102, when registered, sweeps δ as a preregistered parameter and states its claim per δ
+   region. It never states a single conclusion.
+3. The salience ceiling from the R6 correction (an oracle that notices, with the rung's context and
+   delay) remains the next simulation-only item, for EXP-101.
+
 ## R6 context-construction headroom — merged; simple builders capture the context lever in quality
 
 **Provenance.** 26 runs through the driver, all exit 0; none failed, timed out or was excluded.
