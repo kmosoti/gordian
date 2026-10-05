@@ -1,6 +1,9 @@
 """R9: the reader. A deterministic program that answers a diagnosis question from its context alone.
 
-DEVELOPMENT VERSION (the frozen version carries a freeze note at the end of this docstring).
+FROZEN. This file and `r9_reader_weights.json` are the reader of R9's evaluation (seeds 30000 and
+above). The commit that carries this note is the freeze (its hash is in the report and in the git tag
+`r9-reader-frozen`; `r9-reader-freeze.json` holds the sha256 of both files). A change to either after
+the freeze starts a new evaluation on seeds 32000 upward, and both are reported.
 
 Exploration (nothing here tests a hypothesis). Evaluator-side, like `r8_rules.py`. It is not an arm,
 not a baseline of any experiment, and never enters a policy. `read(services, focus, context)` returns
@@ -81,7 +84,7 @@ CLASSES = ("NotHard",) + HARD_CLASSES
 B_HI = 0.30  # the burst: the first 300 ms after the first alarm
 P_LO, P_HI = 5.95, 16.05  # phase 2: [6 s, 16 s) after onset; the first alarm is at onset
 OUT_LO, OUT_HI = 5.5, 16.5  # the background's density is read outside this window
-SPAN_OUT = 80.0 - (OUT_HI - OUT_LO)  # the context spans 40 s either side of the first alarm
+MIN_COVERAGE = 30.0  # seconds: the least time a context is taken to cover
 ALARM_PAIR_S = 0.05  # an ErrorRate and a Latency alarm within 50 ms are one alarm cluster
 CHAR_NEAR_S = 0.10
 
@@ -342,9 +345,15 @@ def features(services, focus, context):
     recs = parse(context, focus["at_ns"])
     g = _groups(recs, site, rel)
     win = P_HI - P_LO
-    mu_ff = (g["ff_out"] + 0.5) / SPAN_OUT * win / n  # free-form messages at one service in phase 2
-    mu_cat_type = (g["cat_out"] + 0.5) / SPAN_OUT / 8.0 / n  # one catalogue type at one service, per second
-    mu_ab = (g["ab_out"] + 0.5) / SPAN_OUT / n  # abnormal counters at one service, per second
+    # The time the context covers, read from the context itself (its earliest and latest observation,
+    # taken to include phase 2 and at least `MIN_COVERAGE` seconds), less the window where the
+    # evidence sits: the background's rate is read from what lies outside that window.
+    ts = [r[0] for r in recs] or [0.0]
+    coverage = max(max(ts), OUT_HI) - min(min(ts), OUT_LO)
+    span_out = max(coverage, MIN_COVERAGE) - (OUT_HI - OUT_LO)
+    mu_ff = (g["ff_out"] + 0.5) / span_out * win / n  # free-form messages at one service in phase 2
+    mu_cat_type = (g["cat_out"] + 0.5) / span_out / 8.0 / n  # one catalogue type at one service, per second
+    mu_ab = (g["ab_out"] + 0.5) / span_out / n  # abnormal counters at one service, per second
     f = dict.fromkeys(FEATURES, 0.0)
     site_msgs = g["ff_p2"].get(site, [])
     site_ids = [a for a, _ in site_msgs]
