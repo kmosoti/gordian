@@ -473,3 +473,62 @@ def test_undecided_episodes_stay_in_the_cost_totals(capsys, tmp_path):
 
 def test_defaults_row_matches_harness_column_count():
     assert list(DEFAULTS) == load_module.RESULTS_COLUMNS
+
+
+# ---- an interleaved A/A run: fixtures/real_aa (work item A8) --------------------------------
+#
+# Unedited `gordian-run` output: two copies of `heuristic_only` (arms a1 and a2), 3 seeds x 11
+# classes, `--run-seed 1 --drift-block 10`. Provenance is in analysis/README.md. Its timings are
+# one machine's and are never used as expected values here.
+
+
+def test_real_aa_layout_and_manifests(fixtures_dir):
+    root = fixtures_dir / "real_aa"
+    top = json.loads((root / "manifest.json").read_text())
+    assert [a["arm"] for a in top["arms"]] == ["a1", "a2"]
+    assert "arm" not in top and "policy" not in top
+    for name in ("a1", "a2"):
+        arm = json.loads((root / name / "manifest.json").read_text())
+        assert arm["arm"] == name and "arms" not in arm
+        assert arm["run_id"] == f"real-aa.{name}"
+        assert load_run(root / name).run_id == f"real-aa.{name}"
+
+
+def test_real_aa_positions_are_complementary_and_the_copies_played_identically(fixtures_dir):
+    from gordian_analysis.drift import check_same_episodes_same_play
+
+    a = load_run(fixtures_dir / "real_aa" / "a1")
+    b = load_run(fixtures_dir / "real_aa" / "a2")
+    assert len(a.results) == len(b.results) == 33
+    pa = a.results.sort_values(["seed", "class"])["arm_position"].to_numpy()
+    pb = b.results.sort_values(["seed", "class"])["arm_position"].to_numpy()
+    assert sorted(set(pa) | set(pb)) == [0, 1]
+    assert (pa + pb == 1).all()  # each episode: one copy first, the other second
+    # Both orders occur: with 33 fair coin flips the chance of all one way is 2 * 2^-33.
+    assert 0 < pa.sum() < 33
+    check_same_episodes_same_play(a, b)  # every non-timing column agrees
+
+
+def test_real_aa_drift_and_position_diagnostics_run_on_real_output(capsys, fixtures_dir):
+    from gordian_analysis.drift import drift_report, load_drift, position_effect_paired
+
+    root = fixtures_dir / "real_aa"
+    df = load_drift(root)
+    assert df["block"].tolist() == [0, 1, 2, 3, 4]
+    assert df["units_done"].tolist() == [0, 10, 20, 30, 33]  # every 10 episodes, then the close
+    r = drift_report(df)
+    assert r.n_blocks == 5 and r.ns.cv > 0 and r.ns.ratio_last_first > 0
+    a, b = load_run(root / "a1"), load_run(root / "a2")
+    e = position_effect_paired(a, b, seed=1, n_resamples=500, n_permutations=500)
+    assert e.n_first == 33 and e.low < e.log_ratio < e.high
+    for argv in (
+        ["drift", "--run", str(root)],
+        ["position", "--arm", str(root / "a1"), "--paired-with", str(root / "a2"), "--seed", "1"],
+        ["position", "--arm", str(root / "a1"), "--seed", "1"],
+        [
+            "compare", "--a", str(root / "a1"), "--b", str(root / "a2"), "--relative-savings",
+            "--threshold", "0", "--seed", "1",
+        ],
+    ):  # fmt: skip
+        rc, out, err = run_cli(capsys, *argv)
+        assert rc == 0 and err == "", (argv, err)
