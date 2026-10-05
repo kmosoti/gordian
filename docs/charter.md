@@ -3,25 +3,60 @@
 This document is the normative statement of what Gordian is for, what it must demonstrate, and
 how a claim about it becomes evidence. Everything else in the repository serves it.
 
+**Revision record.** Sections 1, 5, 6, 7 and 12 were revised on 2026-10-05, after Stage A and the
+Stage B exploration, following `docs/charter-revision-proposal.md` as approved by the user. The
+reasons are in `docs/review-log.md` (Stage B through A6d). The previous text is in git history. The
+original EXP-001 to EXP-007 were never frozen; they are retired or re-scoped in section 6, and every
+new experiment has a new id.
+
 ## 1. The research question
 
 Gordian's scientific foundation is **resource-bounded cognition**: deciding what to compute, what
 information to retain, and when further computation is no longer worth its cost.
 
-The event core, isolated component representations, and salience-driven selection are
-**testable mechanisms**. They are not evidence that intelligence emerges from connecting enough
-components.
+That question becomes real only when computations differ in cost by orders of magnitude and the
+expensive one is sometimes necessary. Gordian's arena is therefore the control of expensive
+reasoning: a persistent, event-driven **substrate** that decides what deserves the attention of an
+expensive reasoner (in practice, a large language model), what to remember, and which reasoning
+resource to use.
 
-> **Can specialized components with private internal representations, coordinated through events
-> and selective activation, produce better verified decisions under a fixed resource budget than
-> strong simpler alternatives?**
+> **Can a sparse, persistent, event-driven substrate decide what deserves expensive reasoning,
+> what to remember, and which reasoning resource to use, and so achieve better verified decisions
+> per unit of total cost than an LLM-centred agent using conventional memory and routing?**
+
+- **H0:** an LLM-centred agent with strong conventional mechanisms (thresholds, statistical change
+  detection, retrieval memory, summaries, a learned classifier router) performs as well or better
+  at matched total cost.
+- **H1:** the substrate plus the same reasoner achieves a better quality-to-cost trade-off, beyond
+  preregistered margins.
 
 A negative answer is a useful result. The charter is written so that the question can fail.
 
-Working description of the initial design:
+The substrate is judged on four functions:
 
-> A blackboard-inspired cognitive architecture with resource-aware computation selection and
-> explicit representation boundaries.
+| Function | What the substrate decides | Strongest conventional alternative |
+|---|---|---|
+| Salience | Whether an event deserves escalation | Threshold or anomaly score; statistical change detection |
+| Routing | Which resource to use (cheap component, small model, large model, solver) | Learned classifier router; fixed cascade |
+| Memory | What persists and what is recalled when | Retrieval over embeddings; rolling summary |
+| Context construction | What the reasoner receives | Full history; truncated window; summary; retrieval |
+
+**Candidate mechanism, not thesis.** The leading candidate is a cell substrate: stateful cells
+`(type, parameters, state)` that share a library of archetype functions, typed gated connections
+that compose cells into a transient program per event, and a shared field of context. The thesis
+is about the four functions. If classical mechanisms match the cell substrate on all four, the cell
+model is not retained, and each structural property (persistence, event-driven sparsity, per-event
+composition, archetype sharing) must cost something measurable when ablated.
+
+**What the substrate is not asked to do.** It does not replace the reasoner: language, broad
+knowledge and explicit planning stay there. It is not scaled until it earns its cost at small
+scale; storage at scale is dominated by connections, not functions, and connection sharing must
+be measured before any scale claim.
+
+Working description of the design:
+
+> A persistent, event-driven control layer with resource-aware computation selection and explicit
+> representation boundaries, around an expensive reasoner.
 
 That is a starting point grounded in prior work, not a novelty claim.
 
@@ -36,6 +71,13 @@ That is a starting point grounded in prior work, not a novelty claim.
 | Maintaining state under incomplete observation | POMDPs (Kaelbling, Littman, Cassandra) | Reasoning about hidden state rather than treating observations as complete reality | Tractability for our state spaces |
 | Predicting consequences before acting | Learned world models, including Dreamer (Hafner et al.) | Usefulness of learned dynamics within evaluated control tasks | That a world model helps diagnosis tasks |
 | Reusing computation at inference time | Recurrent-depth models (Geiping et al.) | Additional latent computation can improve specific reasoning results under specific training and evaluation conditions | That the effect survives at tiny scale |
+| Composing stateful functions per event | Graph networks (Battaglia et al.); message-passing aggregation (Xu et al.); neural module networks (Andreas et al.) | A shared update over node state, edge functions and global context; per-input composition of modules | That a cell substrate beats a monolithic model of equal capacity |
+| One function, many stateful instances | Weight sharing in convolution; neural cellular automata (Mordvintsev et al.) | Archetype sharing works for parameters | That connectivity can be shared as cheaply |
+| Conditional routing at scale | Sparsely gated mixtures of experts (Shazeer et al.; Fedus et al.) | Conditional computation works; known failures are router collapse, imbalance and overhead | That routing overhead stays small relative to what it saves |
+| Escalating from cheap to expensive models | Model cascades and learned routers (FrugalGPT, Chen et al.; RouteLLM, Ong et al.); learning to defer (Madras et al.) | Large cost reductions at matched quality on benchmark tasks | That a persistent substrate beats a learned router |
+| Memory around an LLM | MemGPT (Packer et al.); generative agents (Park et al.) | Practical memory management and importance-scored retrieval | That substrate state beats retrieval memory |
+| Fast persistent learning beside slow broad learning | Complementary learning systems (McClelland, McNaughton, O'Reilly) | A principled division of labour between fast episodic and slow general learning | Any particular engineering realization |
+| Learning gated by a global signal | Three-factor learning rules (Frémaux and Gerstner) | Local plasticity modulated by a global signal | That local rules can learn routing for our tasks |
 
 **The unproven part is the combination under Gordian's constraints.** None of these sources
 establishes that Gordian's event protocol, representations, scheduler, and learned components
@@ -45,13 +87,13 @@ outperform a simpler system.
 
 1. **"Semantic messages are preferable to shared latent representations."** Sometimes. A semantic
    interface can discard information a downstream component needs. Explicit, versioned latent
-   projections remain a legitimate alternative. Tested by EXP-003.
+   projections remain a legitimate alternative. Tested by EXP-105.
 2. **"Multidimensional salience beats a scalar threshold."** Not automatically. A feature vector
    usually collapses to a scalar decision anyway. The question is whether it retains the right
-   information about task, component, uncertainty, and cost. Tested by EXP-002.
+   information about task, component, uncertainty, and cost. Tested by EXP-101.
 3. **"Inactive components consume almost nothing."** Requires measurement. Resident memory,
-   sensing, feature extraction, queueing, and scheduling all belong in the bill. Tested by
-   EXP-001's cost accounting.
+   sensing, feature extraction, queueing, and scheduling all belong in the bill. Measured by
+   the counted-operation cost built in Stage A; tested by EXP-105.
 
 ## 3. Engineering requirements versus empirical hypotheses
 
@@ -126,124 +168,108 @@ sophisticated learned scheduler must beat that baseline at matched budget.
 
 ## 5. The small world: a domain where correctness is knowable
 
-Do not begin with open conversation judged by another model. Begin with a controlled digital
-environment whose hidden state and outcomes are available to an independent evaluator.
+Do not begin with open conversation judged by another model. Use a controlled digital environment
+whose hidden state and outcomes are available to an independent evaluator. **No model ever judges
+an outcome.** Verified decisions are checked against hidden simulator state.
 
-| Element | Initial implementation |
-|---|---|
-| Hidden world | Small dependency graph with resources, configuration, injected faults |
-| Senses | Counters, event messages, state snapshots, optional diagnostic probes |
-| Task | Identify the hidden condition; select a useful probe or simulated correction |
-| Components | Heuristic analyzer, probabilistic estimator, small predictor, memory lookup, verifier |
-| Ground truth | Simulator hidden state and actual consequences |
-| Constraints | Limited time, computation, memory, probe budget |
+The first small world (software-diagnosis episodes, built in Stage A) stays as built and remains the
+regression environment. Stage B showed it offers almost nothing to select: every computation is
+cheap and none is both expensive and decisive. The revised world adds three properties.
 
-Episode generators MUST include: ambiguous initial symptoms resolved only by a costly probe;
-episodes requiring recall of an earlier configuration change; irrelevant noise; jointly decisive
-check pairs; episodes with no fault (to measure false alarms); and a labelled **critical** fault
-class whose misses are scored separately.
+| Property | What it means | Why |
+|---|---|---|
+| A resource ladder | The existing components are the cheap rung. A **simulated reasoner** has a declared cost several orders of magnitude higher; its accuracy depends on the incident's difficulty and on the quality of the context it receives. A small real-model rung is added for validation only | Metareasoning matters only when costs span orders of magnitude and the expensive computation is sometimes necessary |
+| Persistent streams | One long-running world with many incidents, recurring faults, configuration drift and changes of regime, instead of isolated episodes | Persistence, memory and adaptation can only matter across time |
+| Relevance that costs computation to judge | Noise is not separable for free; some decisive evidence is spread across components with partial views; most incidents do not need the expensive rung and some do | Salience has nothing to do if relevance is free to detect |
 
-```text
-partial evidence → state estimation → computation selection → verified decision
-```
+**The simulated reasoner encodes an assumption** ("better context gives better answers"). Its
+accuracy model is a set of swept parameters, never a single setting, and every conclusion must hold
+across the sweep and be checked with a real model (EXP-106).
 
-The first learned component estimates `P(fault | available history)`. A later dynamics model
-estimates `P(next observation | state estimate, action)`. Neither requires deciding model scale
-now.
+**Headroom check before any freeze.** The privileged oracle escalation policy must beat the best
+non-privileged baseline by a preregistered margin on the classes an experiment targets, or the world
+is revised first.
 
-**Software diagnosis is the first arena, not Gordian's identity.** After measurements are
-reliable, add a second, *independently implemented* domain (partially observed switching
-circuits, or dependency puzzles) to test transfer beyond the first simulator's conventions. The
-second simulator must not share generator or evaluator code with the first.
+**Software diagnosis is the first arena, not Gordian's identity.** After measurements are reliable,
+add a second, *independently implemented* domain to test transfer. The second simulator must not
+share generator or evaluator code with the first.
 
 ## 6. Experiment definitions
 
-Every experiment follows `experiments/TEMPLATE.md`. Margins below are **proposed engineering
-margins to be fixed before the confirmatory run**, not predictions. Each experiment states what
-would count against the idea.
+Every experiment follows `experiments/TEMPLATE.md`. Margins are **proposed engineering margins to
+be fixed before the confirmatory run**, not predictions. Each experiment states what would count
+against the idea.
 
-### EXP-001 — Does selective activation earn its overhead?
+### EXP-101 — Escalation control
 
-- **Intervention:** scheduling policy only; components, weights, inputs, evaluator fixed.
-- **Comparison:** selective activation vs a well-tuned fixed pipeline or periodic schedule.
-- **Measures:** `D = Q_sel − Q_base` (verified episode success);
-  `S = 1 − C_sel / C_base` where `C` includes sensing, scheduling, computation, communication,
-  and relevant storage work.
-- **H1:** `D > −0.01 ∧ S > 0.20`. **H0:** `D ≤ −0.01 ∨ S ≤ 0.20`.
-- **Separate criterion:** critical-miss rate must not increase beyond its own preregistered bound.
-- **Counts against:** selector overhead consumes the savings; or savings come from neglecting
-  hard cases.
+- **Question:** does substrate salience decide when to escalate better than the conventional
+  policies?
+- **Arms:** never, always, periodic, change-triggered, threshold or anomaly-score, learned
+  classifier router, substrate with hand-designed gating; privileged oracle escalation for
+  headroom.
+- **Primary measure:** verified decisions per unit of total cost, with critical misses under a
+  separate preregistered bound. Report escalation precision and recall.
+- **H0:** the substrate does not beat the best conventional policy beyond the margin at matched
+  total cost. **H1:** it does.
+- **Counts against:** a threshold-plus-cache policy ties. That outcome is predicted as likely and
+  is a useful result.
 
-### EXP-002 — Does richer salience improve selection?
+### EXP-102 — Context construction
 
-- **Arms:** novelty threshold; tuned weighted feature score; component-conditioned score; small
-  learned cost-aware policy.
-- **H0:** at matched end-to-end budget, the richer policy does not improve verified quality
-  beyond the margin. **H1:** it does, without unacceptable critical misses or latency.
-- **Stressors:** noise-heavy streams, goal changes, quiet urgent signals, complementary
-  computations. Ablate novelty, uncertainty, goal relevance, reliability, history separately.
-- **Counts against:** a weighted rule ties; or the learned policy wins only on familiar event
-  distributions. One scalar utility estimator sufficing is a *useful* result.
+- **Question:** does substrate-built structured context let the reasoner decide as well as full
+  history, at fewer tokens?
+- **Arms:** full history, truncated window, rolling summary, retrieval, substrate context; same
+  reasoner and parameter sweep.
+- **Primary measure:** reasoner accuracy per token.
+- **Counts against:** summary or retrieval ties at matched tokens.
 
-### EXP-003 — Does representation isolation preserve capability?
+### EXP-103 — Memory
 
-| Variant | Exchange mechanism |
+- **Question:** does persistent substrate state beat retrieval memory on recurring incidents, stale
+  records and drift?
+- **Arms:** none, retrieval plus summary, substrate state, and a shuffled-retrieval control.
+- **Primary measure:** cost and time to a correct decision on recurrences; stale-memory errors
+  scored separately.
+- **Counts against:** the benefit vanishes when memory and input budgets are matched, or stale
+  memory causes persistent false conclusions.
+
+### EXP-104 — Adaptation
+
+- **Question:** after a change of regime, how fast does each system recover, and what does it
+  forget?
+- **Primary measures:** recovery time to a preregistered quality level; forgetting on the old
+  regime.
+
+### EXP-105 — Structure
+
+- **Question:** do the cell properties matter?
+- **Arms:** ablate persistence, event-driven sparsity, per-event composition and archetype sharing,
+  against a matched-capacity monolithic recurrent model.
+- **Primary measure:** the quality-to-cost frontier per ablation.
+- **Counts against:** the monolithic model matches the substrate. Then the cell structure is an
+  implementation choice, not a finding.
+
+### EXP-106 — Real-model transfer
+
+- **Question:** do the conclusions of EXP-101 and EXP-102 hold with a real model in place of the
+  simulated reasoner?
+- **Primary measure:** agreement of result category (beneficial, harmful, equivalent,
+  unresolved).
+- Sized to the operating budget before freezing. Every call is recorded at the boundary and never
+  repeated to replay state.
+
+### Retired and re-scoped definitions
+
+The original EXP-001 to EXP-007 and EXP-I01 were never frozen. Their text is in git history.
+
+| Old id | Disposition |
 |---|---|
-| Shared representation | Components consume an explicitly shared state representation |
-| Semantic-only boundary | Typed interpreted messages |
-| Explicit mixed boundary | Typed messages plus immutable payload references or versioned projections |
-
-Two independent hypotheses. **Quality:** H0 the isolated boundary loses at least the margin; H1
-it stays within it. **Engineering:** H0 under predefined component replacements the isolated
-design does not meaningfully reduce adaptation burden; H1 it does. Measure task quality,
-communication cost, memory, consumers requiring change, adaptation data, validation effort
-separately. **Counts against semantic-only:** information discarded before another component
-can use it.
-
-### EXP-004 — Does memory help beyond retaining more input?
-
-- **Arms:** fixed-window history; compressed recurrent state; explicitly budgeted retrieval.
-  Keep recurrent working state and cross-episode retrieval as *separate* treatments.
-- **H0:** no practically meaningful improvement over the best equally resourced history baseline.
-  **H1:** improvement beyond margin.
-- **Controls:** delayed evidence, changed environments, stale memories, contradictory records, and
-  a **shuffled-retrieval control** (right experience vs merely more material).
-- **Counts against:** benefit vanishes when memory and input budgets are matched; or stale memory
-  produces persistent false conclusions.
-
-### EXP-005 — Does a world model improve decisions?
-
-- **Arms:** empirical transition table; learned dynamics; equally resourced model-free
-  alternative with the same information.
-- **H0:** learned dynamics does not improve downstream decisions beyond margin or violates quality
-  constraints. **H1:** it does, within constraints.
-- **Measures:** prediction quality across horizons, useful probe selection, decision regret,
-  simulated outcomes. Prediction loss is never the sole success metric.
-- **Counts against:** predictor gets more accurate while decisions stay flat or worsen.
-
-### EXP-006 — Does adaptive recurrent depth beat fixed computation?
-
-- **Arms:** shallow fixed; deeper fixed; adaptive recurrence; repeated execution without learned
-  recurrent state. Run **parameter-matched** and **compute-matched** comparisons separately.
-- **H0:** adaptive recurrence does not improve the quality-cost frontier beyond margin. **H1:** it
-  does.
-- **Measure:** whether extra iterations help, saturate, oscillate, or worsen.
-- **Counts against:** a fixed iteration count ties once stopping-policy overhead is charged.
-  Geiping et al. is evidence of an architectural possibility at 3.5B parameters and 800B tokens,
-  not evidence the effect appears in a tiny run.
-
-### EXP-007 — Does low precision improve this specific system?
-
-Runs only after a mechanism is shown useful. **Arms:** validated higher-precision reference;
-conventional quantization; ternary variants. **H0:** representation exceeds permitted quality
-loss or fails the required resource improvement. **H1:** satisfies both. Measure total resident
-memory, state/cache memory, actual latency on the target CPU, and task quality, not packed weight
-size alone. A storage improvement is a storage improvement, never "more intelligence."
-
-### Preregistered interaction experiments
-
-Mechanisms may help only jointly. At least one interaction experiment is preregistered before
-EXP-004 runs: **EXP-I01** memory × scheduling policy (2×2 at matched budget).
+| EXP-001 selective activation | Retired. Stage B showed the first world leaves a tuned periodic baseline little to beat; recorded as an exploration finding. Its question returns as EXP-101 |
+| EXP-002 richer salience | Re-scoped into EXP-101: salience features are EXP-101 arms and ablations |
+| EXP-003 representation isolation | Re-scoped into EXP-105 |
+| EXP-004 memory, EXP-I01 | Re-scoped into EXP-103 |
+| EXP-005 world model, EXP-006 recurrent depth | Deferred until EXP-105 reports |
+| EXP-007 low precision | Deferred indefinitely |
 
 ## 7. Baseline registry
 
@@ -252,17 +278,20 @@ the applicable rows.
 
 | Baseline | What it challenges |
 |---|---|
-| Simple task-specific heuristic | Whether the task needs learning at all |
-| Tuned fixed pipeline | Whether adaptive coordination is necessary |
-| Random activation at matched compute | Whether selection matters, rather than merely doing less |
-| Tuned cost-aware selector | Whether the salience mechanism adds anything |
-| All-component execution | What selection misses; not assumed to be an accuracy ceiling |
-| Matched-capacity monolithic estimator | Whether modularity helps the task or only the codebase |
-| Small-world oracle (privileged) | Whether the environment has measurable headroom |
+| Never escalate (cheap components and shared rule only) | Whether the expensive reasoner is needed at all |
+| Always escalate | The quality ceiling at full cost; not assumed optimal |
+| Periodic escalation, tuned | Whether timing needs to be state-dependent |
+| Change-triggered execution (recompute only on input change) | Whether salience adds anything beyond skipping unchanged inputs |
+| Threshold or anomaly-score escalation | Whether a single scalar statistic suffices |
+| Learned classifier router (cascade) | Whether the substrate beats the established routing literature |
+| Retrieval memory plus summary | Whether substrate memory beats conventional agent memory |
+| Random escalation at matched cost | Whether selection matters, rather than merely escalating less |
+| Matched-capacity monolithic recurrent model | Whether the cell structure matters, or only total capacity |
+| Oracle escalation (privileged) | Whether the environment has measurable headroom |
 
 Run both controlled ablations inside Gordian's engine *and* a simpler end-to-end operational
 baseline. The simple baseline must not be made to pay for Gordian-specific machinery it does not
-need.
+need. Stage B's lesson applies to every row: tune each baseline before comparing, per budget level.
 
 ## 8. Statistical procedure
 
@@ -356,26 +385,33 @@ pass.
 
 | Stage | Deliverable | Question answered |
 |---|---|---|
-| Measurement first | Small world, evaluator, fixed baselines, explicit-clock core | Can we measure correctness and cost reliably? |
-| Selective execution | Fixed components, competing scheduling policies | Does salience earn its complexity? |
-| Representation boundaries | Controlled component replacements | Does isolation preserve information and reduce coupling? |
-| Learned state and prediction | Small memory and dynamics experiments | Which learned mechanisms improve decisions? |
-| Adaptive depth and precision | Recurrence and quantization comparisons | How should useful cognition be executed efficiently? |
+| Measurement first (done) | Small world, evaluator, baselines, deterministic core, counted-operation cost | Can we measure correctness and cost reliably? |
+| Exploration (done) | Stage B on the first world | Does the first world offer anything to select? It does not |
+| World revision | Resource ladder, simulated reasoner, persistent streams, costly relevance; headroom check | Is there a real escalation problem with headroom? |
+| Conventional baselines | Every section 7 row that needs no learning | How far do simple policies go? |
+| Substrate prototype | Cells, typed gated connections, field; hand-designed gating | Does composition earn its cost before any learning? |
+| Escalation and context | EXP-101, EXP-102 | Does the substrate decide better what deserves thought? |
+| Memory, adaptation, structure | EXP-103, EXP-104, EXP-105, then learning | Which properties earn their cost; can routing be learned? |
+| Real-model transfer | EXP-106 | Do the conclusions survive a real reasoner? |
 
-The first stages require no cloud GPUs and no custom foundation model. Any provisioned training
-sits behind a specific experiment with a finite budget, an artifact-return requirement, and a
-cleanup policy. The approximate $30 operating target constrains deployment evaluation, but
-**operating cost, training cost, and engineering effort stay separately visible.**
+No stage requires cloud GPUs or a custom foundation model. Real-model work uses a local small model
+on this CPU where possible; a remote model costs money and needs credentials this environment does
+not have. The approximate $30 operating target constrains deployment evaluation, but **operating
+cost, training cost, reasoner cost, and engineering effort stay separately visible.** Total cost in
+every experiment is modelled substrate cost plus modelled rule cost plus reasoner cost; reasoner
+cost is reported in its own units (calls, tokens, declared latency) and through a preregistered
+exchange rate (section 4).
 
 ### The first meaningful result
 
-> On held-out digital environments, Gordian's selective execution preserves verified quality
-> within a preregistered margin, reduces measured total compute by a worthwhile amount, survives
-> the stress suite, and reproduces from a frozen experiment record.
+> On held-out streams, the substrate escalates to the expensive reasoner less often than the best
+> tuned conventional policy, at no loss of verified quality beyond a preregistered margin and no
+> increase in critical misses, with the conclusion holding across the simulated reasoner's
+> parameter sweep and reproducing from a frozen experiment record.
 
-Gordian does not begin by proving it is an intelligence. It begins by demonstrating that a
-specific mechanism makes better use of limited computation, and retains that mechanism only when
-the evidence supports it.
+Gordian does not begin by proving it is an intelligence. It begins by demonstrating that a specific
+mechanism decides better what deserves thought, and retains that mechanism only when the evidence
+supports it.
 
 ## 13. Primary source register
 
@@ -397,6 +433,21 @@ the evidence supports it.
 | Dudík, Langford, Li | "Doubly Robust Policy Evaluation and Learning," ICML 2011. arXiv:1103.4601 |
 | Geifman and El-Yaniv | "Selective Classification for Deep Neural Networks," NeurIPS 2017. arXiv:1705.08500 |
 | Ma et al. | S. Ma et al., "The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits," 2024. arXiv:2402.17764 |
+| Battaglia et al. | P. Battaglia et al., "Relational inductive biases, deep learning, and graph networks," 2018. arXiv:1806.01261 |
+| Xu et al. | K. Xu, W. Hu, J. Leskovec, S. Jegelka, "How Powerful are Graph Neural Networks?," ICLR 2019. |
+| Andreas et al. | J. Andreas, M. Rohrbach, T. Darrell, D. Klein, "Neural Module Networks," CVPR 2016. |
+| Mordvintsev et al. | A. Mordvintsev, E. Randazzo, E. Niklasson, M. Levin, "Growing Neural Cellular Automata," Distill, 2020. |
+| Shazeer et al. | N. Shazeer et al., "Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer," ICLR 2017. |
+| Fedus et al. | W. Fedus, B. Zoph, N. Shazeer, "Switch Transformers," 2021. arXiv:2101.03961 |
+| Chen et al. | L. Chen, M. Zaharia, J. Zou, "FrugalGPT," 2023. arXiv:2305.05176 |
+| Ong et al. | I. Ong et al., "RouteLLM: Learning to Route LLMs with Preference Data," 2024. |
+| Madras et al. | D. Madras, T. Pitassi, R. Zemel, "Predict Responsibly: Improving Fairness and Accuracy by Learning to Defer," NeurIPS 2018. |
+| Packer et al. | C. Packer et al., "MemGPT: Towards LLMs as Operating Systems," 2023. |
+| Park et al. | J. S. Park et al., "Generative Agents: Interactive Simulacra of Human Behavior," UIST 2023. |
+| McClelland, McNaughton, O'Reilly | "Why there are complementary learning systems in the hippocampus and neocortex," Psychological Review 102(3), 1995. |
+| Frémaux and Gerstner | N. Frémaux, W. Gerstner, "Neuromodulated Spike-Timing-Dependent Plasticity, and Theory of Three-Factor Learning Rules," Frontiers in Neural Circuits, 2016. |
+| Kirkpatrick et al. | J. Kirkpatrick et al., "Overcoming catastrophic forgetting in neural networks," PNAS, 2017. |
+| Davies et al. | M. Davies et al., "Loihi: A Neuromorphic Manycore Processor with On-Chip Learning," IEEE Micro, 2018. |
 
 Citations are to be verified against the primary text before any claim in this repository relies
 on them; a secondary summary is not acquisition.

@@ -4,6 +4,18 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Charter revised — approved by the user
+
+The user approved `docs/charter-revision-proposal.md`. The charter's sections 1, 5, 6, 7 and 12
+are rewritten accordingly, with new foundations and sources, and a revision record at the top.
+EXP-001 is retired unfrozen and recorded as an exploration finding; the old EXP-002 to EXP-007 and
+EXP-I01 are retired or re-scoped into EXP-101 to EXP-106. Change-triggered execution joins the
+baseline registry. The plan gains Stage R (R1 stream world and simulated reasoner, R2 stream
+evaluator, R3 stream harness and conventional baselines, R4 headroom check).
+
+The user's message read "Inapprove the proposal"; the coordinator read it as "I approve" from
+context and said so. If that reading is wrong, this change is reverted from git history.
+
 ## A6d incremental narrowing — merged; the shared rule no longer repeats work
 
 **Re-verified.** Fixture committed before the rule change and untouched after it; gates on exit

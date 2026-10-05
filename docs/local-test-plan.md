@@ -531,6 +531,91 @@ within the 90% interval of the wall-time ratio's median-of-episodes estimate.
 The charter's `C` becomes modelled cost. This is a change of measurement, decided before any
 experiment is frozen, and recorded in the review log.
 
+## 5R. Stage R: the revised world (charter sections 1, 5 and 12, revised 2026-10-05)
+
+Stage B showed the first world offers nothing to select. The charter now places Gordian's question
+in the control of expensive reasoning. Stage R builds the world in which that question has
+headroom. The first world (`gordian-world`) stays untouched as the regression environment; its
+guarantees are not edited in place.
+
+Items run in order R1, then R2 and R3 in parallel, then R4. Every item's acceptance gates on exit
+codes.
+
+### R1 Stream world and simulated reasoner (`crates/gordian-stream`)
+
+A new crate depending on `gordian-core` and `gordian-world` (reusing its graph generation, fault
+kinds, observations and public physics where they fit; anything changed is a new type in the new
+crate, never an edit to `gordian-world`).
+
+**Stream.** One long-running world per seed: a persistent service graph, a logical duration
+(default 600 s), background observations, and incidents arriving as a seeded Poisson process. The
+policy-facing API mirrors the first world's `Simulator`: `observe_until(now)` and
+`apply(action, now)`; a policy never holds the stream.
+
+**Incident tiers** (each generated with its tier as hidden label):
+
+| Tier | Guarantee | Purpose |
+|---|---|---|
+| Plain | Identifiable by the cheap rung from the stream, or with one cheap probe | Most incidents; escalating them wastes cost |
+| Hard | Not identifiable by the cheap rung within the incident's budget, by construction (for example a compound fault whose public rules the cheap components do not cover, or evidence spread so no single component sees it) | The incidents that need the expensive rung |
+| Decoy | A symptom pattern that resembles an incident and resolves by itself; telling it apart needs evidence over time, which costs computation | Relevance that is not free to judge |
+
+The tier mix is a stream parameter (default about 80% plain, 10% hard, 10% decoy).
+
+**Persistence.** With probability `r` an incident repeats an earlier one (same kind and site,
+different noise), so memory can shortcut it. At scheduled **regime changes**, part of the public
+physics changes (for example one fault kind's symptom signature, or a dependency edge), announced
+nowhere, so stale memory and stale rules mislead.
+
+**Costly relevance.** Background noise is drawn from the catalogue and from plausible symptom
+shapes, not from a separable id range. The first world's free noise filter must not work here;
+a test shows it.
+
+**Simulated reasoner.** A new action `Escalate { context, question }` where `context` is a list of
+references to observations the policy holds. The reasoner lives on the hidden side, like the world.
+Its answer is correct with probability `σ(a + b·q − c·d)` where `q` is the fraction of the incident's
+decisive evidence present in the context (computed from hidden labels) and `d` is the incident's
+difficulty; `(a, b, c)` are stream parameters swept in every experiment. Cost is declared as a
+base plus a per-reference term, several orders of magnitude above a component call, and is paid
+before the answer is produced, never in arrears. The answer's randomness comes from a ChaCha RNG
+seeded by (stream seed, incident id, call index), so a stream replays exactly. The answer is a
+hypothesis entry, never a measurement.
+
+**Hidden state discipline** as in the first world: hidden labels (tiers, decisive evidence, true
+faults, the reasoner's accuracy draws) are reachable only through an oracle module behind a feature,
+and `scripts/check-no-oracle.sh` covers the new crate.
+
+**Tests.** Determinism and replay; every tier's guarantee (in particular: the first world's four
+components plus the shared rule cannot identify a hard incident within budget, checked by running
+them; the catalogue noise filter fails on this world's noise); recurrence and regime change occur
+as specified; the reasoner's empirical accuracy matches `σ(a + b·q − c·d)` within sampling error
+over many calls; soundness of the public consistency checker on every prefix of the stream for the
+parts of the physics it covers.
+
+### R2 Stream evaluator (`crates/gordian-stream-eval`)
+
+Independent of the generator and of every policy, as A2 was. Scores a stream trajectory against
+hidden truth: per incident, whether and when a correct declaration was made, critical misses,
+false declarations, decoys treated as incidents; per stream, escalations made, escalations that
+were needed (hard incidents), escalations that were not (plain and decoy), and total cost by rung.
+Hand-written fixtures written from the tier definitions, not generated; mutation testing as in A2.
+
+### R3 Stream harness and conventional baselines (`crates/gordian-run`, new module)
+
+A stream loop reusing the episode harness's accounting (fresh budget and bill per stream segment,
+counted operations, measured timings, interleaved arms, drift control, privileged path). Baselines
+that need no learning (charter section 7): never, always, periodic, change-triggered, threshold or
+anomaly score, random at matched cost, and privileged oracle escalation. Total cost is modelled
+substrate and rule cost plus reasoner cost in its own units and through a manifest exchange rate.
+
+### R4 Headroom check
+
+Run every R3 baseline on held-out streams across the reasoner sweep. Report, per tier and
+parameter setting, the gap between oracle escalation and the best tuned non-privileged baseline in
+verified decisions per unit of total cost, with intervals. If the gap is under the margin the
+coordinator sets before the run on every setting, revise R1 before anything is frozen. The
+recommendation of sweep settings and margins for EXP-101 is the deliverable.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
