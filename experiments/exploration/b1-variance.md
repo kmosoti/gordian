@@ -38,9 +38,11 @@ plan's text: default limits never bind, so the compute budget is swept.
   analysis behind the four documents (`b1csv.py`, `meta.py`, `b2.py`, `b3.py`, `b4.py`). Re-running
   the analysis scripts on the run directories reproduced `b1-variance.csv` and
   `b1-supplementary.csv` byte for byte and the B2, B3 and B4 numbers exactly (the bootstraps are
-  seeded). `b4.py` also reads a table of the generator's truth per seed that came from a scratch
-  program outside the repository (the repository's guard forbids naming the privileged accessor
-  elsewhere), so that one input cannot be regenerated from the repository alone. Run directories
+  seeded). `b4.py` also reads a table of the generator's truth per seed. It was first produced by a
+  scratch program outside the repository (the repository's guard forbids naming the privileged
+  accessor elsewhere). It is now regenerated from the repository by `cargo run -p gordian-eval
+  --example truth_table`, which `b4.py` calls itself; the regenerated table is byte-identical to
+  the scratch one (sha256 `482c934f...6300b`, 5,500 rows plus header). The table is not committed. Run directories
   (`artifacts/runs/`) are ignored by version control and not committed; the hashes below identify
   them.
 

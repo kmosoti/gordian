@@ -1,10 +1,17 @@
-"""B4: oracle gap per (class, budget), effective ambiguity (needs truth.tsv), headroom numbers.
+"""B4: oracle gap per (class, budget), effective ambiguity, headroom numbers.
 
 Stage B exploration script (development run; nothing here tests a hypothesis).
 Working directory for outputs and manifests: $GORDIAN_WORK (default /tmp/gordian-exploration).
 The repository root is found from this file's location.
+
+The effective-ambiguity section needs the generator's truth per seed. This script regenerates it
+into $GORDIAN_WORK/truth.tsv with `cargo run -p gordian-eval --example truth_table` (the
+evaluator crate is the only place allowed to read hidden state; the table is analysis input only,
+is never given to a policy and is not committed). Set GORDIAN_TRUTH_TSV to use an existing table
+instead of regenerating it. Needs cargo and the pinned toolchain; honour CARGO_BUILD_JOBS.
 """
 import json
+import subprocess
 import sys
 
 import numpy as np
@@ -68,7 +75,16 @@ for bud in BUDGETS:
     print(bud, round(1 - pooled[PUBLIC].max(), 4), pooled[PUBLIC].idxmax())
 
 # ---------- effective ambiguity ----------
-t = pd.read_csv(f"{S_DIR}/truth.tsv", sep="\t", keep_default_na=False)
+TRUTH = os.environ.get("GORDIAN_TRUTH_TSV") or f"{S_DIR}/truth.tsv"
+if not os.environ.get("GORDIAN_TRUTH_TSV"):
+    seed_lo, seed_hi = int(df.seed.min()), int(df.seed.max())
+    with open(TRUTH, "w") as fh:
+        subprocess.run(
+            ["cargo", "run", "--locked", "--quiet", "-p", "gordian-eval", "--example", "truth_table", "--",
+             "--seed-start", str(seed_lo), "--seed-count", str(seed_hi - seed_lo + 1),
+             "--classes", ",".join(CLASSES)],
+            check=True, cwd=ROOT, stdout=fh)
+t = pd.read_csv(TRUTH, sep="\t", keep_default_na=False)
 t["kinds_in_set"] = t["kinds_in_set"].replace("", "-")
 t["critical"] = t["critical"].astype(str).str.lower() == "true"
 print("\n== truth distribution per class (seeds 1000-1499)")
