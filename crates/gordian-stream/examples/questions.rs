@@ -14,16 +14,22 @@
 //! pure function of the arguments, so two runs have the same sha256.
 //!
 //! Flags: `--seed-from N` (default 30000), `--count K` streams (default 1), `--tier
-//! plain|hard|both` (default hard), `--regimes on|off` (default off).
+//! plain|hard|both` (default hard), `--regimes on|off` (default off), `--pool others|own`
+//! (default others).
+//!
+//! `--pool others` (R8's pool, the default) holds the background and other incidents.
+//! `--pool own` (R9's pool) also holds the focus incident's own non-decisive observations, the
+//! ones the simulated reasoner counts in `m`, and adds a `pool_roles` field to each record.
 
-use gordian_stream::questions::{POOL_WINDOW_NS, questions};
+use gordian_stream::questions::{POOL_WINDOW_NS, Pool, questions_with_pool};
 use gordian_stream::{StreamParams, generate};
 use std::io::Write;
 use std::process::ExitCode;
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage: questions [--seed-from N] [--count K] [--tier plain|hard|both] [--regimes on|off]"
+        "usage: questions [--seed-from N] [--count K] [--tier plain|hard|both] [--regimes on|off] \
+         [--pool others|own]"
     );
     ExitCode::from(2)
 }
@@ -33,6 +39,7 @@ fn main() -> ExitCode {
     let mut count = 1u64;
     let (mut plain, mut hard) = (false, true);
     let mut regimes = false;
+    let mut pool = Pool::Others;
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
         let Some(value) = args.next() else {
@@ -52,6 +59,8 @@ fn main() -> ExitCode {
             ("--tier", "both") => (plain, hard) = (true, true),
             ("--regimes", "on") => regimes = true,
             ("--regimes", "off") => regimes = false,
+            ("--pool", "others") => pool = Pool::Others,
+            ("--pool", "own") => pool = Pool::IncludingOwn,
             _ => return usage(),
         }
     }
@@ -63,7 +72,7 @@ fn main() -> ExitCode {
             params.regimes.clear();
         }
         let stream = generate(&params);
-        for q in questions(&stream, POOL_WINDOW_NS, plain, hard) {
+        for q in questions_with_pool(&stream, POOL_WINDOW_NS, plain, hard, pool) {
             let line = serde_json::to_string(&q).expect("a question record serializes");
             if writeln!(out, "{line}").is_err() {
                 return ExitCode::FAILURE;

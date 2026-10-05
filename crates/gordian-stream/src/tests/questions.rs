@@ -3,7 +3,7 @@
 use super::*;
 use crate::kinds::Tier;
 use crate::oracle::ObsLabel;
-use crate::questions::{POOL_WINDOW_NS, QuestionRecord, questions};
+use crate::questions::{POOL_WINDOW_NS, Pool, QuestionRecord, questions, questions_with_pool};
 use gordian_world::{Observation, ServiceId};
 use std::collections::BTreeSet;
 
@@ -211,6 +211,139 @@ fn a_record_serializes_with_the_documented_keys() {
             "onset_ns",
             "other",
             "pool",
+            "pool_size",
+            "recurrence_of",
+            "seed",
+            "services",
+            "tier",
+            "truth"
+        ]
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// R9's pool option: the focus incident's own non-decisive observations are in the pool.
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn the_default_pool_is_the_old_pool() {
+    // `questions` and the explicit default give the same bytes, and there is no `pool_roles`.
+    for seed in 30_000..30_012 {
+        let st = generate(&params(seed));
+        let a = questions(&st, POOL_WINDOW_NS, true, true);
+        let b = questions_with_pool(&st, POOL_WINDOW_NS, true, true, Pool::default());
+        assert_eq!(Pool::default(), Pool::Others);
+        assert_eq!(
+            serde_json::to_string(&a).unwrap(),
+            serde_json::to_string(&b).unwrap()
+        );
+        assert!(a.iter().all(|q| q.pool_roles.is_none()));
+        assert!(
+            a.iter()
+                .all(|q| !serde_json::to_string(q).unwrap().contains("pool_roles"))
+        );
+    }
+}
+
+#[test]
+fn the_own_pool_is_everything_in_the_window_except_the_focus_and_the_decisive_evidence() {
+    let mut own_seen = 0usize;
+    let mut roles_seen = BTreeSet::new();
+    for seed in 30_000..30_025 {
+        let st = generate(&params(seed));
+        let truth = reveal(&st);
+        for q in questions_with_pool(&st, POOL_WINDOW_NS, true, true, Pool::IncludingOwn) {
+            let (lo, hi) = (
+                q.focus.at_ns.saturating_sub(POOL_WINDOW_NS),
+                q.focus.at_ns + POOL_WINDOW_NS,
+            );
+            let decisive: BTreeSet<u32> = q.decisive.iter().map(|d| d.id).collect();
+            // Independent recomputation: every event in the window that is not the focus and not
+            // one of the incident's decisive observations.
+            let expect: Vec<u32> = (0..st.events().len() as u32)
+                .filter(|i| {
+                    let at = st.events()[*i as usize].0.0;
+                    at >= lo && at <= hi && *i != q.focus.id && !decisive.contains(i)
+                })
+                .collect();
+            let got: Vec<u32> = q.pool.iter().map(|p| p.id).collect();
+            assert_eq!(got, expect, "seed {} incident {}", q.seed, q.incident);
+            assert_eq!(q.pool_size, got.len());
+            // The roles line up with the pool and with the labels.
+            let roles = q.pool_roles.as_ref().expect("roles with the own pool");
+            assert_eq!(roles.len(), q.pool.len());
+            for (p, role) in q.pool.iter().zip(roles) {
+                assert_eq!(p.obs, st.events()[p.id as usize].1);
+                let own = truth.incident_of(ObsId(p.id)) == Some(q.incident);
+                assert_eq!(role.starts_with("own:"), own, "{role}");
+                assert!(!own || !role.ends_with("Decisive"), "{role}");
+                own_seen += usize::from(own);
+                roles_seen.insert(role.split(':').next().unwrap().to_string());
+            }
+            // The focus and the decisive evidence are never in it.
+            let pool: BTreeSet<u32> = got.into_iter().collect();
+            assert!(!pool.contains(&q.focus.id));
+            assert!(decisive.iter().all(|d| !pool.contains(d)));
+        }
+    }
+    // The test has power: the own observations are really there, and all three kinds of role occur.
+    assert!(own_seen > 1_000, "own observations seen: {own_seen}");
+    assert_eq!(roles_seen.len(), 3, "{roles_seen:?}");
+}
+
+#[test]
+fn the_own_pool_is_the_default_pool_plus_the_incidents_own_non_decisive_observations() {
+    // The two pools differ by exactly the focus incident's own non-decisive, non-focus
+    // observations in the window: neither pool lost or gained anything else, and the default
+    // pool is a subset.
+    let mut extra_total = 0usize;
+    for seed in 30_000..30_020 {
+        let st = generate(&params(seed));
+        let truth = reveal(&st);
+        let a = questions_with_pool(&st, POOL_WINDOW_NS, true, true, Pool::Others);
+        let b = questions_with_pool(&st, POOL_WINDOW_NS, true, true, Pool::IncludingOwn);
+        assert_eq!(a.len(), b.len());
+        for (qa, qb) in a.iter().zip(&b) {
+            assert_eq!((qa.seed, qa.incident), (qb.seed, qb.incident));
+            assert_eq!(qa.focus, qb.focus);
+            assert_eq!(qa.decisive, qb.decisive);
+            let pa: BTreeSet<u32> = qa.pool.iter().map(|p| p.id).collect();
+            let pb: BTreeSet<u32> = qb.pool.iter().map(|p| p.id).collect();
+            assert!(pa.is_subset(&pb));
+            let diff: BTreeSet<u32> = pb.difference(&pa).copied().collect();
+            assert!(diff.iter().all(|i| {
+                truth.incident_of(ObsId(*i)) == Some(qa.incident)
+                    && *i != qa.focus.id
+                    && !qa.decisive.iter().any(|d| d.id == *i)
+            }));
+            extra_total += diff.len();
+            // Both pools stay in stream order.
+            assert!(qb.pool.windows(2).all(|w| w[0].id < w[1].id));
+        }
+    }
+    assert!(extra_total > 1_000, "extra observations: {extra_total}");
+}
+
+#[test]
+fn the_own_pool_record_has_the_roles_key_and_nothing_else_new() {
+    let st = generate(&params(30_000));
+    let qs = questions_with_pool(&st, POOL_WINDOW_NS, true, true, Pool::IncludingOwn);
+    let v = serde_json::to_value(qs.first().expect("a question")).unwrap();
+    let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        [
+            "decisive",
+            "duo",
+            "family",
+            "focus",
+            "incident",
+            "mode",
+            "onset_ns",
+            "other",
+            "pool",
+            "pool_roles",
             "pool_size",
             "recurrence_of",
             "seed",
