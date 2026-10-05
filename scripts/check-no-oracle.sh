@@ -10,6 +10,7 @@
 #   crates/gordian-world/                      the crate that defines the accessor
 #   crates/gordian-stream/                     the stream crate, which defines its own accessor
 #   crates/gordian-eval/                       the evaluator
+#   crates/gordian-stream-eval/                the stream evaluator
 #   crates/gordian-run/src/policy/oracle.rs    the privileged oracle baselines (module `privileged`)
 #
 # It is a grep, so it is conservative in one direction and blind in another: an unrelated
@@ -21,7 +22,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-allow_re='^(crates/gordian-world/|crates/gordian-stream/|crates/gordian-eval/|crates/gordian-run/src/policy/oracle\.rs$)'
+allow_re='^(crates/gordian-world/|crates/gordian-stream/|crates/gordian-eval/|crates/gordian-stream-eval/|crates/gordian-run/src/policy/oracle\.rs$)'
 pattern='oracle::|reveal\('
 
 # Policies get a stricter check than the rest of the tree. A policy may not name the evaluator

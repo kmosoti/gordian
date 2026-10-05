@@ -1,0 +1,42 @@
+[package]
+name = "gordian-stream-eval"
+version = "0.1.0"
+description = "Stream evaluator: scores a recorded stream trajectory against hidden stream truth, independent of any policy or harness"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Requirement: `Instant`, the shared logical-time value carried by every trajectory step.
+# Simpler alternative: a local `u64`; rejected, steps must be the same type the stream and the
+# harness use.
+gordian-core = { path = "../gordian-core" }
+# Requirement: the stream's own `StreamAction`, `StreamOutcome`, `Tier` and `Diagnosis`, and,
+# through `reveal-hidden-state`, the oracle that `truth_from_stream` and `calls_from_sim` read.
+# This crate and the privileged oracle arm are the only ones allowed to enable the feature.
+# Simpler alternative: copies of those types; rejected, a copy could drift from the stream and
+# make scoring agree with itself rather than with the stream.
+gordian-stream = { path = "../gordian-stream", features = ["reveal-hidden-state"] }
+# Requirement: `StreamStep`, `CallSummary`, `StreamVerdict` and `StreamEvalError` are written in
+# and compared against JSON fixtures, and verdict rows reach the run recorder (R3).
+# Simpler alternative: hand-written JSON; rejected because the schemas will grow.
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+# Requirement: tests build `ServiceId` and `FaultKind` values for hypotheses and read them back
+# from the stream's own types. Default features only: the first world's oracle is not needed.
+# Simpler alternative: construct hypotheses only by deserializing JSON; rejected, the properties
+# generate them.
+gordian-world = { path = "../gordian-world" }
+# Requirement: the hand-written fixtures in fixtures/stream-cases.json are parsed here.
+# Simpler alternative: a Rust table of cases; rejected, the point of the fixtures is that they
+# are data written without any code from the stream's generator.
+serde_json = "1.0.151"
+# Requirement: determinism and mutation properties hold over generated scenarios, not only
+# hand-picked ones.
+# Simpler alternative: loops over fixed cases (kept as fixtures); they miss trajectory shapes.
+proptest = "1.11.0"
+
+[lints]
+workspace = true
