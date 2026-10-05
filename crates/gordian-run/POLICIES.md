@@ -21,7 +21,10 @@ checkable and not merely stated (`tests/baselines.rs`):
 - every arm's `decision_rule()` is `expected-set-size`;
 - a mirror policy feeds each `decide` call's inputs to a fresh reference `Decider` and asserts
   that the arm's answer is the reference's, over every non-privileged arm, all eleven classes and
-  four seeds (over a thousand calls, more than fifty of them buying a probe).
+  four seeds (over a thousand calls, more than fifty of them buying a probe), at the default
+  limits and at two binding compute budgets, so that it also covers the final call (2.6): it
+  asserts the arm's `decide_final` and its declared cost are the reference's, and that
+  `decide_final` equals `decide` at a clock at the patience deadline with no outputs.
 
 The rule's one parameter, the patience, is in the manifest's `decide` section and is the same for
 every arm of a run. A per-arm patience would be a difference in `decide`.
@@ -62,6 +65,8 @@ leaves nothing, the next source is tried.
 5. *Several hypotheses, all faults.* Buy the affordable probe with the smallest expected remaining
    set, if that is strictly smaller than the present set. Ties go to the cheaper probe (units,
    then time), then the earlier kind, then the lower service id. Otherwise wait.
+6. *The final call (2.6).* The patience counts as passed, whatever the clock says. Nothing else
+   changes.
 
 The patience default is 3 s, as it was for the old `heuristic_only`: every generated symptom is
 emitted within about half a second of an onset that is at most a quarter of the 10 s horizon.
@@ -123,6 +128,26 @@ EXP-004 needs a memory the rule can use. `fixed_pipeline` and `all_components` r
 so the savings S that EXP-001 reports against them include its cost. Preregistration (C1) should
 say so. A test (`memory_is_not_an_input_of_the_shared_rule`) pins the property.
 
+**2.6 The final call.** When the harness finds that no affordable work is left, or that the
+horizon was reached, it calls `Decider::decide_final` once (`HARNESS.md`, section 1). It is the
+rule at its patience deadline: `due` is true, so with one hypothesis left the rule declares it
+("no fault" included), with several it declares the first-ranked, and with none it abstains. It
+reads the working state, which the harness has refreshed with what had arrived, and the outputs it
+stored; no component ran, so there are no new ones. It never buys a probe. The flag changes `due`
+and nothing else (one private function serves both calls; a test compares `decide_final` with
+`decide` at the deadline over every state the mirror test visits). Every non-privileged arm gets
+it from `Arm`, which adds nothing, so it is shared like the rest of the rule.
+
+*What it does and does not say about an arm.* It converts "ran out of affordable work before the
+deadline" from an undecided episode into a declaration, scored by the ordinary rules. It does not
+make the declaration informed. An arm that spent its budget before any symptom arrived (symptoms
+start about a second in) holds, at best, the verifier's set over an empty window, whose first-ranked
+hypothesis is "no fault", and declares that: right on `NoFault` (evaluator R5, which also scores an
+abstention there as success), wrong, and a critical miss on a critical class, anywhere else. The
+rerun probe in section 8.1 shows this is most of what the final call buys under a binding budget.
+That is the rule at its deadline working as designed, not a defect, but a reader of a
+binding-budget table must read `NoFault` success apart from the rest.
+
 ## 3. The cost of the rule
 
 The declared cost of one `decide` call is, in `Resource::Compute` nanoseconds (constants in
@@ -139,7 +164,11 @@ available stored candidate set (before narrowing, so the figure is an upper boun
 terms carry the *previous* call's decoding to the next step. That is a lag, chosen because which
 outputs a step brings is not known when the harness asks for the scheduling cost, before `select`.
 The decoding of every step is charged at the next one, so an episode is charged for all of it
-except the last step's. A step that has no stored set pays only the base and the window.
+except the last step's, which the final call (2.6) picks up when the harness makes one: its declared
+cost is this formula without the probe-evaluation term (`Decider::declared_final_cost`), because
+the call never scores a probe, and it is charged under `Phase::Scheduling` like any other call,
+for the rule alone (no selector's cost). If the bill cannot pay it the call is made anyway
+(`HARNESS.md`, section 1). A step that has no stored set pays only the base and the window.
 
 **How it was fitted.** An ignored test, `measure_the_rule_against_its_declared_cost`
 (`cargo test --release -p gordian-run --test baselines -- --ignored --nocapture`), builds 396
@@ -295,6 +324,16 @@ arrives.
 Both arms select no components and declare a zero scheduling cost: they are a ceiling, not a
 mechanism with a cost.
 
+**The oracles at the final call (A6b).** The harness's final call (2.6) is an arm's deadline
+arriving, and the oracles answer it the way they answer theirs. `oracle_immediate` declares the
+truth, as at every call; it declared at step 1, so the call is never made for it. `oracle_evidence`
+declares the truth if the public evidence identifies it and otherwise abstains: it buys no probe
+(nothing could follow) and it does not read the hidden state to declare, because an ideal observer
+that did would stop being one exactly when the budget binds. A final call that makes it abstain
+therefore says "the evidence it could afford did not identify the fault", and on `NoFault` that
+abstention scores as success (evaluator R5) like any other. Both oracles decided before any final
+call in every episode at the default limits and their `results.csv` is unchanged (section 8.1).
+
 ## 7. The manifest
 
 `policy` is a `PolicySpec`. In JSON a policy with nothing to configure is its id, which is also
@@ -434,6 +473,64 @@ anything.
   `DelayedConfigChange` (the snapshot decides) and 1.8 s to 3.0 s elsewhere (the first symptoms
   arrive at 1 s to 2.5 s, and silence and `JointlyDecisive` wait for the patience).
 
+### 8.1 Under a binding compute budget, before and after the final call (A6b)
+
+Same manifests as the coordinator's headroom probe (`docs/review-log.md`, A6): seeds 0 to 19 of
+every class, `limits.compute` edited in the manifest, each run through `scripts/cgroup-run.sh`
+(cores 0-2, not pinned by the driver), once with the binary built from the commit before A6b and
+once with the A6b binary. The "before" column reproduces the review log's table exactly
+(heuristic only 187, random 20, verifier only 19, all components 18 at 60 microseconds; 209, 138,
+78, 35 at 250). Successes of 220; the stop reasons are of the 220 episodes. Deterministic columns
+only. `final` is `final_declaration`, `budget` is `budget_exhausted`.
+
+| arm | compute | before: successes | before: stop reasons | after: successes | after: stop reasons | gained on `NoFault` | gained elsewhere |
+|---|---|---|---|---|---|---|---|
+| heuristic only | 250 us | 209 | terminal 220 | 209 | terminal 220 | 0 | 0 |
+| heuristic only | 60 us | 187 | terminal 191, budget 29 | 207 | terminal 191, final 29 | 7 | 13 |
+| random p = 0.5 | 250 us | 138 | terminal 138, budget 82 | 162 | terminal 138, final 82 | 18 | 6 |
+| random p = 0.5 | 60 us | 20 | terminal 20, budget 200 | 40 | terminal 20, final 200 | 20 | 0 |
+| verifier only | 250 us | 78 | terminal 81, budget 139 | 100 | terminal 81, final 139 | 20 | 2 |
+| verifier only | 60 us | 19 | terminal 19, budget 201 | 39 | terminal 19, final 201 | 20 | 0 |
+| all components | 250 us | 35 | terminal 35, budget 185 | 58 | terminal 35, final 185 | 20 | 3 |
+| all components | 60 us | 18 | terminal 18, budget 202 | 38 | terminal 18, final 202 | 20 | 0 |
+| estimator only | 250 us | 206 | terminal 218, budget 2 | 206 | terminal 218, final 2 | 0 | 0 |
+| estimator only | 60 us | 20 | terminal 21, budget 199 | 40 | terminal 21, final 199 | 20 | 0 |
+
+No episode is undecided after the change, in any arm or condition (the final call never returned
+`None` and the world never refused one). Every row that changed was a row that had been
+`budget_exhausted`; no row that had decided changed; no success was lost. At the default limits
+(20 ms) all eight arms measured (the six above, `fixed_pipeline` defaults, and both oracles) wrote
+a `results.csv` byte-identical to the pre-A6b binary's, so no row differs there.
+
+*What the gain is.* Almost all of it is `NoFault`. What the arms declared at the final call, over
+the 220 episodes (from a scratch run, not committed):
+
+| arm | compute | declared "no fault" | declared a fault, right | declared a fault, wrong | abstained |
+|---|---|---|---|---|---|
+| all components | 250 us | 182 | 3 | 0 | 0 |
+| all components | 60 us | 202 | 0 | 0 | 0 |
+| random p = 0.5 | 250 us | 73 | 6 | 3 | 0 |
+| random p = 0.5 | 60 us | 200 | 0 | 0 | 0 |
+| verifier only | 250 us | 135 | 2 | 2 | 0 |
+| verifier only | 60 us | 198 | 0 | 0 | 3 |
+| heuristic only | 60 us | 9 | 13 | 7 | 0 |
+
+At 60 us the arms that run components are out of budget at a mean logical time of 0.3 to 0.6 s
+(318, 574 and 506 ms for all components, random and verifier only), before the first symptom, and
+declare the silent hypothesis, which is right only on `NoFault`. At 250 us the means are 1.2 to
+2.0 s and a few see enough to be right. Under the final call the review log's two effects
+separate. The rule's defect (budget exhaustion shown as indecision) is gone: the 60 us floor moves
+from 18 to 20 successes of 220 up to 38 to 40, and every one of the added 20 is a `NoFault`
+episode. The real waste (`all_components` pays for 154 component calls on windows that have mostly
+not changed, and then decides on an empty window) is unchanged, and is now visible as wrong
+declarations and critical misses (40 of 40 on the two critical classes at 60 us, 36 at 250 us for
+all components) rather than as undecided. The one arm that gains on faulted classes is
+`heuristic_only` at 60 us, which is cheap enough to have seen symptoms before its budget ran out
+(13 right, 7 wrong, 9 "no fault" among the 29). **Read any binding-budget success rate together
+with the `NoFault` success and the critical-miss rate.** A preregistration (C1) that states
+whether a `NoFault` abstention or silent declaration enters the primary outcome (review log, A2)
+must also state it for these final declarations.
+
 ## 9. Departures, gaps, and what is least certain
 
 1. **The decision rule is mine.** The brief gave the shape (declare, probe, wait or fall back);
@@ -472,3 +569,11 @@ anything.
 12. **Dependency on the checker's API.** The rule uses `probe_result`, `ENTANGLED` and
     (oracle, tests) `consistent_worlds`. A5b's optimized checker must keep `consistent_worlds`,
     or the oracle and the equivalence test must be adapted.
+13. **The final call (A6b).** `Policy` gained `declared_final_cost` and `decide_final`; `Arm`
+    delegates both to the shared rule, so the call is shared by construction and a test says so.
+    The oracles answer it as their own deadline (section 6). The step cap gets none
+    (`HARNESS.md`, section 1). Least certain: what a final declaration made on an empty window
+    should be. The rule declares its first-ranked hypothesis, which is "no fault", as the plan
+    says ("exactly as at the patience deadline"); a rule that abstained when it had seen no symptom
+    would score the same on `NoFault` and differently (an abstention, not a wrong declaration) on
+    faulted classes. That is a different rule and was not built (section 8.1).

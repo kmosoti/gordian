@@ -32,6 +32,15 @@
 //! and records the timing in the ledger, but a policy never sees a timing, so a timing cannot
 //! influence a decision.
 //!
+//! # The final call
+//!
+//! When the harness finds that no affordable work is left, or that the horizon was reached, it
+//! calls [`Policy::decide_final`] once before it stops. An [`Arm`] answers it with the shared
+//! rule at its patience deadline ([`decide::Decider::decide_final`]), so every non-privileged arm
+//! declares what it has, or abstains with nothing, instead of ending undecided. Its cost is
+//! [`Policy::declared_final_cost`]; a refused charge does not stop the call. `HARNESS.md`,
+//! section 1, has the rest.
+//!
 //! # The privileged arms
 //!
 //! `oracle_immediate` and `oracle_evidence` need the episode's truth. The [`Policy`] trait does
