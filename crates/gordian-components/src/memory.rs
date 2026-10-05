@@ -32,6 +32,7 @@
 //! the declared cost uses the number actually read.
 
 use crate::cost::{affine_ns, compute};
+use crate::ops::{Ops, Unit};
 use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
 use crate::symptoms::{Summary, TAG_MASK, summarize, tag_mask, text_slot};
 use crate::{Component, ComponentOutput, ComputationRequest, MEMORY_ID, VERIFIER_ID, WorkingState};
@@ -54,6 +55,43 @@ use std::cmp::Reverse;
 const A_NS: u64 = 275;
 const B_PS: u64 = 2_140;
 const C_PS: u64 = 2_710;
+
+// Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
+//
+// - `calls`: one per call;
+// - `scanned`: observations the one pass over the window looked at;
+// - `records`: prior records whose signature was compared with the window's;
+// - `entries`: entries emitted (0 or 1; a window with no symptom or no matching record emits none);
+// - `ranked`: candidates written into the entry.
+const U_CALLS: usize = 0;
+const U_SCANNED: usize = 1;
+const U_RECORDS: usize = 2;
+const U_ENTRIES: usize = 3;
+const U_RANKED: usize = 4;
+
+/// The lookup's units and their weights.
+pub const UNITS: &[Unit] = &[
+    Unit {
+        name: "calls",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "scanned",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "records",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "entries",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "ranked",
+        weight_ps: 0,
+    },
+];
 
 /// The prior-record lookup.
 #[derive(Debug, Clone, Copy)]
@@ -103,11 +141,14 @@ impl Component for PriorRecordLookup {
         vec![compute(ns)]
     }
 
-    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
+    fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops) {
+        let mut ops = Ops::zero(MEMORY_ID);
+        ops.add(U_CALLS, 1);
+        ops.add(U_SCANNED, input.size() as u64);
         let summary = summarize(&input.public, input.evidence());
         let window = summary.mask & TAG_MASK;
         if window == 0 {
-            return ComponentOutput::default();
+            return (ComponentOutput::default(), ops);
         }
         let mut votes = [0u32; 5];
         for record in input
@@ -116,6 +157,7 @@ impl Component for PriorRecordLookup {
             .iter()
             .take(self.records_read(input))
         {
+            ops.add(U_RECORDS, 1);
             if tag_mask(&record.signature) == window {
                 votes[kind_index(record.resolution)] += 1;
             }
@@ -138,8 +180,10 @@ impl Component for PriorRecordLookup {
             })
             .collect();
         let Some(top) = ranked.first().and_then(|r| r.score) else {
-            return ComponentOutput::default();
+            return (ComponentOutput::default(), ops);
         };
+        ops.add(U_ENTRIES, 1);
+        ops.add(U_RANKED, ranked.len() as u64);
         let tied = ranked.iter().take_while(|r| r.score == Some(top)).count() as u32;
         let proposal: Option<Hypothesis> = unique_best(&ranked, tied);
         let mut requests = Vec::new();
@@ -155,11 +199,12 @@ impl Component for PriorRecordLookup {
             ranked,
             tied_at_top: tied,
         };
-        ComponentOutput {
+        let output = ComponentOutput {
             entries: vec![hypothesis_entry(&entry)],
             requests,
             proposal,
-        }
+        };
+        (output, ops)
     }
 }
 

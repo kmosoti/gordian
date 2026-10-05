@@ -38,6 +38,7 @@
 //! The rule is a pure function of the working state, the outputs it has been shown, and the
 //! remaining limits it was told: no clock, no randomness, no I/O.
 
+use gordian_components::ops::Unit;
 use gordian_components::payload::{HypothesisEntry, decode};
 use gordian_components::{ComponentOutput, ESTIMATOR_ID, HEURISTIC_ID, VERIFIER_ID, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId, Instant, Resource};
@@ -85,6 +86,137 @@ const WORLD_PS: u64 = 10_500;
 const EVAL_PS: u64 = 36_000;
 const DECODE_OUTPUT_PS: u64 = 530_000;
 const DECODE_HYPOTHESIS_PS: u64 = 115_000;
+
+// Counted operations (work item A8b; `CALIBRATION.md`, section 9). The shared rule counts the
+// work of the scheduling path it is part of, the same way a component does:
+//
+// - `calls`: one per `decide` or final call (the step's fixed cost: the cost declaration, the
+//   selection and the decision, which run once per step);
+// - `scanned`: observations looked at when the probe results and corrections are collected;
+// - `decoded_outputs`: component outputs whose entry was decoded;
+// - `decoded_ranked`: candidates in the entries decoded;
+// - `worlds`: worlds built from a candidate set, and worlds visited when a probe is scored;
+// - `agree_checks`: probe results checked against a world;
+// - `drift_steps`: probe results scanned to find the drifted hash a check needs;
+// - `probe_evals`: calls of `probe_result` made to score candidate probes;
+// - `group_steps`: steps of grouping worlds by the result a probe gives them;
+// - `probes_scored`: candidate probes scored and compared (service times probe kind);
+// - `cost_candidates`: hypotheses of the stored set read to declare the step's cost.
+//
+// Corrections are not counted: the rule never buys one, and a check of one is a comparison of two
+// integers.
+const R_CALLS: usize = 0;
+const R_SCANNED: usize = 1;
+const R_DECODED_OUTPUTS: usize = 2;
+const R_DECODED_RANKED: usize = 3;
+const R_WORLDS: usize = 4;
+const R_AGREE_CHECKS: usize = 5;
+const R_DRIFT_STEPS: usize = 6;
+const R_PROBE_EVALS: usize = 7;
+const R_GROUP_STEPS: usize = 8;
+const R_PROBES_SCORED: usize = 9;
+const R_COST_CANDIDATES: usize = 10;
+
+/// The shared rule's units and their weights.
+pub const RULE_UNITS: &[Unit] = &[
+    Unit {
+        name: "calls",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "scanned",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "decoded_outputs",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "decoded_ranked",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "worlds",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "agree_checks",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "drift_steps",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "probe_evals",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "group_steps",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "probes_scored",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "cost_candidates",
+        weight_ps: 0,
+    },
+];
+
+/// The work the shared rule did, in the units of [`RULE_UNITS`].
+///
+/// Produced by [`Decider`] and by nothing else: the fields are private, the only constructor
+/// outside this module is [`RuleOps::ZERO`] (nothing was done: what a privileged arm reports),
+/// and the rule never reads its own count, so a count cannot change a decision. Taken by the
+/// harness after a call ([`crate::policy::Policy::take_ops`]), never passed to a policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RuleOps {
+    counts: [u64; 11],
+}
+
+impl RuleOps {
+    /// No work.
+    pub const ZERO: RuleOps = RuleOps { counts: [0; 11] };
+
+    fn add(&mut self, unit: usize, n: u64) {
+        self.counts[unit] = self.counts[unit].saturating_add(n);
+    }
+
+    /// The counts, one per unit of [`RULE_UNITS`], in the same order.
+    pub fn counts(&self) -> &[u64] {
+        &self.counts
+    }
+
+    /// Add `other`'s counts to these.
+    pub fn accumulate(&mut self, other: &RuleOps) {
+        for (a, b) in self.counts.iter_mut().zip(other.counts.iter()) {
+            *a = a.saturating_add(*b);
+        }
+    }
+
+    /// The counts added together. Informational: the units differ.
+    pub fn total(&self) -> u64 {
+        self.counts.iter().fold(0u64, |s, c| s.saturating_add(*c))
+    }
+
+    /// Modelled cost in picoseconds: the sum over units of weight times count, saturating.
+    pub fn modelled_ps(&self) -> u64 {
+        RULE_UNITS
+            .iter()
+            .zip(self.counts.iter())
+            .fold(0u64, |s, (u, c)| {
+                s.saturating_add(u.weight_ps.saturating_mul(*c))
+            })
+    }
+}
+
+impl Default for RuleOps {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
 
 /// The quantities the rule's declared cost is a function of; see [`Decider::declared_cost`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -180,12 +312,16 @@ impl Bought {
 /// The drifted configuration hash to assume at `target`: the one already seen in a probe result,
 /// or, when none was, the public hash plus one. The checker uses the same convention, and the
 /// value only matters in that it differs from the public hash.
-fn drift_hash(services: &[Service], target: ServiceId, bought: &Bought) -> Option<u64> {
+fn drift_hash(
+    services: &[Service],
+    target: ServiceId,
+    bought: &Bought,
+    ops: &mut RuleOps,
+) -> Option<u64> {
     let start = services.get(target.index())?.config_hash;
-    let seen = bought
-        .probes
-        .iter()
-        .find_map(|(probe, result)| match result {
+    let seen = bought.probes.iter().find_map(|(probe, result)| {
+        ops.add(R_DRIFT_STEPS, 1);
+        match result {
             ProbeResult::ConfigHash(h)
                 if probe.kind == ProbeKind::ConfigSnapshot
                     && probe.target == target
@@ -194,7 +330,8 @@ fn drift_hash(services: &[Service], target: ServiceId, bought: &Bought) -> Optio
                 Some(*h)
             }
             _ => None,
-        });
+        }
+    });
     Some(seen.unwrap_or(start.wrapping_add(1)))
 }
 
@@ -213,8 +350,10 @@ fn probe_agrees(
     probe: Probe,
     result: ProbeResult,
     bought: &Bought,
+    ops: &mut RuleOps,
 ) -> bool {
-    let Some(drift) = drift_hash(services, probe.target, bought) else {
+    ops.add(R_AGREE_CHECKS, 1);
+    let Some(drift) = drift_hash(services, probe.target, bought, ops) else {
         // A probe at a service that is not in the graph says nothing about these worlds.
         return true;
     };
@@ -226,14 +365,25 @@ fn probe_agrees(
 /// This is not a consistency check of passive observations: a hypothesis a symptom contradicts
 /// stays, unless a probe contradicts it too. Narrowing by symptoms is the verifier's work.
 pub fn worlds_of(services: &[Service], hypotheses: &[Hypothesis], bought: &Bought) -> Vec<World> {
+    worlds_of_counted(services, hypotheses, bought, &mut RuleOps::default())
+}
+
+/// [`worlds_of`], adding the work done to `ops`.
+fn worlds_of_counted(
+    services: &[Service],
+    hypotheses: &[Hypothesis],
+    bought: &Bought,
+    ops: &mut RuleOps,
+) -> Vec<World> {
     let mut worlds = Vec::new();
     for h in hypotheses {
         for bits in bit_options(*h) {
+            ops.add(R_WORLDS, 1);
             let world = (*h, *bits);
             let probes_agree = bought
                 .probes
                 .iter()
-                .all(|(probe, result)| probe_agrees(services, world, *probe, *result, bought));
+                .all(|(probe, result)| probe_agrees(services, world, *probe, *result, bought, ops));
             let corrections_agree = bought
                 .corrections
                 .iter()
@@ -279,6 +429,17 @@ fn distinct(worlds: &[World]) -> Vec<Hypothesis> {
 /// is added to the evidence, so the number of hypotheses among them is the size of the set
 /// `consistent_hypotheses` would return for that outcome. A test pins this to the checker.
 pub fn score_probes(services: &[Service], worlds: &[World], bought: &Bought) -> Vec<ProbeScore> {
+    score_probes_counted(services, worlds, bought, &mut RuleOps::default())
+}
+
+/// [`score_probes`], adding the work done to `ops`.
+fn score_probes_counted(
+    services: &[Service],
+    worlds: &[World],
+    bought: &Bought,
+    ops: &mut RuleOps,
+) -> Vec<ProbeScore> {
+    ops.add(R_WORLDS, worlds.len() as u64);
     let targets: BTreeSet<ServiceId> = if worlds.iter().any(|(h, _)| h.is_none()) {
         services.iter().map(|s| s.id).collect()
     } else {
@@ -289,22 +450,33 @@ pub fn score_probes(services: &[Service], worlds: &[World], bought: &Bought) -> 
     };
     let mut out = Vec::new();
     for target in targets {
-        let Some(drift) = drift_hash(services, target, bought) else {
+        let Some(drift) = drift_hash(services, target, bought, ops) else {
             continue;
         };
         for kind in ProbeKind::ALL {
             let probe = Probe { kind, target };
+            ops.add(R_PROBES_SCORED, 1);
             let mut groups: Vec<(ProbeResult, u64, Vec<Hypothesis>)> = Vec::new();
             for (h, bits) in worlds {
                 let result = probe_result(services, *h, *bits, drift, probe);
-                match groups.iter_mut().find(|g| g.0 == result) {
-                    Some(group) => {
+                ops.add(R_PROBE_EVALS, 1);
+                // Finding the group looks at each group up to the match; finding the
+                // hypothesis in it looks at each hypothesis up to the match.
+                match groups.iter_mut().position(|g| g.0 == result) {
+                    Some(at) => {
+                        let group = &mut groups[at];
+                        ops.add(R_GROUP_STEPS, at as u64 + 1);
                         group.1 += 1;
-                        if !group.2.contains(h) {
+                        let seen = group.2.iter().position(|x| x == h);
+                        ops.add(R_GROUP_STEPS, seen.map_or(group.2.len(), |i| i + 1) as u64);
+                        if seen.is_none() {
                             group.2.push(*h);
                         }
                     }
-                    None => groups.push((result, 1, vec![*h])),
+                    None => {
+                        ops.add(R_GROUP_STEPS, groups.len() as u64 + 1);
+                        groups.push((result, 1, vec![*h]));
+                    }
                 }
             }
             let numerator = groups.iter().map(|g| g.1 * g.2.len() as u64).sum();
@@ -326,11 +498,13 @@ struct View {
 /// For the verifier that is the whole consistent set, for the heuristic all its candidates, and
 /// for the estimator the hypotheses sharing its best score (as far as its entry lists them).
 /// `None` when the output holds no candidates or says the window is damaged.
-fn offered(output: &ComponentOutput) -> Option<Vec<Hypothesis>> {
+fn offered(output: &ComponentOutput, ops: &mut RuleOps) -> Option<Vec<Hypothesis>> {
     output.entries.iter().find_map(|(_, bytes)| {
+        ops.add(R_DECODED_OUTPUTS, 1);
         let HypothesisEntry::Candidates { ranked, .. } = decode(bytes).ok()? else {
             return None;
         };
+        ops.add(R_DECODED_RANKED, ranked.len() as u64);
         let top = ranked.first()?.score;
         let set: Vec<Hypothesis> = ranked
             .iter()
@@ -352,6 +526,9 @@ pub struct Decider {
     /// Outputs and hypotheses the last `decide` call decoded: the decoding work whose cost the
     /// next step's declared cost carries.
     decoded: (u64, u64),
+    /// Work done since the harness last took the count ([`Decider::take_ops`]). Written by the
+    /// rule's own steps and read by nothing in them.
+    ops: RuleOps,
 }
 
 impl Default for Decider {
@@ -370,6 +547,7 @@ impl Decider {
             heuristic: None,
             remaining: Remaining::default(),
             decoded: (0, 0),
+            ops: RuleOps::ZERO,
         }
     }
 
@@ -384,7 +562,23 @@ impl Decider {
         self.remaining = remaining;
     }
 
-    fn absorb(&mut self, id: ComponentId, output: &ComponentOutput) {
+    /// The work done since the last call of this method, which resets the count. The harness
+    /// calls it after each timed scheduling call and sums what it returns; nothing in the rule
+    /// reads the count.
+    pub fn take_ops(&mut self) -> RuleOps {
+        std::mem::take(&mut self.ops)
+    }
+
+    /// Count the work of declaring the step's cost, which reads the stored candidate set
+    /// ([`Decider::cost_features`]). Called once per step from `select`, which is timed with the
+    /// cost declaration, because `declared_cost` takes `&self` and the harness calls it again
+    /// outside the timed region.
+    pub fn count_cost_declaration(&mut self) {
+        let candidates = self.sources().next().map_or(0, |set| set.len() as u64);
+        self.ops.add(R_COST_CANDIDATES, candidates);
+    }
+
+    fn absorb(&mut self, id: ComponentId, output: &ComponentOutput, ops: &mut RuleOps) {
         let slot = if id == VERIFIER_ID {
             &mut self.verifier
         } else if id == ESTIMATOR_ID {
@@ -394,7 +588,7 @@ impl Decider {
         } else {
             return;
         };
-        *slot = offered(output);
+        *slot = offered(output, ops);
         if !output.entries.is_empty() {
             self.decoded.0 += 1;
             self.decoded.1 += slot.as_ref().map_or(0, |set| set.len() as u64);
@@ -407,9 +601,9 @@ impl Decider {
             .flatten()
     }
 
-    fn view(&self, state: &WorkingState, bought: &Bought) -> Option<View> {
+    fn view(&self, state: &WorkingState, bought: &Bought, ops: &mut RuleOps) -> Option<View> {
         self.sources().find_map(|set| {
-            let worlds = worlds_of(&state.public.services, set, bought);
+            let worlds = worlds_of_counted(&state.public.services, set, bought, ops);
             if worlds.is_empty() {
                 None
             } else {
@@ -502,6 +696,8 @@ impl Decider {
     /// the first-ranked, and with none it abstains. It never buys a probe: at the deadline the
     /// rule does not either.
     pub fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
+        // The final call's cost declaration reads the stored set too, and is timed with it.
+        self.count_cost_declaration();
         self.decide_at(state, &[], true)
     }
 
@@ -511,12 +707,27 @@ impl Decider {
         outputs: &[(ComponentId, ComponentOutput)],
         last: bool,
     ) -> Option<Action> {
+        let mut ops = RuleOps::ZERO;
+        ops.add(R_CALLS, 1);
+        let action = self.decide_counted(state, outputs, last, &mut ops);
+        self.ops.accumulate(&ops);
+        action
+    }
+
+    fn decide_counted(
+        &mut self,
+        state: &WorkingState,
+        outputs: &[(ComponentId, ComponentOutput)],
+        last: bool,
+        ops: &mut RuleOps,
+    ) -> Option<Action> {
         self.decoded = (0, 0);
         for (id, output) in outputs {
-            self.absorb(*id, output);
+            self.absorb(*id, output, ops);
         }
+        ops.add(R_SCANNED, state.size() as u64);
         let bought = Bought::from_evidence(state.evidence());
-        let view = self.view(state, &bought);
+        let view = self.view(state, &bought, ops);
         // The final call is the only thing `last` changes: it makes the deadline due.
         let due = last || state.now >= self.patience;
 
@@ -540,7 +751,7 @@ impl Decider {
             // Silence is what every fault looks like before its onset; wait for evidence.
             return None;
         }
-        self.best_probe(state, &view, &bought)
+        self.best_probe(state, &view, &bought, ops)
             .map(|probe| Action::Probe {
                 kind: probe.kind,
                 target: probe.target,
@@ -550,9 +761,15 @@ impl Decider {
     /// The affordable probe with the smallest expected remaining set, if it beats the present
     /// size. Ties go to the cheaper probe (units, then time), then to the earlier kind and the
     /// lower service id.
-    fn best_probe(&self, state: &WorkingState, view: &View, bought: &Bought) -> Option<Probe> {
+    fn best_probe(
+        &self,
+        state: &WorkingState,
+        view: &View,
+        bought: &Bought,
+        ops: &mut RuleOps,
+    ) -> Option<Probe> {
         let bound = view.hypotheses.len() as u64 * view.worlds.len() as u64;
-        score_probes(&state.public.services, &view.worlds, bought)
+        score_probes_counted(&state.public.services, &view.worlds, bought, ops)
             .into_iter()
             .filter(|s| s.numerator < bound && self.remaining.affords(s.probe))
             .min_by_key(|s| {

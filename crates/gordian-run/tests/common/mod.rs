@@ -5,10 +5,11 @@
 
 #![allow(dead_code, missing_docs)]
 
-use gordian_components::{Component, ComponentOutput, WorkingState};
+use gordian_components::{Component, ComponentOutput, Ops, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId, EntryKind, Instant, Resource};
 use gordian_eval::Truth;
 use gordian_run::harness::{EpisodeRecord, HarnessError, Limits, run_episode};
+use gordian_run::policy::decide::RuleOps;
 use gordian_run::policy::scripted::{ScriptedPolicy, ScriptedStep};
 use gordian_run::policy::{Policy, PolicyId};
 use gordian_world::{
@@ -102,15 +103,17 @@ impl Component for Fake {
         self.cost.clone()
     }
 
-    fn run(&mut self, _input: &WorkingState) -> ComponentOutput {
+    fn run_counted(&mut self, _input: &WorkingState) -> (ComponentOutput, Ops) {
         self.runs.set(self.runs.get() + 1);
         if !self.sleep.is_zero() {
             std::thread::sleep(self.sleep);
         }
-        ComponentOutput {
+        let output = ComponentOutput {
             entries: self.entries.clone(),
             ..ComponentOutput::default()
-        }
+        };
+        // A test double has no units: it counts nothing.
+        (output, Ops::zero(self.id))
     }
 }
 
@@ -206,6 +209,10 @@ impl Policy for Spy {
 
     fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
         self.inner.decide_final(state)
+    }
+
+    fn take_ops(&mut self) -> RuleOps {
+        self.inner.take_ops()
     }
 }
 

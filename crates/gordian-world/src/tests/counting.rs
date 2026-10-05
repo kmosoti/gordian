@@ -61,10 +61,8 @@ fn counts_have_the_structure_of_the_units() {
                 assert!(ops.mask_steps >= s, "{class:?} {seed}");
                 // Every world looks at one observation at least when there is any informative
                 // one, and never at more than all of them.
-                let informative = evidence
-                    .iter()
-                    .filter(|(_, o)| is_abnormal(&ep, o))
-                    .count() as u64;
+                let informative =
+                    evidence.iter().filter(|(_, o)| is_abnormal(&ep, o)).count() as u64;
                 assert!(ops.evals + ops.probe_evals <= ops.worlds_tried * informative);
                 if informative > 0 {
                     assert!(ops.evals + ops.probe_evals >= ops.worlds_tried);
@@ -119,12 +117,20 @@ fn counts_follow_content_not_length() {
     let spread: Evidence = (0..n)
         .map(|k| {
             let service = ServiceId((k % public.services.len()) as u32);
-            (Instant(k as u64), ctr(service, CounterName::ErrorRate, HIGH))
+            (
+                Instant(k as u64),
+                ctr(service, CounterName::ErrorRate, HIGH),
+            )
         })
         .collect();
     // Same length and nothing informative: no world is evaluated at all.
     let quiet: Evidence = (0..n)
-        .map(|k| (Instant(k as u64), ctr(site, CounterName::ErrorRate, HIGH - 1)))
+        .map(|k| {
+            (
+                Instant(k as u64),
+                ctr(site, CounterName::ErrorRate, HIGH - 1),
+            )
+        })
         .collect();
     let ops_focused = consistent_worlds_counted(&public, &focused).1;
     let ops_spread = consistent_worlds_counted(&public, &spread).1;

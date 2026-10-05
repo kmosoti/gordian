@@ -56,7 +56,7 @@ pub mod privileged;
 pub mod random_matched;
 pub mod scripted;
 
-use decide::{DecideConfig, Decider, Remaining};
+use decide::{DecideConfig, Decider, Remaining, RuleOps};
 use gordian_components::{ComponentOutput, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId, Resource};
 use gordian_world::Action;
@@ -127,6 +127,18 @@ pub trait Policy {
     /// and `Abstain` are carried out; any other action is recorded in the ledger and ignored,
     /// since nothing could follow it. `None` leaves the episode undecided.
     fn decide_final(&mut self, state: &WorkingState) -> Option<Action>;
+
+    /// The work this policy's scheduling path has done since the last call, in the units of the
+    /// shared rule ([`decide::RULE_UNITS`]); the call resets it (work item A8b).
+    ///
+    /// The harness calls it after each timed scheduling call and sums what it returns into the
+    /// episode's `ops_sched`. There is no default: a policy that does no counted work says so
+    /// with [`RuleOps::ZERO`], as a privileged arm does (it declares zero cost and counts zero
+    /// work), and a policy that wraps another must return the wrapped policy's count, so that an
+    /// omission is a compile error and not a silent zero. A [`RuleOps`] can only be made by the
+    /// shared rule, so a policy cannot invent a count; it can only return the rule's, or none.
+    /// Nothing in `select` or `decide` is given a count.
+    fn take_ops(&mut self) -> RuleOps;
 }
 
 /// The explicit declaration that a policy's selection costs nothing: one `Compute` charge of
@@ -198,6 +210,7 @@ impl<S: Selector> Policy for Arm<S> {
 
     fn select(&mut self, state: &WorkingState, bill: &Bill) -> Vec<ComponentId> {
         self.decider.note_remaining(Remaining::of(bill));
+        self.decider.count_cost_declaration();
         self.selector.select(state, bill)
     }
 
@@ -215,6 +228,10 @@ impl<S: Selector> Policy for Arm<S> {
 
     fn decide_final(&mut self, state: &WorkingState) -> Option<Action> {
         self.decider.decide_final(state)
+    }
+
+    fn take_ops(&mut self) -> RuleOps {
+        self.decider.take_ops()
     }
 }
 

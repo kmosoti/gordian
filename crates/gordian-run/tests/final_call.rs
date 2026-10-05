@@ -17,7 +17,7 @@ use gordian_core::{
 };
 use gordian_eval::Truth;
 use gordian_run::harness::{EpisodeRecord, Limits, StopReason, run_episode_privileged};
-use gordian_run::policy::decide::DecideConfig;
+use gordian_run::policy::decide::{DecideConfig, RuleOps};
 use gordian_run::policy::privileged::{OracleFactory, Variant};
 use gordian_run::policy::scripted::{ScriptedPolicy, ScriptedStep};
 use gordian_run::policy::{self, Built, Policy, PolicyId, PolicySpec, fixed_pipeline, zero_cost};
@@ -96,6 +96,9 @@ impl Policy for FinalSpy {
             probes_remaining: None,
         });
         self.inner.decide_final(state)
+    }
+    fn take_ops(&mut self) -> RuleOps {
+        self.inner.take_ops()
     }
 }
 
@@ -472,6 +475,9 @@ impl Policy for NoFinal {
     }
     fn decide_final(&mut self, _state: &WorkingState) -> Option<Action> {
         None
+    }
+    fn take_ops(&mut self) -> RuleOps {
+        self.0.take_ops()
     }
 }
 

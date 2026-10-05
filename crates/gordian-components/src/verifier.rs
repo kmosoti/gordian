@@ -19,10 +19,11 @@
 //! been paid for, because a stream that only permits symptoms leaves several hypotheses open.
 
 use crate::cost::{affine_ns, compute};
+use crate::ops::{Ops, Unit};
 use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
 use crate::{Component, ComponentOutput, VERIFIER_ID, WorkingState};
 use gordian_core::{Charge, ComponentId};
-use gordian_world::physics::consistent_hypotheses;
+use gordian_world::physics::consistent_hypotheses_counted;
 
 // Declared cost, `Resource::Compute` nanoseconds: `A_NS + B_PS * n / 1000 + C_PS * s / 1000` for
 // a window of `n` observations over `s` services.
@@ -39,6 +40,61 @@ use gordian_world::physics::consistent_hypotheses;
 const A_NS: u64 = 415;
 const B_PS: u64 = 5_770;
 const C_PS: u64 = 156_000;
+
+// Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
+//
+// - `calls`: one per call;
+// - `scanned`: observations touched: the copy of the window into the checker's slice, and the
+//   checker's first pass (so twice the window length unless the pass ends early);
+// - `mask_steps`, `worlds`, `evals`, `probe_evals`: the checker's own counts
+//   (`physics::CheckerOps`): dependents-mask steps, candidate worlds tried, evaluations of a
+//   world against an observation, and against a probe result;
+// - `entries`: entries emitted (always 1);
+// - `ranked`: hypotheses written into the entry, which is the whole consistent set.
+const U_CALLS: usize = 0;
+const U_SCANNED: usize = 1;
+const U_MASK_STEPS: usize = 2;
+const U_WORLDS: usize = 3;
+const U_EVALS: usize = 4;
+const U_PROBE_EVALS: usize = 5;
+const U_ENTRIES: usize = 6;
+const U_RANKED: usize = 7;
+
+/// The verifier's units and their weights.
+pub const UNITS: &[Unit] = &[
+    Unit {
+        name: "calls",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "scanned",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "mask_steps",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "worlds",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "evals",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "probe_evals",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "entries",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "ranked",
+        weight_ps: 0,
+    },
+];
 
 /// The consistency verifier.
 #[derive(Debug, Clone, Copy, Default)]
@@ -65,20 +121,31 @@ impl Component for ConsistencyVerifier {
         vec![compute(ns)]
     }
 
-    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
+    fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops) {
+        let mut ops = Ops::zero(VERIFIER_ID);
+        ops.add(U_CALLS, 1);
         let evidence = input.evidence_vec();
-        let set = consistent_hypotheses(&input.public, &evidence);
+        ops.add(U_SCANNED, evidence.len() as u64);
+        let (set, checked) = consistent_hypotheses_counted(&input.public, &evidence);
+        ops.add(U_SCANNED, checked.scanned);
+        ops.add(U_MASK_STEPS, checked.mask_steps);
+        ops.add(U_WORLDS, checked.worlds_tried);
+        ops.add(U_EVALS, checked.evals);
+        ops.add(U_PROBE_EVALS, checked.probe_evals);
+        ops.add(U_ENTRIES, 1);
         if set.is_empty() {
             let entry = HypothesisEntry::EvidenceDamaged {
                 source: "verifier".to_string(),
                 window: input.size() as u32,
             };
-            return ComponentOutput {
+            let output = ComponentOutput {
                 entries: vec![hypothesis_entry(&entry)],
                 requests: Vec::new(),
                 proposal: None,
             };
+            return (output, ops);
         }
+        ops.add(U_RANKED, set.len() as u64);
         let ranked: Vec<Ranked> = set
             .into_iter()
             .map(|hypothesis| Ranked {
@@ -94,10 +161,11 @@ impl Component for ConsistencyVerifier {
             ranked,
             tied_at_top: tied,
         };
-        ComponentOutput {
+        let output = ComponentOutput {
             entries: vec![hypothesis_entry(&entry)],
             requests: Vec::new(),
             proposal,
-        }
+        };
+        (output, ops)
     }
 }

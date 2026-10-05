@@ -9,13 +9,14 @@
 //!
 //! The first nineteen columns are the plan's (`docs/local-test-plan.md`, A4), in its order.
 //! `directives_ignored` and `stop_reason` are additions at the end, so that the plan's columns
-//! keep their positions.
+//! keep their positions, and the four counted-operation columns (work item A8b) follow them.
 //!
 //! ```text
 //! run_id, seed, class, success, critical_miss, false_alarm, abstained, undecided,
 //! probes_used, corrections, decision_at_ns, bill_compute, bill_memory, bill_time,
 //! bill_probes, bill_comm, bill_storage, components_run, components_skipped,
-//! directives_ignored, stop_reason
+//! directives_ignored, stop_reason,
+//! ops_component, ops_sched, modelled_component_ns, modelled_sched_ns
 //! ```
 //!
 //! - Booleans are `true` or `false`.
@@ -38,6 +39,18 @@
 //!   directive made produce nothing); `components_skipped` counts selected components the bill
 //!   refused, and repeated selections of one component within a step.
 //!
+//! - `ops_component` and `ops_sched` are counts of the work the components and the shared rule
+//!   did, in each one's declared units, summed over units and components (`harness::EpisodeOps`).
+//!   They are deterministic, so they live here and protocol replay covers them. Their sums mix
+//!   units: they are for sanity checks (zero for a privileged arm, zero when nothing ran), never
+//!   a cost.
+//! - `modelled_component_ns` and `modelled_sched_ns` are those counts weighted: the sum over
+//!   components and units of count times the unit's weight (`CALIBRATION.md`, section 9), in
+//!   nanoseconds, rounded once at the end of the episode. Their sum is the charter's cost `C`
+//!   (`modelled_cost_ns` in the analysis package). It covers what a policy controls (which
+//!   components run and what the rule does with them) and not the harness's own work (episode
+//!   generation, the simulator, the ledger), which an arm does not choose.
+//!
 //! # `measured.csv` columns
 //!
 //! ```text
@@ -55,7 +68,7 @@ use gordian_core::{Bill, Phase, Resource};
 use std::fmt::Write as _;
 
 /// The header of `results.csv`.
-pub const RESULTS_HEADER: &str = "run_id,seed,class,success,critical_miss,false_alarm,abstained,undecided,probes_used,corrections,decision_at_ns,bill_compute,bill_memory,bill_time,bill_probes,bill_comm,bill_storage,components_run,components_skipped,directives_ignored,stop_reason";
+pub const RESULTS_HEADER: &str = "run_id,seed,class,success,critical_miss,false_alarm,abstained,undecided,probes_used,corrections,decision_at_ns,bill_compute,bill_memory,bill_time,bill_probes,bill_comm,bill_storage,components_run,components_skipped,directives_ignored,stop_reason,ops_component,ops_sched,modelled_component_ns,modelled_sched_ns";
 
 /// The header of `measured.csv`.
 pub const MEASURED_HEADER: &str =
@@ -120,7 +133,7 @@ pub fn results_row(run_id: &str, record: &EpisodeRecord) -> String {
     let mut row = String::new();
     write!(
         row,
-        "{run_id},{seed},{class},{success},{critical},{alarm},{abstained},{undecided},{probes},{corrections},{decision},{c},{m},{t},{p},{k},{s},{run},{skipped},{ignored},{stop}",
+        "{run_id},{seed},{class},{success},{critical},{alarm},{abstained},{undecided},{probes},{corrections},{decision},{c},{m},{t},{p},{k},{s},{run},{skipped},{ignored},{stop},{ops_c},{ops_s},{mod_c},{mod_s}",
         seed = record.seed,
         class = class_name(record.class),
         success = v.success,
@@ -140,6 +153,10 @@ pub fn results_row(run_id: &str, record: &EpisodeRecord) -> String {
         skipped = record.components_skipped,
         ignored = record.directives_ignored,
         stop = record.stop.as_str(),
+        ops_c = record.ops.ops_component(),
+        ops_s = record.ops.ops_sched(),
+        mod_c = record.ops.modelled_component_ns(),
+        mod_s = record.ops.modelled_sched_ns(),
     )
     .expect("writing to a String cannot fail");
     row
