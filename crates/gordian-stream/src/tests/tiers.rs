@@ -1,0 +1,666 @@
+//! What each tier guarantees, checked by running the first world's four components and the shared
+//! decision rule, never by reading how the generator builds them.
+
+use super::cheap::{self, exhaustive_probes, probing_sim};
+use super::*;
+use crate::kinds::{HardKind, StreamKind, Tier};
+use crate::oracle::IncidentTruth;
+use gordian_core::Instant;
+use gordian_world::graph::dependents_mask;
+use gordian_world::physics::{HIGH, consistent_hypotheses};
+use gordian_world::{FaultKind, Hypothesis, Observation, ServiceId};
+
+fn no_regime(seed: u64, plain: u32, hard: u32) -> StreamParams {
+    let mut p = with_mix(seed, plain, hard);
+    p.regimes.clear();
+    p
+}
+
+fn known_truth(i: &IncidentTruth) -> Hypothesis {
+    match i.truth {
+        Some(h) => match h.kind {
+            StreamKind::Known(k) => Some((k, h.site)),
+            StreamKind::Hard(_) => panic!("not a known kind"),
+        },
+        None => None,
+    }
+}
+
+// ---- Plain
+
+#[test]
+fn the_cheap_rung_identifies_every_plain_incident_from_its_own_evidence() {
+    let (mut identified, mut duos, mut total) = (0, 0, 0);
+    for seed in 0..12 {
+        let p = no_regime(seed, 1000, 0);
+        let (s, t) = with_truth(&p);
+        let public = s.public_info().world_public_info();
+        let template = probing_sim(&p);
+        for inc in &t.incidents {
+            let ev = evidence_of(&s, &t, inc.id);
+            let mut sim = template.clone();
+            let run = cheap::run(&public, &ev, 3_000_000_000, &mut sim);
+            total += 1;
+            assert_eq!(
+                run.declared,
+                Some(known_truth(inc)),
+                "seed {seed} incident {}: {:?}",
+                inc.id,
+                inc.shape
+            );
+            if inc.shape.duo {
+                duos += 1;
+                // Exactly one cheap probe settles a duo.
+                assert_eq!(run.probes, 1, "{:?}", inc.shape);
+                // From the stream alone the open set is exactly two kinds at the site.
+                let before: Vec<Hypothesis> = consistent_hypotheses(&public, &ev);
+                assert_eq!(before.len(), 2, "{before:?}");
+            } else {
+                assert_eq!(run.probes, 0, "{:?}", inc.shape);
+                let before = consistent_hypotheses(&public, &ev);
+                assert_eq!(before, vec![known_truth(inc)]);
+            }
+            identified += 1;
+        }
+    }
+    assert_eq!(identified, total);
+    assert!(total > 200, "{total}");
+    assert!(
+        duos > 20,
+        "the one-probe presentation was exercised only {duos} times"
+    );
+}
+
+#[test]
+fn a_cheap_rung_that_windows_by_site_still_identifies_most_plain_incidents_in_noise() {
+    // The cheap rung is given everything the stream shows at the site and its dependents in the
+    // first three seconds (the true site: an idealised segmentation), noise and other incidents
+    // included. This is the number that says whether noise makes plain incidents unwinnable.
+    let (mut ok, mut total) = (0, 0);
+    for seed in 0..10 {
+        let p = no_regime(seed, 1000, 0);
+        let (s, t) = with_truth(&p);
+        let public = s.public_info().world_public_info();
+        let template = probing_sim(&p);
+        for inc in &t.incidents {
+            let site = inc.occupies[0];
+            let mask = dependents_mask(&t.services, site);
+            let near = |sv: ServiceId| sv == site || mask[sv.index()];
+            let ev: Evidence = s
+                .events()
+                .iter()
+                .filter(|(at, o)| {
+                    at.0 >= inc.onset_ns
+                        && at.0 < inc.onset_ns + 3_000_000_000
+                        && match o {
+                            Observation::Counter { service, .. }
+                            | Observation::Message { service, .. }
+                            | Observation::Snapshot { service, .. } => near(*service),
+                            _ => false,
+                        }
+                })
+                .cloned()
+                .collect();
+            let mut sim = template.clone();
+            let run = cheap::run(&public, &ev, 3_000_000_000, &mut sim);
+            total += 1;
+            if run.declared == Some(known_truth(inc)) {
+                ok += 1;
+            }
+        }
+    }
+    let rate = ok as f64 / total as f64;
+    println!("windowed cheap rung, plain incidents in noise: {ok}/{total} = {rate:.3}");
+    assert!(rate > 0.85, "{ok}/{total}");
+    assert!(
+        rate < 1.0,
+        "noise must cost the cheap rung something here too"
+    );
+}
+
+// ---- Hard
+
+#[test]
+fn the_cheap_rung_cannot_identify_a_hard_incident_even_given_everything() {
+    // Per family: how many incidents the public rules found contradictory at the end of a
+    // patient run, and how many the shared rule declared as the known kind the first moments
+    // imitate at the true site.
+    let mut counts: std::collections::BTreeMap<HardKind, [u32; 4]> = Default::default();
+    let patient = 40_000_000_000u64;
+    for seed in 0..8 {
+        let p = no_regime(seed, 0, 1000);
+        let (s, t) = with_truth(&p);
+        let public = s.public_info().world_public_info();
+        let template = probing_sim(&p);
+        for inc in &t.incidents {
+            assert_eq!(inc.tier, Tier::Hard);
+            let hk = inc.shape.hard_kind.unwrap();
+            let ev = evidence_of(&s, &t, inc.id);
+            let site = inc.occupies[0];
+
+            // 1. The rule, patient enough to see every decisive observation, with the first
+            //    world's default probe budget. Whatever it declares, it is a first-world
+            //    hypothesis, and the truth is a hard kind: it cannot be right.
+            let mut sim = template.clone();
+            let run = cheap::run(&public, &ev, patient, &mut sim);
+            let entry = counts.entry(hk).or_default();
+            entry[0] += 1;
+            entry[3] += (inc.shape.contradicts_early == Some(true)) as u32;
+            if run.consistent(&public).is_empty() {
+                entry[1] += 1;
+            }
+            if matches!(run.declared, Some(Some((k, at))) if Some(k) == inc.shape.mimics && at == site)
+            {
+                entry[2] += 1;
+            }
+
+            // 2. Exhaustive probing, beyond any budget: every probe at every service after
+            //    everything has arrived. Not one known hypothesis explains a compound, a
+            //    cascade or a split brain; a leak is explained, wrongly, as resource exhaustion.
+            let mut sim2 = template.clone();
+            let end = Instant(inc.onset_ns + 25_000_000_000);
+            let mut all = ev.clone();
+            all.extend(exhaustive_probes(&mut sim2, t.services.len(), end));
+            let open = consistent_hypotheses(&public, &all);
+            if hk == HardKind::SlowLeak {
+                assert!(
+                    open.iter()
+                        .all(|h| matches!(h, Some((FaultKind::ResourceExhausted, _)))),
+                    "{open:?}"
+                );
+            } else {
+                assert!(
+                    open.is_empty(),
+                    "seed {seed} incident {} ({hk:?}): the public rules explain it: {open:?}",
+                    inc.id
+                );
+            }
+        }
+    }
+    println!(
+        "hard incidents: [total, rules contradictory in what the run saw, declared the imitated \
+         kind at the site, contradictory from the start]"
+    );
+    for (hk, c) in &counts {
+        println!("  {hk:?}: {c:?}");
+    }
+    for hk in HardKind::ALL {
+        let [n, contradictory, imitated, from_start] = counts[&hk];
+        assert!(n >= 20, "{hk:?}: only {n} incidents");
+        match hk {
+            // A leak never contradicts the rules: it is read as a plain resource problem.
+            HardKind::SlowLeak => {
+                assert_eq!(contradictory, 0);
+                assert!(imitated * 10 >= n * 9, "{imitated}/{n}");
+            }
+            // A split brain leaves two kinds open, so the rule waits, and by the time it
+            // declares the contradicting evidence has arrived.
+            HardKind::SplitBrain => assert_eq!(contradictory, n),
+            // A compound or cascade that imitates a plain incident is declared at once, as the
+            // imitated kind, before the evidence that breaks the rules arrives; one that
+            // contradicts the rules from the start is seen to.
+            HardKind::Compound | HardKind::Cascade => {
+                assert_eq!(contradictory, from_start, "{hk:?}");
+                assert!(from_start > 0 && from_start < n, "both modes occur: {hk:?}");
+            }
+        }
+    }
+    // The shared rule still names a confident known kind at the right site for a large share of
+    // all hard incidents, which is what makes a confident cheap answer a poor router.
+    let total: u32 = counts.values().map(|c| c[0]).sum();
+    let imitated: u32 = counts.values().map(|c| c[2]).sum();
+    assert!(imitated * 2 > total, "{imitated}/{total}");
+}
+
+#[test]
+fn the_first_moments_of_a_hard_or_decoy_incident_give_the_cheap_rung_every_kind_of_reading() {
+    // Over phase 1 only, per tier: how often the public rules leave one hypothesis, a few, none,
+    // or everything. The cheap rung's confidence must not be a free separator of the tiers.
+    let t0 = crate::timing::T0_NS;
+    let mut stats: std::collections::BTreeMap<Tier, [u32; 4]> = Default::default();
+    for seed in 0..10 {
+        let mut p = StreamParams::new(seed);
+        p.regimes.clear();
+        p.mix.plain_permille = 400;
+        p.mix.hard_permille = 300;
+        let (s, t) = with_truth(&p);
+        let public = s.public_info().world_public_info();
+        for inc in &t.incidents {
+            let ev: Evidence = evidence_of(&s, &t, inc.id)
+                .into_iter()
+                .filter(|(at, _)| at.0 < inc.onset_ns + t0)
+                .collect();
+            let open = consistent_hypotheses(&public, &ev);
+            let bucket = if open.is_empty() {
+                2
+            } else if open.contains(&None) {
+                3
+            } else if open.len() == 1 {
+                0
+            } else {
+                1
+            };
+            stats.entry(inc.tier).or_default()[bucket] += 1;
+        }
+    }
+    println!("phase 1, [unique, few, empty, silent] per tier: {stats:?}");
+    let plain = stats[&Tier::Plain];
+    let plain_n: u32 = plain.iter().sum();
+    assert!(
+        (plain[0] + plain[1]) * 100 >= plain_n * 98,
+        "plain incidents are read by the rules: {plain:?}"
+    );
+    for tier in [Tier::Hard, Tier::Decoy] {
+        let st = stats[&tier];
+        let n: u32 = st.iter().sum();
+        for (i, name) in ["unique", "few", "empty", "silent"].iter().enumerate() {
+            if i == 1 {
+                continue;
+            }
+            assert!(st[i] * 100 >= n * 12, "{tier:?}: {name} too rare in {st:?}");
+        }
+    }
+    // The two tiers must have the same mix of readings (they are drawn the same way): within
+    // sampling error.
+    let h = stats[&Tier::Hard];
+    let d = stats[&Tier::Decoy];
+    let (hn, dn) = (h.iter().sum::<u32>() as f64, d.iter().sum::<u32>() as f64);
+    for i in 0..4 {
+        let (ph, pd) = (h[i] as f64 / hn, d[i] as f64 / dn);
+        let pooled = (h[i] + d[i]) as f64 / (hn + dn);
+        let se = (pooled * (1.0 - pooled) * (1.0 / hn + 1.0 / dn))
+            .sqrt()
+            .max(1e-9);
+        assert!(
+            (ph - pd).abs() < 4.5 * se,
+            "reading {i}: {ph:.3} vs {pd:.3}"
+        );
+    }
+}
+
+#[test]
+fn hard_incidents_carry_decisive_evidence_the_free_filter_cannot_see() {
+    // Every hard incident has decisive observations in a vocabulary outside the first world's
+    // catalogue; the cheap rung's rules ignore them by construction.
+    use gordian_world::physics::SignalText;
+    let mut with_ext = 0;
+    let mut total = 0;
+    for seed in 0..6 {
+        let p = no_regime(seed, 0, 1000);
+        let (s, t) = with_truth(&p);
+        for inc in &t.incidents {
+            total += 1;
+            let ext = inc
+                .decisive
+                .iter()
+                .filter(|id| {
+                    matches!(&s.events()[id.0 as usize].1,
+                        Observation::Message { text_id, .. } if SignalText::from_text_id(*text_id).is_none())
+                })
+                .count();
+            assert!((3..=5).contains(&ext), "{ext} ext messages");
+            with_ext += 1;
+        }
+    }
+    assert_eq!(with_ext, total);
+}
+
+// ---- Decoys
+
+#[test]
+fn a_decoy_alarms_like_an_incident_and_then_resolves_by_itself() {
+    let t0 = crate::timing::T0_NS;
+    let (mut n, mut with_alarm) = (0, 0);
+    for seed in 0..15 {
+        let p = no_regime(seed, 0, 0); // every incident a decoy
+        let (s, t) = with_truth(&p);
+        for inc in &t.incidents {
+            assert_eq!(inc.tier, Tier::Decoy);
+            assert!(inc.truth.is_none() && inc.deadline_ns.is_none());
+            let span = inc.live_end_ns - inc.onset_ns;
+            assert!(
+                (t0..=t0 + crate::timing::DECOY_SPAN_NS).contains(&span),
+                "{span}"
+            );
+            n += 1;
+            let site = inc.occupies[0];
+            let series: Vec<(u64, u64)> = inc
+                .observations
+                .iter()
+                .filter_map(|id| match &s.events()[id.0 as usize] {
+                    (
+                        at,
+                        Observation::Counter {
+                            service,
+                            value,
+                            name,
+                        },
+                    ) if *service == site
+                        && matches!(
+                            name,
+                            gordian_world::CounterName::ErrorRate
+                                | gordian_world::CounterName::Saturation
+                        ) =>
+                    {
+                        Some((at.0, *value))
+                    }
+                    _ => None,
+                })
+                .collect();
+            // Before it resolves it alarms; after, never again.
+            let early_alarm = series
+                .iter()
+                .any(|(at, v)| *at < inc.live_end_ns && *v >= HIGH)
+                || inc.shape.hard_kind == Some(HardKind::SlowLeak);
+            if early_alarm {
+                with_alarm += 1;
+            }
+            assert!(
+                series
+                    .iter()
+                    .filter(|(at, _)| *at >= inc.live_end_ns)
+                    .all(|(_, v)| *v < HIGH),
+                "a decoy alarmed after it resolved"
+            );
+            let after = series
+                .iter()
+                .filter(|(at, _)| *at >= inc.live_end_ns)
+                .count();
+            assert_eq!(
+                after,
+                crate::timing::RECOVERY_TOTAL,
+                "ten benign readings follow"
+            );
+            // The first five are the decisive ones.
+            let decisive_after = inc
+                .decisive
+                .iter()
+                .filter(|id| s.events()[id.0 as usize].0.0 >= inc.live_end_ns)
+                .count();
+            assert_eq!(decisive_after, crate::timing::RECOVERY_DECISIVE);
+        }
+    }
+    assert!(n > 60, "{n}");
+    assert_eq!(n, with_alarm, "every decoy alarmed before it resolved");
+}
+
+#[test]
+fn hard_incidents_keep_alarming_until_after_their_deadline() {
+    for seed in 0..10 {
+        let p = no_regime(seed, 0, 1000);
+        let (s, t) = with_truth(&p);
+        for inc in &t.incidents {
+            let deadline = inc.deadline_ns.unwrap();
+            assert!(inc.live_end_ns >= deadline + crate::timing::GRACE_NS.0);
+            let site = inc.occupies[0];
+            let last_alarm = inc
+                .observations
+                .iter()
+                .filter_map(|id| match &s.events()[id.0 as usize] {
+                    (at, Observation::Counter { service, value, .. })
+                        if *service == site && *value >= HIGH =>
+                    {
+                        Some(at.0)
+                    }
+                    _ => None,
+                })
+                .max();
+            // A leak may not have crossed the threshold at all before its stream ended; the
+            // others always alarm until the deadline (a flap hides at most a few beats). An
+            // incident whose deadline falls after the end of the stream is cut off by it.
+            if inc.shape.hard_kind != Some(HardKind::SlowLeak) && deadline <= t.duration_ns {
+                let last = last_alarm.expect("a hard incident alarms");
+                assert!(
+                    last + 8_000_000_000 >= deadline,
+                    "last alarm {last} vs deadline {deadline}"
+                );
+            }
+        }
+    }
+}
+
+// ---- Deadlines
+
+#[test]
+fn deadlines_follow_the_declared_distributions() {
+    let params = StreamParams::new(0);
+    let spec = params.deadlines;
+    let mut by: std::collections::BTreeMap<(Tier, bool), Vec<f64>> = Default::default();
+    for seed in 0..150 {
+        let mut p = StreamParams::new(seed);
+        p.recurrence_permille = 0;
+        p.mix.plain_permille = 500;
+        p.mix.hard_permille = 500;
+        p.critical.plain_permille = 500;
+        p.critical.hard_permille = 500;
+        let (_, t) = with_truth(&p);
+        for inc in &t.incidents {
+            let w = spec.window(inc.tier, inc.critical).unwrap();
+            let d = inc.deadline_ns.unwrap() - inc.onset_ns;
+            assert!((w.lo_ns..=w.hi_ns).contains(&d), "{:?} {d}", inc.tier);
+            by.entry((inc.tier, inc.critical))
+                .or_default()
+                .push((d - w.lo_ns) as f64 / (w.hi_ns - w.lo_ns) as f64);
+        }
+    }
+    assert_eq!(by.len(), 4);
+    for ((tier, crit), xs) in &by {
+        let n = xs.len() as f64;
+        assert!(n > 200.0, "{tier:?} {crit}: {n}");
+        let mean = xs.iter().sum::<f64>() / n;
+        // Uniform on [0, 1]: mean 1/2, variance 1/12.
+        assert!(
+            (mean - 0.5).abs() < 4.5 * (1.0 / 12.0f64 / n).sqrt(),
+            "{tier:?} {crit}: {mean}"
+        );
+        let low = xs.iter().filter(|x| **x < 0.25).count() as f64;
+        assert!(
+            (low / n - 0.25).abs() < 4.5 * (0.25 * 0.75 / n).sqrt(),
+            "{tier:?} {crit}: {low}/{n}"
+        );
+    }
+    // Critical hard deadlines are the shortest of the hard ones, by declaration.
+    assert!(spec.hard_critical.hi_ns <= spec.hard.hi_ns);
+    assert!(spec.hard_critical.lo_ns < spec.hard.lo_ns);
+    assert!(spec.window(Tier::Decoy, false).is_none());
+}
+
+#[test]
+fn critical_shares_match_the_parameters() {
+    let (mut plain, mut plain_c, mut hard, mut hard_c) = (0u32, 0u32, 0u32, 0u32);
+    for seed in 0..150 {
+        let mut p = StreamParams::new(seed);
+        p.recurrence_permille = 0;
+        let (_, t) = with_truth(&p);
+        for i in &t.incidents {
+            match i.tier {
+                Tier::Plain => {
+                    plain += 1;
+                    plain_c += i.critical as u32;
+                }
+                Tier::Hard => {
+                    hard += 1;
+                    hard_c += i.critical as u32;
+                }
+                Tier::Decoy => {}
+            }
+        }
+    }
+    let check = |c: u32, n: u32, p: f64| {
+        let sd = (n as f64 * p * (1.0 - p)).sqrt();
+        assert!((c as f64 - n as f64 * p).abs() < 4.5 * sd, "{c}/{n} vs {p}");
+    };
+    check(plain_c, plain, 0.15);
+    check(hard_c, hard, 0.30);
+}
+
+// ---- Probes
+
+#[test]
+fn hard_probe_rules_are_what_the_documentation_says() {
+    use crate::{StreamAction, StreamOutcome};
+    use gordian_world::{ProbeKind, ProbeResult};
+    let mut checked = std::collections::BTreeSet::new();
+    for seed in 0..10 {
+        let p = no_regime(seed, 0, 1000);
+        let (s, t) = with_truth(&p);
+        let template = probing_sim(&p);
+        for inc in &t.incidents {
+            let site = inc.occupies[0];
+            let at = Instant(inc.onset_ns + 1_000_000_000);
+            let probe = |kind, target| {
+                let mut sim = template.clone();
+                match sim.apply(StreamAction::Probe { kind, target }, at) {
+                    StreamOutcome::Probed {
+                        observation: Observation::Probed { result, .. },
+                        ..
+                    } => result,
+                    o => panic!("{o:?}"),
+                }
+            };
+            let hk = inc.shape.hard_kind.unwrap();
+            checked.insert(hk);
+            assert_eq!(probe(ProbeKind::HealthCheck, site), ProbeResult::Positive);
+            match hk {
+                HardKind::Compound => {
+                    let (a, b) = inc.shape.pair.unwrap();
+                    let has = |k| a == k || b == k;
+                    assert_eq!(
+                        probe(ProbeKind::ResourceUsage, site) == ProbeResult::Positive,
+                        has(FaultKind::ResourceExhausted)
+                    );
+                    assert_eq!(
+                        probe(ProbeKind::CredentialCheck, site) == ProbeResult::Positive,
+                        has(FaultKind::CredentialExpired)
+                    );
+                    assert_eq!(probe(ProbeKind::LatencySample, site), ProbeResult::Negative);
+                    let public = s.public_info().services[site.index()].config_hash;
+                    let changed = !matches!(
+                        probe(ProbeKind::ConfigSnapshot, site),
+                        ProbeResult::ConfigHash(h) if h == public
+                    );
+                    assert_eq!(changed, has(FaultKind::ConfigDrift));
+                }
+                HardKind::SplitBrain => {
+                    let peer = inc.shape.other.unwrap();
+                    for who in [site, peer] {
+                        assert_eq!(probe(ProbeKind::LatencySample, who), ProbeResult::Positive);
+                        assert_eq!(probe(ProbeKind::ErrorSample, who), ProbeResult::Positive);
+                        assert_eq!(probe(ProbeKind::ResourceUsage, who), ProbeResult::Negative);
+                    }
+                }
+                HardKind::Cascade => {
+                    let partner = inc.shape.other.unwrap();
+                    assert_eq!(
+                        probe(ProbeKind::HealthCheck, partner),
+                        ProbeResult::Positive
+                    );
+                    assert_eq!(
+                        probe(ProbeKind::ResourceUsage, partner),
+                        ProbeResult::Negative
+                    );
+                }
+                HardKind::SlowLeak => {
+                    // Before the series crosses the threshold the usage probe says healthy.
+                    let early = Instant(inc.onset_ns + 1_000);
+                    let mut sim = template.clone();
+                    let r = match sim.apply(
+                        StreamAction::Probe {
+                            kind: ProbeKind::ResourceUsage,
+                            target: site,
+                        },
+                        early,
+                    ) {
+                        StreamOutcome::Probed {
+                            observation: Observation::Probed { result, .. },
+                            ..
+                        } => result,
+                        o => panic!("{o:?}"),
+                    };
+                    assert_eq!(r, ProbeResult::Negative);
+                }
+            }
+        }
+    }
+    assert_eq!(checked.len(), 4);
+}
+
+#[test]
+fn a_service_with_no_live_incident_answers_probes_as_healthy() {
+    use crate::{StreamAction, StreamOutcome};
+    use gordian_world::{ProbeKind, ProbeResult};
+    let p = no_regime(2, 800, 100);
+    let s = generate(&p);
+    let mut sim = probing_sim(&p);
+    // Service 0 at time zero: nothing has started anywhere.
+    for kind in ProbeKind::ALL {
+        let StreamOutcome::Probed {
+            observation: Observation::Probed { result, .. },
+            ..
+        } = sim.apply(
+            StreamAction::Probe {
+                kind,
+                target: ServiceId(0),
+            },
+            Instant(1),
+        )
+        else {
+            panic!()
+        };
+        match kind {
+            ProbeKind::ConfigSnapshot => assert_eq!(
+                result,
+                ProbeResult::ConfigHash(s.public_info().services[0].config_hash)
+            ),
+            _ => assert_eq!(result, ProbeResult::Negative, "{kind:?}"),
+        }
+    }
+}
+
+#[test]
+fn plain_probes_answer_as_the_first_world_does() {
+    use crate::{StreamAction, StreamOutcome};
+    use gordian_world::physics::probe_result;
+    use gordian_world::{Probe, ProbeKind};
+    let p = no_regime(3, 1000, 0);
+    let (s, t) = with_truth(&p);
+    let template = probing_sim(&p);
+    let services = s.public_info().services;
+    let mut n = 0;
+    for inc in &t.incidents {
+        let site = inc.occupies[0];
+        let kind = inc.shape.known_kind.unwrap();
+        let at = Instant(inc.onset_ns + 500_000_000);
+        for pk in ProbeKind::ALL {
+            let mut sim = template.clone();
+            let StreamOutcome::Probed {
+                observation: Observation::Probed { result, .. },
+                ..
+            } = sim.apply(
+                StreamAction::Probe {
+                    kind: pk,
+                    target: site,
+                },
+                at,
+            )
+            else {
+                panic!()
+            };
+            // Bits and the drift hash are hidden; the probes whose answer does not depend on
+            // them are compared exactly, the rest by the property the first world gives them.
+            let truth_probe = Probe {
+                kind: pk,
+                target: site,
+            };
+            let reference =
+                probe_result(&services, Some((kind, site)), (true, true), 7, truth_probe);
+            match pk {
+                ProbeKind::LatencySample | ProbeKind::ErrorSample => {}
+                ProbeKind::ConfigSnapshot => {}
+                _ => assert_eq!(result, reference, "{pk:?} against {kind:?}"),
+            }
+            n += 1;
+        }
+    }
+    assert!(n > 100);
+}

@@ -48,6 +48,11 @@ gordian-components = { path = "../gordian-components" }
 # only gordian-world and gordian-components types through it.
 # Simpler alternative: a test-local copy of the rule; rejected, it would test a copy.
 gordian-run = { path = "../gordian-run" }
+# Requirement: the first world's hidden labels, to run the control of the catalogue-filter test on
+# the first world's NoiseFlood class. The feature compiles gordian-world's `oracle` for this
+# crate's tests only; scripts/check-no-oracle.sh allows tests in this crate to name it.
+# Simpler alternative: none; the control needs the first world's truth.
+gordian-world = { path = "../gordian-world", features = ["reveal-hidden-state"] }
 # Requirement: parameter round-trip test.
 # Simpler alternative: none.
 serde_json = "1.0.151"

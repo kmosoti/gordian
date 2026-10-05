@@ -48,6 +48,9 @@ pub struct ShapeTruth {
 pub struct IncidentTruth {
     /// Dense from zero in order of arrival.
     pub id: u32,
+    /// Index of the arrival that produced it. Larger than `id` when earlier arrivals were
+    /// dropped because no suitable service was free.
+    pub arrival: u32,
     /// Plain, hard or decoy.
     pub tier: Tier,
     /// Whether a miss is scored under the critical bound.
@@ -62,6 +65,9 @@ pub struct IncidentTruth {
     pub difficulty: f64,
     /// A decoy's resolution, or the others' closure.
     pub live_end_ns: u64,
+    /// The services of the incident stay reserved until here: no other incident starts on them
+    /// before this instant.
+    pub busy_until_ns: u64,
     /// The incident this one repeats, if any.
     pub recurrence_of: Option<u32>,
     /// The services the incident occupies (site first).
@@ -156,6 +162,7 @@ pub fn reveal(stream: &Stream) -> StreamTruth {
         };
         incidents.push(IncidentTruth {
             id: inc.id,
+            arrival: inc.arrival,
             tier: inc.tier,
             critical: inc.critical,
             onset_ns: inc.onset.0,
@@ -163,6 +170,7 @@ pub fn reveal(stream: &Stream) -> StreamTruth {
             truth: inc.truth,
             difficulty: inc.difficulty,
             live_end_ns: inc.live_end.0,
+            busy_until_ns: inc.busy_until.0,
             recurrence_of: inc.recurrence_of,
             occupies: inc.occupies.clone(),
             shape,

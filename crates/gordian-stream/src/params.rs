@@ -7,7 +7,7 @@
 //!
 //! Probabilities are integers (per mille) so that generation uses integer comparisons. The few
 //! real-valued parameters (the reasoner's coefficients, difficulty ranges) enter the stream only
-//! through basic IEEE operations and [`crate::rng`]'s series, so they replay bit for bit.
+//! through basic IEEE operations and the series in `rng.rs`, so they replay bit for bit.
 
 use crate::kinds::Tier;
 use gordian_core::{Budget, Charge, Resource};

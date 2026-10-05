@@ -69,11 +69,19 @@ pub fn generate(params: &StreamParams) -> Stream {
     build_stream(params, None)
 }
 
-/// Test hook: the same draws as [`generate`], with the tier of the incident that arrives with
-/// index `arrival` replaced after every draw is made.
+/// What a test may force on the incident that arrives with index `arrival`, after every draw is
+/// made: its tier, or (for a plain incident that leaves two kinds open) which of the two it is.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Forced {
+    pub(crate) arrival: u32,
+    pub(crate) tier: Option<Tier>,
+    pub(crate) duo_kind: Option<FaultKind>,
+}
+
+/// Test hook: the same draws as [`generate`], with `forced` applied.
 #[cfg(test)]
-pub(crate) fn generate_forced(params: &StreamParams, arrival: u32, tier: Tier) -> Stream {
-    build_stream(params, Some((arrival, tier)))
+pub(crate) fn generate_forced(params: &StreamParams, forced: Forced) -> Stream {
+    build_stream(params, Some(forced))
 }
 
 const ORDERED_PAIRS: [(FaultKind, FaultKind); 6] = [
@@ -85,7 +93,7 @@ const ORDERED_PAIRS: [(FaultKind, FaultKind); 6] = [
     (FaultKind::CredentialExpired, FaultKind::ConfigDrift),
 ];
 
-fn build_stream(params: &StreamParams, forced: Option<(u32, Tier)>) -> Stream {
+fn build_stream(params: &StreamParams, forced: Option<Forced>) -> Stream {
     let p = params.normalized();
     let seed = p.seed;
     let services = gen_graph(seed, p.min_services, p.max_services);
@@ -174,8 +182,9 @@ fn build_stream(params: &StreamParams, forced: Option<(u32, Tier)>) -> Stream {
             } else {
                 Tier::Decoy
             };
-            if let Some((idx, forced_tier)) = forced
-                && idx == this
+            if let Some(f) = forced
+                && f.arrival == this
+                && let Some(forced_tier) = f.tier
             {
                 tier = forced_tier;
             }
@@ -256,7 +265,17 @@ fn build_stream(params: &StreamParams, forced: Option<(u32, Tier)>) -> Stream {
                 skipped += 1;
                 continue;
             };
-            family = family_new;
+            family = match (forced, family_new) {
+                (
+                    Some(Forced {
+                        arrival,
+                        duo_kind: Some(k),
+                        ..
+                    }),
+                    Family::Known { duo: true, .. },
+                ) if arrival == this => Family::Known { kind: k, duo: true },
+                (_, f) => f,
+            };
             site = site_new;
             critical = match tier {
                 Tier::Plain => crit_draw < p.critical.plain_permille,
