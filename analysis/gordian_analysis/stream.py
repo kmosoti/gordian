@@ -170,7 +170,7 @@ def format_summary(summary: dict) -> str:
             f"{a['arm']:<30} {a['role']:<10} {plain:>13} {hard:>11} {cmiss:>10} "
             f"{t['wrong_declarations']:>6} {t['false_alarms']:>9} {t['reasoner_calls']:>6} "
             f"{_f(a['escalation_precision']):>8} {_f(a['escalation_recall']):>8} "
-            f"{t['reasoner_tokens']:>8} {a['cost_per_stream_ns']['total'] / NS_PER_S:>10.2f}s"
+            f"{t['reasoner_tokens']:>8} {a['cost_per_stream_ns']['total'] / NS_PER_S:>10.3f}s"
         )
     lines += [
         "",
