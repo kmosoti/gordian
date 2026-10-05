@@ -62,8 +62,10 @@ the loop would stop for `Horizon` or `BudgetExhausted`, it first calls
    the call is made anyway.** Declaring is free; making the verdict depend on whether the last few
    microseconds of compute remained would reintroduce the artifact the call removes. If accepted,
    the clock advances by the declared `Time`, if any (the shared rule declares none). The shared
-   rule declares its ordinary cost without the probe-evaluation term, because the call never
-   scores a probe (`POLICIES.md`, section 3).
+   rule declares the same formula as for any call: every variable term is the work of the previous
+   call, so the final call carries what the last step did (work item A6d; before it the final call
+   omitted a forward probe-evaluation term, because it never scores a probe, `POLICIES.md`,
+   section 3).
 3. *Decide.* `decide_final` is timed with the declared-cost call and recorded as one `decide`
    `Measurement`, so the `select` and `decide` entries still sum to `measured_sched_ns`. The call
    is not a step: `steps` does not count it.

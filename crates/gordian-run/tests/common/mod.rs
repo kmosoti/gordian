@@ -231,3 +231,163 @@ pub fn scratch(name: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("create scratch dir");
     dir
 }
+
+// ---- the B1 grid, shared by the tests that compare verdicts against a recorded fixture ----
+
+use gordian_components::{ESTIMATOR_ID, HEURISTIC_ID, VERIFIER_ID};
+use gordian_run::manifest::{ArmSpec, EpisodeParams, IsolationSpec, Manifest, PRIVILEGED};
+use gordian_run::policy::decide::DecideConfig;
+use gordian_run::policy::{PolicySpec, fixed_pipeline, random_matched};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
+
+/// The ten arms of the B1 grid (`experiments/exploration/scripts/mkmanifest.py`), by name.
+pub fn b1_arms() -> Vec<ArmSpec> {
+    let pipeline = |components: Vec<gordian_core::ComponentId>, every: u32| {
+        PolicySpec::FixedPipeline(fixed_pipeline::Config { components, every })
+    };
+    let arm = |name: &str, policy: PolicySpec| ArmSpec {
+        arm: name.to_owned(),
+        policy,
+    };
+    vec![
+        arm("heuristic_only", PolicySpec::HeuristicOnly),
+        arm("all_components", PolicySpec::AllComponents),
+        arm(
+            "random_p025",
+            PolicySpec::RandomMatched(random_matched::Config { p: 0.25 }),
+        ),
+        arm(
+            "random_p050",
+            PolicySpec::RandomMatched(random_matched::Config { p: 0.5 }),
+        ),
+        arm("fixed_verifier_only", pipeline(vec![VERIFIER_ID], 1)),
+        arm("fixed_estimator_only", pipeline(vec![ESTIMATOR_ID], 1)),
+        arm("fixed_heuristic_every2", pipeline(vec![HEURISTIC_ID], 2)),
+        arm("fixed_heuristic_every4", pipeline(vec![HEURISTIC_ID], 4)),
+        arm(
+            &format!("oracle_evidence_{PRIVILEGED}"),
+            PolicySpec::OracleEvidence,
+        ),
+        arm(
+            &format!("oracle_immediate_{PRIVILEGED}"),
+            PolicySpec::OracleImmediate,
+        ),
+    ]
+}
+
+/// An interleaved manifest of `arms` over `seeds` seeds of every class, at `compute` nanoseconds.
+pub fn grid_manifest(run_id: &str, arms: Vec<ArmSpec>, seeds: u64, compute: u64) -> Manifest {
+    let mut limits = limits();
+    limits.compute = compute;
+    Manifest {
+        run_id: run_id.to_owned(),
+        experiment: "test".to_owned(),
+        arm: arms[0].arm.clone(),
+        source_revision: "0".repeat(40),
+        lockfile_sha256: "0".repeat(64),
+        toolchain: "rustc test".to_owned(),
+        cpu_flags: vec!["avx2".to_owned()],
+        cpu_model: Some("test cpu".to_owned()),
+        cpu_mhz: Some(2100.0),
+        isolation: IsolationSpec::default(),
+        seeds: (0..seeds).collect(),
+        episode_classes: EpisodeClass::ALL
+            .iter()
+            .map(|c| (*c, seeds as u32))
+            .collect(),
+        policy: arms[0].policy.clone(),
+        arms,
+        run_seed: 0,
+        drift_block: 50,
+        decide: DecideConfig::default(),
+        limits,
+        episode_params: EpisodeParams::default(),
+        trace_sample_rate: 0.0,
+        internal_external_ratio: None,
+    }
+}
+
+/// The columns of `results.csv` that say what the arm concluded, as opposed to what it cost or
+/// when. These are the verdict columns of work item A6c.
+pub const VERDICT_COLUMNS: [&str; 7] = [
+    "success",
+    "critical_miss",
+    "false_alarm",
+    "abstained",
+    "undecided",
+    "probes_used",
+    "corrections",
+];
+
+/// `(arm, seed, class)` to the verdict columns joined by commas, over every arm of a run.
+pub fn verdicts(dir: &Path, arms: &[ArmSpec]) -> BTreeMap<(String, u64, String), String> {
+    let mut out = BTreeMap::new();
+    for arm in arms {
+        let csv = fs::read_to_string(dir.join(&arm.arm).join("results.csv")).unwrap();
+        let mut lines = csv.lines();
+        let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+        let at = |name: &str| header.iter().position(|h| *h == name).unwrap();
+        let (seed, class) = (at("seed"), at("class"));
+        let columns: Vec<usize> = VERDICT_COLUMNS.iter().map(|c| at(c)).collect();
+        for line in lines {
+            let f: Vec<&str> = line.split(',').collect();
+            let key = (
+                arm.arm.clone(),
+                f[seed].parse().unwrap(),
+                f[class].to_owned(),
+            );
+            let value = columns.iter().map(|c| f[*c]).collect::<Vec<_>>().join(",");
+            assert!(out.insert(key, value).is_none(), "duplicate episode");
+        }
+    }
+    out
+}
+
+// ---- synthetic outputs and counts, shared by the tests of the shared rule ----
+
+use gordian_components::payload::{HypothesisEntry, Ranked, hypothesis_entry};
+use gordian_run::policy::decide::RULE_UNITS;
+use gordian_world::Hypothesis;
+
+/// The count of `unit` in `ops`, by name.
+pub fn count(ops: &RuleOps, unit: &str) -> u64 {
+    let at = RULE_UNITS.iter().position(|u| u.name == unit).unwrap();
+    ops.counts()[at]
+}
+
+/// A component output listing `ranked` as tied candidates.
+pub fn candidates(source: &str, ranked: Vec<Hypothesis>) -> ComponentOutput {
+    let n = ranked.len() as u32;
+    let entry = HypothesisEntry::Candidates {
+        source: source.to_owned(),
+        basis: "test".to_owned(),
+        ranked: ranked
+            .into_iter()
+            .map(|hypothesis| Ranked {
+                hypothesis,
+                score: None,
+            })
+            .collect(),
+        tied_at_top: n,
+    };
+    ComponentOutput {
+        entries: vec![hypothesis_entry(&entry)],
+        ..ComponentOutput::default()
+    }
+}
+
+/// The hypothesis of a fault of `kind` at service `site`.
+pub fn fault(kind: FaultKind, site: u32) -> Hypothesis {
+    Some((kind, ServiceId(site)))
+}
+
+/// A working state over the world of `Ambiguous` seed 3 with nothing admitted.
+pub fn fresh_state() -> WorkingState {
+    let l = limits();
+    WorkingState::new(
+        generate(&spec(3, EpisodeClass::Ambiguous, &l)).public_info(),
+        l.window,
+    )
+}

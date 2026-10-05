@@ -2,7 +2,9 @@
 
 Stage B exploration script (development run; nothing here tests a hypothesis). Standard library only.
 
-    a6c_table.py BEFORE_TAG AFTER_TAG [OLDW_TAG] [--runs DIR]
+    a6c_table.py BEFORE_TAG AFTER_TAG [OLDW_TAG] [--runs DIR] [--oldw-label TEXT]
+
+(`--oldw-label` names the weights the OLDW_TAG column carries; work item A6d used "A6c weights".)
 
 OLDW_TAG, if given, is a run of the same tree as AFTER_TAG with the rule's counted weights put back
 to their pre-A6c values (a scratch build; episodes and counts are identical, only the weighting of
@@ -50,13 +52,17 @@ def main():
     if "--runs" in sys.argv:
         runs = sys.argv[sys.argv.index("--runs") + 1]
         args = [a for a in args if a != runs]
+    label = "A8b weights"
+    if "--oldw-label" in sys.argv:
+        label = sys.argv[sys.argv.index("--oldw-label") + 1]
+        args = [a for a in args if a != label]
     before_tag, after_tag = args[:2]
     oldw_tag = args[2] if len(args) > 2 else None
     head = ("| arm | compute limit (ns) | success before | success after | critical miss before | critical miss after "
             "| mean modelled cost before (ns) | mean modelled cost after (ns) | cost after / before |")
     rule = "|---|---:|---:|---:|---:|---:|---:|---:|---:|"
     if oldw_tag:
-        head += " cost after, A8b weights (ns) | same / before |"
+        head += f" cost after, {label} (ns) | same / before |"
         rule += "---:|---:|"
     print(head)
     print(rule)

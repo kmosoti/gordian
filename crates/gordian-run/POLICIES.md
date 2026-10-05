@@ -40,7 +40,10 @@ selected leaves its previous output in place, so an arm that skips a component a
 output; that staleness is part of what selection costs (a test shows a stale verifier set
 outranking a newer heuristic answer). An output is decoded once: a stored output is never decoded
 again at a later step, and an output that arrives byte for byte equal to the one held for its
-component keeps the held decoded form instead of being decoded again (section 3.1). A component that
+component keeps the held decoded form instead of being decoded again (section 3.1). The narrowed
+view of a stored set (below), and the scores of the probes that could be bought from it, are kept
+with the set and made again only when the set is replaced or the probe results in the working
+state are no longer the ones they were made against (section 3.2). A component that
 ran and produced nothing, or whose output says the window was damaged, replaces its stored output
 with nothing. A `Fail` directive produces no output at all, so the previous one stays. The memory
 lookup is not read (2.5).
@@ -94,8 +97,9 @@ and the public `ENTANGLED` pair (and, in the oracle and the tests, on `physics::
 **2.1 Where the rule's cost is charged.** Under `Phase::Scheduling`, through the policy's declared
 select cost, for every non-privileged arm alike. `Arm::declared_select_cost` is the only place the
 selector's cost and the rule's meet. Every arm pays the rule's base cost at every step, including
-an arm that selects nothing, and pays the probe-evaluation term from the candidate set it holds and
-the decoding and comparison terms for the outputs that arrived at the previous call.
+an arm that selects nothing, and pays, one step late, for the work its previous call did:
+decoding and comparing the outputs that arrived, narrowing a stored set, and scoring probes
+(section 3). A step that did none of that pays the base and the scan of the window.
 Charging the rule only to arms that "use" it would make the cost of the rule depend on the
 selector. The three trivial selectors declare no cost of their own (section 5).
 
@@ -164,23 +168,29 @@ The declared cost of one `decide` call is, in `Resource::Compute` nanoseconds (c
 `decide.rs`, stored in picoseconds so slopes of a few nanoseconds keep their precision):
 
 ```text
-45 + 0.95 * window + 10.5 * worlds
-   + 36 * (6 * targets * worlds)        only when the candidate set could be probed
+45 + 0.95 * window
    + 530 * outputs_decoded_last_call + 115 * hypotheses_decoded_last_call
    + 0.033 * bytes_compared_last_call
+   + 10.5 * worlds_narrowed_last_call
+   + 36 * probe_evaluations_last_call
 ```
 
-`window` is the observations in the working state; `worlds` and `targets` come from the first
-available stored candidate set (before narrowing, so the figure is an upper bound); the decoding
-terms carry the *previous* call's decoding to the next step, and the comparison term the bytes the
-previous call compared (3.1). That is a lag, chosen because which outputs a step brings is not known
-when the harness asks for the scheduling cost, before `select`.
-The decoding of every step is charged at the next one, so an episode is charged for all of it
-except the last step's, which the final call (2.6) picks up when the harness makes one: its declared
-cost is this formula without the probe-evaluation term (`Decider::declared_final_cost`), because
-the call never scores a probe, and it is charged under `Phase::Scheduling` like any other call,
-for the rule alone (no selector's cost). If the bill cannot pay it the call is made anyway
-(`HARNESS.md`, section 1). A step that has no stored set pays only the base and the window.
+`window` is the observations in the working state. Every other term carries the *previous* call's
+work to the next step: the decoding terms its decoding, the comparison term the bytes it compared
+(3.1), the world term the worlds it built when it narrowed a stored set, and the evaluation term the
+`probe_result` calls it made to score probes (3.2). That is a lag, chosen because which outputs a
+step brings, and whether it shows a new probe result, is not known when the harness asks for the
+scheduling cost, before `select`. The work of every step is charged at the next one, so an episode
+is charged for all of it except the last step's, which the final call (2.6) picks up when the
+harness makes one. Its declared cost is the same formula (`Decider::declared_final_cost`): there is
+no forward term to leave out. The final call's own work, which is none unless the window it is
+shown (refreshed with what has arrived) holds a probe result the rule has not narrowed against, is
+counted but not declared, because no later call exists to carry it. It is charged under `Phase::Scheduling` like any other call, for
+the rule alone (no selector's cost). If the bill cannot pay it the call is made anyway (`HARNESS.md`,
+section 1). A step whose previous call did none of that pays only the base and the scan. Before work
+item A6d the world and evaluation terms were forward upper bounds, declared at every step from the
+first stored set (`10.5 * worlds` and, when it could be probed, `36 * 6 * targets * worlds`),
+and the final call omitted the evaluation term; `Decider::without_cache` still declares that way.
 
 ### 3.1 An output is decoded once (work item A6c)
 
@@ -223,19 +233,24 @@ column (success, critical miss, false alarm, abstained, undecided, probes used, 
 ten B1 arms at 20 ms over 20 seeds by 11 classes, per episode, with a record written by the code of
 `da73030`: identical in all 2,200 rows.
 
-**What it does not do.** It does not remove every charge that grows with an unchanged input. Each
-step the rule still narrows the stored candidate set against the bought probes (10.5 ns declared and
-20 ns counted per world) and, when the set can be probed, scores every probe against every world,
-although neither the set nor the probes bought may have changed since the previous step. On a
-symptom-free window the verifier's 46-hypothesis set costs the rule about 600 ns a step in
-narrowing alone, against about 110 ns when a failed verifier leaves the estimator's five. That is
-the residue of "a failed component raises success" that A6c leaves (`a6c-before-after.md`).
+**What it did not do (done by A6d, 3.2).** It did not remove every charge that grows with an
+unchanged input. Each step the rule still narrowed the stored candidate set against the bought
+probes (10.5 ns declared and 20 ns counted per world) and, when the set could be probed, scored
+every probe against every world, although neither the set nor the probes bought might have changed
+since the previous step. On a symptom-free window the verifier's 46-hypothesis set cost the rule
+about 600 ns a step in narrowing alone, against about 110 ns when a failed verifier left the
+estimator's five. That was the largest part of the residue of "a failed component raises success"
+that A6c left (`a6c-before-after.md`).
 
 **How it was fitted.** An ignored test, `measure_the_rule_against_its_declared_cost`
 (`cargo test --release -p gordian-run --test baselines -- --ignored --nocapture`), builds 396
 states (11 classes, 12 seeds, three stream prefixes), runs the four components to get outputs, and
 times `Decider::decide` 300 times in two modes: with a fresh rule given the outputs (decoding
 included) and with the same rule given none. Weighted least squares on relative error, rounded.
+(The fit below is of the rule as it was before A6c: it narrowed and scored at every call, so the
+"steady" mode paid for both. Since A6d a rule given nothing new does neither, the test prints the work
+the fresh call did, and the table's world and evaluation constants are the per-unit costs of that
+fit, which the lag form of section 3 applies to the work done; they were not refitted.)
 
 | term | fitted (two runs) | what it is |
 |---|---|---|
@@ -274,6 +289,76 @@ here is what the bill enforces. At the default limits (20 ms of compute) no arm 
 limit: the heaviest, `all_components`, spent about 0.5 ms per episode on average when this was measured
 (section 8; since A6c, 0.19 ms on seeds 1000 to 1499 against 0.42 ms before it), so
 the compute limit does not bind in any condition measured so far.
+
+### 3.2 A stored set is narrowed once (work item A6d)
+
+**What was found.** After A6c the rule still narrowed the first stored set against the bought probes
+at every call, and scored the probes it could buy from it, and declared both for every step from the
+set it held: 10.5 ns a world, and 36 ns a probe evaluation. Neither the set nor the probes bought
+change at most steps (`a6c-before-after.md` section 5, `a6d-before-after.md`).
+
+**What the rule does now.** It keeps, with each stored set (the verifier's, the estimator's and the
+heuristic's), the narrowed view of that set and, once a call has needed them, the scores of the
+probes of that view (`Held.narrowed`). A call takes the stored sets in source order and narrows one
+only when it holds no view made against the probe results and corrections of this call's working
+state (`Bought`, compared by `==`); the first set whose view has a world left is the rule's, as
+before, and an empty view is kept too. The view lives inside the stored set, so replacing the set (an
+output that arrives and differs from the held one, 3.1) drops it; an arriving output equal to the held
+one keeps both. The key is therefore the stored set and the probes bought; what is not in it is the
+world's services, which are fixed for the episode a rule plays (the `Policy` contract), and which
+probes are affordable, which is decided from what is left to spend at every call from the kept
+scores. `worlds` and `probe_evals` count the work done, so a call that kept its view counts none.
+
+**What it costs.** The declared cost carries the work of the previous call, as the decoding terms
+do (section 3): `10.5` ns per world narrowed and `36` ns per probe evaluation, from the call before.
+That is exact (an episode is billed for all of it except the last step's, which the final call picks
+up), and a step that kept everything it holds is billed the base and the scan. The constants did not
+change; what they multiply did. The cost is no longer an upper bound, so a call that narrows a large
+set (the verifier's first output on a symptom-free window, 56 hypotheses) is billed for it one step
+after it happens, and the last such call before a refused final charge is counted and not billed.
+
+**What is unchanged.** Every decision. `Decider::without_cache` is the rule as it was after A6c
+(narrowing and scoring at every call, declared forward): the reference the tests hold the rule to.
+Over six arms by 11 classes by four seeds at the default budget and at 250,000 and 60,000 ns
+(30,403 calls, 448 of which bought a probe and 131 of which were final calls) the two give the same
+action at every call, count the same calls, decodings and comparisons, and the rule counts 30,007
+worlds against 764,647 and 18,666 probe evaluations against 47,562. End to end,
+`tests/incremental_narrowing.rs` compares every verdict column of the ten B1 arms at 20 ms over 20
+seeds by 11 classes, per episode, with a record written before the change: identical in all 2,200
+rows (and in all 55,000 rows of the 500-seed grid).
+
+**What it does not do.** The window is still scanned for bought probes at every call (0.95 ns an
+observation declared, inside the per-call unit counted), the output of every component that ran is
+still compared with the held one (3.1), and a changed output is decoded in full.
+
+### 3.3 Why a failed component can still raise success (the 35 episodes)
+
+`b3-finding4.md` found that a `Fail` directive can raise an arm's success at a binding budget. A6c
+removed most of it (210 raised episodes to 102) and traced the rest to the narrowing term; zeroing
+that term left 35 raised episodes, unexplained. After 3.2 the same comparison (ComponentTimeout,
+500 episodes, seven arms, the three binding budgets) raises 35, 31 of them the same episodes. They
+are explained in `a6d-before-after.md` section 7, from the ledger and from counterfactual runs; in
+short:
+
+- In 34 of the 35 the run with no directive ended on a refused scheduling charge, short of it by a
+  median of 37 ns (under 100 ns in 24 of them), while the `Fail` run went on to a later step and
+  decided correctly. The rule had charged the no-directive run a median of 8.1 µs more: the decoding
+  of the verifier's first output (the consistent set of a symptom-free window, 25 to 66 hypotheses
+  listed, 530 ns and 115 per hypothesis), the byte comparison of its unchanged repeats and its
+  narrowing, which the `Fail` run, whose verifier output is discarded, never pays. At 60,000 to
+  100,000 ns a bill of 5 to 10 µs is the margin.
+- That is work done and counted, not repeated work, and it is the cost model working as written
+  (2.1: an arm pays for the outputs it reads). A cache cannot remove it.
+- 31 of the 35 are decided right with no directive if only that bill is waived (the verifier's
+  stored set still read first); 6 would be right if only the stored set were ignored (all six also
+  cost-sufficient); 4 need both. The documented source order (2), the stale verifier set outranking
+  a newer answer, matters in ten of the 35 and is the only way out of none: the six it fixes alone
+  are fixed by the bill alone as well.
+
+The rule was left alone. Changing the source priority would change decisions, not cost, and would not
+remove the 31. The consequence for EXP-001 is the one `b3-finding4.md` section 6 gave, now with its
+size: an arm that reads fewer or smaller outputs gains a few episodes at a binding budget, and
+`ComponentTimeout` is not monotone in its `Fail` directives there.
 
 ## 4. JointlyDecisive
 

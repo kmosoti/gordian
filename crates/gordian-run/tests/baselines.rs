@@ -1307,11 +1307,15 @@ fn measure_the_rule_against_its_declared_cost() {
     // includes decoding them (what an arm that runs all components pays at each step); `steady`
     // calls the same rule again with no outputs. `hit` (work item A6c) hands the rule that already
     // holds the step's outputs the same outputs again, so it recognises and does not decode them:
-    // `cmp_bytes` is what it compared. Rows go to stderr; the fit is in `POLICIES.md`.
+    // `cmp_bytes` is what it compared. Since work item A6d the rule keeps its narrowed views, so
+    // `fresh` is the call that narrows and scores, `steady` and `hit` are calls that do not, and
+    // the columns after the decoding ones are what the fresh call narrowed, visited when scoring
+    // and evaluated: the work the next step's declared cost carries. Rows go to stderr; the fit is
+    // in `POLICIES.md`.
     let l = limits();
     let decide = DecideConfig::default();
     eprintln!(
-        "MEASURE,class,seed,cut,window,dec_outputs,dec_hyps,candidates,worlds,targets,probing,due,steady_declared_ns,fresh_ns,steady_ns,cmp_bytes,hit_ns,hit_declared_ns"
+        "MEASURE,class,seed,cut,window,dec_outputs,dec_hyps,narrowed_worlds,scored_worlds,probe_evals,due,steady_declared_ns,fresh_ns,steady_ns,cmp_bytes,hit_ns,hit_declared_ns"
     );
     for class in EpisodeClass::ALL {
         for seed in 0..12u64 {
@@ -1363,14 +1367,13 @@ fn measure_the_rule_against_its_declared_cost() {
                 }
                 let hit_ns = started.elapsed().as_nanos() / u128::from(reps);
                 eprintln!(
-                    "MEASURE,{class:?},{seed},{cut},{},{},{},{},{},{},{},{},{steady_declared},{fresh_ns},{steady_ns},{},{hit_ns},{hit_declared}",
+                    "MEASURE,{class:?},{seed},{cut},{},{},{},{},{},{},{},{steady_declared},{fresh_ns},{steady_ns},{},{hit_ns},{hit_declared}",
                     f.window,
                     f.decoded_outputs,
                     f.decoded_hypotheses,
-                    f.candidates,
-                    f.worlds,
-                    f.targets,
-                    u8::from(f.probing),
+                    f.narrowed_worlds,
+                    f.scored_worlds,
+                    f.probe_evals,
                     u8::from(state.now >= Instant(decide.patience_ns)),
                     hit_features.compared_bytes
                 );

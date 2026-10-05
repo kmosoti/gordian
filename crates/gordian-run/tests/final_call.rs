@@ -500,36 +500,42 @@ fn play_arm(
 
 #[test]
 fn with_a_tiny_compute_budget_every_arm_declares_instead_of_ending_undecided() {
-    let l = limits_with_compute(Some(60_000));
+    // 60,000 ns was a tiny budget for every arm when this test was written. Since work item A6d
+    // (the rule no longer re-narrows at every step) the cheapest arm, `heuristic_only`, declares
+    // before it runs out of means at that budget, so the test also runs a budget (10,000 ns) at
+    // which every arm does run out. The claim, that no arm ends undecided, is checked at both.
     for spec in arms() {
         let mut final_declarations = 0;
-        let mut classes_bound = 0;
-        for class in EpisodeClass::ALL {
-            let mut in_class = 0;
-            for seed in 0..5u64 {
-                let record = play_arm(&spec, seed, class, &l, true);
-                assert!(
-                    !record.verdict.undecided,
-                    "{:?} {class:?} {seed}: {:?}",
-                    spec.id(),
-                    record.stop
-                );
-                assert!(record.stop.is_decided());
-                assert!(record.verdict.decision_at.is_some());
-                if record.stop == StopReason::FinalDeclaration {
-                    in_class += 1;
+        for compute in [60_000, 10_000] {
+            let l = limits_with_compute(Some(compute));
+            let mut classes_bound = 0;
+            for class in EpisodeClass::ALL {
+                let mut in_class = 0;
+                for seed in 0..5u64 {
+                    let record = play_arm(&spec, seed, class, &l, true);
+                    assert!(
+                        !record.verdict.undecided,
+                        "{:?} {class:?} {seed} compute {compute}: {:?}",
+                        spec.id(),
+                        record.stop
+                    );
+                    assert!(record.stop.is_decided());
+                    assert!(record.verdict.decision_at.is_some());
+                    if record.stop == StopReason::FinalDeclaration {
+                        in_class += 1;
+                    }
+                }
+                final_declarations += in_class;
+                if in_class >= 3 {
+                    classes_bound += 1;
                 }
             }
-            final_declarations += in_class;
-            if in_class >= 3 {
-                classes_bound += 1;
+            // `all_components` runs out of means in every class but `DelayedConfigChange`, where
+            // it declares early (the review log's probe: 10 of 11 classes, 202 of 220 episodes).
+            // The claim is shown on several classes, not on one.
+            if spec == PolicySpec::AllComponents {
+                assert!(classes_bound >= 9, "{classes_bound} classes at {compute}");
             }
-        }
-        // `all_components` runs out of means in every class but `DelayedConfigChange`, where it
-        // declares early (the review log's probe: 10 of 11 classes, 202 of 220 episodes). The
-        // claim is shown on several classes, not on one.
-        if spec == PolicySpec::AllComponents {
-            assert!(classes_bound >= 9, "{classes_bound} classes");
         }
         assert!(
             final_declarations > 0,

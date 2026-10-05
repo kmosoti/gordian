@@ -7,8 +7,7 @@
 mod common;
 
 use common::*;
-use gordian_components::{ESTIMATOR_ID, HEURISTIC_ID, VERIFIER_ID};
-use gordian_run::manifest::{ArmSpec, EpisodeParams, IsolationSpec, Manifest, PRIVILEGED};
+use gordian_components::VERIFIER_ID;
 use gordian_run::policy::decide::DecideConfig;
 use gordian_run::policy::{PolicySpec, fixed_pipeline, random_matched};
 use gordian_run::recorder::execute;
@@ -16,109 +15,6 @@ use gordian_world::EpisodeClass;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
-
-/// The ten arms of the B1 grid (`experiments/exploration/scripts/mkmanifest.py`), by name.
-fn b1_arms() -> Vec<ArmSpec> {
-    let pipeline = |components: Vec<gordian_core::ComponentId>, every: u32| {
-        PolicySpec::FixedPipeline(fixed_pipeline::Config { components, every })
-    };
-    let arm = |name: &str, policy: PolicySpec| ArmSpec {
-        arm: name.to_owned(),
-        policy,
-    };
-    vec![
-        arm("heuristic_only", PolicySpec::HeuristicOnly),
-        arm("all_components", PolicySpec::AllComponents),
-        arm(
-            "random_p025",
-            PolicySpec::RandomMatched(random_matched::Config { p: 0.25 }),
-        ),
-        arm(
-            "random_p050",
-            PolicySpec::RandomMatched(random_matched::Config { p: 0.5 }),
-        ),
-        arm("fixed_verifier_only", pipeline(vec![VERIFIER_ID], 1)),
-        arm("fixed_estimator_only", pipeline(vec![ESTIMATOR_ID], 1)),
-        arm("fixed_heuristic_every2", pipeline(vec![HEURISTIC_ID], 2)),
-        arm("fixed_heuristic_every4", pipeline(vec![HEURISTIC_ID], 4)),
-        arm(
-            &format!("oracle_evidence_{PRIVILEGED}"),
-            PolicySpec::OracleEvidence,
-        ),
-        arm(
-            &format!("oracle_immediate_{PRIVILEGED}"),
-            PolicySpec::OracleImmediate,
-        ),
-    ]
-}
-
-/// An interleaved manifest of `arms` over `seeds` seeds of every class, at `compute` nanoseconds.
-fn grid_manifest(run_id: &str, arms: Vec<ArmSpec>, seeds: u64, compute: u64) -> Manifest {
-    let mut limits = limits();
-    limits.compute = compute;
-    Manifest {
-        run_id: run_id.to_owned(),
-        experiment: "test".to_owned(),
-        arm: arms[0].arm.clone(),
-        source_revision: "0".repeat(40),
-        lockfile_sha256: "0".repeat(64),
-        toolchain: "rustc test".to_owned(),
-        cpu_flags: vec!["avx2".to_owned()],
-        cpu_model: Some("test cpu".to_owned()),
-        cpu_mhz: Some(2100.0),
-        isolation: IsolationSpec::default(),
-        seeds: (0..seeds).collect(),
-        episode_classes: EpisodeClass::ALL
-            .iter()
-            .map(|c| (*c, seeds as u32))
-            .collect(),
-        policy: arms[0].policy.clone(),
-        arms,
-        run_seed: 0,
-        drift_block: 50,
-        decide: DecideConfig::default(),
-        limits,
-        episode_params: EpisodeParams::default(),
-        trace_sample_rate: 0.0,
-        internal_external_ratio: None,
-    }
-}
-
-/// The columns of `results.csv` that say what the arm concluded, as opposed to what it cost or
-/// when. These are the verdict columns of work item A6c.
-const VERDICT_COLUMNS: [&str; 7] = [
-    "success",
-    "critical_miss",
-    "false_alarm",
-    "abstained",
-    "undecided",
-    "probes_used",
-    "corrections",
-];
-
-/// `(arm, seed, class)` to the verdict columns joined by commas, over every arm of a run.
-fn verdicts(dir: &Path, arms: &[ArmSpec]) -> BTreeMap<(String, u64, String), String> {
-    let mut out = BTreeMap::new();
-    for arm in arms {
-        let csv = fs::read_to_string(dir.join(&arm.arm).join("results.csv")).unwrap();
-        let mut lines = csv.lines();
-        let header: Vec<&str> = lines.next().unwrap().split(',').collect();
-        let at = |name: &str| header.iter().position(|h| *h == name).unwrap();
-        let (seed, class) = (at("seed"), at("class"));
-        let columns: Vec<usize> = VERDICT_COLUMNS.iter().map(|c| at(c)).collect();
-        for line in lines {
-            let f: Vec<&str> = line.split(',').collect();
-            let key = (
-                arm.arm.clone(),
-                f[seed].parse().unwrap(),
-                f[class].to_owned(),
-            );
-            let value = columns.iter().map(|c| f[*c]).collect::<Vec<_>>().join(",");
-            assert!(out.insert(key, value).is_none(), "duplicate episode");
-        }
-    }
-    out
-}
 
 const FIXTURE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -180,52 +76,14 @@ fn verdicts_at_the_default_budget_are_those_the_rule_gave_before_decode_once() {
 
 // ---- the mechanism and its accounting ----
 
-use gordian_components::payload::{HypothesisEntry, Ranked, hypothesis_entry};
 use gordian_components::{ComponentOutput, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId};
-use gordian_run::policy::decide::{Decider, RULE_UNITS, Remaining, RuleOps};
+use gordian_run::policy::decide::{Decider, Remaining, RuleOps};
 use gordian_run::policy::{self, Built, Policy, PolicyId};
 use gordian_run::standard_components;
-use gordian_world::{Action, FaultKind, Hypothesis, ServiceId, generate};
+use gordian_world::{Action, FaultKind};
 use std::cell::Cell;
 use std::rc::Rc;
-
-fn count(ops: &RuleOps, unit: &str) -> u64 {
-    let at = RULE_UNITS.iter().position(|u| u.name == unit).unwrap();
-    ops.counts()[at]
-}
-
-fn candidates(source: &str, ranked: Vec<Hypothesis>) -> ComponentOutput {
-    let n = ranked.len() as u32;
-    let entry = HypothesisEntry::Candidates {
-        source: source.to_owned(),
-        basis: "test".to_owned(),
-        ranked: ranked
-            .into_iter()
-            .map(|hypothesis| Ranked {
-                hypothesis,
-                score: None,
-            })
-            .collect(),
-        tied_at_top: n,
-    };
-    ComponentOutput {
-        entries: vec![hypothesis_entry(&entry)],
-        ..ComponentOutput::default()
-    }
-}
-
-fn fault(kind: FaultKind, site: u32) -> Hypothesis {
-    Some((kind, ServiceId(site)))
-}
-
-fn fresh_state() -> WorkingState {
-    let l = limits();
-    WorkingState::new(
-        generate(&spec(3, EpisodeClass::Ambiguous, &l)).public_info(),
-        l.window,
-    )
-}
 
 /// The first time an output arrives it is decoded and counted; the same output arriving again is
 /// recognised, not decoded, not counted as decoded and not declared; an output that differs is
@@ -401,9 +259,13 @@ impl Policy for AgainstReference {
         add(&t.decoded_reference, count(&want, "decoded_outputs"));
         add(&t.ranked_arm, count(&got, "decoded_ranked"));
         add(&t.ranked_reference, count(&want, "decoded_ranked"));
-        // Everything but the decoding and the comparison is the same work.
-        for unit in ["calls", "worlds", "probe_evals"] {
-            assert_eq!(count(&got, unit), count(&want, unit), "{unit}");
+        // One call per call. The reference narrows and scores at every call, which the arm no
+        // longer does when nothing it narrows against has changed (work item A6d), so the arm's
+        // count of those can only be lower; `incremental_narrowing.rs` holds it to the rule as
+        // it was after A6c, which does equal work in everything but that.
+        assert_eq!(count(&got, "calls"), count(&want, "calls"), "calls");
+        for unit in ["worlds", "probe_evals"] {
+            assert!(count(&got, unit) <= count(&want, unit), "{unit}");
         }
         assert_eq!(
             count(&want, "compared_bytes"),
