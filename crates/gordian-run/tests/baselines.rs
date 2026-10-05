@@ -46,6 +46,8 @@ fn manifest(run_id: &str, arm: &str, policy: PolicySpec, seeds: u64) -> Manifest
         lockfile_sha256: "0".repeat(64),
         toolchain: "rustc test".to_owned(),
         cpu_flags: vec!["avx2".to_owned()],
+        cpu_model: Some("test cpu".to_owned()),
+        cpu_mhz: Some(2100.0),
         isolation: IsolationSpec::default(),
         seeds: (0..seeds).collect(),
         episode_classes: EpisodeClass::ALL
