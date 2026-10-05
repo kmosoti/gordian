@@ -4,6 +4,33 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A7b ratio interval — merged with a freeze condition
+
+**Re-verified.** Only `analysis/` and `experiments/exploration/` touched; the analysis suite passes
+on the branch and on the merged tree with `-W error` (262 passed, 4 slow tests deselected).
+
+**Result.** On B1's empirical paired costs at the planning sizes (1,237 and 1,713), false
+exceedance at true S = 0.20, out of a nominal 0.05, was: percentile up to 0.064, BCa up to 0.0675
+(at n = 40), studentized up to 0.0545 (0.0484 when that worst cell was extended to 10,000
+experiments). The studentized interval is the new default. Power at true S = 0.25 and 0.30 is
+essentially 1 at the planning sizes.
+
+**Noted.**
+
+- The rule choosing the default was stated after the simulation table was seen. It chooses an
+  instrument among reported alternatives, not a hypothesis outcome, so it is accepted, but it is
+  not preregistered.
+- The 0.06 bar is met on point estimates: three of eight acceptance cells have a 95% upper bound
+  above 0.06 at 2,000 experiments. On heavily skewed lognormal costs no method meets 0.06.
+- Derived data committed (paired-cost table, 360 KB; cell table, 25 KB) because the tests need it
+  without the binary; both are regenerable by script. Accepted.
+
+**Carried forward (freeze condition).** Before any experiment freezes on a ratio-of-totals
+criterion, rerun `experiments/exploration/scripts/a7b_calibrate.py` on that experiment's own
+exploration paired costs; the studentized interval must meet 0.06 with its 95% upper bound, not
+only its point estimate, at the frozen n. The original condition was written for EXP-001; it now
+applies to EXP-101 onward.
+
 ## Charter revised — approved by the user
 
 The user approved `docs/charter-revision-proposal.md`. The charter's sections 1, 5, 6, 7 and 12
