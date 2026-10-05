@@ -36,10 +36,10 @@ pub struct CallSummary {
     /// When its answer was delivered.
     #[serde(with = "timeserde::instant")]
     pub ready_at: Instant,
-    /// The observation the question was about, when the source knows it. `None` means the source
-    /// did not record it: `gordian_stream::oracle::CallTrace` does not carry the focus today, so
-    /// [`crate::calls_from_sim`] leaves it empty and the trajectory's own `Escalate` step is the
-    /// only source. When it is present it must equal the trajectory's (S35).
+    /// The observation the question was about, when the source knows it. [`crate::calls_from_sim`]
+    /// fills it from the stream's `CallTrace`; a source that does not know it leaves it `None`,
+    /// and the trajectory's own `Escalate` step is then the only source. When it is present it
+    /// must equal the trajectory's (S35).
     pub focus: Option<ObsId>,
     /// References in the context.
     pub refs: u32,

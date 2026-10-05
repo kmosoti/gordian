@@ -324,10 +324,18 @@ fn the_evaluators_reading_of_escalations_agrees_with_the_simulators_record() {
             });
         }
         let calls = calls_from_sim(&sim);
-        assert!(
-            calls.iter().all(|c| c.focus.is_none()),
-            "documented: focus not exposed"
-        );
+        // `calls_from_sim` fills the focus from the stream's trace (work item R3b); it is the
+        // focus of the escalation that made the call.
+        for (call, step) in calls.iter().zip(&steps) {
+            let StreamAction::Escalate {
+                question: Question::Diagnose { focus },
+                ..
+            } = &step.action
+            else {
+                unreachable!("every step here is an escalation");
+            };
+            assert_eq!(call.focus, Some(*focus), "seed {seed}");
+        }
         let v: StreamVerdict =
             score_stream(&truth, &steps, &calls).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
 
