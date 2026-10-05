@@ -44,7 +44,7 @@ mkdir -p "$out"
 # own prefix reuse (cache_prompt) is what keeps the shared system prompt and examples cached.
 "$root/scripts/cgroup-run.sh" --name "$run_id" --cpus 0-2 --cpu-quota 300 --memory 6G \
     --report "$out/usage.json" -- \
-    timeout "$timeout_s" "$llama" -m "$model" -c 16384 -t 3 -tb 3 -np 1 -cram 0 \
+    timeout "$timeout_s" "$llama" -m "$model" -c 16384 -t 3 -tb 3 -np 1 -cram 0 -fa on \
     --host 127.0.0.1 --port "$port" --seed 1 --no-webui \
     >"$out/server.log" 2>&1 &
 server_wait=$!
@@ -54,7 +54,8 @@ taskset -c 3 python3 "$scripts/r8_run.py" --design "$design" --questions "$quest
     --demos "$scripts/../r8-demos.json" --out "$out" --url "http://127.0.0.1:$port" \
     --model-label "$label" >>"$out/client.log" 2>&1 || status=$?
 
-pkill -TERM -f "llama-server.*--port $port" || true
+# Stop the server process only (not the runner around it, which must write usage.json).
+pkill -TERM -x llama-server || true
 wait "$server_wait" || true
 echo "client exit status: $status" >>"$out/client.log"
 exit "$status"

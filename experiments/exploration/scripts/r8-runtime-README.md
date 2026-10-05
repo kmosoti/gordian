@@ -43,7 +43,7 @@ The models are the files at the paths above; nothing else downloads anything at 
 
 - refuses to start while `cargo`, `rustc` or another llama process runs, or with under 4 GB free;
 - starts `llama-server` under `scripts/cgroup-run.sh --cpus 0-2 --cpu-quota 300 --memory 6G`, with
-  `-t 3 -tb 3 -np 1 -cram 0 -c 16384 --seed 1`: three threads, one slot, one model, the host-memory
+  `-t 3 -tb 3 -np 1 -cram 0 -fa on -c 16384 --seed 1`: three threads, flash attention on (llama-bench pp2048: 98.7 against 86.1 tokens per second, 1.5B model, one repeat; the pilot ran before this flag was added), one slot, one model, the host-memory
   prompt cache off, a 16,384-token context;
 - runs the client (`r8_run.py`), pinned to core 3, which makes the calls with temperature 0,
   `top_k` 1, seed 1, `max_tokens` 80 and `cache_prompt` on, and appends one line per call to
