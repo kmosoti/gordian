@@ -1,22 +1,24 @@
 """R8: choose the questions of a phase and list its calls, before any call is made.
 
 Usage: r8_design.py --phase pilot|main --questions Q.jsonl --out DESIGN.json
-                    [--n-hard N] [--n-plain M] [--levels 0,50,100,200,400]
-                    [--control] [--tiers hard,plain] [--first-hard K]
+                    --n-hard N --n-plain M
+                    --spec TIER:LEVELS[:control] [--spec ...] [--first-hard K] [--extra LEVEL:K]
+                    [--selected-out SELECTED.jsonl]
 
 Q.jsonl is the dumper's output for the phase's seeds (pilot 29000 upward, main 30000 upward). The
 rule that picks questions is `r8_common.select_questions`. The design file records the exclusions
 (incidents whose pool is smaller than the largest level), the questions with what the analysis
-needs about each, and the calls in the order the runner makes them: question by question, levels
-in the order of `--levels` and then the control (with `--control`), so that an interrupted run holds
-whole questions.
+needs about each, and the calls in the order the runner makes them: question by question (hard
+ones first, then plain), each question's levels in the order given and then its control, so that an
+interrupted run holds whole questions.
 
-`--tiers` says which of the selected questions get calls in this design, so that a main run can be
-made in stages from one question list: stage 1 is the hard questions at level 0 and the control (the
-identifiability precondition depends on nothing else), stage 2 the other levels of the hard
-questions and every level and the control of the plain ones. The stages are run in this order, and
-which model runs stage 2 is decided by stage 1's precondition (the plan's fallback rule), never by
-any other level's result.
+`--spec hard:0:control` makes the calls of the hard questions at level 0 and the control;
+`--spec plain:0,50,100,200,400:control` those of the plain questions at every level and the control.
+A main run is made in stages from one question list: stage 1 is `hard:0:control` (the identifiability
+precondition depends on nothing else), stage 2 is `hard:50,100,200,400` and
+`plain:0,50,100,200,400:control`. The stages are run in this order, and which model runs stage 2
+is decided by stage 1's precondition (the plan's fallback rule), never by any other level's result.
+`--first-hard K` keeps only the first K selected hard questions (the questions a second model runs).
 """
 
 import argparse
@@ -26,15 +28,24 @@ import json
 import r8_common as C
 
 
-def build(records, phase, n_hard, n_plain, levels, control, tiers, first_hard=None, extra=None):
+def parse_spec(items):
+    spec = {}
+    for item in items:
+        parts = item.split(":")
+        tier = parts[0]
+        levels = [int(x) for x in parts[1].split(",") if x != ""]
+        spec[tier] = (levels, len(parts) > 2 and parts[2] == "control")
+    return spec
+
+
+def build(records, phase, n_hard, n_plain, spec, first_hard=None, extra=None):
     hard, plain, ex = C.select_questions(records, n_hard, n_plain)
     if first_hard is not None:
         hard = hard[:first_hard]
     qs = hard + plain
     calls = []
     for q in qs:
-        if q["tier"].lower() not in tiers:
-            continue
+        levels, control = spec.get(q["tier"].lower(), ([], False))
         for m in levels:
             calls.append({"qkey": C.qkey(q), "level": m})
         if control:
@@ -47,9 +58,8 @@ def build(records, phase, n_hard, n_plain, levels, control, tiers, first_hard=No
         c["call_id"] = i
     return {
         "phase": phase,
-        "levels": list(levels),
-        "control": control,
-        "tiers": sorted(tiers),
+        "spec": {t: {"levels": v[0], "control": v[1]} for t, v in spec.items()},
+        "extra": list(extra) if extra else None,
         "n_hard": len(hard),
         "n_plain": len(plain),
         "exclusions": ex,
@@ -84,9 +94,12 @@ def main():
     ap.add_argument("--n-hard", type=int, default=0)
     ap.add_argument("--n-plain", type=int, default=0)
     ap.add_argument("--first-hard", type=int, default=None)
-    ap.add_argument("--levels", default=",".join(str(m) for m in C.LEVELS))
-    ap.add_argument("--control", action="store_true")
-    ap.add_argument("--tiers", default="hard,plain")
+    ap.add_argument("--spec", action="append", required=True)
+    ap.add_argument(
+        "--selected-out",
+        default=None,
+        help="write the selected questions' full records here (the file the runner reads)",
+    )
     ap.add_argument(
         "--extra",
         default=None,
@@ -94,8 +107,6 @@ def main():
     )
     args = ap.parse_args()
     records = C.load_jsonl(args.questions)
-    levels = [int(x) for x in args.levels.split(",") if x != ""]
-    tiers = set(args.tiers.split(","))
     extra = None
     if args.extra:
         lv, k = args.extra.split(":")
@@ -105,18 +116,22 @@ def main():
         args.phase,
         args.n_hard,
         args.n_plain,
-        levels,
-        args.control,
-        tiers,
+        parse_spec(args.spec),
         args.first_hard,
         extra,
     )
     with open(args.out, "w") as f:
         json.dump(design, f, indent=1)
         f.write("\n")
+    if args.selected_out:
+        chosen = {q["qkey"] for q in design["questions"]}
+        with open(args.selected_out, "w") as f:
+            for r in records:
+                if C.qkey(r) in chosen:
+                    f.write(json.dumps(r) + "\n")
     print(
         f"{design['phase']}: {design['n_hard']} hard, {design['n_plain']} plain questions selected, "
-        f"{len(design['calls'])} calls for {design['tiers']}, exclusions {design['exclusions']}"
+        f"{len(design['calls'])} calls, spec {design['spec']}, exclusions {design['exclusions']}"
     )
 
 

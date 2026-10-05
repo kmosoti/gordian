@@ -42,12 +42,17 @@ COLUMNS = (0, 50, 100, 200, 400, "control")
 Z90 = 1.6448536269514722
 
 
-def load_calls(path):
+def load_calls(paths):
+    """The calls of one or more call files (the stages of one model's run), in order. Each call
+    keeps its `call_id` and gains `source`, the file's name, so ids stay unique across files."""
     calls = []
-    with open(path) as f:
-        for line in f:
-            if line.strip():
-                calls.append(json.loads(line))
+    for path in [paths] if isinstance(paths, str) else paths:
+        with open(path) as f:
+            for line in f:
+                if line.strip():
+                    c = json.loads(line)
+                    c["source"] = os.path.basename(os.path.dirname(os.path.abspath(path)))
+                    calls.append(c)
     return calls
 
 
@@ -308,12 +313,16 @@ def fit_row(label, res):
     }
 
 
-def run(calls_path, design_path, prefix, label, b):
-    calls = load_calls(calls_path)
+def run(calls_paths, design_paths, prefix, label, b):
+    calls = load_calls(calls_paths)
     bad = reparse(calls)
     if bad:
         raise SystemExit(f"stored parses disagree with the parser for {len(bad)} calls: {bad[:3]}")
-    design = json.load(open(design_path)) if design_path else {}
+    designs = [json.load(open(p)) for p in (design_paths or [])]
+    design = {
+        "exclusions": designs[0]["exclusions"] if designs else {},
+        "calls": [c for d in designs for c in d["calls"]],
+    }
     out = {}
     levels, fits = [], []
     for tier in ("Hard", "Plain"):
@@ -323,6 +332,10 @@ def run(calls_path, design_path, prefix, label, b):
         levels.extend(levels_rows(calls, tier, mat, b, S.SEED))
         res = S.analyse(mat, b, S.SEED)
         res["incidents_seen"] = n_seen
+        if tier == "Plain":
+            # The plain set is secondary: its delta is a labelled proxy and claims no regime.
+            res["regions_by_the_criterion_formula"] = res["outcome"]
+            res["outcome"] = "plain proxy: no regime claimed"
         out[tier.lower()] = res
         fits.append(fit_row(tier.lower() + ("" if tier == "Hard" else " (labelled proxy)"), res))
     write_csv(prefix + "levels.csv", levels)
@@ -358,8 +371,9 @@ def run(calls_path, design_path, prefix, label, b):
     write_csv(prefix + "counts.csv", counts)
     meta = {
         "label": label,
-        "calls_file": os.path.basename(calls_path),
-        "calls_sha256": hashlib.sha256(open(calls_path, "rb").read()).hexdigest(),
+        "calls_files": {
+            p: hashlib.sha256(open(p, "rb").read()).hexdigest() for p in calls_paths
+        },
         "calls": len(calls),
         "results": out,
     }
@@ -439,8 +453,8 @@ def main():
         selftest()
         return
     ap = argparse.ArgumentParser()
-    ap.add_argument("calls")
-    ap.add_argument("--design")
+    ap.add_argument("calls", nargs="+")
+    ap.add_argument("--design", action="append")
     ap.add_argument("--out-prefix", required=True)
     ap.add_argument("--label", default="")
     ap.add_argument("--bootstrap", type=int, default=S.B)
