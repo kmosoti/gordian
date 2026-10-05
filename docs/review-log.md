@@ -4,6 +4,35 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A8 interleaved arms — merged; A/A fails on an idle machine
+
+**Re-verified.** Merged cleanly onto A6b; fmt, clippy (`--locked`), 293 workspace tests with
+`--no-fail-fast`, the oracle guard, the driver test (62) and the analysis suite (212), on exit
+codes.
+
+**Worker's evidence.** Interleaving removes a large between-run effect: sequential A/A runs gave
+12 of 20 intervals excluding 0 (sd of S 0.151), interleaved runs 0 of 21 (sd 0.037). The worker's
+runs shared the machine with another worker.
+
+**Coordinator's idle-machine A/A** (through the driver, cores 0–2, shell on core 3):
+
+| Run | S | 90% interval | Contains 0 | Drift CV |
+|---|---|---|---|---|
+| heuristic only, run seed 1 | −0.7% | [−5.8%, +3.7%] | yes | 0.12 |
+| heuristic only, run seed 2 | −2.9% | [−5.9%, +0.1%] | yes | 0.03 |
+| heuristic only, run seed 3 | +5.4% | [+0.5%, +10.0%] | no | 0.27 |
+| all components, run seed 1 | −6.9% | [−13.3%, −1.4%] | no | 0.11 |
+
+The per-block minimum timing was stable to about 2% while the mean moved up to 80%; `/proc/stat`
+shows non-zero steal time. In the all-components run five episodes carried 51% of the total
+absolute difference, and S without them was +0.9%; the median per-episode log ratio was near 0 in
+every run. Interference from the host arrives in bursts that hit one copy of an episode and not
+the other, and a ratio of totals is sensitive to them.
+
+**Decided.** The plan's A8 rule applies: counted operations are built before B1 (item A8b), and the
+charter's cost `C` becomes deterministic modelled cost, with wall time as a secondary check. This
+is a change of measurement made before any experiment is frozen.
+
 ## A6b final declaration — merged
 
 **Re-verified.** All gates on exit codes; the `all_components` row at 60 µs reproduced exactly

@@ -461,6 +461,45 @@ measured-cost difference whose 90% interval contains 0, with drift and position 
 reported. If it does not, interleaving is insufficient and the counted-operations alternative
 (deterministic per-component work counters) is built before B1.
 
+### A8b Counted operations as the primary cost (required before B1)
+
+Triggered by A8's acceptance rule. On an idle machine, through the driver, two of four A/A runs gave
+a 90% interval for S excluding 0 (+5.4% [+0.5%, +10.0%] and −6.9% [−13.3%, −1.4%]); about one in ten
+is expected by chance. The cause is CPU time stolen by the VM host (`/proc/stat` steal is
+non-zero): a few interrupted episodes dominate a ratio of totals. In the −6.9% run five episodes
+carried 51% of the total absolute difference, and dropping them moved S to +0.9%. The per-block
+minimum timing was stable to about 2% while the mean moved up to 80%. Interleaving removes slow
+drift but not bursts that hit one copy of an episode and not the other.
+
+Deliverable:
+
+1. **Counters.** Every component, the shared decision rule, and the world's checker count the work
+   they do in declared units: observations scanned, worlds or hypotheses evaluated, records
+   compared, probe outcomes simulated. The checker's reference function stays unchanged; the
+   counting goes in the optimized one or in a wrapper, with an equivalence test that counting does
+   not change results. Counting must be deterministic and must not be settable by a policy.
+2. **Recording.** Per episode, `results.csv` gains `ops_component` and `ops_sched` (deterministic,
+   so protocol replay covers them). The schema guard in the analysis package follows.
+3. **Weights.** A calibration step converts each component's operations to nanoseconds using the
+   *minimum* over repeated timings of fixed windows (minimum, because interference only ever adds
+   time), on an idle core through `scripts/cgroup-run.sh`. The weights are constants in code with
+   their calibration record, like A5's cost constants.
+4. **Validity.** Across generated windows of every class, weighted operations must track the
+   minimum wall time per call with R² ≥ 0.9 for every component and for the rule; report the fit
+   and its residual shape. If a component fails, its counter does not measure its work, and that
+   is fixed before B1, not averaged away.
+5. **Analysis.** `modelled_cost_ns` (weighted operations) becomes the default cost for
+   `--relative-savings`; measured wall time stays available and is reported alongside as a
+   secondary check.
+
+Acceptance: the A/A check on `modelled_cost_ns` is exactly S = 0, because the cost is
+deterministic. The meaningful test is therefore the validity fit in item 4, plus a
+non-identical-arm check: `all_components` against `heuristic_only` gives a modelled-cost ratio
+within the 90% interval of the wall-time ratio's median-of-episodes estimate.
+
+The charter's `C` becomes modelled cost. This is a change of measurement, decided before any
+experiment is frozen, and recorded in the review log.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
