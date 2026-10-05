@@ -1,0 +1,7 @@
+run,arms,arms_in_r5_record,results_identical,incidents_identical,differing
+r5-heldout-b2.5-rho0,41,41,41,41,none
+r5-heldout-b2.5-rho0.7,54,54,54,54,none
+r5-heldout-b5-rho0,54,54,54,54,none
+r5-heldout-b5-rho0.7,53,53,53,53,none
+r5-heldout-b8-rho0,60,60,60,60,none
+r5-heldout-b8-rho0.7,55,55,55,55,none
