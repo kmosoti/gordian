@@ -1,0 +1,72 @@
+[
+ {
+  "source": "28000:13",
+  "user": "First alarm of the incident (its site is s0):\n+0 s0 errors=84\n\nObservations (time in seconds relative to the first alarm):\n-40 s3(connected) msg #c181 Medium\n-34 s3 restarts=48\n-30 s0 restarts=22\n-28 s4 authfail=18\n-12 s6 errors=90\n-4 s6 errors=5\n-4 s1(connected) msg #83cd Medium\n+0 s0 errors=84\n+0 s0 authfail=99\n+0 s7 errors=82\n+0 s0(site) msg Unauthorized Low\n+0 s5 errors=66\n+0 s4 errors=72\n+0 s1 errors=74\n+0 s6 errors=93\n+0 s3 errors=78\n+0 s2 errors=68\n+9 s5(connected) msg ServiceDown High\n+18 s1(connected) msg #6925 Low\n+22 s1 latency=98\n+23 s5 errors=34\n+35 s5 authfail=48\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: no. connected free-form: yes. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: Unauthorized.\nANSWER: CredentialExpired s0"
+ },
+ {
+  "source": "28001:10",
+  "user": "First alarm of the incident (its site is s1):\n+0 s1 errors=99\n\nObservations (time in seconds relative to the first alarm):\n-33 s9 errors=35\n-27 s9 restarts=10\n-25 s2 snapshot unchanged\n-21 s11(connected) msg MixedSignals Low\n-13 s2 latency=12\n-10 s10 errors=39\n+2 s9 errors=15\n+8 s4(unconnected) msg #a96f Low\n+10 s1(site) msg #c924 Critical\n+16 s1(site) msg #a96f High\n+18 s7 errors=76\n+21 s5 restarts=13\n+23 s10 errors=98\n+26 s4 restarts=19\n+28 s4(unconnected) msg UpstreamUnreachable Medium\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: no. unconnected free-form: yes. MixedSignals at the site and elsewhere: no. Kind message at the site: none.\nANSWER: Cascade s1"
+ },
+ {
+  "source": "28000:2",
+  "user": "First alarm of the incident (its site is s4):\n+0 s4 errors=81\n\nObservations (time in seconds relative to the first alarm):\n-10 s0 restarts=48\n-6 s2(connected) msg ServiceDown Low\n-5 s0(connected) msg UpstreamUnreachable Critical\n+0 s6 errors=4\n+1 s1 errors=76\n+2 s1(unconnected) msg Unauthorized Critical\n+3 s1 errors=87\n+12 s4(site) msg #9eae Critical\n+13 s4(site) msg OutOfResource High\n+13 s4 latency=91\n+13 s4 saturation=87\n+14 s4(site) msg #ba31 Medium\n+15 s4(site) msg #ba31 High\n+19 s1 errors=69\n+19 s2 latency=19\n+21 s1 errors=10\n+23 s5 errors=28\n+30 s0 saturation=20\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: no. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: OutOfResource.\nANSWER: Compound s4"
+ },
+ {
+  "source": "28001:20",
+  "user": "First alarm of the incident (its site is s7):\n+0 s7 errors=69\n\nObservations (time in seconds relative to the first alarm):\n-36 s3 restarts=60\n-33 s6 saturation=30\n-5 s4(connected) msg #fcc3 High\n-1 s6 errors=49\n+0 s7 errors=69\n+0 s7 restarts=86\n+0 s7(site) msg ServiceDown High\n+0 s7 latency=100\n+0 s11 errors=86\n+0 s11 latency=65\n+0 s10 latency=63\n+0 s10 errors=99\n+0 s10(connected) msg UpstreamUnreachable High\n+0 s11(connected) msg UpstreamUnreachable Critical\n+2 s2 errors=9\n+5 s5(connected) msg Unauthorized Critical\n+10 s11(connected) msg #eebd Critical\n+12 s6 latency=69\n+13 s2 errors=64\n+32 s2 errors=85\n+35 s6 errors=69\n+38 s3(connected) msg ConfigRejected Medium\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: no. connected free-form: yes. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: ServiceDown.\nANSWER: DependencyDown s7"
+ },
+ {
+  "source": "28007:19",
+  "user": "First alarm of the incident (its site is s2):\n+0 s2 errors=86\n\nObservations (time in seconds relative to the first alarm):\n-33 s0 errors=4\n-13 s6(connected) msg #ee82 High\n-12 s9(connected) msg MixedSignals Medium\n-7 s3 latency=46\n-6 s7(connected) msg #320f Medium\n-2 s3(unconnected) msg #64ea High\n+6 s9 errors=75\n+8 s2(site) msg #9a5c Medium\n+8 s9(connected) msg #b3ed High\n+12 s3 errors=8\n+14 s2(site) msg #9a5c Critical\n+16 s5(unconnected) msg MixedSignals Low\n+22 s4(connected) msg #8575 Low\n+23 s0(connected) msg UpstreamUnreachable Medium\n+35 s6 errors=40\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: yes. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: none.\nANSWER: SplitBrain s2"
+ },
+ {
+  "source": "28007:31",
+  "user": "First alarm of the incident (its site is s5):\n+0 s5 errors=79\n\nObservations (time in seconds relative to the first alarm):\n-39 s6 errors=97\n-37 s3 errors=92\n-31 s3 errors=79\n-29 s9 errors=26\n-26 s3 errors=34\n-20 s8 errors=68\n-18 s8 errors=14\n-13 s2 errors=46\n-7 s5 restarts=42\n-3 s7 errors=89\n+8 s4(unconnected) msg #8575 Critical\n+9 s4(unconnected) msg #e390 Critical\n+9 s5(site) msg #e390 Critical\n+11 s5(site) msg #e390 Low\n+16 s4 errors=94\n+16 s4 latency=60\n+16 s7 errors=91\n+16 s6 errors=94\n+16 s8 errors=77\n+18 s0 errors=75\n+20 s2 errors=75\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: no. unconnected free-form: yes. MixedSignals at the site and elsewhere: no. Kind message at the site: none.\nANSWER: Cascade s5"
+ },
+ {
+  "source": "28007:2",
+  "user": "First alarm of the incident (its site is s8):\n+0 s8 errors=70\n\nObservations (time in seconds relative to the first alarm):\n-8 s4 errors=5\n-8 s9(connected) msg Flapping Critical\n-7 s9(connected) msg #e764 Low\n-3 s2 latency=70\n-3 s8 authfail=0\n+2 s7 errors=87\n+4 s7(unconnected) msg #77a7 Medium\n+7 s8(site) msg #f612 Critical\n+13 s8(site) msg #7ee3 Medium\n+13 s8(site) msg #7ee3 High\n+13 s0(connected) msg ServiceDown Low\n+20 s1 errors=66\n+29 s6(connected) msg #5624 High\n+30 s1 errors=16\n+39 s8 restarts=24\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: no. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: none.\nANSWER: Compound s8"
+ },
+ {
+  "source": "28000:0",
+  "user": "First alarm of the incident (its site is s5):\n+0 s5 errors=70\n\nObservations (time in seconds relative to the first alarm):\n-9 s1 latency=15\n-8 s7 saturation=0\n+0 s5 errors=70\n+0 s5(site) msg ConfigRejected Critical\n+0 s6 errors=67\n+1 s0(connected) msg #caca High\n+4 s1 errors=76\n+9 s6(connected) msg #1b65 High\n+9 s4 authfail=45\n+15 s5(site) msg ServiceDown Low\n+16 s1 errors=98\n+17 s4(unconnected) msg #6520 Low\n+31 s2 saturation=38\n+38 s4 saturation=20\n+39 s4 errors=30\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: no. connected free-form: yes. unconnected free-form: yes. MixedSignals at the site and elsewhere: no. Kind message at the site: ConfigRejected, ServiceDown.\nANSWER: ConfigDrift s5"
+ },
+ {
+  "source": "28014:0",
+  "user": "First alarm of the incident (its site is s0):\n+0 s0 errors=66\n\nObservations (time in seconds relative to the first alarm):\n-9 s8 restarts=35\n-7 s0(site) msg #477b Critical\n-4 s0 errors=0\n+3 s10(connected) msg CheckHealth Low\n+7 s3 errors=100\n+7 s3 latency=80\n+7 s3(connected) msg MixedSignals Critical\n+9 s0(site) msg #a656 Critical\n+10 s0(site) msg #87bd Medium\n+10 s3(connected) msg #cb2c High\n+11 s3(connected) msg #2020 Critical\n+11 s8(connected) msg #fc87 Medium\n+14 s10 authfail=100\n+15 s7 saturation=72\n+16 s0(site) msg Flapping Medium\n+24 s5 errors=79\n+26 s7 restarts=8\n+28 s4(connected) msg ConfigRejected Critical\n+39 s4 authfail=61\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: yes. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: Flapping.\nANSWER: SplitBrain s0"
+ },
+ {
+  "source": "28004:10",
+  "user": "First alarm of the incident (its site is s9):\n+0 s9 errors=74\n\nObservations (time in seconds relative to the first alarm):\n-38 s1 errors=69\n-22 s6 restarts=25\n-21 s6(unconnected) msg UpstreamUnreachable Medium\n-9 s4 errors=81\n-8 s4(unconnected) msg #450e High\n-8 s3 errors=96\n+2 s8 restarts=8\n+2 s1 errors=31\n+4 s1 restarts=44\n+5 s1 latency=15\n+5 s8 errors=16\n+10 s9(site) msg #7aa2 Medium\n+13 s9(site) msg #399c High\n+13 s9(site) msg #67ae Low\n+13 s2 errors=31\n+14 s9(site) msg OutOfResource Critical\n+14 s9 saturation=90\n+14 s9 latency=83\n+14 s9(site) msg #399c Critical\n+15 s9(site) msg #67ae Medium\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: no. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: OutOfResource.\nANSWER: Compound s9"
+ },
+ {
+  "source": "28008:24",
+  "user": "First alarm of the incident (its site is s6):\n+0 s6 errors=91\n\nObservations (time in seconds relative to the first alarm):\n-35 s0(connected) msg ConfigRejected Critical\n-32 s6 errors=44\n-21 s1 saturation=24\n-17 s9 authfail=31\n-12 s3(unconnected) msg #ba81 Critical\n-10 s3(unconnected) msg #68f8 Low\n+10 s2(connected) msg #ebee Low\n+11 s6(site) msg #c967 High\n+13 s3 authfail=2\n+14 s3(unconnected) msg #68f6 High\n+14 s6(site) msg #68f6 Critical\n+22 s10(connected) msg ServiceDown Medium\n+24 s2 authfail=88\n+29 s2(connected) msg ConfigRejected Medium\n+31 s3(unconnected) msg OutOfResource Low\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: yes. unconnected free-form: yes. MixedSignals at the site and elsewhere: no. Kind message at the site: none.\nANSWER: Cascade s6"
+ },
+ {
+  "source": "28000:8",
+  "user": "First alarm of the incident (its site is s7):\n+0 s7 errors=87\n\nObservations (time in seconds relative to the first alarm):\n-39 s0(connected) msg Unauthorized Low\n-17 s5 restarts=63\n-11 s2(unconnected) msg #8d8e High\n-5 s4 saturation=38\n-3 s0 restarts=22\n-3 s1 errors=16\n+0 s7 errors=87\n+0 s7(site) msg Flapping High\n+0 s7 latency=90\n+14 s3 errors=96\n+14 s6 authfail=87\n+24 s0(connected) msg MixedSignals High\n+26 s4(unconnected) msg #3dea High\n+29 s2(unconnected) msg CheckHealth Low\n+37 s2 saturation=93\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: no. connected free-form: no. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: Flapping.\nANSWER: Intermittent s7"
+ },
+ {
+  "source": "28010:8",
+  "user": "First alarm of the incident (its site is s6):\n+0 s6 errors=84\n\nObservations (time in seconds relative to the first alarm):\n-33 s7(unconnected) msg #6580 High\n-29 s7 latency=100\n-24 s7 errors=93\n-23 s7(unconnected) msg ConfigRejected Medium\n-12 s7 errors=64\n-10 s3 latency=24\n-8 s7 authfail=43\n+4 s6 snapshot unchanged\n+5 s2 errors=2\n+8 s10(connected) msg ConfigRejected Medium\n+12 s6(site) msg #fb3f High\n+13 s6(site) msg #ef3a Low\n+13 s10(connected) msg #d383 High\n+13 s10(connected) msg #ef3a Medium\n+16 s6(site) msg #fb3f Critical\n+28 s3(connected) msg OutOfResource Critical\n+29 s2 errors=23\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: yes. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: none.\nANSWER: SplitBrain s6"
+ },
+ {
+  "source": "28014:10",
+  "user": "First alarm of the incident (its site is s0):\n+0 s0 errors=89\n\nObservations (time in seconds relative to the first alarm):\n-38 s3(connected) msg CheckHealth High\n-29 s5(connected) msg OutOfResource Low\n-24 s6 restarts=16\n-23 s5 errors=29\n-22 s6(connected) msg #f97b Low\n-13 s8 errors=35\n-4 s2 errors=84\n+6 s10(connected) msg Flapping Critical\n+6 s2 errors=65\n+7 s0(site) msg #adff Low\n+8 s0(site) msg #adff Critical\n+9 s0(site) msg #6061 High\n+11 s0(site) msg #f31f Medium\n+13 s0(site) msg #adff High\n+14 s2 errors=60\n+28 s2 errors=37\n+36 s9 errors=90\n\nWhat is wrong? Reply with the Evidence line and the ANSWER line.",
+  "answer": "Evidence: site free-form: yes. connected free-form: no. unconnected free-form: no. MixedSignals at the site and elsewhere: no. Kind message at the site: none.\nANSWER: Compound s0"
+ }
+]
