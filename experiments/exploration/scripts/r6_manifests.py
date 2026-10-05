@@ -137,7 +137,6 @@ def diag(selected):
     s = selected[C.setting_id(b, rho)]
     d = s["selection_delay_s"]
     arms = [C.sel_arm(key, d) for key in s["diag_sel_configs"]]
-    arms += [C.always_arm(key, dd) for key, dd in s["diag_always_configs"].items()]
     arms.append(C.ctxonly_arm(d))
     arms.append(C.reference_arms()[0])
     write("diag", b, rho, C.DIAG_SEEDS, arms, 1.0, 6400, "exploration-r6-trace")
