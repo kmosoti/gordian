@@ -60,6 +60,8 @@ def main():
               4000, "exploration-r4-pilot")
     elif stage == "tune":
         for i, (b, rho) in enumerate(C.SETTINGS):
+            if (C.MANIFESTS / (C.run_id("tune", b, rho) + ".json")).exists():
+                continue  # already written (and perhaps run) at an earlier revision
             write("tune", b, rho, C.TUNING_SEEDS, C.baseline_arms() + C.reference_arms(), 0.0,
                   4100 + i, "exploration-r4-tuning")
     elif stage == "heldout":
