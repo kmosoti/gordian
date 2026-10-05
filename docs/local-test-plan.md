@@ -850,6 +850,132 @@ driver; nothing is built while one runs.
 **Reading the hidden record.** This worker changes the reasoner and so may read `HIDDEN-DESIGN.md`
 section 11. It builds no public arm.
 
+### R8 Distractor sensitivity of a real small model (before EXP-102 is preregistered)
+
+R7 found that R6's context finding is fragile.
+
+- Simple builders capture the context lever only if irrelevant references cost the reasoner about
+  δ ≤ 0.05 per 100 references.
+- At δ ≥ 0.1, choosing the references is worth 0.14 to 0.34 of hard-incident quality.
+
+Simulation cannot say which regime holds. R8 measures one real model's δ on this world's own
+questions. It is an exploration item, not EXP-106. Its result is an estimate for one model, not a
+claim about models in general. Approved by the user on 2026-10-05.
+
+**Model and runtime.**
+
+- **Model:** Qwen2.5-1.5B-Instruct, GGUF, Q4_K_M quantization, downloaded once. Its sha256 is
+  recorded and the file is kept outside git under `artifacts/models/` (ignored).
+- **Fallback:** if the identifiability check below fails, Qwen2.5-3B-Instruct at the same
+  quantization. This is chosen now, not after seeing results. If the 3B model also fails, R8 stops
+  and reports that.
+- **Runtime:** llama.cpp, built from a pinned release tag, used as its command-line or server
+  binary, or through `llama-cpp-python` at a pinned version. The worker records which, with:
+  - the requirement: local CPU inference with deterministic greedy decoding and prompt caching;
+  - the simpler alternative considered;
+  - the cost: build time and disk.
+- **Where it lives:** in a separate virtual environment, never in `analysis/` or the Rust
+  workspace.
+- **Decoding:** greedy (temperature 0), a fixed seed, and a fixed maximum of output tokens.
+- **Isolation:**
+  - Every inference process runs under `scripts/cgroup-run.sh` on cores 0-2 with 3 threads and a
+    6 GB memory limit.
+  - Nothing else runs on cores 0-2 meanwhile.
+  - One model is loaded at a time.
+
+**Questions.** All questions are built from new stream seeds (30000 upward), never the tuning or
+held-out seeds of R4 to R7. A new feature-gated example in `crates/gordian-stream` (beside `dump`,
+behind the oracle feature) writes, per incident:
+
+- the focus observation;
+- the incident's full decisive evidence;
+- its truth;
+- a pool of candidate distractors: every other observation within ±40 s of the focus, from
+  background and other incidents.
+
+It is evaluator-side and is added to the oracle guard's allowlist like `dump`.
+
+- **Families:** hard incidents, slow leak excluded. Plain incidents are a separate, secondary set.
+- **Contexts:** all of the decisive evidence (q = 1) plus `m` distractors drawn without
+  replacement from the pool by a seeded generator, sorted by time as a window builder sorts them.
+  An incident whose pool is smaller than the largest `m` is excluded from the design before any
+  call. The count is reported.
+- **Levels:** m ∈ {0, 50, 100, 200, 400}. Each question appears at every level, so the comparison
+  across levels is paired.
+- **Control:** q = 0 at m = 50, with no decisive evidence. This estimates the guess rate `p0`.
+- **Prompt:** one fixed system prompt states the knowledge the simulated reasoner has.
+  - It includes the first world's public physics and the hard families' rules, from
+    `HIDDEN-DESIGN.md` sections 4 and 4.2.
+  - The reasoner is the hidden side's stand-in for broad knowledge. This is not an arm, and the
+    arm-knowledge rule does not apply to it.
+  - The prompt asks for one answer, in a fixed format, from the enumerated hypotheses: each known
+    and hard kind at each service, or "not an incident".
+  - An answer that does not parse is wrong. The parse-failure rate is reported per level.
+- **Rendering and freezing:** the prompt, the rendering of an observation as text, and the
+  parser are committed before any scored call. Report the measured tokens per reference against
+  the stream's declared 20.
+
+**Pilot (not scored).** 10 questions on a separate seed range (29000 upward), at m = 0 and
+m = 400. It measures:
+
+- prompt and answer throughput, to size the work;
+- the parse rate.
+
+The pilot decides two things before the main run:
+
+- **N:** questions per level, at most 120, chosen so that the whole run fits in 4 hours of wall
+  time on cores 0-2.
+- **Whether to use the fallback model:** if pilot accuracy at m = 0 is under 0.2, switch to the
+  fallback model before the main run. The rule and the reason are recorded.
+
+Prompt wording may be fixed after the pilot, with every change recorded, but never after a scored
+call.
+
+**Recording.** Every call's prompt hash, full response, parsed answer, latency and token counts
+are written at the boundary to `artifacts/runs/r8-*/calls.jsonl`. A call is never repeated to
+replay state. The analysis reads only that file.
+
+**Estimate.** Accuracy `A(m)` is the share of correct answers at each level. The fit is
+`A(m) = p0 + (A(0) − p0) · exp(−δ · m / 100)`, by least squares over the five levels, with `p0`
+fixed at the control's estimate. δ̂ gets a 90% cluster bootstrap over incidents (10,000
+resamples, seed 9800), refitting in every resample. A nonparametric reading, `A(m)` with intervals
+per level, is reported beside it. If the exponential misfits visibly, that is reported, and δ̂ is
+then described as a summary, not a law.
+
+**Criterion, fixed by the coordinator before any R8 code or call (2026-10-05).**
+
+- **Identifiability precondition:** on hard incidents, A(0) ≥ 0.35, with its 90% lower bound above
+  the control's estimate plus 0.15. If it fails for both models, the outcome is **unidentifiable
+  with these models**.
+  - In that case, δ̂ on plain incidents is reported as a labelled proxy and no regime is claimed.
+- **R6 regime:** the 90% upper bound of δ̂ is below 0.05. Under this model, simple builders
+  capture the context lever. EXP-102 claims references or cost at matched quality.
+- **R7 regime:** the 90% lower bound of δ̂ is above 0.10. Under this model, choosing references
+  has quality headroom. EXP-102 claims quality and references together.
+- **Unresolved:** anything else, including an interval that straddles 0.05 to 0.10. A point
+  estimate between the regions is reported as such.
+
+Feasibility: δ̂ is unconstrained by the design, so every outcome is reachable. Before the main
+run, the worker computes the half-width of δ̂'s interval implied by the pilot's accuracy and the
+chosen N. If that half-width exceeds 0.05, so that neither regime could be claimed even at a
+favourable point estimate, it says so in writing before the main run.
+
+**Reported beside the criterion:**
+
+- A(m) on plain incidents.
+- Accuracy by the position of the first decisive reference: first, middle or last third.
+- Parse failures per level.
+- Tokens per reference.
+- Wall time per call against context length.
+
+**Resource envelope.**
+
+- Model 1–2 GB.
+- Build under 1 GB.
+- Run outputs under 200 MB.
+- At most 4 hours of inference.
+- The worker checks free disk (at least 4 GB) before the download.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
