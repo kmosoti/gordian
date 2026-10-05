@@ -50,7 +50,7 @@ fn check_truth(truth: &StreamTruth) -> Result<(), StreamEvalError> {
     }
     for (i, label) in truth.labels.iter().enumerate() {
         if let ObsLabel::Incident { id, .. } = label
-            && *id as usize >= truth.incidents.len()
+            && (*id as usize) >= truth.incidents.len()
         {
             return Err(StreamEvalError::LabelOfUnknownIncident {
                 obs: ObsId(i as u32),
@@ -68,7 +68,7 @@ fn check_named(
     at: Instant,
     obs: ObsId,
 ) -> Result<(), StreamEvalError> {
-    if obs.0 as usize >= truth.labels.len() {
+    if (obs.0 as usize) >= truth.labels.len() {
         return Err(StreamEvalError::UnknownObservation { index, obs });
     }
     if let Some(id) = truth.incident_of(obs)
