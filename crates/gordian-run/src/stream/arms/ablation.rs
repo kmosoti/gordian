@@ -3,7 +3,7 @@
 //! **This is an ablation, not a baseline, and never an arm of a comparison.** It exists so that
 //! the headroom check (R4) can show what knowledge of the hidden rules is worth: the gap between
 //! it and the plain cheap rung is what the hard tier asks of knowledge alone, and the gap between
-//! it and the reasoner is what the reasoner adds beyond that knowledge (`DESIGN.md` of the stream
+//! it and the reasoner is what the reasoner adds beyond that knowledge (`HIDDEN-DESIGN.md` of the stream
 //! world, sections 4.2 and 12). Every other file in this directory is forbidden to know what this
 //! one knows; the manifest rejects the arm unless its name contains `ablation`, and every
 //! `results.csv` row carries `arm_role = ablation`. A test checks that this is the only arm file

@@ -603,9 +603,16 @@ Hand-written fixtures written from the tier definitions, not generated; mutation
 ### R3 Stream harness and conventional baselines (`crates/gordian-run`, new module)
 
 **Arm knowledge.** Baselines and the substrate may use the stream's public rules and what they
-learn from their own run history, never the hidden rules described in `gordian-stream/DESIGN.md`
-(AGENTS.md, "The rule that matters most"). A knowledge-injected cheap rung is built only as a
-labelled ablation, so R4 can show how much hidden-rule knowledge would be worth.
+learn from their own run history, never the hidden rules described in
+`gordian-stream/HIDDEN-DESIGN.md` (AGENTS.md, "The rule that matters most"). A knowledge-injected
+cheap rung is built only as a labelled ablation, so R4 can show how much hidden-rule knowledge
+would be worth.
+
+A worker writing an arm reads `gordian-stream/PUBLIC.md` and not `HIDDEN-DESIGN.md`. A worker
+building the world, the evaluator or a privileged ceiling may read both. A worker who reads the
+hidden record says so in its report. Exploration reports and the review log also describe hidden
+structure; an arm worker treats a finding there as a hypothesis its arm must earn from public
+evidence, never as a rule to encode.
 
 **Dependency direction.** `gordian-stream` dev-depends on `gordian-run` for its cheap-rung tests.
 When `gordian-run` gains a dependency on `gordian-stream`, move those tests into `gordian-run` and

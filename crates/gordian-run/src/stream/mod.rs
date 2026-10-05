@@ -75,7 +75,7 @@
 //! # The arm-knowledge rule
 //!
 //! Baselines and the substrate may use the stream's public rules and what they learn from their
-//! own run history, never the hidden rules of `gordian-stream/DESIGN.md` (AGENTS.md, "The rule
+//! own run history, never the hidden rules of `gordian-stream/HIDDEN-DESIGN.md` (AGENTS.md, "The rule
 //! that matters most"). The shared rung encodes none of them: its only knowledge is the first
 //! world's physics, through the components and the shared rule, and public statistics. The
 //! knowledge-injected cheap rung exists only as `ablation_hidden_rules`.

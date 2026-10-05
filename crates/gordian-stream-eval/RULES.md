@@ -112,7 +112,7 @@ incident; read them with the counts (S23, S24) and the cost (S26).
 
 - `StreamOutcome::Probed`, `Escalated` and `Declared` mean the stream accepted and carried out
   the action. `Refused` means it charged nothing and changed nothing.
-- The stream never reports whether a `Declare` or an answer was right (`DESIGN.md` of
+- The stream never reports whether a `Declare` or an answer was right (`HIDDEN-DESIGN.md` of
   `gordian-stream`, section 14, route 22), so correctness comes only from the truth and from the
   call summaries.
 - Reasoner answers are `StreamEvent::Answered`, delivered by `observe_until`, not steps. The
@@ -148,7 +148,7 @@ incident; read them with the counts (S23, S24) and the cost (S26).
 7. **A `Some` declaration anchored on background is a false alarm** (S18), and a `None` anchored
    there is nothing. The plan names decoys, not background; a mini-burst is the stream's own
    believable non-incident, and an anchor on it is "a declaration about nothing"
-   (`gordian-stream/DESIGN.md`, section 10).
+   (`gordian-stream/HIDDEN-DESIGN.md`, section 10).
 8. **An anchor's time can only be checked against the incident's onset** (S34). The truth carries
    no per-observation instants, so a declaration anchored on an observation of an incident that
    exists but is not yet delivered at the step's instant is not caught here. The stream refuses

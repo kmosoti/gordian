@@ -27,7 +27,7 @@ pub const MS: u64 = 1_000_000;
 pub const MIN_MEAN_GAP_NS: u64 = 100 * MS;
 
 /// Fixed timing structure of every incident. These are constants of the world, not parameters:
-/// the indistinguishability argument of `DESIGN.md` section 5 depends on them together.
+/// the indistinguishability argument of `HIDDEN-DESIGN.md` section 5 depends on them together.
 pub mod timing {
     use super::SEC;
 
@@ -182,7 +182,7 @@ pub struct ReasonerCostSpec {
     /// Tokens added by each reference in the context.
     pub per_ref_tokens: u64,
     /// Modelled nanoseconds per token. The default puts one call at about `10^5` times a typical
-    /// component call (`DESIGN.md`, section 6).
+    /// component call (`PUBLIC.md`; the derivation is in `HIDDEN-DESIGN.md`, section 11).
     pub ns_per_token: u64,
     /// Logical time between the call and its answer, nanoseconds.
     pub latency_base_ns: u64,
@@ -221,7 +221,7 @@ impl ReasonerCostSpec {
     }
 }
 
-/// The simulated reasoner (`DESIGN.md`, section 11). A call is *informed* with probability
+/// The simulated reasoner (`HIDDEN-DESIGN.md`, section 11). A call is *informed* with probability
 /// `h(q, d) = (sigma(a + b q - c d) - sigma(a - c d)) / (1 - sigma(a - c d))`, which is zero at
 /// `q = 0` and rises with `q`; an informed call answers the truth, an uninformed one answers a
 /// guess computed from the context and the public rules alone. Whether calls about one incident
@@ -309,7 +309,7 @@ pub struct StreamParams {
 }
 
 impl StreamParams {
-    /// The default parameters with `seed`. The justification of each default is in `DESIGN.md`,
+    /// The default parameters with `seed`. The justification of each default is in `HIDDEN-DESIGN.md`,
     /// section 6.
     pub fn new(seed: u64) -> Self {
         Self {

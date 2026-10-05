@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// The three kinds of incident a stream contains. The tier of an incident is hidden state: a
 /// policy never receives it, and the generator is built so that no public statistic of the first
-/// moments separates a hard incident from a decoy (`DESIGN.md`, section 5).
+/// moments separates a hard incident from a decoy (`HIDDEN-DESIGN.md`, section 5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Tier {
     /// Obeys the first world's public physics. The cheap rung identifies it from the stream or
@@ -22,7 +22,7 @@ pub enum Tier {
 
 /// Fault kinds whose rules are not in the first world's public physics. A policy can name them
 /// in a hypothesis; the rules that produce their symptoms are known only to the simulated
-/// reasoner (`DESIGN.md`, section 3).
+/// reasoner (`HIDDEN-DESIGN.md`, section 3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum HardKind {
     /// Two known fault kinds at one site at once. The site is the faulty service.

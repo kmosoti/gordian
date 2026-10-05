@@ -666,7 +666,7 @@ tier, family and criticality of each incident are the same in every arm. Determi
 
 **The family label is hidden state, and where it may appear.** The hard-fault family (`compound`,
 `cascade`, `split_brain`, `slow_leak`) is the hidden kind of a hard incident
-(`gordian-stream/DESIGN.md`): a policy that knew it would know which rules apply. The headroom check
+(`gordian-stream/HIDDEN-DESIGN.md`): a policy that knew it would know which rules apply. The headroom check
 (R4) has to report gaps per family, so the label has to be written somewhere. The decision, and the
 reasons:
 

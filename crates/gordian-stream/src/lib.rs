@@ -11,7 +11,7 @@
 //!   scheduled instants part of the public physics changes without announcement.
 //! - [`StreamSimulator`]: the policy-facing interface, `observe_until(now)` and
 //!   `apply(action, now)`, with the actions `Probe`, `Escalate` and `Declare`.
-//! - The simulated reasoner (its law is stated in `reasoner.rs` and in `DESIGN.md`): informed with
+//! - The simulated reasoner (its law is stated in `reasoner.rs` and in `HIDDEN-DESIGN.md`): informed with
 //!   a probability that is zero without decisive evidence in the context, otherwise a guess from
 //!   the context and the public rules; paid for before it answers, answering after a declared
 //!   latency.
@@ -20,10 +20,10 @@
 //! # What is not built
 //!
 //! The stream evaluator (R2), the stream harness and baselines (R3), and the headroom check (R4).
-//! Nothing here claims that a policy can or cannot do well; `DESIGN.md` states what each part of
+//! Nothing here claims that a policy can or cannot do well; `HIDDEN-DESIGN.md` states what each part of
 //! the construction guarantees and how each guarantee is tested.
 //!
-//! Design choices and every way a policy might infer hidden state are in `DESIGN.md`.
+//! Design choices and every way a policy might infer hidden state are in `HIDDEN-DESIGN.md`.
 
 #![forbid(unsafe_code)]
 

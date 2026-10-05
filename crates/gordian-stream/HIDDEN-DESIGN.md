@@ -1,4 +1,12 @@
-# gordian-stream: design record
+# gordian-stream: hidden design record
+
+**Experimenter knowledge. Do not read this file to write an arm.** It describes the hidden side of
+the stream world: the tiers' rules, the hard families, recurrence, regime changes, the noise
+composition, the simulated reasoner's law and the default parameters. Someone writing a policy,
+baseline or substrate reads [`PUBLIC.md`](PUBLIC.md), which holds everything a policy may know.
+Someone who reads this file states it in their report. This file was `DESIGN.md` until 2026-10-05.
+The review log and exploration reports written before then cite it under that name; the section
+numbers are unchanged.
 
 Work item R1 of `docs/local-test-plan.md`. This file records every rule of the stream world,
 how each tier is built, the simulated reasoner's law, the default parameters and why they are what
@@ -12,8 +20,8 @@ observation vocabulary, service graph, fault kinds, probe semantics and public p
 what the charter's section 5 asks for: a resource ladder, persistent streams, and relevance that
 costs computation to judge.
 
-**The rule for anyone writing an arm: the hidden-rule sections are experimenter knowledge, not arm
-knowledge.** Sections 4 and 5 describe the hidden rules of the hard incidents, because a reviewer must
+**The rule for anyone writing an arm: this file is experimenter knowledge, not arm
+knowledge.** Sections 4 and 5, for example, describe the hidden rules of the hard incidents, because a reviewer must
 be able to check the construction. An arm (a baseline, the substrate, any policy) may encode only the
 first world's public physics and what it learns from its own run history. A policy that hard-codes
 the hidden rules (for example "two characteristic messages at one site means a compound fault") is a

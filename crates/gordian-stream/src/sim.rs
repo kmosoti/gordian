@@ -22,7 +22,7 @@
 //! observing, belongs to exactly one incident or to none, and is what the policy already uses to
 //! say which incident it is talking about when it escalates. The evaluator resolves the anchor
 //! with the stream's labels; an anchor on background is a declaration about nothing. See
-//! `DESIGN.md`, section 7.
+//! `HIDDEN-DESIGN.md`, section 7.
 //!
 //! # Time
 //!

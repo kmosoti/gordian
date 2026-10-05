@@ -51,7 +51,7 @@ pub struct Exchange {
 }
 
 impl Default for Exchange {
-    /// The stream's own declared price (250,000 ns a token, `DESIGN.md` section 11), so that by
+    /// The stream's own declared price (250,000 ns a token, `gordian-stream/PUBLIC.md`), so that by
     /// default the converted reasoner cost equals the world's declared one.
     fn default() -> Self {
         Self {
