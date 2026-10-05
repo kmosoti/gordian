@@ -145,6 +145,14 @@ pub struct Manifest {
     pub toolchain: String,
     /// The `flags` line of the first processor in `/proc/cpuinfo`.
     pub cpu_flags: Vec<String>,
+    /// The `model name` line of the first processor in `/proc/cpuinfo`, or `None` where the
+    /// host does not report one (and in manifests written before the field existed). The flags
+    /// alone do not say which host a wall-time check ran on (review log, A8b).
+    pub cpu_model: Option<String>,
+    /// The `cpu MHz` line of the first processor in `/proc/cpuinfo`, read once at manifest time.
+    /// The nominal frequency a VM reports, not a measurement of what the core ran at. `None`
+    /// where absent.
+    pub cpu_mhz: Option<f64>,
     /// How the driver isolates the run.
     pub isolation: IsolationSpec,
     /// The seeds, in order. Class `c` with count `n` runs the first `n` seeds.
@@ -201,6 +209,10 @@ struct RawManifest {
     lockfile_sha256: String,
     toolchain: String,
     cpu_flags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cpu_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cpu_mhz: Option<f64>,
     isolation: IsolationSpec,
     seeds: Vec<u64>,
     episode_classes: Vec<(EpisodeClass, u32)>,
@@ -231,6 +243,8 @@ impl From<Manifest> for RawManifest {
             lockfile_sha256: m.lockfile_sha256,
             toolchain: m.toolchain,
             cpu_flags: m.cpu_flags,
+            cpu_model: m.cpu_model,
+            cpu_mhz: m.cpu_mhz,
             isolation: m.isolation,
             seeds: m.seeds,
             episode_classes: m.episode_classes,
@@ -276,6 +290,8 @@ impl TryFrom<RawManifest> for Manifest {
             lockfile_sha256: r.lockfile_sha256,
             toolchain: r.toolchain,
             cpu_flags: r.cpu_flags,
+            cpu_model: r.cpu_model,
+            cpu_mhz: r.cpu_mhz,
             isolation: r.isolation,
             seeds: r.seeds,
             episode_classes: r.episode_classes,
@@ -506,6 +522,8 @@ impl Manifest {
             lockfile_sha256: env.lockfile_sha256,
             toolchain: env.toolchain,
             cpu_flags: env.cpu_flags,
+            cpu_model: env.cpu_model,
+            cpu_mhz: env.cpu_mhz,
             isolation: IsolationSpec::default(),
             seeds: (seed_start..seed_start + u64::from(seed_count)).collect(),
             episode_classes: EpisodeClass::ALL
@@ -528,7 +546,7 @@ impl Manifest {
 }
 
 /// The parts of a manifest that describe the machine and the source, captured at the boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
     /// `git rev-parse HEAD`.
     pub source_revision: String,
@@ -538,6 +556,18 @@ pub struct Environment {
     pub toolchain: String,
     /// CPU feature flags from `/proc/cpuinfo`.
     pub cpu_flags: Vec<String>,
+    /// `model name` of the first processor, if reported.
+    pub cpu_model: Option<String>,
+    /// `cpu MHz` of the first processor, if reported and numeric.
+    pub cpu_mhz: Option<f64>,
+}
+
+/// The value after the colon of the first line of `cpuinfo` whose key is `key`.
+fn cpuinfo_value(cpuinfo: &str, key: &str) -> Option<String> {
+    cpuinfo.lines().find_map(|line| {
+        let (k, v) = line.split_once(':')?;
+        (k.trim() == key).then(|| v.trim().to_owned())
+    })
 }
 
 fn command_output(program: &str, args: &[&str], dir: &Path) -> Result<String, String> {
@@ -572,11 +602,65 @@ impl Environment {
             .and_then(|l| l.split_once(':'))
             .map(|(_, flags)| flags.split_whitespace().map(str::to_owned).collect())
             .unwrap_or_default();
+        let cpu_model = cpuinfo_value(&cpuinfo, "model name").filter(|m| !m.is_empty());
+        let cpu_mhz = cpuinfo_value(&cpuinfo, "cpu MHz")
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite() && *v > 0.0);
         Ok(Environment {
             source_revision,
             lockfile_sha256,
             toolchain,
             cpu_flags,
+            cpu_model,
+            cpu_mhz,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CPUINFO: &str = "processor\t: 0\nvendor_id\t: GenuineIntel\n\
+model name\t: Intel(R) Xeon(R) Processor @ 2.10GHz\ncpu MHz\t\t: 2100.000\n\
+flags\t\t: fpu avx2\n\nprocessor\t: 1\nmodel name\t: Other\ncpu MHz\t\t: 3000.000\n";
+
+    #[test]
+    fn cpuinfo_values_come_from_the_first_processor() {
+        assert_eq!(
+            cpuinfo_value(CPUINFO, "model name").as_deref(),
+            Some("Intel(R) Xeon(R) Processor @ 2.10GHz")
+        );
+        assert_eq!(
+            cpuinfo_value(CPUINFO, "cpu MHz").as_deref(),
+            Some("2100.000")
+        );
+        assert_eq!(cpuinfo_value(CPUINFO, "bogomips"), None);
+        // A key that merely starts with the wanted one is not the wanted one.
+        assert_eq!(cpuinfo_value("model name extra: x\n", "model name"), None);
+    }
+
+    #[test]
+    fn the_cpu_fields_round_trip_and_older_manifests_still_parse() {
+        let text = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../analysis/tests/fixtures/real_a/manifest.json"),
+        )
+        .expect("the real-output fixture exists");
+        let old: Manifest = serde_json::from_str(&text).expect("a manifest without the fields");
+        assert_eq!(old.cpu_model, None);
+        assert_eq!(old.cpu_mhz, None);
+        // Absent stays absent: re-serializing adds no keys to an older manifest.
+        assert!(!old.canonical_json().contains("cpu_model"));
+        assert!(!old.canonical_json().contains("cpu_mhz"));
+
+        let new = Manifest {
+            cpu_model: Some("Intel(R) Xeon(R) Processor @ 2.10GHz".to_owned()),
+            cpu_mhz: Some(2100.0),
+            ..old
+        };
+        let back: Manifest = serde_json::from_str(&new.canonical_json()).unwrap();
+        assert_eq!(back, new);
+        assert!(new.canonical_json().contains("\"cpu_mhz\": 2100.0"));
     }
 }
