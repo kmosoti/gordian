@@ -55,7 +55,7 @@ fn secs(s: u64) -> Instant {
 fn never_escalates_nothing_and_always_escalates_each_anomaly_once() {
     let views = [view(1), view(2)];
     assert!(Never.targets(secs(5), &views).is_empty());
-    let mut always = Always;
+    let mut always = Always::default();
     assert_eq!(always.targets(secs(5), &views), vec![1, 2]);
     let mut tried = view(2);
     tried.attempts = 1;
@@ -177,12 +177,77 @@ fn random_draws_once_per_anomaly_whatever_happened_before() {
 }
 
 #[test]
+fn always_with_a_delay_escalates_each_anomaly_once_that_long_after_it_was_noticed() {
+    let mut rule = Always::new(8_000_000_000);
+    let mut v = view(1); // noticed at 1 s
+    assert!(
+        rule.targets(secs(5), &[v.clone()]).is_empty(),
+        "4 s after notice"
+    );
+    assert!(rule.targets(secs(8), &[v.clone()]).is_empty(), "7 s after");
+    assert_eq!(
+        rule.targets(secs(9), &[v.clone()]),
+        vec![1],
+        "exactly 8 s after"
+    );
+    assert_eq!(
+        rule.targets(secs(12), &[v.clone()]),
+        vec![1],
+        "still due until tried"
+    );
+    v.attempts = 1;
+    assert!(rule.targets(secs(13), &[v]).is_empty(), "once");
+    // Two anomalies noticed at different instants come due at different steps.
+    let (a, mut b) = (view(1), view(2));
+    b.noticed_at = secs(4);
+    assert_eq!(rule.targets(secs(9), &[a.clone(), b.clone()]), vec![1]);
+    assert_eq!(rule.targets(secs(12), &[a, b]), vec![1, 2]);
+    // A delay of zero is the arm as it was: every untried anomaly, whatever its notice time.
+    let mut late = view(3);
+    late.noticed_at = secs(50);
+    assert_eq!(Always::new(0).targets(secs(5), &[late]), vec![3]);
+}
+
+#[test]
+fn random_with_a_delay_makes_the_same_draws_and_escalates_the_selected_ones_later() {
+    let seed = [7u8; 32];
+    let views: Vec<AnomalyView> = (0..40).map(view).collect(); // all noticed at 1 s
+    let selected = Random::new(0.5, seed).targets(secs(1), &views);
+    assert!(!selected.is_empty() && selected.len() < 40);
+    let mut delayed = Random::with_delay(0.5, 8_000_000_000, seed);
+    assert!(
+        delayed.targets(secs(1), &views).is_empty(),
+        "drawn at notice, not yet due"
+    );
+    assert!(
+        delayed.targets(secs(8), &views).is_empty(),
+        "7 s after notice"
+    );
+    assert_eq!(
+        delayed.targets(secs(9), &views),
+        selected,
+        "the same anomalies, 8 s after notice"
+    );
+    assert!(delayed.targets(secs(10), &views).is_empty(), "each once");
+    // An anomaly the rung does not list when it is due waits until it is listed again.
+    let mut gone = Random::with_delay(1.0, 8_000_000_000, seed);
+    assert!(gone.targets(secs(1), &views[..3]).is_empty());
+    assert_eq!(gone.targets(secs(20), &views[1..2]), vec![1]);
+    assert_eq!(gone.targets(secs(30), &views[..3]), vec![0, 2]);
+    // Delay 0 is the arm as it was.
+    assert_eq!(
+        Random::with_delay(0.5, 0, seed).targets(secs(1), &views),
+        selected
+    );
+}
+
+#[test]
 fn a_call_in_flight_holds_the_cheap_declaration_by_default() {
     let mut v = view(1);
     assert!(!Never.holds(&v));
     v.pending = 1;
     assert!(Never.holds(&v));
-    assert!(Always.holds(&v));
+    assert!(Always::default().holds(&v));
 }
 
 // ---- One decision procedure
@@ -234,7 +299,10 @@ fn arms_that_escalate_alike_are_the_same_arm() {
         let p = params(seed, 200);
         let never = run_row(&p, &StreamPolicySpec::Never);
         for other in [
-            StreamPolicySpec::Random { p: 0.0 },
+            StreamPolicySpec::Random {
+                p: 0.0,
+                delay_ns: 0,
+            },
             StreamPolicySpec::Periodic {
                 period_ns: 1_000_000_000_000,
             },
@@ -245,10 +313,13 @@ fn arms_that_escalate_alike_are_the_same_arm() {
         ] {
             assert_eq!(never, run_row(&p, &other), "{other:?} seed {seed}");
         }
-        let always = run_row(&p, &StreamPolicySpec::Always);
+        let always = run_row(&p, &StreamPolicySpec::Always { delay_ns: 0 });
         assert_ne!(never, always, "escalating changes the row");
         for other in [
-            StreamPolicySpec::Random { p: 1.0 },
+            StreamPolicySpec::Random {
+                p: 1.0,
+                delay_ns: 0,
+            },
             StreamPolicySpec::Threshold {
                 tau: -1e9,
                 wait_ns: 6_000_000_000,
@@ -265,7 +336,7 @@ fn escalating_changes_what_is_declared_and_never_what_is_noticed() {
     let l = limits(&p);
     let never = play(&p, &StreamPolicySpec::Never, &l).unwrap();
     for spec in [
-        StreamPolicySpec::Always,
+        StreamPolicySpec::Always { delay_ns: 0 },
         StreamPolicySpec::Periodic {
             period_ns: 10_000_000_000,
         },
@@ -274,7 +345,10 @@ fn escalating_changes_what_is_declared_and_never_what_is_noticed() {
             tau: 3.5,
             wait_ns: 6_000_000_000,
         },
-        StreamPolicySpec::Random { p: 0.5 },
+        StreamPolicySpec::Random {
+            p: 0.5,
+            delay_ns: 0,
+        },
     ] {
         let record = play(&p, &spec, &l).unwrap();
         assert_eq!(
@@ -288,7 +362,7 @@ fn escalating_changes_what_is_declared_and_never_what_is_noticed() {
 #[test]
 fn a_reasoner_answer_outranks_the_cheap_rung_and_is_declared_where_it_was_asked() {
     let p = params(5, 200);
-    let record = play(&p, &StreamPolicySpec::Always, &limits(&p)).unwrap();
+    let record = play(&p, &StreamPolicySpec::Always { delay_ns: 0 }, &limits(&p)).unwrap();
     assert!(record.verdict.totals.reasoner.calls > 0);
     assert!(record.counts.reasoner_declarations > 0);
     // Every escalation names a focus, and an answer is declared on the observation it was about:

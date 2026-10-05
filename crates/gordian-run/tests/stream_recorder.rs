@@ -288,6 +288,56 @@ fn a_policy_is_written_as_its_id_or_with_its_parameters_and_stray_parameters_are
         serde_json::to_string(&StreamPolicySpec::from_id("threshold_score").unwrap()).unwrap(),
         r#"{"policy":"threshold_score","tau":3.5,"wait_ns":6000000000}"#
     );
+    // The delay after notice: its default is zero and a zero is not written, so a manifest written
+    // before the parameter existed is the text a manifest of the same arm has now.
+    let delayed = from(r#"{"policy": "always_escalate", "delay_ns": 8000000000}"#).unwrap();
+    assert_eq!(
+        delayed,
+        StreamPolicySpec::Always {
+            delay_ns: 8_000_000_000
+        }
+    );
+    assert_eq!(
+        serde_json::to_string(&delayed).unwrap(),
+        r#"{"policy":"always_escalate","delay_ns":8000000000}"#
+    );
+    assert_eq!(
+        from(r#"{"policy": "random_escalation", "p": 0.3, "delay_ns": 4000000000}"#).unwrap(),
+        StreamPolicySpec::Random {
+            p: 0.3,
+            delay_ns: 4_000_000_000
+        }
+    );
+    assert_eq!(
+        from(r#"{"policy": "random_escalation", "p": 0.3}"#).unwrap(),
+        StreamPolicySpec::Random {
+            p: 0.3,
+            delay_ns: 0
+        }
+    );
+    assert_eq!(
+        serde_json::to_string(&StreamPolicySpec::Random {
+            p: 0.3,
+            delay_ns: 0
+        })
+        .unwrap(),
+        r#"{"policy":"random_escalation","p":0.3}"#
+    );
+    assert_eq!(
+        serde_json::to_string(&StreamPolicySpec::Always { delay_ns: 0 }).unwrap(),
+        "\"always_escalate\""
+    );
+    for stray in [
+        "periodic_escalation",
+        "threshold_score",
+        "never_escalate",
+        "change_triggered",
+    ] {
+        assert!(
+            from(&format!(r#"{{"policy": "{stray}", "delay_ns": 1}}"#)).is_err(),
+            "{stray} has no delay"
+        );
+    }
     assert!(from(r#"{"policy": "never_escalate", "p": 0.5}"#).is_err());
     assert!(from(r#"{"policy": "random_escalation", "p": 1.5}"#).is_err());
     assert!(from(r#"{"policy": "periodic_escalation", "period_ns": 0}"#).is_err());

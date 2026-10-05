@@ -40,7 +40,7 @@ fn run(m: &StreamManifest, name: &str) -> PathBuf {
 fn a_segment_is_scored_by_the_evaluator_and_its_totals_agree_with_the_trajectory_and_the_bill() {
     let specs = [
         StreamPolicySpec::Never,
-        StreamPolicySpec::Always,
+        StreamPolicySpec::Always { delay_ns: 0 },
         StreamPolicySpec::from_id("threshold_score").unwrap(),
         StreamPolicySpec::Oracle,
     ];
@@ -122,7 +122,7 @@ fn a_segment_is_scored_by_the_evaluator_and_its_totals_agree_with_the_trajectory
                     assert_eq!(t.reasoner.tokens, 0, "{who}");
                     assert_eq!(e.hard_incidents_escalated + e.other_incidents_escalated, 0);
                 }
-                StreamPolicySpec::Always => {
+                StreamPolicySpec::Always { .. } => {
                     assert!(t.reasoner.calls > 0, "{who}");
                     assert!(
                         e.unneeded + e.background > 0,
