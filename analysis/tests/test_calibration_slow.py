@@ -1,6 +1,6 @@
 """The A7b acceptance simulation at full size. Excluded from the default run (marker `slow`).
 
-    cd analysis && .venv/bin/python -W error -m pytest -m slow -q          # all four, about 1 h
+    cd analysis && .venv/bin/python -W error -m pytest -m slow -q          # all four, about 45 min
     cd analysis && .venv/bin/python -W error -m pytest -m slow -q -k 60k   # one population
 
 Acceptance (docs/local-test-plan.md, A7b): with true S exactly at the 0.20 threshold, the

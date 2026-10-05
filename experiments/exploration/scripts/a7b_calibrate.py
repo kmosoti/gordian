@@ -96,9 +96,11 @@ def provenance():
 def held(path):
     out = {}
     if pathlib.Path(path).exists():
-        for line in open(path):
-            r = json.loads(line)
-            out[(r["population"], round(r["savings"], 3), r["n"], r["resamples"], r["first"], r["n_exp"])] = r
+        with open(path) as fh:
+            for line in fh:
+                r = json.loads(line)
+                out[(r["population"], round(r["savings"], 3), r["n"], r["resamples"], r["first"],
+                     r["n_exp"])] = r
     return out
 
 
@@ -137,6 +139,17 @@ def table(rows, methods=RATIO_METHODS):
     return "\n".join(out)
 
 
+def width_table(rows, methods=RATIO_METHODS):
+    out = ["| population | n | " + " | ".join(methods) + " |", "|---|---|" + "---|" * len(methods)]
+    for r in rows:
+        cells = []
+        for m in methods:
+            unb = f", {r['unbounded'][m]} unbounded" if r["unbounded"][m] else ""
+            cells.append(f"{r['mean_width'][m]:.4f}{unb}")
+        out.append(f"| {r['population']} | {r['n']} | " + " | ".join(cells) + " |")
+    return "\n".join(out)
+
+
 def report(path):
     rows = list(held(path).values())
     if not rows:
@@ -146,6 +159,23 @@ def report(path):
     print(f"numpy {prov['numpy']}, scipy {prov['scipy']}, python {prov['python']}, "
           f"paired-costs sha256 {prov['paired_costs_sha256']}\n")
     order = {p: i for i, p in enumerate(ALL_POPS)}
+    # extension runs (first > 0) are reported pooled with the cell they extend, not as cells
+    main_rows = [r for r in rows if r["first"] == 0]
+    ext = [r for r in rows if r["first"] > 0]
+    for e in ext:
+        base = [r for r in main_rows if (r["population"], round(r["savings"], 3), r["n"], r["resamples"])
+                == (e["population"], round(e["savings"], 3), e["n"], e["resamples"])]
+        if not base:
+            sys.exit(f"extension {e['population']} n={e['n']} has no first-run cell to pool with")
+        pooled = {**e, "n_exp": e["n_exp"] + base[0]["n_exp"],
+                  "exceed": {m: e["exceed"][m] + base[0]["exceed"][m] for m in e["exceed"]},
+                  "failed": {m: e["failed"][m] + base[0]["failed"][m] for m in e["failed"]}}
+        print(f"### extension, {e['population']} n={e['n']}, true S = {e['savings']}, {e['resamples']} "
+              f"resamples: experiments {base[0]['n_exp']} + {e['n_exp']} = {pooled['n_exp']} "
+              f"(first {base[0]['n_exp']}: separately, in the table of its cell)\n")
+        print(table([pooled]))
+        print()
+    rows = main_rows
     for savings in sorted({round(r["savings"], 3) for r in rows}):
         for B in sorted({r["resamples"] for r in rows}):
             sel = [r for r in rows if round(r["savings"], 3) == savings and r["resamples"] == B]
@@ -157,21 +187,49 @@ def report(path):
                   f"{sorted({r['n_exp'] for r in sel})} experiments per cell\n")
             print(table(sel))
             print()
+            if savings == cal.THRESHOLD:
+                print(f"mean width of the interval, true S = {savings}, {B} resamples "
+                      "(experiments with finite limits; unbounded = lower limit -inf)\n")
+                print(width_table(sel))
+                print()
+
+
+def export(path, out):
+    """One CSV row per (cell, method): the raw counts behind every rate in the document."""
+    import csv
+
+    rows = sorted(held(path).values(), key=lambda r: (r["savings"], r["resamples"], ALL_POPS.index(r["population"]),
+                                                      r["n"], r["first"]))
+    with open(out, "w", newline="") as fh:
+        w = csv.writer(fh, lineterminator="\n")
+        w.writerow(["population", "true_savings", "n", "first_experiment", "experiments", "resamples", "method",
+                    "exceed", "rate", "mc_se", "failed", "unbounded", "mean_low", "mean_width"])
+        for r in rows:
+            for m in RATIO_METHODS:
+                p = r["exceed"][m] / r["n_exp"]
+                w.writerow([r["population"], r["savings"], r["n"], r["first"], r["n_exp"], r["resamples"], m,
+                            r["exceed"][m], f"{p:.5f}", f"{(p * (1 - p) / r['n_exp']) ** 0.5:.5f}", r["failed"][m],
+                            r["unbounded"][m], f"{r['mean_low'][m]:.6f}", f"{r['mean_width'][m]:.6f}"])
+    print(f"wrote {out}: {len(rows)} cells")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("stage", choices=["null", "power", "report"])
+    ap.add_argument("stage", choices=["null", "power", "report", "export"])
     ap.add_argument("--results", default=str(DEFAULT_RESULTS))
     ap.add_argument("--n-exp", type=int, default=2000)
     ap.add_argument("--resamples", type=int, default=DEFAULT_RESAMPLES)
     ap.add_argument("--pops", nargs="+", default=ALL_POPS, choices=ALL_POPS)
     ap.add_argument("--sizes", nargs="+", type=int, default=list(cal.SIZES))
     ap.add_argument("--first", type=int, default=0, help="index of the first experiment (extension runs)")
+    ap.add_argument("--csv", default=str(ROOT / "experiments" / "exploration" / "data" / "a7b-calibration-cells.csv"),
+                    help="output of the export stage")
     a = ap.parse_args()
     WORK.mkdir(parents=True, exist_ok=True)
     if a.stage == "report":
         report(a.results)
+    elif a.stage == "export":
+        export(a.results, a.csv)
     elif a.stage == "null":
         run_stage(a.results, a.pops, [cal.THRESHOLD], a.sizes, a.n_exp, a.resamples, a.first)
     else:
