@@ -24,3 +24,5 @@ include = ["gordian_analysis*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: long simulations, excluded from the default run; select with -m slow"]
+addopts = "-m 'not slow'"

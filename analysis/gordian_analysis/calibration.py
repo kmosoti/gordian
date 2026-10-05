@@ -171,9 +171,11 @@ def simulate_cell(
     """Run experiments `first .. first + n_exp - 1` of one cell.
 
     Each experiment: draw n paired episodes, take `resamples` bootstrap resamples of them once,
-    and build each requested method's interval from those same resamples. A method that raises
-    (BCa or the studentized interval undefined for that sample) is counted in `failed` and does
-    not count as an exceedance; nothing is dropped from the denominator.
+    and build each requested method's interval from those same resamples. A method whose interval
+    is undefined for that sample (it raises ValueError) is counted in `failed` and does not count
+    as an exceedance; nothing is dropped from the denominator. An error in the resampling itself
+    (a zero total, S undefined) propagates: the simulation has no policy for data where S does
+    not exist, and none of the populations here produces it.
     """
     exceed = dict.fromkeys(methods, 0)
     failed = dict.fromkeys(methods, 0)
