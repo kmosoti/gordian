@@ -1,4 +1,4 @@
-"""gordian-analyze: paired comparison and power commands."""
+"""gordian-analyze: paired comparison, power and stream-summary commands."""
 
 from __future__ import annotations
 
@@ -43,8 +43,10 @@ from .load import (
     check_metric,
     load_pair,
     load_run,
+    load_stream_run,
 )
 from .power import equivalence_n, noninferiority_n
+from .stream import format_summary, summarize_run
 
 SMALL_N = 30
 
@@ -834,6 +836,13 @@ def build_parser() -> argparse.ArgumentParser:
     k.add_argument("--resamples", type=int, default=DEFAULT_RESAMPLES)
     k.add_argument("--json", metavar="FILE", help="also write the result as JSON")
 
+    m = sub.add_parser("stream-summary", help="per-arm totals, pooled ratios and cost of a stream "
+                       "run (the stream harness, work item R3b)")  # fmt: skip
+    m.add_argument("--run", required=True, metavar="RUNDIR",
+                   help="the run directory of a stream run: one subdirectory per arm, each with "
+                   "results.csv and incidents.csv")  # fmt: skip
+    m.add_argument("--json", metavar="FILE", help="also write the result as JSON")
+
     q = sub.add_parser("position", help="does measured cost depend on arm_position, for one arm")
     q.add_argument("--arm", required=True, metavar="ARMDIR",
                    help="an arm directory of an interleaved run")  # fmt: skip
@@ -923,6 +932,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "drift":
             result = analyze_drift(args.run)
             text = format_drift(result)
+        elif args.command == "stream-summary":
+            result = _clean(summarize_run(load_stream_run(args.run)))
+            text = format_summary(result)
         elif args.command == "position":
             result = analyze_position(
                 args.arm,

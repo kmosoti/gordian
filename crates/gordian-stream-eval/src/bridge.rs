@@ -15,15 +15,15 @@ pub fn truth_from_stream(stream: &Stream) -> StreamTruth {
 /// The hidden side of every reasoner call a simulator accepted, in order, read through
 /// `gordian_stream::oracle::calls`.
 ///
-/// `focus` is left empty: the stream's `CallTrace` does not expose it (see [`CallSummary`]). The
-/// trajectory's `Escalate` steps carry it.
+/// `focus` is the trace's own, so the scorer cross-checks it against the trajectory's `Escalate`
+/// step (S35).
 pub fn calls_from_sim(sim: &StreamSimulator) -> Vec<CallSummary> {
     oracle::calls(sim)
         .iter()
         .map(|c| CallSummary {
             at: Instant(c.at_ns),
             ready_at: Instant(c.ready_at_ns),
-            focus: None,
+            focus: Some(c.focus),
             refs: c.refs,
             informed: c.informed,
             correct: c.correct,

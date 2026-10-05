@@ -2,8 +2,8 @@
 //!
 //! The charter's "oracle escalation (privileged)": whether the world has measurable headroom for
 //! escalation control. It is the only stream policy that uses the stream's truth, and this is the
-//! only arm file that names it (`scripts/check-no-oracle.sh` bans the truth's types from
-//! `arms/`; the harness and this file are where they may appear).
+//! only arm file that acts on it (`scripts/check-no-oracle.sh` bans the truth's accessors and the
+//! plan from `arms/`).
 //!
 //! # What it is
 //!
@@ -27,11 +27,18 @@
 //! # How the truth reaches it, and only it
 //!
 //! [`StreamPolicy`] and [`EscalationRule`] have no place for a truth. [`OracleFactory::build`]
-//! takes one, and is called by `harness::run_segment_privileged`, the one entry point that takes a
-//! factory instead of an arm. `OracleEscalation`, the rule it builds, is private to this file:
+//! takes an [`OraclePlan`], the facts about the segment's hard incidents that this arm acts on, and
+//! is called by `harness::run_segment_privileged`, the one entry point that takes a factory
+//! instead of an arm. The plan is plain data: the harness fills it by reading the truth it holds
+//! aside (field access on a value it never names; no type of the truth is written anywhere in this
+//! crate, which is what lets the stream's reveal accessor crate go: see `HARNESS.md`, section 11).
+//! Nothing in an arm can obtain a truth, so nothing in an arm can fill a plan with true facts, and
+//! `scripts/check-no-oracle.sh` and a test ban the plan's name, the evaluator crate and its
+//! accessors from every arm file. `OracleEscalation`, the rule the factory builds, is private to
+//! this file:
 //!
 //! ```compile_fail
-//! // `OracleEscalation` has no public name, so nothing else can construct one from a truth.
+//! // `OracleEscalation` has no public name, so nothing else can construct one.
 //! use gordian_run::stream::privileged::OracleEscalation;
 //! ```
 //!
@@ -42,16 +49,49 @@ use super::arms::rung::{AnomalyView, RungConfig};
 use super::arms::{ArmRole, DirectCtx, DirectRequest, EscalationRule, StreamArm, StreamPolicy};
 use crate::policy::PolicyId;
 use gordian_core::Instant;
-use gordian_stream::{ObsId, ObsRef, StreamPublic, Tier};
-use gordian_stream_reveal::StreamTruth;
+use gordian_stream::{ObsId, ObsRef, StreamPublic};
 use std::collections::BTreeSet;
 
 /// The id of `oracle_escalation`.
 pub const ID: &str = "oracle_escalation";
 
-/// Builds the privileged arm for a segment once the harness hands over its truth.
+/// What the privileged arm is told about one incident of the segment: facts the harness read from
+/// the truth it holds aside.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanIncident {
+    /// The incident's id.
+    pub id: u32,
+    /// Whether the incident is hard.
+    pub hard: bool,
+    /// Every decisive observation of the incident, in stream order.
+    pub decisive: Vec<ObsId>,
+    /// The incident's first observation.
+    pub first: Option<ObsId>,
+}
+
+/// The facts the privileged arm acts on: which incident each observation belongs to, and each
+/// incident's tier and decisive evidence.
 ///
-/// The only way to build one. The constructor takes no truth, so a factory can be made anywhere
+/// Plain data, built by the harness from the truth (`harness.rs`, in `play`). Nothing outside the
+/// harness can read the truth, so nothing else can fill one with true facts; see the module
+/// documentation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OraclePlan {
+    owner: Vec<Option<u32>>,
+    incidents: Vec<PlanIncident>,
+}
+
+impl OraclePlan {
+    /// A plan from the incident each observation belongs to (`None` for background), parallel to
+    /// the stream's observations, and the segment's incidents.
+    pub fn new(owner: Vec<Option<u32>>, incidents: Vec<PlanIncident>) -> Self {
+        Self { owner, incidents }
+    }
+}
+
+/// Builds the privileged arm for a segment once the harness hands over its plan.
+///
+/// The only way to build one. The constructor takes no plan, so a factory can be made anywhere
 /// but can only be used by the harness, which holds the truth. The rule it builds is private to
 /// this file.
 #[derive(Debug, Clone)]
@@ -65,32 +105,29 @@ impl OracleFactory {
         Self { rung }
     }
 
-    /// The arm for the segment whose truth is `truth` and whose public information is `public`.
-    /// Called by the harness.
-    pub fn build(&self, truth: &StreamTruth, public: &StreamPublic) -> Box<dyn StreamPolicy> {
-        let owner: Vec<Option<u32>> = (0..truth.labels.len())
-            .map(|i| truth.incident_of(ObsId(i as u32)))
-            .collect();
-        let hard = truth
+    /// The arm for the segment whose hard incidents `plan` describes and whose public information
+    /// is `public`. Called by the harness.
+    pub fn build(&self, plan: &OraclePlan, public: &StreamPublic) -> Box<dyn StreamPolicy> {
+        let hard = plan
             .incidents
             .iter()
-            .filter(|i| i.tier == Tier::Hard && !i.decisive.is_empty())
+            .filter(|i| i.hard && !i.decisive.is_empty())
             .map(|i| HardIncident {
                 id: i.id,
                 decisive: i.decisive.clone(),
                 last: i.decisive.iter().map(|o| o.0).max().unwrap_or(0),
-                first: i.observations.first().copied().unwrap_or(i.decisive[0]),
+                first: i.first.unwrap_or(i.decisive[0]),
             })
             .collect();
-        let hard_ids: BTreeSet<u32> = truth
+        let hard_ids: BTreeSet<u32> = plan
             .incidents
             .iter()
-            .filter(|i| i.tier == Tier::Hard)
+            .filter(|i| i.hard)
             .map(|i| i.id)
             .collect();
         Box::new(StreamArm::with(
             OracleEscalation {
-                owner,
+                owner: plan.owner.clone(),
                 hard,
                 hard_ids,
                 done: BTreeSet::new(),

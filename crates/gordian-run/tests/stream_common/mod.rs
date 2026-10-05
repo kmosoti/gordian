@@ -9,9 +9,7 @@ use gordian_run::stream::manifest::{
     DEFAULT_COMPUTE_NS, DEFAULT_STEP_NS, Exchange, StreamArmSpec, StreamLimits, StreamManifest,
 };
 use gordian_run::stream::spec::{StreamPolicySpec, build_public, privileged_factory};
-use gordian_run::stream::{
-    CountScorer, SegmentRecord, StreamHarnessError, run_segment, run_segment_privileged,
-};
+use gordian_run::stream::{SegmentRecord, StreamHarnessError, run_segment, run_segment_privileged};
 use gordian_stream::{StreamParams, StreamPublic, generate};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -99,7 +97,7 @@ pub fn all_arms(run_id: &str, seeds: u64, duration_s: u64, run_seed: u64) -> Str
     manifest(run_id, &borrowed, seeds, duration_s, run_seed)
 }
 
-/// Play one segment of `spec` on `params` with the count scorer.
+/// Play one segment of `spec` on `params`, scored by the stream evaluator.
 pub fn play(
     params: &StreamParams,
     spec: &StreamPolicySpec,
@@ -109,7 +107,7 @@ pub fn play(
     let exchange = Exchange::default();
     let seed = params.seed;
     match privileged_factory(spec, &rung) {
-        Some(factory) => run_segment_privileged(params, &factory, limits, &exchange, &CountScorer),
+        Some(factory) => run_segment_privileged(params, &factory, limits, &exchange),
         None => run_segment(
             params,
             &|public: &StreamPublic| {
@@ -117,7 +115,6 @@ pub fn play(
             },
             limits,
             &exchange,
-            &CountScorer,
         ),
     }
 }

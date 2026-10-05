@@ -4,8 +4,8 @@
 //! segment once per arm, back to back, in an order drawn per segment
 //! ([`crate::interleave::arm_order_keyed`], as plan A8 does for episodes), so that machine drift
 //! falls on every arm alike. Each arm writes its own subdirectory `<out>/<arm>/` holding its
-//! one-arm `manifest.json`, `results.csv`, `measured.csv` (with `arm_position`) and
-//! `events-sample.jsonl`; `<out>/manifest.json` is the whole manifest and `<out>/drift.csv` holds
+//! one-arm `manifest.json`, `results.csv`, `incidents.csv`, `measured.csv` (with `arm_position`)
+//! and `events-sample.jsonl`; `<out>/manifest.json` is the whole manifest and `<out>/drift.csv` holds
 //! the drift-control timings ([`crate::drift`], reused unchanged: the workload runs before the
 //! first segment, before every `drift_block`-th one, and once after the last, touches no arm and
 //! charges none). The layout is the interleaved episode layout, so `scripts/run-driver.sh` runs it
@@ -26,8 +26,9 @@
 
 use super::harness::{StreamHarnessError, run_segment, run_segment_privileged};
 use super::manifest::StreamManifest;
-use super::results::{MEASURED_HEADER, measured_row, results_header, results_row};
-use super::score::StreamScorer;
+use super::results::{
+    MEASURED_HEADER, incident_rows, incidents_header, measured_row, results_header, results_row,
+};
 use super::spec::{build_public, privileged_factory};
 use crate::drift::{DRIFT_HEADER, Workload, drift_row};
 use crate::interleave::arm_order_keyed;
@@ -183,9 +184,11 @@ struct ArmOut {
     name: String,
     run_id: String,
     results_path: PathBuf,
+    incidents_path: PathBuf,
     measured_path: PathBuf,
     events_path: PathBuf,
     results: String,
+    incidents: String,
     measured: String,
     events: Option<BufWriter<File>>,
     summary: StreamRunSummary,
@@ -210,7 +213,8 @@ fn write_manifest(dir: &Path, manifest: &StreamManifest) -> Result<(), StreamRun
     }
 }
 
-/// Run every segment of `manifest` and write the run directory `out`, scoring each with `scorer`.
+/// Run every segment of `manifest` and write the run directory `out`, scoring each segment with
+/// the stream evaluator (the harness calls it; this file never sees the truth).
 ///
 /// The harness's counterpart of [`crate::recorder::execute_report`]. Each segment is played once
 /// per arm in the order [`arm_order_keyed`] draws, each time with a fresh arm, budget, bill and
@@ -218,7 +222,6 @@ fn write_manifest(dir: &Path, manifest: &StreamManifest) -> Result<(), StreamRun
 pub fn execute_stream(
     manifest: &StreamManifest,
     out: &Path,
-    scorer: &dyn StreamScorer,
 ) -> Result<StreamRunReport, StreamRunError> {
     manifest.validate().map_err(StreamRunError::Manifest)?;
     fs::create_dir_all(out).map_err(|e| io_error("cannot create", out, e))?;
@@ -239,14 +242,21 @@ pub fn execute_stream(
             name: spec.arm.clone(),
             run_id: single.run_id.clone(),
             results_path: dir.join("results.csv"),
+            incidents_path: dir.join("incidents.csv"),
             measured_path: dir.join("measured.csv"),
             events_path: dir.join("events-sample.jsonl"),
             results: format!("{}\n", results_header()),
+            incidents: format!("{}\n", incidents_header()),
             measured: format!("{MEASURED_HEADER}\n"),
             events: None,
             summary: StreamRunSummary::default(),
         };
-        for path in [&arm.results_path, &arm.measured_path, &arm.events_path] {
+        for path in [
+            &arm.results_path,
+            &arm.incidents_path,
+            &arm.measured_path,
+            &arm.events_path,
+        ] {
             if path.exists() {
                 return Err(StreamRunError::Io(format!(
                     "{} already exists; a recorded run is never overwritten",
@@ -284,13 +294,9 @@ pub fn execute_stream(
             let spec = &manifest.arms[index];
             let arm = &mut arms[index];
             let record = match privileged_factory(&spec.policy, &manifest.rung) {
-                Some(factory) => run_segment_privileged(
-                    &params,
-                    &factory,
-                    &manifest.limits,
-                    &manifest.exchange,
-                    scorer,
-                ),
+                Some(factory) => {
+                    run_segment_privileged(&params, &factory, &manifest.limits, &manifest.exchange)
+                }
                 None => run_segment(
                     &params,
                     &|public| {
@@ -299,7 +305,6 @@ pub fn execute_stream(
                     },
                     &manifest.limits,
                     &manifest.exchange,
-                    scorer,
                 ),
             }
             .map_err(|error| StreamRunError::Harness {
@@ -309,14 +314,18 @@ pub fn execute_stream(
             })?;
             arm.results.push_str(&results_row(&arm.run_id, &record));
             arm.results.push('\n');
+            for line in incident_rows(&arm.run_id, &record) {
+                arm.incidents.push_str(&line);
+                arm.incidents.push('\n');
+            }
             arm.measured
                 .push_str(&measured_row(&arm.run_id, &record, position));
             arm.measured.push('\n');
             arm.summary.segments += 1;
             arm.summary.step_capped +=
                 usize::from(record.stop == super::harness::StreamStop::StepCap);
-            arm.summary.reasoner_calls += u64::from(record.verdict.reasoner_calls);
-            arm.summary.declarations += u64::from(record.verdict.declarations);
+            arm.summary.reasoner_calls += record.verdict.totals.reasoner.calls;
+            arm.summary.declarations += u64::from(record.trajectory_counts.declarations);
             if let Some(events) = arm.events.as_mut()
                 && sampled_keyed(seed, STREAM_KEY, manifest.trace_sample_rate)
             {
@@ -343,6 +352,8 @@ pub fn execute_stream(
         }
         fs::write(&arm.results_path, &arm.results)
             .map_err(|e| io_error("cannot write", &arm.results_path, e))?;
+        fs::write(&arm.incidents_path, &arm.incidents)
+            .map_err(|e| io_error("cannot write", &arm.incidents_path, e))?;
         fs::write(&arm.measured_path, &arm.measured)
             .map_err(|e| io_error("cannot write", &arm.measured_path, e))?;
         total.add(&arm.summary);

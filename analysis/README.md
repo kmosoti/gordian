@@ -30,7 +30,11 @@ gordian-analyze position --arm ARMDIR [--paired-with ARMDIR] [--metric measured_
     [--margin 0.05] --seed 1 [--alpha 0.05] [--resamples 10000] [--permutations 10000] [--json FILE]
 gordian-analyze cost-check --a ARMDIR --b ARMDIR --seed 1 [--wall measured_policy_ns] \
     [--alpha 0.05] [--resamples 10000] [--json FILE]
+gordian-analyze stream-summary --run RUNDIR [--json FILE]
 ```
+
+`stream-summary` reads a **stream run** (the stream harness, work items R3 and R3b), not an
+episode run, and is described in "Stream runs" below.
 
 `drift` and `position` are the diagnostics of interleaved runs (work item A8); they are described
 in "Drift and position diagnostics" below. An interleaved run directory holds one arm directory
@@ -428,6 +432,50 @@ with N counting every episode including abstained and undecided ones; `risk` = f
 that are not successes); `paired_class_table` (per class n, mean A, mean B, mean d). Per-class
 numbers are descriptive and exploratory; they carry no test and no multiplicity adjustment.
 
+## Stream runs (R3b): `load_stream_run`, `gordian_analysis/stream.py`
+
+A stream run directory is what `gordian-run` writes for a stream manifest: one subdirectory per
+arm holding `results.csv` (one row per **stream**, keyed by `seed`), `incidents.csv` (one row per
+incident, keyed by `(seed, incident)`), `measured.csv` (with `arm_position`) and the arm's own
+`manifest.json`, and in the run directory the whole `manifest.json` and `drift.csv`. The
+columns are in `crates/gordian-run/src/stream/results.rs` and `crates/gordian-run/HARNESS.md`,
+section 11. The loader (`load.py`, a separate section from the episode loader, which is
+unchanged) holds the same discipline as the episode one: the columns are exactly the harness's, in
+order (`STREAM_RESULTS_COLUMNS`, `STREAM_INCIDENTS_COLUMNS`, `STREAM_MEASURED_COLUMNS`; a test
+parses `RESULTS_HEADER`, `INCIDENTS_HEADER` and `MEASURED_HEADER` from the harness source and
+compares), counts are read as exact integers (they reach 1e12), and the loader refuses a file
+whose identities fail: reasoner calls are the sum of the three escalation classes, total cost is
+substrate plus reasoner cost, a hard incident has a family and no other incident has one, a first
+correct declaration exists exactly when there is a correct one, and `incidents.csv` agrees with
+`results.csv` about which streams exist and how many incidents of each tier each holds.
+
+**Pairing is on `seed`** (`pair_streams`, `pair_arms`): the stream is the unit of replication, a
+stream holds about 27 incidents that share a graph, a noise process and recurrences, so incidents
+of different streams are not independent replications. Pairing refuses a seed that only one arm
+played, and refuses arms whose `(seed, incident)` keys, tiers, families or criticality differ,
+because the incidents of a stream do not depend on the arm; arms from runs with other stream
+parameters are not comparable.
+
+**Pooled ratios** (`stream.py`) are ratios of counts summed over streams, never a mean of
+per-stream ratios (a stream with one hard incident would weigh as much as one with five, and a
+stream with none has no ratio). They match the evaluator's definitions
+(`crates/gordian-stream-eval/RULES.md`, "Derived ratios"): escalation precision is call-level,
+`needed / (needed + unneeded + background)`; escalation recall is incident-level,
+`hard_incidents_escalated / incidents_hard`. Ten calls about one hard incident are ten needed
+calls and one escalated incident, so read the two beside the counts and the cost. A ratio whose
+denominator sums to zero is NaN (JSON `null`), which is not zero: an arm that never escalated has
+no precision. `correct_rate` (per plain or hard tier), `critical_miss_rate`, `correct_per_cost`
+(correct plain and hard incidents per modelled second of total cost) and `family_table` (per
+hard-fault family, from `incidents.csv`) follow the same rule. They are point estimates and carry
+no interval: an interval must resample whole streams, which is the headroom check's (R4).
+
+`stream-summary --run RUN` prints, for every arm (`comparison` arms first, then the privileged
+and ablation references, each in name order), the pooled counts and rates by tier, critical
+misses, wrong declarations, false alarms, reasoner calls and tokens, escalation precision and
+recall, and total modelled cost per stream. `--json` writes the same plus the per-family table.
+**`tier`, `family`, `critical` and the verdict columns are evaluator output about hidden state.**
+They are for analysis; they must never be a policy input or training data.
+
 ## Specification issues found and how they were resolved
 
 1. The plan's A7 listing (`--margin-success`, `--margin-cost`, `equivalence.py` tested against
@@ -507,6 +555,15 @@ data, bootstrap reproducibility and pair-preservation, loader rejection of dupli
 unmatched keys, of unknown columns, of a results/measured key mismatch, and of an empty
 decision time on a decided row (`tests/test_real_runs.py`, also the real-output fixtures), power textbook cases and monotonicity, a Monte Carlo check of
 `achieved_power_t`, and the CLI end to end on `tests/fixtures/run_a` and `run_b` and on `real_a` and `real_b`.
+
+`tests/test_stream.py` (R3b): the schema guard (the loader's columns, roles, tiers and families are
+the harness's constants and the evaluator's fields); strict loading (exact integers, unknown,
+missing, reordered columns, malformed counts, families on non-hard incidents, identities,
+`incidents.csv` against `results.csv`); pairing on seed and its refusals; pooled ratios against
+hand counts, against the mean-of-ratios mistake and for zero denominators; `family_table`;
+`stream-summary` end to end, its JSON and its errors. The fixtures are written in the harness's
+format by `tests/stream_fixtures.py`; the real harness output is loaded by the command in the
+R3b acceptance, not by a committed copy of a run.
 
 `tests/test_modelled.py` (A8b): the loader's modelled and measured totals; the modelled cost as
 the default of `--relative-savings` with hand-computed S and a labelled secondary check on wall

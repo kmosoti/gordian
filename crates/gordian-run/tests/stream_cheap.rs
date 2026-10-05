@@ -6,9 +6,12 @@
 //! `standard_components`. Work item R3 made `gordian-run` depend on `gordian-stream`, so they moved
 //! here and the dev-dependency cycle is gone. The bodies, thresholds and assertions are the ones
 //! they had; what changed is plumbing only: `crate::` became `gordian_stream::`, the hidden truth
-//! comes from `gordian_stream_reveal::truth_of` (the crate that switches on the stream's
-//! hidden-state feature), and the helpers the tests shared with the rest of that crate's tests
-//! (`with_truth`, `evidence_of`, `with_mix`, `no_regime`) are repeated below.
+//! comes from `gordian_stream_eval::truth_from_stream` (work item R3b; R3 had it from a shim
+//! crate), and the helpers the tests shared with the rest of that crate's tests (`with_truth`,
+//! `evidence_of`, `with_mix`, `no_regime`) are repeated below. The truth's type has no public name
+//! outside the stream's oracle module, which no file here may write, so `with_truth` and
+//! `evidence_of` are macros (the type is inferred) and `known_truth` takes the incident's
+//! hypothesis, not the incident.
 
 mod cheap {
     //! A driver that runs the first world's four components and the shared decision rule on a
@@ -221,28 +224,36 @@ mod cheap {
 
 use cheap::{exhaustive_probes, probing_sim};
 use gordian_core::Instant;
-use gordian_stream::{HardKind, ObsId, Stream, StreamKind, StreamParams, Tier, generate};
-use gordian_stream_reveal::{IncidentTruth, StreamTruth, truth_of};
+use gordian_stream::{
+    Diagnosis, HardKind, ObsId, Stream, StreamKind, StreamParams, Tier, generate,
+};
+use gordian_stream_eval::truth_from_stream;
 use gordian_world::graph::dependents_mask;
 use gordian_world::physics::consistent_hypotheses;
 use gordian_world::{FaultKind, Hypothesis, Observation, ServiceId};
 
 type Evidence = Vec<(Instant, Observation)>;
 
-/// A stream and its truth.
-fn with_truth(params: &StreamParams) -> (Stream, StreamTruth) {
-    let s = generate(params);
-    let t = truth_of(&s);
-    (s, t)
+/// A stream and its truth: `(Stream, truth)`.
+macro_rules! with_truth {
+    ($params:expr) => {{
+        let s: Stream = generate($params);
+        let t = truth_from_stream(&s);
+        (s, t)
+    }};
 }
 
-/// Every observation labelled with incident `id`, in stream order.
-fn evidence_of(s: &Stream, t: &StreamTruth, id: u32) -> Evidence {
-    t.incidents[id as usize]
-        .observations
-        .iter()
-        .map(|o: &ObsId| s.events()[o.0 as usize].clone())
-        .collect()
+/// Every observation of the stream `$s` labelled with incident `$id` in the truth `$t`, in stream
+/// order.
+macro_rules! evidence_of {
+    ($s:expr, $t:expr, $id:expr) => {{
+        let evidence: Evidence = $t.incidents[$id as usize]
+            .observations
+            .iter()
+            .map(|o: &ObsId| $s.events()[o.0 as usize].clone())
+            .collect();
+        evidence
+    }};
 }
 
 /// Parameters with the tier mix replaced.
@@ -259,8 +270,8 @@ fn no_regime(seed: u64, plain: u32, hard: u32) -> StreamParams {
     p
 }
 
-fn known_truth(i: &IncidentTruth) -> Hypothesis {
-    match i.truth {
+fn known_truth(truth: Diagnosis) -> Hypothesis {
+    match truth {
         Some(h) => match h.kind {
             StreamKind::Known(k) => Some((k, h.site)),
             StreamKind::Hard(_) => panic!("not a known kind"),
@@ -276,17 +287,17 @@ fn the_cheap_rung_identifies_every_plain_incident_from_its_own_evidence() {
     let (mut identified, mut duos, mut total) = (0, 0, 0);
     for seed in 0..12 {
         let p = no_regime(seed, 1000, 0);
-        let (s, t) = with_truth(&p);
+        let (s, t) = with_truth!(&p);
         let public = s.public_info().world_public_info();
         let template = probing_sim(&p);
         for inc in &t.incidents {
-            let ev = evidence_of(&s, &t, inc.id);
+            let ev = evidence_of!(s, t, inc.id);
             let mut sim = template.clone();
             let run = cheap::run(&public, &ev, 3_000_000_000, &mut sim);
             total += 1;
             assert_eq!(
                 run.declared,
-                Some(known_truth(inc)),
+                Some(known_truth(inc.truth)),
                 "seed {seed} incident {}: {:?}",
                 inc.id,
                 inc.shape
@@ -301,7 +312,7 @@ fn the_cheap_rung_identifies_every_plain_incident_from_its_own_evidence() {
             } else {
                 assert_eq!(run.probes, 0, "{:?}", inc.shape);
                 let before = consistent_hypotheses(&public, &ev);
-                assert_eq!(before, vec![known_truth(inc)]);
+                assert_eq!(before, vec![known_truth(inc.truth)]);
             }
             identified += 1;
         }
@@ -325,7 +336,7 @@ fn a_cheap_rung_that_windows_by_site_still_identifies_most_plain_incidents_in_no
     let (mut ok, mut total) = (0, 0);
     for seed in 0..10 {
         let p = no_regime(seed, 1000, 0);
-        let (s, t) = with_truth(&p);
+        let (s, t) = with_truth!(&p);
         let public = s.public_info().world_public_info();
         let template = probing_sim(&p);
         for inc in &t.incidents {
@@ -350,7 +361,7 @@ fn a_cheap_rung_that_windows_by_site_still_identifies_most_plain_incidents_in_no
             let mut sim = template.clone();
             let run = cheap::run(&public, &ev, 3_000_000_000, &mut sim);
             total += 1;
-            if run.declared == Some(known_truth(inc)) {
+            if run.declared == Some(known_truth(inc.truth)) {
                 ok += 1;
             }
         }
@@ -375,13 +386,13 @@ fn the_cheap_rung_cannot_identify_a_hard_incident_even_given_everything() {
     let patient = 40_000_000_000u64;
     for seed in 0..8 {
         let p = no_regime(seed, 0, 1000);
-        let (s, t) = with_truth(&p);
+        let (s, t) = with_truth!(&p);
         let public = s.public_info().world_public_info();
         let template = probing_sim(&p);
         for inc in &t.incidents {
             assert_eq!(inc.tier, Tier::Hard);
             let hk = inc.shape.hard_kind.unwrap();
-            let ev = evidence_of(&s, &t, inc.id);
+            let ev = evidence_of!(s, t, inc.id);
             let site = inc.occupies[0];
 
             // 1. The rule, patient enough to see every decisive observation, with the first
@@ -465,7 +476,7 @@ fn a_call_costs_at_least_ten_thousand_typical_component_calls() {
     use gordian_components::WorkingState;
     use gordian_core::Resource;
     let p = StreamParams::new(0);
-    let (s, _) = with_truth(&p);
+    let (s, _) = with_truth!(&p);
     let public = s.public_info().world_public_info();
     let mut costs: Vec<u64> = Vec::new();
     for window in [16usize, 64, 256] {

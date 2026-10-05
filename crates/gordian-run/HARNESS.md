@@ -597,3 +597,101 @@ differences the plan cites (13-34%) are of this order.
 
 The coordinator reruns the A/A pinned and idle. If an interval then excludes 0, the plan calls for
 the counted-operations alternative, and nothing here should be tuned to avoid that.
+
+## 11. The stream harness: the evaluator, its files, and the hidden-state rule (R3 and R3b)
+
+The stream harness (`src/stream/`, documented in `src/stream/mod.rs`) plays one **stream segment**
+per seed per arm; this section records how it is scored and what it writes. It does not repeat the
+episode harness's sections above, whose accounting it reuses.
+
+**Scoring.** After the last step, `play` calls `gordian_stream_eval::score_stream` with the truth
+(`truth_from_stream`, built right after the stream is generated), the recorded trajectory and the
+reasoner's call records (`calls_from_sim`, read once from the simulator). Both stay locals of
+`harness.rs`; no arm interface has a place for either. An `Err` from the evaluator is a defect in
+the harness (a trajectory no correct harness could record, or call records of another simulator,
+`RULES.md` S27 to S37): it becomes `StreamHarnessError::Eval`, the run stops and no results file is
+written. It is never a row. The evaluator's `S35` now also cross-checks each call record's focus
+against the trajectory's `Escalate` step (`gordian-stream`'s `oracle::calls` carries `focus`).
+Verified by test: the bridge fills the focus and a tampered focus is refused. **Not verified end to
+end:** that `play` aborts on an evaluator error, because no honest arm can make the harness record
+a bad trajectory and the harness has no injection point; the test checks that the error converts
+to `StreamHarnessError::Eval` and that the single `score_stream(...)?` call is the only use of the
+evaluator in the module (a source check, weaker than a run).
+
+**Hidden state and the retired shim.** R3 had a crate, `gordian-stream-reveal`, whose only job was to
+switch on the stream's `reveal-hidden-state` feature and to name the truth's types for the harness
+and the privileged arm. R3b removes it, with its workspace entry and its allowlist line, because the
+evaluator's two helpers supply the values and the harness never needs the types' *names*: it binds
+`truth_from_stream`'s result and reads fields (`truth.incidents`, `truth.labels`,
+`incident_of`), which type inference allows. The privileged arm gets an `OraclePlan` (which
+observation belongs to which incident, and each incident's tier and decisive evidence) that
+`harness.rs` fills by field access; its rule (`OracleEscalation`) is still private to `oracle.rs`.
+Consequences: no file of this crate writes the truth's type or the oracle's path; the feature is
+switched on only by `gordian-stream-eval`'s manifest (this crate's manifest does not carry it, and a
+test and `scripts/check-no-oracle.sh` check that); the allowlist lost a line and gained none.
+The guards that remain, in layers: the type system (an arm cannot obtain a truth value: the
+arm interface has no parameter for one, and `OracleEscalation` has no public name, checked by a
+`compile_fail` doctest), the textual ban on policy files (`scripts/check-no-oracle.sh`: `arms/` may
+not name the evaluator crate, `truth_from_stream`, `calls_from_sim`, `OraclePlan`, `PlanIncident`,
+the truth's and call records' types, or `oracle::`), and a test that no file of `src/stream/`
+names the truth's types and that only `harness.rs` and `score.rs` mention the evaluator. A planted
+violation in an arm file (`use gordian_stream_eval::score_stream`) passed the pre-R3b script and
+fails the new one. The tests of the cheap rung (`tests/stream_cheap.rs`) read the truth the same
+way, through macros, for the same reason.
+
+**What an arm may be built from.** Unchanged: the stream's public rules and what it learns from its
+own run history. A knowledge-injected arm exists only as `ablation_hidden_rules`, and its rows say
+`arm_role = ablation`.
+
+**`results.csv`** has one row per stream per arm: the columns of `src/stream/results.rs`
+(`RESULTS_HEADER`, the analysis loader's schema guard parses it). Beyond R3's (`arm_role`, cost,
+counts) it holds the evaluator's totals, one column per count: incidents by tier and critical,
+correct, missed and critically missed per plain and hard, wrong declarations, decoys dismissed,
+alarmed and silent, false alarms and false alarms on background, escalations needed, unneeded and
+background, hard and other incidents escalated, informed and correct calls, and the reasoner's
+calls, references, tokens and modelled nanoseconds. R3's count-scorer columns that the evaluator
+does not make (`probes_used`, `declarations`, `declared_incident`, `declared_dismissal`,
+`reasoner_latency_ns`) are read from the trajectory (`TrajectoryCounts`) and kept; `reasoner_declared_ns`
+is renamed `reasoner_modelled_ns`, the evaluator's name for the same sum. The count scorer and the
+`StreamScorer` trait are gone: with one evaluator there is nothing to substitute. The columns are
+counts, never ratios: escalation precision and recall, and every rate, are pooled from counts across
+streams by the analysis. The file is deterministic (replay is byte-identical, tested).
+
+**`incidents.csv`** (one per arm, beside `results.csv`) has one row per incident of each stream,
+keyed by `(seed, incident)` in id order: the fields of the evaluator's `IncidentVerdict` (tier,
+criticality, correct and wrong declarations, first correct declaration and its delay after onset,
+correct by deadline, missed, critical miss, escalations about it and how many were informed and
+correct), and `family`. Tests check that its rows add up to the totals of `results.csv` and that the
+tier, family and criticality of each incident are the same in every arm. Deterministic.
+
+**The family label is hidden state, and where it may appear.** The hard-fault family (`compound`,
+`cascade`, `split_brain`, `slow_leak`) is the hidden kind of a hard incident
+(`gordian-stream/DESIGN.md`): a policy that knew it would know which rules apply. The headroom check
+(R4) has to report gaps per family, so the label has to be written somewhere. The decision, and the
+reasons:
+
+- It is written **only into `incidents.csv`**, with the tier and criticality, which are hidden too.
+  That file and the verdict columns of `results.csv` are *evaluator output*, in the way the first
+  world's `class` and `critical_miss` columns are: facts about the world that the analysis joins on
+  and no policy reads.
+- It is in **no other file**: not `results.csv` (it has the tier counts but no family), not
+  `measured.csv`, not `manifest.json`, not the events sample (`events-sample.jsonl` still holds no
+  verdict, no truth and no call record; a test lists the family names among the strings that must
+  not occur in it).
+- It must **never be in a file an arm could be trained on.** A future learning arm may use a
+  run's ledger (the events sample, public by construction) and its own history. It may not read
+  `incidents.csv`, the verdict columns of `results.csv` or the evaluator's types, and the
+  textual guard bans the evaluator from policy files. If a training set is ever built from run
+  outputs, it must be built from the events sample and must drop `class`-like join keys, as
+  section 6 already says for the episode files.
+- It is the same decision as `class` in the events sample, with the same cost: the file is safe only
+  as long as nobody feeds it to a policy. The guard is review and the textual ban, not a technical
+  barrier, and this is stated rather than hidden. A reviewer should treat any new reader of
+  `incidents.csv` outside `analysis/` as a violation of "let hidden simulator state reach a policy's
+  inputs".
+
+**Built and not built.** Built: the stream harness, the evaluator integration, both files, the
+loader and `gordian-analyze stream-summary` (`analysis/`). Not built: any interval over streams (the
+headroom check's), tuned baseline parameters (every arm's parameters are the R3 placeholders and a
+run of them is a smoke test, not a comparison), and any calibration of the arms' own bookkeeping
+cost (section 4 of `src/stream/mod.rs`).

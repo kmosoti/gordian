@@ -380,3 +380,392 @@ def pair_runs(run_a: Run, run_b: Run) -> PairedRuns:
 
 def load_pair(dir_a: str | Path, dir_b: str | Path) -> PairedRuns:
     return pair_runs(load_run(dir_a), load_run(dir_b))
+
+
+# ---------------------------------------------------------------------------------------------
+# Stream runs (work items R3 and R3b)
+#
+# A stream run is the output of `gordian-run` on a stream manifest (crates/gordian-run/src/
+# stream/): one directory per arm holding `results.csv` (one row per stream, keyed by `seed`),
+# `incidents.csv` (one row per incident, keyed by `(seed, incident)`) and `measured.csv`, and the
+# run directory's own `manifest.json` and `drift.csv`. The unit of replication is the stream, not
+# the incident: a stream holds about 27 incidents that share a graph, a noise process and
+# recurrences, so counts are pooled over streams and ratios are ratios of pooled counts
+# (`gordian_analysis.stream`). This loader is separate from the episode loader above, which it
+# does not touch: the files have another key (`seed` alone), other columns and another meaning.
+#
+# `tier`, `family`, `critical` and the verdict columns are hidden-side facts written by the
+# evaluator for analysis. They are never a policy input and never training data
+# (crates/gordian-run/HARNESS.md, section 11).
+# ---------------------------------------------------------------------------------------------
+
+# The exact column sets the stream harness writes (crates/gordian-run/src/stream/results.rs:
+# RESULTS_HEADER, INCIDENTS_HEADER, MEASURED_HEADER). A test parses those constants and compares.
+STREAM_RESULTS_COLUMNS = [
+    "run_id", "arm_role", "seed", "duration_ns", "observations", "anomalies_noticed",
+    "probes_used", "declarations", "declared_incident", "declared_dismissal",
+    "incidents_plain", "incidents_hard", "incidents_decoy", "critical_incidents",
+    "correct_plain", "correct_hard", "missed_plain", "missed_hard",
+    "critical_missed_plain", "critical_missed_hard", "wrong_declarations",
+    "decoys_dismissed", "decoys_alarmed", "decoys_silent", "false_alarms",
+    "false_alarms_on_background",
+    "escalations_needed", "escalations_unneeded", "escalations_background",
+    "hard_incidents_escalated", "other_incidents_escalated", "calls_informed", "calls_correct",
+    "reasoner_calls", "reasoner_refs", "reasoner_tokens", "reasoner_modelled_ns",
+    "reasoner_latency_ns", "cheap_declarations", "reasoner_declarations",
+    "escalations_refused", "probes_refused", "calls_unanswered", "reasoner_cost_ns",
+    "bill_compute", "bill_probes", "bill_time", "bill_comm",
+    "components_run", "components_skipped", "rule_skipped", "steps", "stop_reason",
+    "ops_component", "ops_sched", "modelled_component_ns", "modelled_sched_ns", "substrate_ns",
+    "total_cost_ns",
+]  # fmt: skip
+STREAM_INCIDENTS_COLUMNS = [
+    "run_id", "arm_role", "seed", "incident", "tier", "family", "critical",
+    "correct_declarations", "wrong_declarations", "first_correct_at_ns",
+    "time_to_first_correct_ns", "correct_by_deadline", "missed", "critical_miss",
+    "escalations", "informed_escalations", "correct_escalations",
+]  # fmt: skip
+STREAM_MEASURED_COLUMNS = [
+    "run_id", "seed", "measured_component_ns", "measured_sched_ns", "measured_harness_ns",
+    "arm_position",
+]  # fmt: skip
+
+STREAM_STRING_COLUMNS = ["run_id", "arm_role", "stop_reason"]
+# Every other column of results.csv is a non-negative integer count, instant or duration.
+STREAM_COUNT_COLUMNS = [c for c in STREAM_RESULTS_COLUMNS if c not in STREAM_STRING_COLUMNS]
+STREAM_MEASURED_VALUE_COLUMNS = MEASURED_VALUE_COLUMNS
+# The roles `arm_role` takes (`ArmRole::as_str`, crates/gordian-run/src/stream/arms/mod.rs):
+# an analysis compares `comparison` arms; the other two are references and say so on every row.
+STREAM_ARM_ROLES = ("comparison", "privileged", "ablation")
+COMPARISON_ROLE = "comparison"
+# The tiers (`tier_name`, results.rs) and the hard-fault families (`family_name`, score.rs). A
+# family is a hard incident's and only a hard incident's; it is empty for the other tiers.
+STREAM_TIERS = ("plain", "hard", "decoy")
+STREAM_FAMILIES = ("compound", "cascade", "split_brain", "slow_leak")
+STREAM_INCIDENT_COUNT_COLUMNS = [
+    "incident", "correct_declarations", "wrong_declarations", "escalations",
+    "informed_escalations", "correct_escalations",
+]  # fmt: skip
+STREAM_INCIDENT_BOOL_COLUMNS = ["critical", "correct_by_deadline", "missed", "critical_miss"]
+STREAM_INCIDENT_OPTIONAL_COLUMNS = ["first_correct_at_ns", "time_to_first_correct_ns"]
+STREAM_KEY = ["seed"]
+STREAM_INCIDENT_KEY = ["seed", "incident"]
+
+
+@dataclass
+class StreamArm:
+    """One arm of a stream run: its per-stream and per-incident tables, both keyed on `seed`."""
+
+    path: Path
+    name: str
+    run_id: str
+    role: str
+    results: pd.DataFrame
+    incidents: pd.DataFrame
+
+
+@dataclass
+class StreamRun:
+    """A stream run directory: its arms in directory-name order, and what sits beside them."""
+
+    path: Path
+    arms: dict[str, StreamArm]
+    manifest: dict | None
+    usage: dict | None
+
+
+def _parse_count(series: pd.Series, column: str, where: str) -> pd.Series:
+    """A non-negative integer column, read exactly (counts reach 1e12, so never through float)."""
+    text = series.str.strip()
+    bad = ~text.str.fullmatch(r"[0-9]{1,18}")
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(
+            f"{where}: column {column!r} has {series.iloc[pos]!r} (row {pos + 2}); "
+            "expected a non-negative integer"
+        )
+    return text.astype("int64")
+
+
+def _read_stream_csv(path: Path, expected: list[str]) -> pd.DataFrame:
+    """Read a stream CSV as strings; its columns must be exactly the ones the harness writes."""
+    where = str(path)
+    raw = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if list(raw.columns) != expected:
+        missing = [c for c in expected if c not in raw.columns]
+        unknown = [c for c in raw.columns if c not in expected]
+        raise LoadError(
+            f"{where}: columns are not the stream schema of crates/gordian-run/src/stream/"
+            f"results.rs (missing {missing}, unknown {unknown}, or out of order); a change to "
+            "that schema needs a change here"
+        )
+    if len(raw) == 0:
+        raise LoadError(f"{where}: no rows")
+    return raw
+
+
+def _single_value(raw: pd.DataFrame, column: str, where: str) -> str:
+    values = sorted(raw[column].str.strip().unique())
+    if len(values) != 1 or values[0] == "":
+        raise LoadError(f"{where}: expected exactly one {column}, found {values}")
+    return values[0]
+
+
+def _single_role(raw: pd.DataFrame, where: str) -> str:
+    role = _single_value(raw, "arm_role", where)
+    if role not in STREAM_ARM_ROLES:
+        raise LoadError(f"{where}: arm_role {role!r} is not one of {list(STREAM_ARM_ROLES)}")
+    return role
+
+
+def _load_stream_results(path: Path) -> pd.DataFrame:
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_RESULTS_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    for c in STREAM_COUNT_COLUMNS:
+        df[c] = _parse_count(raw[c], c, where)
+    df["stop_reason"] = raw["stop_reason"].str.strip()
+    if (df["stop_reason"] == "").any():
+        raise LoadError(f"{where}: empty 'stop_reason' value")
+    if df.duplicated(STREAM_KEY).any():
+        seeds = df.loc[df.duplicated(STREAM_KEY, keep=False), "seed"].unique()[:5].tolist()
+        raise LoadError(f"{where}: duplicate seeds, e.g. {seeds}")
+    # Identities the harness guarantees. A violation means the file is not the harness's.
+    calls = df["escalations_needed"] + df["escalations_unneeded"] + df["escalations_background"]
+    bad = calls != df["reasoner_calls"]
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(
+            f"{where}: row {pos + 2}: escalations_needed + escalations_unneeded + "
+            "escalations_background is not reasoner_calls"
+        )
+    bad = df["substrate_ns"] + df["reasoner_cost_ns"] != df["total_cost_ns"]
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(
+            f"{where}: row {pos + 2}: substrate_ns + reasoner_cost_ns is not total_cost_ns"
+        )
+    return df[STREAM_RESULTS_COLUMNS]
+
+
+def _load_stream_incidents(path: Path) -> pd.DataFrame:
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_INCIDENTS_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    df["seed"] = _parse_count(raw["seed"], "seed", where)
+    for c in STREAM_INCIDENT_COUNT_COLUMNS:
+        df[c] = _parse_count(raw[c], c, where)
+    df["tier"] = raw["tier"].str.strip()
+    bad = ~df["tier"].isin(STREAM_TIERS)
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(
+            f"{where}: tier {raw['tier'].iloc[pos]!r} (row {pos + 2}) is not one of "
+            f"{list(STREAM_TIERS)}"
+        )
+    df["family"] = raw["family"].str.strip()
+    hard = df["tier"] == "hard"
+    bad = hard != df["family"].isin(STREAM_FAMILIES)
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(
+            f"{where}: row {pos + 2}: a hard incident has one of {list(STREAM_FAMILIES)} as its "
+            f"family and no other incident has one (tier {df['tier'].iloc[pos]!r}, family "
+            f"{df['family'].iloc[pos]!r})"
+        )
+    for c in STREAM_INCIDENT_BOOL_COLUMNS:
+        df[c] = _parse_bool(raw[c], c, where)
+    # A first correct declaration exists exactly when there is a correct declaration (S8).
+    none_correct = (df["correct_declarations"] == 0).to_numpy()
+    for c in STREAM_INCIDENT_OPTIONAL_COLUMNS:
+        text = raw[c].str.strip()
+        empty = text == ""
+        parsed = _parse_count(text.where(~empty, "0"), c, where).astype("Int64")
+        df[c] = parsed.mask(empty)
+        bad = empty.to_numpy() != none_correct
+        if bad.any():
+            pos = int(np.argmax(bad))
+            raise LoadError(
+                f"{where}: row {pos + 2}: {c!r} is empty exactly when the incident has no correct "
+                "declaration"
+            )
+    if df.duplicated(STREAM_INCIDENT_KEY).any():
+        keys = df.loc[df.duplicated(STREAM_INCIDENT_KEY, keep=False), STREAM_INCIDENT_KEY]
+        raise LoadError(
+            f"{where}: duplicate (seed, incident) keys, e.g. {keys.head(3).values.tolist()}"
+        )
+    return df[STREAM_INCIDENTS_COLUMNS]
+
+
+def _check_incidents_against_results(results: pd.DataFrame, incidents: pd.DataFrame, where: Path):
+    """The two files describe the same streams: same seeds, and the tier counts agree."""
+    r = results.set_index("seed")
+    unknown = sorted(set(incidents["seed"]) - set(r.index))
+    if unknown:
+        raise LoadError(f"{where}: incidents.csv has seeds {unknown[:3]} that results.csv lacks")
+    tiers = incidents.groupby(["seed", "tier"]).size().unstack(fill_value=0)
+    for tier in STREAM_TIERS:
+        have = tiers[tier] if tier in tiers else pd.Series(0, index=tiers.index)
+        have = have.reindex(r.index, fill_value=0)
+        bad = have.to_numpy() != r[f"incidents_{tier}"].to_numpy()
+        if bad.any():
+            seed = int(r.index[int(np.argmax(bad))])
+            raise LoadError(
+                f"{where}: seed {seed}: results.csv counts {int(r.loc[seed, f'incidents_{tier}'])} "
+                f"{tier} incidents, incidents.csv has {int(have.loc[seed])}"
+            )
+    for column in ("run_id", "arm_role"):
+        if set(incidents[column]) != set(results[column]):
+            raise LoadError(f"{where}: {column} differs between results.csv and incidents.csv")
+
+
+def _load_stream_measured(path: Path, results: pd.DataFrame) -> pd.DataFrame:
+    """Attach the measured columns and `arm_position` to results on `seed`."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_MEASURED_COLUMNS)
+    df = pd.DataFrame({"seed": _parse_count(raw["seed"], "seed", where)})
+    for c in [*STREAM_MEASURED_VALUE_COLUMNS, "arm_position"]:
+        df[c] = _parse_count(raw[c], c, where)
+    if df.duplicated("seed").any():
+        raise LoadError(f"{where}: duplicate seeds")
+    if set(df["seed"]) != set(results["seed"]):
+        raise LoadError(f"{path.parent}: results.csv and measured.csv do not have the same seeds")
+    return results.merge(df, on="seed", how="left", validate="one_to_one")
+
+
+def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
+    """Read one arm directory of a stream run: `results.csv` and `incidents.csv` (both required)
+    and `measured.csv` (joined on `seed` when present).
+
+    Fails (`LoadError`) on other columns than the harness writes, a value that is not what its
+    column holds, an incident file that disagrees with the results file about which streams
+    exist or how many incidents of each tier they hold, or an identity the harness guarantees.
+    """
+    path = Path(path)
+    results_path = path / "results.csv"
+    incidents_path = path / "incidents.csv"
+    for p in (results_path, incidents_path):
+        if not p.is_file():
+            raise LoadError(f"{path}: no {p.name}")
+    results = _load_stream_results(results_path)
+    incidents = _load_stream_incidents(incidents_path)
+    _check_incidents_against_results(results, incidents, path)
+    measured_path = path / "measured.csv"
+    if measured_path.is_file():
+        results = _load_stream_measured(measured_path, results)
+    results = results.sort_values("seed").reset_index(drop=True)
+    incidents = incidents.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
+    return StreamArm(
+        path=path,
+        name=name or path.name,
+        run_id=str(results["run_id"].iloc[0]),
+        role=str(results["arm_role"].iloc[0]),
+        results=results,
+        incidents=incidents,
+    )
+
+
+def _read_json(path: Path) -> dict | None:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        raise LoadError(f"{path}: invalid JSON: {e}") from e
+
+
+def load_stream_run(path: str | Path) -> StreamRun:
+    """Read a stream run directory: every subdirectory holding `results.csv` is an arm.
+
+    A directory that holds `results.csv` itself is read as a run of that one arm. All arms must
+    have played the same seeds.
+    """
+    path = Path(path)
+    if not path.is_dir():
+        raise LoadError(f"{path}: not a directory")
+    arm_dirs = sorted(p for p in path.iterdir() if p.is_dir() and (p / "results.csv").is_file())
+    if not arm_dirs and (path / "results.csv").is_file():
+        arm_dirs = [path]
+    if not arm_dirs:
+        raise LoadError(f"{path}: no arm directory with a results.csv")
+    arms = {p.name: load_stream_arm(p) for p in arm_dirs}
+    seeds = {name: tuple(arm.results["seed"]) for name, arm in arms.items()}
+    first = next(iter(seeds.values()))
+    for name, s in seeds.items():
+        if s != first:
+            raise LoadError(f"{path}: arm {name!r} played other seeds than the first arm")
+    return StreamRun(
+        path=path,
+        arms=arms,
+        manifest=_read_json(path / "manifest.json"),
+        usage=_read_json(path / "usage.json"),
+    )
+
+
+@dataclass
+class PairedStreams:
+    """Two arms aligned stream for stream on `seed`. `a` is baseline, `b` is treatment.
+
+    `results_a` and `results_b` have the same seeds in the same order; `incidents_a` and
+    `incidents_b` the same `(seed, incident)` keys in the same order, and the same tier, family
+    and criticality on every row, because the incidents of a stream do not depend on the arm.
+    """
+
+    a: StreamArm
+    b: StreamArm
+    results_a: pd.DataFrame
+    results_b: pd.DataFrame
+    incidents_a: pd.DataFrame
+    incidents_b: pd.DataFrame
+
+    def __len__(self) -> int:
+        return len(self.results_a)
+
+
+def pair_streams(a: StreamArm, b: StreamArm) -> PairedStreams:
+    """Join two arms on `seed`. Fails on a seed present in one arm only, and on incidents that
+    differ between the arms (two arms of one run have played the same streams; arms from runs
+    with other stream parameters have not, and must not be paired)."""
+    ka = a.results.set_index("seed")
+    kb = b.results.set_index("seed")
+    only_a = ka.index.difference(kb.index)
+    only_b = kb.index.difference(ka.index)
+    if len(only_a) or len(only_b):
+        raise LoadError(
+            f"unmatched streams: {len(only_a)} only in {a.name!r} (e.g. {list(only_a[:3])}), "
+            f"{len(only_b)} only in {b.name!r} (e.g. {list(only_b[:3])})"
+        )
+    order = ka.index.sort_values()
+    ia = a.incidents.set_index(STREAM_INCIDENT_KEY).sort_index()
+    ib = b.incidents.set_index(STREAM_INCIDENT_KEY).sort_index()
+    if not ia.index.equals(ib.index):
+        raise LoadError(
+            f"arms {a.name!r} and {b.name!r} have different incidents; they did not play the "
+            "same streams"
+        )
+    for c in ("tier", "family", "critical"):
+        if not (ia[c].to_numpy() == ib[c].to_numpy()).all():
+            raise LoadError(
+                f"arms {a.name!r} and {b.name!r} disagree about the {c} of an incident; they "
+                "did not play the same streams"
+            )
+    return PairedStreams(
+        a=a,
+        b=b,
+        results_a=ka.loc[order].reset_index(),
+        results_b=kb.loc[order].reset_index(),
+        incidents_a=ia.reset_index(),
+        incidents_b=ib.reset_index(),
+    )
+
+
+def pair_arms(run: StreamRun, a: str, b: str) -> PairedStreams:
+    """Pair two named arms of one run."""
+    for name in (a, b):
+        if name not in run.arms:
+            raise LoadError(f"{run.path}: no arm {name!r}; the arms are {sorted(run.arms)}")
+    return pair_streams(run.arms[a], run.arms[b])

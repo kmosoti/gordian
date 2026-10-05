@@ -202,6 +202,8 @@ pub struct CallTrace {
     pub call: u32,
     /// The incident asked about; `None` for a question about background.
     pub incident: Option<u32>,
+    /// The observation the question was about: the focus of the escalation that made the call.
+    pub focus: ObsId,
     /// The fingerprint of the question (focus and sorted context): the last word of the draw's
     /// key.
     pub fingerprint: u64,
@@ -250,6 +252,7 @@ pub fn calls(sim: &StreamSimulator) -> Vec<CallTrace> {
         .map(|(i, c)| CallTrace {
             call: i as u32,
             incident: c.incident,
+            focus: c.focus,
             fingerprint: c.fingerprint,
             at_ns: c.at.0,
             ready_at_ns: c.ready_at.0,

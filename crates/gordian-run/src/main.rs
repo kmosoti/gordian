@@ -36,8 +36,8 @@
 //! ```
 //!
 //! The first form tells a stream manifest from an episode manifest by its `stream_params` key and
-//! plays every seed once per arm, interleaved, scoring with the count scorer (the stream
-//! evaluator is wired in by the coordinator). `--arms` is a comma-separated list of `NAME=POLICY`
+//! plays every seed once per arm, interleaved, scoring each stream with the stream evaluator
+//! (`gordian-stream-eval`; an evaluator error stops the run). `--arms` is a comma-separated list of `NAME=POLICY`
 //! (policy defaults; edit the manifest for parameters); `POLICY` is one of `never_escalate`,
 //! `always_escalate`, `periodic_escalation`, `change_triggered`, `threshold_score`,
 //! `random_escalation`, `oracle_escalation` (privileged: its name must contain `privileged`) and
@@ -52,7 +52,7 @@ use gordian_run::policy::PolicySpec;
 use gordian_run::policy::decide::DecideConfig;
 use gordian_run::recorder::execute_report;
 use gordian_run::stream::manifest::{StreamArmSpec, StreamLimits, StreamManifest};
-use gordian_run::stream::{CountScorer, StreamPolicySpec, execute_stream};
+use gordian_run::stream::{StreamPolicySpec, execute_stream};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -143,7 +143,7 @@ fn run_stream(
 ) -> Result<(), String> {
     let manifest: StreamManifest =
         serde_json::from_str(text).map_err(|e| format!("{}: {e}", manifest_path.display()))?;
-    let report = execute_stream(&manifest, out, &CountScorer).map_err(|e| e.to_string())?;
+    let report = execute_stream(&manifest, out).map_err(|e| e.to_string())?;
     eprintln!(
         "gordian-run: {} segments, {} reasoner calls, {} declarations, {} sampled, {} drift blocks",
         report.total.segments,

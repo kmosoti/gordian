@@ -42,17 +42,22 @@
 //!
 //! # The truth stays aside
 //!
-//! The stream is generated and its [`StreamTruth`] built in [`run_segment`], immediately, as the
-//! episode harness builds `Truth`. The stream moves into the simulator, the truth is held in a
-//! local that nothing hands to an arm, and the reasoner's call records are read once at the end.
-//! Both go to the scorer after the last step and nowhere else. The privileged arm is built from
-//! the truth by [`OracleFactory::build`], inside [`run_segment_privileged`].
+//! The stream is generated and its truth built (`gordian_stream_eval::truth_from_stream`) in
+//! [`run_segment`], immediately, as the episode harness builds `Truth`. The stream moves into the
+//! simulator, the truth is held in a local that nothing hands to an arm, and the reasoner's call
+//! records (`calls_from_sim`) are read once at the end. Both go to the evaluator
+//! (`score_stream`) after the last step and nowhere else; an error from it is a defect and fails
+//! the run ([`StreamHarnessError::Eval`]). The privileged arm gets an
+//! [`OraclePlan`](super::privileged::OraclePlan) that this file fills from the truth by field
+//! access, inside [`run_segment_privileged`]'s path; the truth's type is not named in this crate.
+//! The family of each hard incident, for `incidents.csv`, is read here too
+//! ([`SegmentRecord::incident_families`]).
 
 use super::arms::{Applied, Proposed, Source, StepInput, StreamPolicy};
 use super::manifest::{Exchange, StreamLimits};
 use super::meter::{Meter, Totals};
-use super::privileged::OracleFactory;
-use super::score::{CallSummary, StreamEvalError, StreamScorer, StreamStep, StreamVerdict};
+use super::privileged::{OracleFactory, OraclePlan, PlanIncident};
+use super::score::{StreamEvalError, StreamStep, StreamVerdict, TrajectoryCounts, family_name};
 use crate::harness::{
     Charged, EpisodeOps, HarnessError, Measured, affordable, append, charge, elapsed_ns, payload,
     record_timing, timed,
@@ -61,9 +66,9 @@ use gordian_core::{Bill, EntryKind, Instant, Ledger, ManualClock, Phase, Resourc
 use gordian_core::{Charge, EntryId};
 use gordian_stream::{
     ObsId, ObsRef, Question, StreamAction, StreamEvent, StreamOutcome, StreamParams, StreamPublic,
-    StreamSimulator, generate,
+    StreamSimulator, Tier, generate,
 };
-use gordian_stream_reveal::{StreamTruth, call_records, truth_of};
+use gordian_stream_eval::{calls_from_sim, score_stream, truth_from_stream};
 use gordian_world::Observation;
 use gordian_world::physics::probe_cost;
 use gordian_world::step::CostSummary;
@@ -98,8 +103,12 @@ impl StreamStop {
 pub enum StreamHarnessError {
     /// A defect the episode harness's accounting layer reports (ledger, payload).
     Harness(HarnessError),
-    /// The scorer refused the trajectory.
+    /// The evaluator refused the trajectory or the call records: a defect in the harness, never a
+    /// result (`RULES.md` of the evaluator, S27 to S37).
     Eval(StreamEvalError),
+    /// The truth contradicts itself in a way the evaluator does not check (a hard incident with
+    /// no hard kind).
+    Truth(String),
     /// The limits are unusable.
     InvalidLimits(String),
     /// The stream's own budget differs from what the limits require.
@@ -112,7 +121,8 @@ impl fmt::Display for StreamHarnessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StreamHarnessError::Harness(e) => write!(f, "{e}"),
-            StreamHarnessError::Eval(e) => write!(f, "scorer refused the trajectory: {e}"),
+            StreamHarnessError::Eval(e) => write!(f, "evaluator refused the trajectory: {e}"),
+            StreamHarnessError::Truth(why) => write!(f, "inconsistent stream truth: {why}"),
             StreamHarnessError::InvalidLimits(why) => write!(f, "invalid limits: {why}"),
             StreamHarnessError::BudgetMismatch(why) => {
                 write!(f, "stream budget differs from the limits: {why}")
@@ -138,7 +148,7 @@ impl From<StreamEvalError> for StreamHarnessError {
     }
 }
 
-/// Counts the harness keeps beside the scorer's verdict.
+/// Counts the harness keeps beside the evaluator's verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SegmentCounts {
     /// Declarations the stream recorded that came from the cheap rung.
@@ -162,8 +172,16 @@ pub struct SegmentRecord {
     pub arm_id: String,
     /// What the arm is.
     pub role: super::arms::ArmRole,
-    /// The scorer's verdict.
+    /// The evaluator's verdict: one entry per incident and the totals. Hidden-side facts (the
+    /// tiers) are in it; it is evaluator output, never an input to an arm.
     pub verdict: StreamVerdict,
+    /// What the trajectory alone says: probes bought, declarations by kind, the reasoner's
+    /// declared latency. No truth.
+    pub trajectory_counts: TrajectoryCounts,
+    /// The hard-fault family of each incident of `verdict.per_incident`, in the same order: the
+    /// family's name for a hard incident, empty for any other. Hidden state, kept for
+    /// `incidents.csv` only (`HARNESS.md`, section 11).
+    pub incident_families: Vec<&'static str>,
     /// The live bill at the end of the segment.
     pub bill: Bill,
     /// The ledger: observations, answers, accounting, decisions, outcomes, timings.
@@ -235,9 +253,8 @@ pub fn run_segment(
     make_arm: &dyn Fn(&StreamPublic) -> Box<dyn StreamPolicy>,
     limits: &StreamLimits,
     exchange: &Exchange,
-    scorer: &dyn StreamScorer,
 ) -> Result<SegmentRecord, StreamHarnessError> {
-    play(params, ArmSource::Given(make_arm), limits, exchange, scorer)
+    play(params, ArmSource::Given(make_arm), limits, exchange)
 }
 
 /// [`run_segment`] for the privileged arm: it is built here, from the segment's truth, by
@@ -251,15 +268,8 @@ pub fn run_segment_privileged(
     factory: &OracleFactory,
     limits: &StreamLimits,
     exchange: &Exchange,
-    scorer: &dyn StreamScorer,
 ) -> Result<SegmentRecord, StreamHarnessError> {
-    play(
-        params,
-        ArmSource::Privileged(factory),
-        limits,
-        exchange,
-        scorer,
-    )
+    play(params, ArmSource::Privileged(factory), limits, exchange)
 }
 
 /// Everything the loop mutates, apart from the arm.
@@ -627,7 +637,6 @@ fn play(
     source: ArmSource<'_>,
     limits: &StreamLimits,
     exchange: &Exchange,
-    scorer: &dyn StreamScorer,
 ) -> Result<SegmentRecord, StreamHarnessError> {
     let started = Wall::now();
     limits
@@ -639,7 +648,7 @@ fn play(
     // block nothing but the simulator holds it, and the truth is held in a local that no arm is
     // ever handed.
     let stream = generate(params);
-    let truth: StreamTruth = truth_of(&stream);
+    let truth = truth_from_stream(&stream);
     let public = stream.public_info();
     let public_stream = stream.events().to_vec();
     let seed = params.seed;
@@ -654,7 +663,26 @@ fn play(
     let sim = StreamSimulator::new(stream);
     let mut policy: Box<dyn StreamPolicy> = match source {
         ArmSource::Given(make) => make(&public),
-        ArmSource::Privileged(factory) => factory.build(&truth, &public),
+        ArmSource::Privileged(factory) => {
+            // The one place the truth is read for an arm: the facts the privileged arm acts on,
+            // copied out by field access (the truth's type is never named in this crate).
+            let plan = OraclePlan::new(
+                (0..truth.labels.len())
+                    .map(|i| truth.incident_of(ObsId(i as u32)))
+                    .collect(),
+                truth
+                    .incidents
+                    .iter()
+                    .map(|i| PlanIncident {
+                        id: i.id,
+                        hard: i.tier == Tier::Hard,
+                        decisive: i.decisive.clone(),
+                        first: i.observations.first().copied(),
+                    })
+                    .collect(),
+            );
+            factory.build(&plan, &public)
+        }
     };
     let producer = format!("policy/{}", policy.id().0);
     let role = policy.role();
@@ -808,8 +836,24 @@ fn play(
         }
     }
 
-    let calls: Vec<CallSummary> = call_records(&st.sim);
-    let verdict = scorer.score_stream(&truth, &st.trajectory, &calls)?;
+    // Scoring: the one place the truth and the call records are used. An error here is a defect in
+    // the harness and stops the run; it never becomes a row.
+    let calls = calls_from_sim(&st.sim);
+    let verdict = score_stream(&truth, &st.trajectory, &calls)?;
+    let trajectory_counts = TrajectoryCounts::of(&st.trajectory);
+    let mut incident_families = Vec::with_capacity(truth.incidents.len());
+    for inc in &truth.incidents {
+        incident_families.push(match (inc.tier, inc.shape.hard_kind) {
+            (Tier::Hard, Some(kind)) => family_name(kind),
+            (Tier::Hard, None) => {
+                return Err(StreamHarnessError::Truth(format!(
+                    "hard incident {} has no hard kind",
+                    inc.id
+                )));
+            }
+            _ => "",
+        });
+    }
     let State {
         bill,
         ledger,
@@ -830,11 +874,18 @@ fn play(
         .saturating_sub(measured.component_ns)
         .saturating_sub(measured.sched_ns);
     let report = policy.report();
+    let reasoner_cost_ns = verdict
+        .totals
+        .reasoner
+        .tokens
+        .saturating_mul(exchange.reasoner_ns_per_token);
     Ok(SegmentRecord {
         seed,
         arm_id,
         role,
         verdict,
+        trajectory_counts,
+        incident_families,
         bill,
         ledger,
         trajectory,
@@ -851,9 +902,7 @@ fn play(
             components: totals.components,
             sched: totals.sched,
         },
-        reasoner_cost_ns: verdict
-            .reasoner_tokens
-            .saturating_mul(exchange.reasoner_ns_per_token),
+        reasoner_cost_ns,
         public,
         public_stream,
     })

@@ -5,7 +5,7 @@ mod stream_common;
 
 use gordian_run::stream::manifest::{StreamArmSpec, StreamManifest};
 use gordian_run::stream::spec::StreamPolicySpec;
-use gordian_run::stream::{CountScorer, StreamRunError, execute_stream};
+use gordian_run::stream::{StreamRunError, execute_stream};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -16,7 +16,7 @@ use stream_common::*;
 fn run(m: &StreamManifest, name: &str) -> std::path::PathBuf {
     let out = scratch(name);
     let out = out.join("run");
-    execute_stream(m, &out, &CountScorer).unwrap_or_else(|e| panic!("{e}"));
+    execute_stream(m, &out).unwrap_or_else(|e| panic!("{e}"));
     out
 }
 
@@ -305,7 +305,7 @@ fn a_policy_is_written_as_its_id_or_with_its_parameters_and_stray_parameters_are
 fn a_recorded_run_is_never_overwritten() {
     let m = manifest("keep", &[("never_escalate", "never_escalate")], 1, 150, 0);
     let out = run(&m, "keep");
-    match execute_stream(&m, &out, &CountScorer) {
+    match execute_stream(&m, &out) {
         Err(StreamRunError::Io(why)) => assert!(why.contains("already exists"), "{why}"),
         other => panic!("{other:?}"),
     }
@@ -346,6 +346,12 @@ fn the_events_sample_holds_the_public_record_and_no_hidden_state() {
         "StreamLabel",
         "Decisive",
         "occupies",
+        // The evaluator's output: the hard-fault family (`incidents.csv`) and its names.
+        "family",
+        "compound",
+        "cascade",
+        "split_brain",
+        "slow_leak",
     ];
     for arm in &m.arms {
         let text = read(&out.join(&arm.arm), "events-sample.jsonl");

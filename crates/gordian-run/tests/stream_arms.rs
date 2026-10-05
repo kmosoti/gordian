@@ -18,7 +18,7 @@ use gordian_run::stream::spec::{StreamPolicySpec, build_public, privileged_facto
 use gordian_stream::{
     HardKind, ObsId, ObsRef, StreamAction, StreamKind, StreamOutcome, Tier, generate,
 };
-use gordian_stream_reveal::truth_of;
+use gordian_stream_eval::truth_from_stream;
 use gordian_world::ServiceId;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -289,7 +289,7 @@ fn escalating_changes_what_is_declared_and_never_what_is_noticed() {
 fn a_reasoner_answer_outranks_the_cheap_rung_and_is_declared_where_it_was_asked() {
     let p = params(5, 200);
     let record = play(&p, &StreamPolicySpec::Always, &limits(&p)).unwrap();
-    assert!(record.verdict.reasoner_calls > 0);
+    assert!(record.verdict.totals.reasoner.calls > 0);
     assert!(record.counts.reasoner_declarations > 0);
     // Every escalation names a focus, and an answer is declared on the observation it was about:
     // every reasoner declaration's anchor is the focus of some call.
@@ -330,7 +330,7 @@ fn the_oracle_escalates_exactly_the_hard_incidents_once_each_with_their_decisive
     let mut hard_total = 0;
     for seed in 0..6 {
         let p = hard_heavy(seed);
-        let truth = truth_of(&generate(&p));
+        let truth = truth_from_stream(&generate(&p));
         let record = play(&p, &StreamPolicySpec::Oracle, &limits(&p)).unwrap();
         let mut per_incident: BTreeMap<u32, Vec<BTreeSet<ObsRef>>> = BTreeMap::new();
         for step in &record.trajectory {
@@ -363,7 +363,7 @@ fn the_oracle_escalates_exactly_the_hard_incidents_once_each_with_their_decisive
         }
         // Nothing else was asked, and nothing was refused.
         assert_eq!(
-            record.verdict.reasoner_calls as usize,
+            record.verdict.totals.reasoner.calls as usize,
             per_incident.values().map(Vec::len).sum::<usize>()
         );
         assert_eq!(record.counts.escalations_refused, 0);
@@ -386,7 +386,7 @@ fn the_oracle_is_the_shared_cheap_rung_with_privileged_escalation_only() {
     let l = limits(&p);
     let oracle = play(&p, &StreamPolicySpec::Oracle, &l).unwrap();
     let never = play(&p, &StreamPolicySpec::Never, &l).unwrap();
-    assert_eq!(oracle.verdict.reasoner_calls, 0);
+    assert_eq!(oracle.verdict.totals.reasoner.calls, 0);
     // Strip the columns that name the arm: the role.
     let strip = |r: &gordian_run::stream::SegmentRecord| {
         results_row("x", r).replacen("privileged", "comparison", 1)
@@ -403,7 +403,7 @@ fn the_ablation_never_escalates_and_knows_some_of_what_the_cheap_rung_does_not()
     let mut per_family: BTreeMap<HardKind, [u32; 2]> = BTreeMap::new();
     for seed in 0..8 {
         let p = hard_heavy(seed);
-        let truth = truth_of(&generate(&p));
+        let truth = truth_from_stream(&generate(&p));
         let l = limits(&p);
         let right = |record: &gordian_run::stream::SegmentRecord| -> BTreeSet<u32> {
             let mut ok = BTreeSet::new();
@@ -422,7 +422,10 @@ fn the_ablation_never_escalates_and_knows_some_of_what_the_cheap_rung_does_not()
         };
         let never = play(&p, &StreamPolicySpec::Never, &l).unwrap();
         let ablation = play(&p, &StreamPolicySpec::Ablation, &l).unwrap();
-        assert_eq!(ablation.verdict.reasoner_calls, 0, "it escalates nothing");
+        assert_eq!(
+            ablation.verdict.totals.reasoner.calls, 0,
+            "it escalates nothing"
+        );
         assert_eq!(ablation.role, ArmRole::Ablation);
         let (n, a) = (right(&never), right(&ablation));
         for inc in &truth.incidents {
@@ -519,15 +522,18 @@ fn no_arm_file_can_name_the_truth_the_call_records_the_stream_or_its_parameters(
             "Episode",
             "Simulator",
             "gordian_eval",
-            "gordian_stream_reveal",
+            "gordian_stream_eval",
+            "OraclePlan",
+            "PlanIncident",
         ] {
             assert!(!has_word(text, word), "{name} names {word}");
         }
         for fragment in [
             ["oracle", "::"].concat().as_str(),
             "reveal",
-            "truth_of",
-            "call_records",
+            "truth_from_stream",
+            "calls_from_sim",
+            "score_stream",
         ] {
             assert!(!text.contains(fragment), "{name} contains {fragment}");
         }
@@ -552,39 +558,56 @@ fn stream_sources() -> Vec<(PathBuf, String)> {
 }
 
 #[test]
-fn only_the_harness_the_scorer_seam_and_the_privileged_file_touch_the_truth() {
-    let allowed = ["harness.rs", "score.rs", "oracle.rs"];
-    let mut naming_truth = Vec::new();
+fn only_the_harness_and_the_evaluator_seam_touch_the_truth_and_nothing_names_its_type() {
+    let allowed = ["harness.rs", "score.rs"];
+    let mut naming_evaluator = Vec::new();
     for (path, text) in stream_sources() {
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        let touches = has_word(&text, "StreamTruth")
-            || text.contains("gordian_stream_reveal")
-            || text.contains("truth_of(")
-            || text.contains("call_records(");
+        let touches = text.contains("gordian_stream_eval")
+            || text.contains("truth_from_stream(")
+            || text.contains("calls_from_sim(")
+            || text.contains("score_stream(");
         if touches {
-            naming_truth.push(name.clone());
+            naming_evaluator.push(name.clone());
             assert!(
                 allowed.contains(&name.as_str()),
                 "{name} reaches hidden state"
             );
         }
-        // The stream is generated in the harness and nowhere else, and its truth is built there.
-        if text.contains("generate(") || text.contains("truth_of(") {
-            assert_eq!(
-                name,
-                "harness.rs",
-                "{} builds a stream or its truth",
-                path.display()
-            );
+        // No file of the stream module writes the truth's type, the oracle's path or the retired
+        // accessor crate: the harness reads the truth by inference, and the privileged arm gets
+        // a plan (R3b removed the shim crate that used to name them).
+        for word in ["StreamTruth", "IncidentTruth", "CallTrace"] {
+            assert!(!has_word(&text, word), "{name} names {word}");
+        }
+        for fragment in [
+            ["oracle", "::"].concat().as_str(),
+            "gordian_stream_reveal",
+            "truth_of(",
+            "call_records(",
+        ] {
+            assert!(!text.contains(fragment), "{name} contains {fragment}");
+        }
+        // The stream is generated in the harness and nowhere else, its truth is built there, and
+        // so is the plan the privileged arm acts on.
+        for fragment in ["generate(", "truth_from_stream(", "OraclePlan::new("] {
+            if text.contains(fragment) {
+                assert_eq!(name, "harness.rs", "{} contains {fragment}", path.display());
+            }
         }
     }
-    naming_truth.sort();
-    // The harness and the scorer's seam hold it; the privileged arm is built from it.
-    assert_eq!(naming_truth, vec!["harness.rs", "oracle.rs", "score.rs"]);
-    // And the crate's own manifest does not switch the feature on (the reveal crate does).
-    let cargo =
-        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).unwrap();
+    naming_evaluator.sort();
+    // The harness calls the evaluator; the seam re-exports its types.
+    assert_eq!(naming_evaluator, vec!["harness.rs", "score.rs"]);
+    // The crate's own manifest does not switch the feature on (the evaluator does), and the
+    // retired shim crate is gone from the manifest and from the tree.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let cargo = fs::read_to_string(root.join("Cargo.toml")).unwrap();
     assert!(!cargo.contains("reveal-hidden-state"));
+    assert!(!cargo.contains("gordian-stream-reveal"));
+    assert!(!root.join("../gordian-stream-reveal").exists());
+    let workspace = fs::read_to_string(root.join("../../Cargo.toml")).unwrap();
+    assert!(!workspace.contains("gordian-stream-reveal"));
 }
 
 #[test]
