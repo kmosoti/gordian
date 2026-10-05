@@ -1,0 +1,7 @@
+arm,check,calls,ok,worst_lateness_s
+sel_rung_privileged,"each call is delay_ns after its notice (selection) / after its incident's first observation (notice), to within three steps",215,215,7.304e-06
+notice_rung_privileged,"each call is delay_ns after its notice (selection) / after its incident's first observation (notice), to within three steps",270,270,0.499785
+streams,streams in the dump and in the ledgers,100,100,
+never_escalate,"streams whose anomalies_noticed (results.csv) equals the dump's, held-out, default threshold",200,200,0
+notice_rung_privileged,"streams whose anomalies_noticed (results.csv) equals the dump's, held-out, default threshold",200,200,0
+sel_rung_privileged,"streams whose anomalies_noticed (results.csv) equals the dump's, held-out, default threshold",200,199,1

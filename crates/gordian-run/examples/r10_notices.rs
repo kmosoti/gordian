@@ -13,10 +13,12 @@
 //! anomaly the rung noticed (anchor, site, the instants of anchor and notice, the incident the
 //! anchor belongs to, the incidents among its attached observations at the last step it was seen).
 //!
-//! The rung's notices do not depend on the escalation rule (R4's decomposition relied on this),
-//! so these are the notices of every arm that shares the rung; the analysis checks it against the
-//! ledgers of a diagnostic run (a call of `oracle_selection` is made `delay_ns` after the notice
-//! of the anomaly it is about). The labels are read the way the evaluator reads them, so this
+//! The rung's notices depend on the escalation rule only through a call in flight, which keeps
+//! the anomaly it is about from retiring; this rule makes no call, so these are the notices of
+//! `never_escalate` and of `oracle_notice`, and, up to that effect, of every arm that shares the
+//! rung. The analysis checks them against the arms' own results and against the ledgers of a
+//! diagnostic run (a call of `oracle_selection` is made `delay_ns` after the notice of the anomaly
+//! it is about). The labels are read the way the evaluator reads them, so this
 //! file is analysis tooling and no arm: it is never linked into an arm or the harness, and its
 //! output is read by one analysis script.
 
