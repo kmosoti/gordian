@@ -17,9 +17,12 @@ harness):
 - R^2 of the weighted counts against the minimum time per call, the acceptance figure (at least
   0.9 for every target and every set);
 - the median and 90th percentile of |predicted / measured - 1|;
-- the worst class (largest |mean relative residual|) and the worst per-class R^2;
-- the mean relative residual by window size and by number of probe results, which is the
-  residual's shape.
+- the worst of the eleven episode classes (largest |mean relative residual|), and each class's
+  R^2 in the JSON (a class's R^2 over a narrow range of times says little, so the headline is
+  the bias, not that R^2);
+- the mean relative residual by window size, by source of the window (generated prefix, probe
+  results appended, evicted, synthetic) and by number of probe results, which is the residual's
+  shape.
 
 It prints the weights as picoseconds per unit, ready for the constants in code, and exits 1 if
 any target fails the R^2 bar on any set. Usage:
@@ -107,12 +110,21 @@ def summarize(rows, units, w, label):
         ts = np.array([i[2] for i in items])
         classes[cls] = {"n": len(items), "mean_rel": float(es.mean()), "r2": r2(ps, ts)}
     out["classes"] = classes
-    worst = max(classes.items(), key=lambda kv: abs(kv[1]["mean_rel"]))
+    # "Synthetic" is the hand-built upstream windows (a source, not an episode class).
+    real_classes = {k: v for k, v in classes.items() if k != "Synthetic"}
+    worst = max(real_classes.items(), key=lambda kv: abs(kv[1]["mean_rel"]))
     out["worst_class"] = {"class": worst[0], **worst[1]}
-    out["worst_class_r2"] = min(
-        (v["r2"] for v in classes.values() if v["n"] >= 8 and np.isfinite(v["r2"])),
-        default=float("nan"),
-    )
+    sources = defaultdict(list)
+    for r, e, p, tt in zip(rows, rel, pred, t):
+        sources[r["source"]].append((e, p, tt))
+    out["by_source"] = {
+        k: {
+            "n": len(v),
+            "mean_rel": float(np.mean([i[0] for i in v])),
+            "median_abs_rel": float(np.median([abs(i[0]) for i in v])),
+        }
+        for k, v in sorted(sources.items())
+    }
     sizes = defaultdict(list)
     for r, e in zip(rows, rel):
         edges = [0, 24, 48, 96, 192, 384, 768, 1 << 30]
@@ -172,14 +184,20 @@ def main():
                 f"  {label:8s} n={s['n']:5d}  R2={s['r2']:.4f} [{flag}]  "
                 f"median|rel|={100 * s['median_abs_rel']:.1f}%  p90|rel|={100 * s['p90_abs_rel']:.1f}%  "
                 f"mean rel={100 * s['mean_rel']:+.1f}%  worst class {wc['class']} "
-                f"(mean rel {100 * wc['mean_rel']:+.1f}%, R2 {wc['r2']:.3f})  "
-                f"worst per-class R2 {s['worst_class_r2']:.3f}"
+                f"(mean rel {100 * wc['mean_rel']:+.1f}%)"
             )
         for label in (fit_label, "heldout", "real"):
             s = sets.get(label)
             if s is None:
                 continue
             print(f"  residual by size, {label}: " + "; ".join(f"{k}: {v[1] * 100:+.1f}% (n={v[0]})" for k, v in s["by_size"].items()))
+            print(
+                f"  residual by source, {label}: "
+                + "; ".join(
+                    f"{k}: {v['mean_rel'] * 100:+.1f}% (median |rel| {v['median_abs_rel'] * 100:.1f}%, n={v['n']})"
+                    for k, v in s["by_source"].items()
+                )
+            )
             if s["by_probes"]:
                 print(f"  residual by probe results, {label}: " + "; ".join(f"{k}: {v[1] * 100:+.1f}% (n={v[0]})" for k, v in s["by_probes"].items()))
         for label in ("heldout", "real"):

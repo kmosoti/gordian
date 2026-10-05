@@ -44,6 +44,9 @@ const C_PS: u64 = 156_000;
 // Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
 //
 // - `calls`: one per call, which always emits one entry;
+// - `candidates`: 1 when the consistent set is not empty, which makes the entry a list of
+//   candidates; an empty set (the window lost the anchor) makes the shorter damaged-evidence entry
+//   and counts 0;
 // - `scanned`: observations touched: the copy of the window into the checker's slice, and the
 //   checker's first pass (so twice the window length unless the pass ends early);
 // - `mask_steps`, `worlds`, `evals`, `probe_evals`: the checker's own counts
@@ -51,17 +54,22 @@ const C_PS: u64 = 156_000;
 //   world against an observation, and against a probe result;
 // - `ranked`: hypotheses written into the entry, which is the whole consistent set.
 const U_CALLS: usize = 0;
-const U_SCANNED: usize = 1;
-const U_MASK_STEPS: usize = 2;
-const U_WORLDS: usize = 3;
-const U_EVALS: usize = 4;
-const U_PROBE_EVALS: usize = 5;
-const U_RANKED: usize = 6;
+const U_CANDIDATES: usize = 1;
+const U_SCANNED: usize = 2;
+const U_MASK_STEPS: usize = 3;
+const U_WORLDS: usize = 4;
+const U_EVALS: usize = 5;
+const U_PROBE_EVALS: usize = 6;
+const U_RANKED: usize = 7;
 
 /// The verifier's units and their weights.
 pub const UNITS: &[Unit] = &[
     Unit {
         name: "calls",
+        weight_ps: 0,
+    },
+    Unit {
+        name: "candidates",
         weight_ps: 0,
     },
     Unit {
@@ -138,6 +146,7 @@ impl Component for ConsistencyVerifier {
             };
             return (output, ops);
         }
+        ops.add(U_CANDIDATES, 1);
         ops.add(U_RANKED, set.len() as u64);
         let ranked: Vec<Ranked> = set
             .into_iter()

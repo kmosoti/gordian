@@ -343,8 +343,13 @@ impl<S: Selector + Clone> Policy for Recorder<S> {
         state: &WorkingState,
         outputs: &[(ComponentId, ComponentOutput)],
     ) -> Option<Action> {
-        if let Some((arm, bill)) = self.pending.take()
-            && self.kept()
+        let before = self.pending.take();
+        let action = self.inner.decide(state, outputs);
+        // A state in which the rule bought a probe is kept whatever the sampling says: it is the
+        // expensive call, and the least common one.
+        let bought_a_probe = matches!(action, Some(Action::Probe { .. }));
+        if let Some((arm, bill)) = before
+            && (self.kept() || bought_a_probe)
         {
             self.snaps.borrow_mut().push(Snapshot {
                 arm,
@@ -355,7 +360,7 @@ impl<S: Selector + Clone> Policy for Recorder<S> {
                 },
             });
         }
-        self.inner.decide(state, outputs)
+        action
     }
     fn declared_final_cost(&self, state: &WorkingState) -> Vec<gordian_core::Charge> {
         self.inner.declared_final_cost(state)
@@ -514,6 +519,34 @@ fn main() {
         }
         out.flush().unwrap();
     }
+
+    // Windows that lost their oldest observations: the whole stream of an episode admitted into
+    // a window too small for it, so the recency rule evicts the early alarms that anchor the
+    // site. The verifier answers some of them with the damaged-evidence entry.
+    for (set, seeds) in [("fit", 0..3u64), ("heldout", 3..6u64)] {
+        for (ci, class) in EpisodeClass::ALL.into_iter().enumerate() {
+            for k in seeds.clone() {
+                let ep = generate(&EpisodeSpec::new(BASE_SEED + ci as u64 * 16 + k, class));
+                for capacity in [8usize, 16, 32, 64] {
+                    let mut w = WorkingState::new(ep.public_info(), capacity);
+                    for (at, obs) in ep.stream() {
+                        w.admit(*at, obs.clone());
+                    }
+                    let tag = Tag {
+                        set,
+                        source: "evicted",
+                        class: format!("{class:?}"),
+                        arm: "",
+                        n: capacity,
+                        probes: 0,
+                        extra_records: 0,
+                    };
+                    time_components(&mut out, reps, &tag, &w);
+                }
+            }
+        }
+    }
+    out.flush().unwrap();
 
     // Windows on which the heuristic's upstream-site rule decides.
     for (set, seeds) in [("fit", 0..3u64), ("heldout", 3..6u64)] {

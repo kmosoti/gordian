@@ -144,3 +144,61 @@ def ratio_of_totals_ci(
         done += len(idx)
     lo, hi = percentile_interval(stats_, confidence)
     return RatioResult(1.0 - sum_b / sum_a, lo, hi, sum_a, sum_b, confidence, n, resamples, seed)
+
+
+@dataclass(frozen=True)
+class MedianRatioResult:
+    """The median over episodes of B_i / A_i, with a paired bootstrap interval."""
+
+    median: float
+    low: float
+    high: float
+    n: int
+    confidence: float
+    n_resamples: int
+    seed: int
+
+
+def median_ratio_ci(
+    paired: PairedRuns,
+    metric: str,
+    seed: int,
+    resamples: int = DEFAULT_RESAMPLES,
+    confidence: float = 0.90,
+) -> MedianRatioResult:
+    """Median of the per-episode ratios B_i / A_i, with a paired bootstrap interval.
+
+    The median of episodes is the estimate that a few interrupted episodes cannot move, which is
+    why it is the wall-time estimate the cost model's check uses (work item A8b): bursts of
+    stolen CPU time hit single episodes and dominate a ratio of totals. Each resample draws
+    episode indices with replacement and applies them to the per-episode ratios, so a pair stays
+    together; the interval is the equal-tailed percentile interval at `confidence`.
+
+    Raises ValueError for negative values or a zero in arm A (the ratio of that episode is
+    undefined), never skipping an episode.
+    """
+    a, b = paired.values(metric)
+    if len(a) < 2:
+        raise ValueError("need at least 2 paired episodes")
+    if np.any(a <= 0) or np.any(b < 0):
+        raise ValueError(
+            f"metric {metric!r} must be positive in arm A and non-negative in arm B for a "
+            "per-episode ratio"
+        )
+    if not 0.0 < confidence < 1.0:
+        raise ValueError("confidence must be in (0, 1)")
+    if resamples < 1:
+        raise ValueError("resamples must be positive")
+    if isinstance(seed, bool) or int(seed) != seed:
+        raise ValueError("seed must be an integer")
+    seed = int(seed)
+    ratios = b / a
+    n = len(ratios)
+    rng = np.random.default_rng(seed)
+    stats_ = np.empty(resamples)
+    done = 0
+    for idx in _resample_indices(rng, n, resamples):
+        stats_[done : done + len(idx)] = np.median(ratios[idx], axis=1)
+        done += len(idx)
+    lo, hi = percentile_interval(stats_, confidence)
+    return MedianRatioResult(float(np.median(ratios)), lo, hi, n, confidence, resamples, seed)
