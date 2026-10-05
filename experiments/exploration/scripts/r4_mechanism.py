@@ -144,6 +144,22 @@ def main():
                 e.first_q.mean(), int((e.first_q == 0).sum()), int((e.first_q >= 0.999).sum())))
             print("   best q over the incident's calls: mean %.3f; q == 1 for %d" % (
                 e.best_q.mean(), int((e.best_q >= 0.999).sum())))
+        # The headline split: the slow leak has no burst, so it is noticed only once its reading
+        # crosses the alarm threshold, late; the other three families are noticed within seconds.
+        for label, sub in (
+            ("burst families (compound, cascade, split_brain)", agree[agree.family != "slow_leak"]),
+            ("slow_leak", agree[agree.family == "slow_leak"]),
+        ):
+            e = sub[sub.calls_attributed > 0]
+            if not len(e):
+                continue
+            print(f"-- attribution agrees, {label}: {len(e)} incidents")
+            print("   median first call after onset %.2f s; median last decisive observation at %.2f s; "
+                  "first call before it: %d of %d" % (
+                      e.first_call_after_onset_s.median(), e.last_decisive_after_onset_s.median(),
+                      int(e.first_before_last_decisive.sum()), len(e)))
+            print("   first-call q: mean %.3f, q == 0 for %d, q == 1 for %d" % (
+                e.first_q.mean(), int((e.first_q == 0).sum()), int((e.first_q >= 0.999).sum())))
         print("evaluator, all matched incidents: %d calls, %d informed" % (
             int(g.calls_evaluator.sum()), int(g.informed_evaluator.sum())))
 
