@@ -179,27 +179,32 @@ def matches(ids_a, ids_b):
     return sum(c.get(i, 0) for i in ids_a)
 
 
-FEATURES = [
+SITE_FEATURES = [
     "site_ff_score",         # tail score of the free-form messages at the site in phase 2
     "site_ff_n",             # their count (capped at 6)
     "site_ff_rep",           # repeated-id pairs among them (capped at 4)
-    "unc_ff_score",          # the highest tail score over unconnected services (free-form, phase 2)
-    "con_ff_score",          # ... over connected services (dependents and upstream)
-    "unc_ff_share",          # the most ids an unconnected service's messages share with the site's (cap 4)
-    "con_ff_share",          # ... a connected one's
-    "unc_alarm_burst",       # abnormal counters at unconnected services in the burst (capped at 4)
-    "unc_alarm_p2",          # unconnected services with an ErrorRate and a Latency alarm cluster in phase 2
-    "mixed_other_burst",     # services other than the site with MixedSignals in the burst (cap 2)
-    "mixed_other_p2",        # ... in phase 2 (cap 2)
-    "mixed_other_p2_score",  # tail score of the same count against the catalogue stray rate
     "site_char_p2",          # characteristic messages at the site in phase 2 (capped at 3)
-    "site_char_p2_score",    # their tail score against the stray rate
+    "site_char_p2_score",    # their tail score against the catalogue stray rate
     "site_nonerr_p2",        # abnormal counters other than ErrorRate at the site in phase 2 (cap 4)
-    "site_nonerr_p2_score",
+    "site_nonerr_p2_score",  # their tail score against the abnormal-counter rate
     "burst_union",           # distinct characteristic messages at the site in the burst (capped at 3)
     "burst_inconsistent",    # the site's burst fits no single known kind (0/1)
     "burst_char",            # a characteristic message at the site in the burst (0/1)
 ]
+PARTNER_FEATURES = [
+    "ff_n",        # free-form messages of the partner candidate in phase 2 (capped at 5)
+    "ff_score",    # their tail score against the free-form rate
+    "share",       # id pairs (site message, candidate message) of equal id in phase 2 (capped at 4)
+    "alarm_burst",  # distinct abnormal counters at the candidate in the burst (capped at 3)
+    "cluster_p2",  # an ErrorRate and a Latency alarm within 50 ms in phase 2, no characteristic message near
+    "mixed_burst",  # MixedSignals at the candidate in the burst
+    "mixed_p2",    # MixedSignals at the candidate in phase 2
+    "pulses",      # abnormal readings at the candidate in the 6 s after its first alarm (capped at 4)
+]
+# The partner candidates: the best unconnected service and the best connected one (a dependent or an
+# upstream service of the site), each chosen by the score `partner_score`.
+GROUPS = ("unc", "con")
+FEATURES = SITE_FEATURES + [f"{g}_{k}" for g in GROUPS for k in PARTNER_FEATURES]
 
 
 def _groups(recs, site, rel):
@@ -207,8 +212,9 @@ def _groups(recs, site, rel):
     mixed_burst, mixed_p2 = set(), set()
     char_site_p2, char_site_burst = [], []
     nonerr_site_p2 = 0
-    ab_unc_burst = set()
-    unc_p2 = {}
+    ab_burst = {}     # service -> set of abnormal counter names in the burst
+    ab_series = {}    # service -> [(t, name)] abnormal counters over the whole context
+    p2_alarm = {}     # service -> {"E": [t], "L": [t]} in phase 2
     char_times = {}
     ab_out = ff_out = cat_out = 0
     site_burst_ab = set()
@@ -241,14 +247,16 @@ def _groups(recs, site, rel):
             abn = b >= HIGH
             if abn and outside:
                 ab_out += 1
+            if abn:
+                ab_series.setdefault(s, []).append((t, a))
             if abn and in_p and s == site and a != "ErrorRate":
                 nonerr_site_p2 += 1
             if abn and in_b and s == site:
                 site_burst_ab.add(a)
-            if abn and in_b and s != site and rel[s] == "unconnected":
-                ab_unc_burst.add((s, a))
-            if abn and in_p and s != site and rel[s] == "unconnected":
-                d = unc_p2.setdefault(s, {"E": [], "L": []})
+            if abn and in_b and s != site:
+                ab_burst.setdefault(s, set()).add(a)
+            if abn and in_p and s != site:
+                d = p2_alarm.setdefault(s, {"E": [], "L": []})
                 if a == "ErrorRate":
                     d["E"].append(t)
                 elif a == "Latency":
@@ -257,7 +265,7 @@ def _groups(recs, site, rel):
         "ff_p2": ff_p2, "ff_out": ff_out, "cat_out": cat_out, "ab_out": ab_out,
         "mixed_burst": mixed_burst, "mixed_p2": mixed_p2, "char_site_p2": char_site_p2,
         "char_site_burst": char_site_burst, "nonerr_site_p2": nonerr_site_p2,
-        "ab_unc_burst": ab_unc_burst, "unc_p2": unc_p2, "char_times": char_times,
+        "ab_burst": ab_burst, "ab_series": ab_series, "p2_alarm": p2_alarm, "char_times": char_times,
         "site_burst_ab": site_burst_ab,
     }
 
@@ -277,6 +285,43 @@ def _burst_inconsistent(g):
     return 1
 
 
+def _partner_block(s, g, site_ids, mu_ff):
+    """The partner features of candidate service `s`, and the observation ids they cite."""
+    msgs = g["ff_p2"].get(s, [])
+    ids = [a for a, _ in msgs]
+    d = g["p2_alarm"].get(s)
+    cluster = 0
+    first_alarm = None
+    times = [t for t, _ in g["ab_series"].get(s, []) if (0 < t <= B_HI) or (P_LO <= t <= P_HI)]
+    if d and any(abs(x - y) < ALARM_PAIR_S for x in d["E"] for y in d["L"]):
+        near = any(abs(tc - x) < CHAR_NEAR_S for tc in g["char_times"].get(s, []) for x in d["E"] + d["L"])
+        if not near:
+            cluster = 1
+    if times:
+        first_alarm = min(times)
+    pulses = 0
+    if first_alarm is not None:
+        pulses = sum(1 for t, _ in g["ab_series"].get(s, []) if first_alarm + 0.5 < t <= first_alarm + 6.0)
+    return {
+        "ff_n": float(min(len(ids), 5)),
+        "ff_score": poisson_tail_score(len(ids), mu_ff),
+        "share": float(min(matches(site_ids, ids), 4)),
+        "alarm_burst": float(min(len(g["ab_burst"].get(s, ())), 3)),
+        "cluster_p2": float(cluster),
+        "mixed_burst": float(s in g["mixed_burst"]),
+        "mixed_p2": float(s in g["mixed_p2"]),
+        "pulses": float(min(pulses, 4)),
+    }, [i for _, i in msgs]
+
+
+def partner_score(b):
+    """How much a candidate looks like the cascade's partner or the split brain's peer: the sum of its
+    evidence, each item on a comparable scale. Used only to choose which service of a group the
+    classifier looks at."""
+    return (min(b["ff_score"], 8.0) / 4.0 + b["share"] + b["alarm_burst"] / 2.0 + b["cluster_p2"]
+            + b["mixed_burst"] + b["mixed_p2"] - 0.25 * b["pulses"])
+
+
 def features(services, focus, context):
     """The reader's features of one question and a trace of what they were computed from."""
     site = service_of(focus["obs"])
@@ -289,41 +334,11 @@ def features(services, focus, context):
     mu_cat_type = (g["cat_out"] + 0.5) / SPAN_OUT / 8.0 / n  # one catalogue type at one service, per second
     mu_ab = (g["ab_out"] + 0.5) / SPAN_OUT / n  # abnormal counters at one service, per second
     f = dict.fromkeys(FEATURES, 0.0)
-    ff = g["ff_p2"]
-    site_msgs = ff.get(site, [])
+    site_msgs = g["ff_p2"].get(site, [])
     site_ids = [a for a, _ in site_msgs]
     f["site_ff_n"] = float(min(len(site_ids), 6))
     f["site_ff_score"] = poisson_tail_score(len(site_ids), mu_ff)
     f["site_ff_rep"] = float(min(pairs_same(site_ids), 4))
-    unc_s = con_s = unc_sh = con_sh = 0.0
-    best_unc = best_con = None
-    for s, msgs in ff.items():
-        if s == site:
-            continue
-        ids = [a for a, _ in msgs]
-        sc = poisson_tail_score(len(ids), mu_ff)
-        sh = float(min(matches(site_ids, ids), 4))
-        if rel[s] == "unconnected":
-            if sc > unc_s:
-                unc_s, best_unc = sc, s
-            unc_sh = max(unc_sh, sh)
-        else:
-            if sc > con_s:
-                con_s, best_con = sc, s
-            con_sh = max(con_sh, sh)
-    f["unc_ff_score"], f["con_ff_score"] = unc_s, con_s
-    f["unc_ff_share"], f["con_ff_share"] = unc_sh, con_sh
-    f["unc_alarm_burst"] = float(min(len(g["ab_unc_burst"]), 4))
-    clusters = 0
-    for s, d in g["unc_p2"].items():
-        if any(abs(x - y) < ALARM_PAIR_S for x in d["E"] for y in d["L"]):
-            near = any(abs(tc - x) < CHAR_NEAR_S for tc in g["char_times"].get(s, []) for x in d["E"] + d["L"])
-            if not near:
-                clusters += 1
-    f["unc_alarm_p2"] = float(min(clusters, 2))
-    f["mixed_other_burst"] = float(min(len(g["mixed_burst"]), 2))
-    f["mixed_other_p2"] = float(min(len(g["mixed_p2"]), 2))
-    f["mixed_other_p2_score"] = poisson_tail_score(len(g["mixed_p2"]), mu_cat_type * win * (n - 1))
     f["site_char_p2"] = float(min(len(g["char_site_p2"]), 3))
     f["site_char_p2_score"] = poisson_tail_score(len(g["char_site_p2"]), mu_cat_type * 5 * win)
     f["site_nonerr_p2"] = float(min(g["nonerr_site_p2"], 4))
@@ -332,11 +347,22 @@ def features(services, focus, context):
     f["burst_char"] = float(bool(g["char_site_burst"]))
     f["burst_inconsistent"] = float(_burst_inconsistent(g))
     cited = [i for _, i in site_msgs]
-    for s in (best_unc, best_con):
-        if s is not None:
-            cited += [i for _, i in ff[s]]
-    trace = {"site": site, "cited_ff": sorted(cited), "unc_ff_service": best_unc,
-             "con_ff_service": best_con, "mu_ff": mu_ff}
+    chosen = {}
+    for grp in GROUPS:
+        best, best_b, best_cite = None, None, []
+        for s in range(n):
+            if s == site or (rel[s] == "unconnected") != (grp == "unc"):
+                continue
+            b, cite = _partner_block(s, g, site_ids, mu_ff)
+            sc = partner_score(b)
+            if best is None or sc > best[0]:
+                best, best_b, best_cite = (sc, s), b, cite
+        if best is not None:
+            for k, v in best_b.items():
+                f[f"{grp}_{k}"] = v
+            chosen[grp] = best[1]
+            cited += best_cite
+    trace = {"site": site, "cited_ff": sorted(cited), "partner": chosen, "mu_ff": mu_ff}
     return f, trace
 
 
