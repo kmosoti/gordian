@@ -21,6 +21,11 @@ pub const SEC: u64 = 1_000_000_000;
 /// One millisecond in nanoseconds.
 pub const MS: u64 = 1_000_000;
 
+/// Smallest mean gap between arrivals the generator accepts (100 ms). A smaller gap would make
+/// the arrival loop run for as many iterations as there are nanoseconds in the stream, and an
+/// incident lasts tens of seconds, so nothing meaningful lives below it.
+pub const MIN_MEAN_GAP_NS: u64 = 100 * MS;
+
 /// Fixed timing structure of every incident. These are constants of the world, not parameters:
 /// the indistinguishability argument of `DESIGN.md` section 5 depends on them together.
 pub mod timing {
@@ -46,6 +51,11 @@ pub mod timing {
     pub const GRACE_NS: (u64, u64) = (5 * SEC, 15 * SEC);
     /// A service stays reserved for its incident this long after the incident's last effect.
     pub const BUSY_TAIL_NS: u64 = 8 * SEC;
+    /// Every decisive observation of an incident arrives within this long of its onset: a
+    /// decoy resolving as late as it can, then [`RECOVERY_DECISIVE`] beats at the slowest gap.
+    /// No incident arrives later than this before the end of the stream, so none is cut off.
+    pub const DECISIVE_HORIZON_NS: u64 =
+        T0_NS + DECOY_SPAN_NS + RECOVERY_DECISIVE as u64 * BEAT_MS.1 * 1_000_000;
 }
 
 /// A window of time in nanoseconds, inclusive at both ends.
@@ -261,9 +271,11 @@ pub struct StreamParams {
     pub min_services: u8,
     /// Most services (clamped to `min_services..=12`).
     pub max_services: u8,
-    /// Mean gap between incident arrivals, nanoseconds (a Poisson process).
+    /// Mean gap between incident arrivals, nanoseconds (a Poisson process). Raised to
+    /// [`MIN_MEAN_GAP_NS`] if smaller.
     pub mean_gap_ns: u64,
-    /// No incident arrives in the last `tail_ns`, so that every decisive item fits.
+    /// No incident arrives in the last `tail_ns`, so that every decisive item fits. Raised to
+    /// [`timing::DECISIVE_HORIZON_NS`] (31.5 s) if smaller.
     pub tail_ns: u64,
     /// Tier mix.
     pub mix: TierMix,
@@ -391,7 +403,8 @@ impl StreamParams {
             min_services,
             max_services,
             duration_ns: self.duration_ns.max(1),
-            mean_gap_ns: self.mean_gap_ns.max(1),
+            mean_gap_ns: self.mean_gap_ns.max(MIN_MEAN_GAP_NS),
+            tail_ns: self.tail_ns.max(timing::DECISIVE_HORIZON_NS),
             mix: TierMix {
                 plain_permille: plain,
                 hard_permille: hard,

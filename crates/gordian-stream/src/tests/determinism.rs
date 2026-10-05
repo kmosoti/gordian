@@ -169,3 +169,108 @@ fn a_cloned_simulator_replays_from_the_clone_point() {
     };
     assert_eq!(ask(&mut sim), ask(&mut fork));
 }
+
+#[test]
+fn events_and_answers_are_recorded_as_measurements_and_hypotheses() {
+    use gordian_core::EntryKind;
+    let p = StreamParams::new(5);
+    let mut sim = StreamSimulator::new(generate(&p));
+    let end = gordian_core::Instant(p.duration_ns);
+    let events = sim.observe_until(end);
+    assert!(
+        events
+            .iter()
+            .all(|e| e.entry_kind() == EntryKind::Measurement)
+    );
+    let focus = crate::ObsId(0);
+    sim.apply(
+        StreamAction::Escalate {
+            context: vec![],
+            question: Question::Diagnose { focus },
+        },
+        end,
+    );
+    let later = sim.observe_until(gordian_core::Instant(end.0 + 3_600_000_000_000));
+    assert_eq!(later.len(), 1);
+    assert_eq!(later[0].entry_kind(), EntryKind::Hypothesis);
+}
+
+/// FNV-1a over the debug rendering of the public stream: a digest that changes when any
+/// observation, instant or order changes.
+fn digest(s: &crate::Stream) -> u64 {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    for b in format!("{:?}", s.events()).bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
+#[test]
+fn the_public_stream_of_seed_7_has_a_pinned_digest() {
+    // Pins protocol replay across builds and platforms: the generator's output is a function of
+    // the seed and the parameters and nothing else (no platform math, no hash order). If this
+    // fails after an intended change to the generator, every experiment record made with the
+    // old generator is void; update the constant and say so in the commit.
+    let s = generate(&StreamParams::new(7));
+    assert_eq!(s.events().len(), 4702);
+    assert_eq!(digest(&s), GOLDEN_SEED_7);
+}
+
+const GOLDEN_SEED_7: u64 = 6_700_914_689_600_843_359;
+
+#[test]
+fn generation_survives_extreme_and_odd_parameters() {
+    // Not every combination is meaningful; none may panic, and the invariants must hold.
+    let mut g = crate::rng::Gen::keyed(&[0xBAD]);
+    for i in 0..60u64 {
+        let mut p = StreamParams::new(g.u64());
+        p.duration_ns = [
+            1_000_000_000,
+            90_000_000_000,
+            600_000_000_000,
+            2_000_000_000_000,
+        ][g.below(4) as usize];
+        p.mean_gap_ns = [1, 150_000_000, 3_000_000_000, 40_000_000_000][g.below(4) as usize];
+        p.tail_ns = [0, 20_000_000_000, 60_000_000_000, 10_000_000_000_000][g.below(4) as usize];
+        p.min_services = g.below(20) as u8;
+        p.max_services = g.below(20) as u8;
+        p.mix.plain_permille = g.below(1200) as u32;
+        p.mix.hard_permille = g.below(1200) as u32;
+        p.recurrence_permille = g.below(1200) as u32;
+        p.critical.plain_permille = g.below(1200) as u32;
+        p.noise.benign_mhz = [0, 500, 20_000][g.below(3) as usize];
+        p.noise.burst_mhz = [0, 30, 2_000][g.below(3) as usize];
+        p.noise.freeform_mhz = [0, 1_500][g.below(2) as usize];
+        if g.below(2) == 0 {
+            p.regimes.clear();
+        }
+        // Keep the heaviest combinations affordable in a debug build.
+        if p.mean_gap_ns < 1_000_000_000 {
+            // 1 is raised to the floor, 100 ms
+            p.duration_ns = p.duration_ns.min(90_000_000_000);
+        }
+        let (s, t) = with_truth(&p);
+        let n = t.services.len();
+        assert!((6..=12).contains(&n), "case {i}");
+        let mut prev = gordian_core::Instant::ZERO;
+        for (at, _) in s.events() {
+            assert!(*at >= prev);
+            prev = *at;
+        }
+        assert_eq!(t.labels.len(), s.events().len());
+        for inc in &t.incidents {
+            assert!(
+                !inc.decisive.is_empty(),
+                "case {i}: incident {} has no decisive evidence",
+                inc.id
+            );
+            assert!(
+                inc.decisive
+                    .iter()
+                    .all(|o| (o.0 as usize) < s.events().len())
+            );
+        }
+        assert_eq!(generate(&p), s, "case {i}: not deterministic");
+    }
+}

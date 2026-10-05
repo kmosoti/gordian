@@ -97,6 +97,7 @@ fn a_recurrence_repeats_kind_and_site_and_criticality_but_not_the_noise() {
             }
         }
     }
+    println!("{n} recurrences compared with their originals");
     assert!(n > 200, "{n}");
     assert_eq!(
         identical_evidence, 0,

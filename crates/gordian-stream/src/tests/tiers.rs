@@ -64,6 +64,9 @@ fn the_cheap_rung_identifies_every_plain_incident_from_its_own_evidence() {
         }
     }
     assert_eq!(identified, total);
+    println!(
+        "cheap rung identified {identified} of {total} plain incidents from their own evidence ({duos} duos, one probe each)"
+    );
     assert!(total > 200, "{total}");
     assert!(
         duos > 20,
@@ -663,4 +666,143 @@ fn plain_probes_answer_as_the_first_world_does() {
         }
     }
     assert!(n > 100);
+}
+
+#[test]
+fn a_decoy_answers_probes_like_a_sick_service_while_live_and_like_a_healthy_one_after() {
+    use gordian_world::{Probe, ProbeKind, ProbeResult};
+    let mut n = 0;
+    for seed in 0..10 {
+        let p = no_regime(seed, 0, 0);
+        let (s, t) = with_truth(&p);
+        for inc in &t.incidents {
+            let hidden = &s.incidents[inc.id as usize];
+            let site = inc.occupies[0];
+            let at = |t_ns: u64, kind, target| {
+                crate::probe::answer(hidden, &s.services, Probe { kind, target }, Instant(t_ns))
+            };
+            // Live: a health check at the site is positive, as for a hard incident.
+            assert_eq!(
+                at(inc.onset_ns + 1_000_000, ProbeKind::HealthCheck, site),
+                ProbeResult::Positive
+            );
+            // Resolved: every probe at every service it occupied reads healthy.
+            for who in &inc.occupies {
+                for kind in ProbeKind::ALL {
+                    let healthy = gordian_world::physics::probe_result(
+                        &s.services,
+                        None,
+                        (false, false),
+                        0,
+                        Probe { kind, target: *who },
+                    );
+                    assert_eq!(at(inc.live_end_ns, kind, *who), healthy, "{kind:?}");
+                    assert_eq!(at(inc.live_end_ns + 5_000_000_000, kind, *who), healthy);
+                }
+            }
+            n += 1;
+        }
+    }
+    assert!(n > 60);
+}
+
+/// The earliest instant at which the incident's own readings at its site show that it has
+/// resolved, by the simplest public rule: five benign heartbeats in a row, or, for the leak's
+/// climbing reading, a reading ten or more below the highest so far.
+fn recovery_seen_at(s: &crate::Stream, inc: &IncidentTruth) -> Option<u64> {
+    let site = inc.occupies[0];
+    let leak = inc.shape.hard_kind == Some(HardKind::SlowLeak);
+    let mut run = 0;
+    let mut max = 0u64;
+    for o in &inc.observations {
+        let (at, obs) = &s.events()[o.0 as usize];
+        let Observation::Counter {
+            service,
+            name,
+            value,
+        } = obs
+        else {
+            continue;
+        };
+        if *service != site
+            || !matches!(
+                name,
+                gordian_world::CounterName::ErrorRate | gordian_world::CounterName::Saturation
+            )
+            || at.0 < inc.onset_ns + 500_000_000
+        {
+            continue;
+        }
+        if leak {
+            if *value + 10 <= max {
+                return Some(at.0);
+            }
+            max = max.max(*value);
+        } else if *value < HIGH {
+            run += 1;
+            if run == 5 {
+                return Some(at.0);
+            }
+        } else {
+            run = 0;
+        }
+    }
+    None
+}
+
+#[test]
+fn a_decoys_resolution_can_be_read_from_public_readings_but_only_after_waiting() {
+    // The evidence that separates a decoy from a hard incident exists in the stream, and costs
+    // time: the simplest rule that finds it fires about five beats after the decoy resolves.
+    let (mut decoys, mut found, mut hard, mut false_alarms, mut premature) = (0, 0, 0, 0, 0);
+    let mut delays = Vec::new();
+    let mut before_20s = 0;
+    for seed in 0..25 {
+        let mut p = with_mix(seed, 0, 500);
+        p.regimes.clear();
+        let (s, t) = with_truth(&p);
+        for inc in &t.incidents {
+            let seen = recovery_seen_at(&s, inc);
+            match inc.tier {
+                Tier::Decoy => {
+                    decoys += 1;
+                    if let Some(at) = seen {
+                        found += 1;
+                        delays.push((at - inc.onset_ns) as f64 / 1e9);
+                        before_20s += ((at - inc.onset_ns) < 20_000_000_000) as u32;
+                        // Five flaps in a row happen by chance before it has resolved.
+                        premature += (at < inc.live_end_ns) as u32;
+                    }
+                }
+                Tier::Hard => {
+                    hard += 1;
+                    // Only count a false alarm before the deadline: afterwards the incident
+                    // closes, which looks the same.
+                    if let Some(at) = seen
+                        && at < inc.deadline_ns.unwrap()
+                    {
+                        false_alarms += 1;
+                    }
+                }
+                Tier::Plain => unreachable!(),
+            }
+        }
+    }
+    delays.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = delays[delays.len() / 2];
+    println!(
+        "decoys: {found}/{decoys} resolutions read from the stream, median {median:.1} s after \
+         onset, {before_20s} before 20 s; hard incidents wrongly read as resolved before their \
+         deadline: {false_alarms}/{hard}; read before the decoy had resolved: {premature}"
+    );
+    assert!(premature * 100 <= decoys * 3, "{premature}/{decoys}");
+    assert!(found * 100 >= decoys * 97, "{found}/{decoys}");
+    assert!(false_alarms * 100 <= hard * 3, "{false_alarms}/{hard}");
+    // Waiting is not free: the median reading is some 19 s after onset, against hard-critical
+    // deadlines of 20 to 40 s.
+    assert!(median > 12.0 && median < 30.0, "{median}");
+    assert!(
+        before_20s * 10 < found * 7,
+        "over 30% of decoys are still unread at 20 s: {before_20s}/{found} read"
+    );
 }

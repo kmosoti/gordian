@@ -203,7 +203,7 @@ pub(crate) fn build(
             let mut s = identified(&mut gb, phys, &[a], site, &deps);
             if mode == Mode::Contradict {
                 let pdeps = dependents(services, partner);
-                let base = gb.range(20, 150) * MS;
+                let base = gb.range(20, 150) * MS + gb.below(MS);
                 s.extend(partner_alarm(&mut gb, partner, &pdeps, base));
             }
             s
@@ -211,7 +211,7 @@ pub(crate) fn build(
         Family::SplitBrain { peer, mode } => {
             let mut s = mixed(&mut gb, site, &deps);
             if mode == Mode::Contradict {
-                let base = gb.range(20, 150) * MS;
+                let base = gb.range(20, 150) * MS + gb.below(MS);
                 s.extend(peer_alarm(&mut gb, peer, base));
             }
             s
@@ -224,7 +224,7 @@ pub(crate) fn build(
     if inc.tier == Tier::Hard {
         let mut gp = Gen::keyed(&[seed, domain::PHASE2, inc.arrival as u64]);
         let window_ms = timing::PHASE2_NS / MS;
-        let start = |g: &mut Gen| onset + timing::T0_NS + g.below(window_ms) * MS;
+        let start = |g: &mut Gen| onset + timing::T0_NS + g.below(window_ms) * MS + g.below(MS);
         let hk = inc
             .family
             .hard_kind()
@@ -247,7 +247,7 @@ pub(crate) fn build(
                     .iter()
                     .filter(|n| **n != CounterName::ErrorRate)
                 {
-                    let off = gp.range(1, 20) * MS;
+                    let off = gp.range(1, 20) * MS + gp.below(MS);
                     items.push(Item {
                         at: t0 + off,
                         obs: counter(site, *name, hot(&mut gp)),
@@ -322,6 +322,7 @@ pub(crate) fn build(
         let high = hot(&mut gu);
         let low = calm(&mut gu);
         let jitter = gu.below(5) as i64 - 2;
+        let sub_ms = gu.below(MS);
         t_ms += gap;
         let live = t_ms < live_end_ms;
         let (name, value) = if leak {
@@ -331,7 +332,7 @@ pub(crate) fn build(
                 (base + jitter).max(0) as u64
             };
             if live && v >= HIGH && inc.cross.is_none() {
-                inc.cross = Some(Instant(onset + t_ms * MS));
+                inc.cross = Some(Instant(onset + t_ms * MS + sub_ms));
             }
             (CounterName::Saturation, v)
         } else {
@@ -349,7 +350,7 @@ pub(crate) fn build(
             after += 1;
         }
         items.push(Item {
-            at: onset + t_ms * MS,
+            at: onset + t_ms * MS + sub_ms,
             obs: counter(site, name, value),
             role,
         });

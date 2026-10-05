@@ -23,9 +23,9 @@
 //! The draws come from ChaCha8 keyed by `(stream seed, incident id, call index)`, where the call
 //! index counts the calls *about that incident*. Two policies that ask their first question about
 //! the same incident therefore see the same draws, whatever else they asked about, which makes
-//! paired comparisons of policies sharper. Three words are drawn in order: the correctness draw,
-//! the draw that picks a wrong answer, and nothing else. The correctness draw is compared with
-//! `p` as `u < p`.
+//! paired comparisons of policies sharper. Two draws are taken in order, both always: the
+//! correctness draw, compared with `p` as `u < p`, and the draw that picks among the wrong
+//! answers (used only when the first says wrong).
 //!
 //! # A wrong answer is a plausible one
 //!

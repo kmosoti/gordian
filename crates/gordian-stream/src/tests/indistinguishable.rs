@@ -124,6 +124,7 @@ fn swapping_hard_for_decoy_and_back_changes_nothing_public_for_the_first_six_sec
             }
         }
     }
+    println!("{swapped} incidents swapped between hard and decoy");
     assert!(swapped > 300, "{swapped}");
     assert_eq!(
         later_differs, swapped,

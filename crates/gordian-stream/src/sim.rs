@@ -112,6 +112,16 @@ impl StreamEvent {
             StreamEvent::Observed { at, .. } | StreamEvent::Answered { at, .. } => *at,
         }
     }
+
+    /// The kind of ledger entry the event belongs in. An observation is a measurement. The
+    /// reasoner's answer is a hypothesis: the ledger types keep the two apart, and so does this
+    /// event type, so that a harness cannot record an answer as something sensed.
+    pub fn entry_kind(&self) -> gordian_core::EntryKind {
+        match self {
+            StreamEvent::Observed { .. } => gordian_core::EntryKind::Measurement,
+            StreamEvent::Answered { .. } => gordian_core::EntryKind::Hypothesis,
+        }
+    }
 }
 
 /// Why an action was refused. A refusal charges nothing and changes nothing.

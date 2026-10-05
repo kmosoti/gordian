@@ -46,8 +46,14 @@ pub(crate) fn counter(service: ServiceId, name: CounterName, value: u64) -> Obse
     }
 }
 
+/// An offset of `lo` to `hi` milliseconds plus a draw below one millisecond. Without the draw
+/// every observation of an incident would share the incident's onset modulo one millisecond,
+/// which no background observation does, and a policy could group an incident's observations by
+/// that residue for free. The draw is below one millisecond, so offsets of at least one
+/// millisecond still order after an anchor at offset zero (itself jittered below one
+/// millisecond).
 fn at_ms(g: &mut Gen, lo: u64, hi: u64) -> u64 {
-    g.range(lo, hi) * MS
+    g.range(lo, hi) * MS + g.below(MS)
 }
 
 /// The full signature of every kind in `kinds` at `site`, as the first world's `Identified`
@@ -62,7 +68,7 @@ pub(crate) fn identified(
     deps: &[ServiceId],
 ) -> Vec<Sig> {
     let mut out = vec![Sig {
-        off_ns: 0,
+        off_ns: g.below(MS),
         obs: counter(site, CounterName::ErrorRate, hot(g)),
     }];
     let mut seen_counters: Vec<(ServiceId, CounterName)> = vec![(site, CounterName::ErrorRate)];
@@ -125,7 +131,7 @@ pub(crate) fn identified(
 /// settles it. Requires at least one dependent.
 pub(crate) fn duo(g: &mut Gen, site: ServiceId, deps: &[ServiceId]) -> Vec<Sig> {
     let mut out = vec![Sig {
-        off_ns: 0,
+        off_ns: g.below(MS),
         obs: counter(site, CounterName::ErrorRate, hot(g)),
     }];
     let off_ns = at_ms(g, 1, 20);
@@ -146,7 +152,7 @@ pub(crate) fn duo(g: &mut Gen, site: ServiceId, deps: &[ServiceId]) -> Vec<Sig> 
 /// `Latency` at up to three dependents. Leaves `DependencyDown` and `Intermittent` open.
 pub(crate) fn mixed(g: &mut Gen, site: ServiceId, deps: &[ServiceId]) -> Vec<Sig> {
     let mut out = vec![Sig {
-        off_ns: 0,
+        off_ns: g.below(MS),
         obs: counter(site, CounterName::ErrorRate, hot(g)),
     }];
     let off_ns = at_ms(g, 1, 20);
@@ -174,7 +180,7 @@ pub(crate) fn mixed(g: &mut Gen, site: ServiceId, deps: &[ServiceId]) -> Vec<Sig
 /// `peer`, starting `base_ns` after the reference instant.
 pub(crate) fn peer_alarm(g: &mut Gen, peer: ServiceId, base_ns: u64) -> Vec<Sig> {
     let mut out = vec![Sig {
-        off_ns: base_ns,
+        off_ns: base_ns + g.below(MS),
         obs: counter(peer, CounterName::ErrorRate, hot(g)),
     }];
     let off_ns = base_ns + at_ms(g, 1, 20);
@@ -200,7 +206,7 @@ pub(crate) fn partner_alarm(
     base_ns: u64,
 ) -> Vec<Sig> {
     let mut out = vec![Sig {
-        off_ns: base_ns,
+        off_ns: base_ns + g.below(MS),
         obs: counter(partner, CounterName::ErrorRate, hot(g)),
     }];
     let off_ns = base_ns + at_ms(g, 1, 20);
@@ -227,7 +233,7 @@ pub(crate) fn mini_burst(
     site: ServiceId,
 ) -> Vec<Sig> {
     let mut out = vec![Sig {
-        off_ns: 0,
+        off_ns: g.below(MS),
         obs: counter(site, CounterName::ErrorRate, hot(g)),
     }];
     let off_ns = at_ms(g, 1, 30);

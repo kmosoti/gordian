@@ -28,14 +28,15 @@ pattern='oracle::|reveal\('
 # crate or its truth type, the generated-episode type (whose serde output includes hidden state),
 # the simulator (which applies actions outside the harness's bill), or the hidden-state feature,
 # as well as the pattern above. The stream crate adds the same kind of ban: a policy may not name
-# the generated `Stream` (hidden tiers, labels and deadlines) or the `StreamParams` that hold the
-# tier mix, the regime schedule and the reasoner's `(a, b, c)`; it may name `StreamSimulator`,
-# `StreamPublic` and the action and event types. Word boundaries keep `EpisodeClass`,
-# `EpisodeSpec` and `StreamSimulator` legal. Only
+# the generated `Stream` (hidden tiers, labels and deadlines), the `StreamParams` that hold the
+# tier mix, the regime schedule and the reasoner's `(a, b, c)`, or the `StreamSimulator` (which
+# applies actions outside the harness's bill, as the first world's `Simulator` does); it may name
+# `StreamPublic`, `StreamAction`, `StreamEvent` and the reference and hypothesis types. Word
+# boundaries keep `EpisodeClass` and `EpisodeSpec` legal. Only
 # `policy/oracle.rs` is exempt. It is declared as `#[path = "oracle.rs"] mod privileged;`, so the
 # rest of the crate refers to it as `privileged::` and never writes `oracle::`.
 policy_re='^crates/gordian-run/src/policy/'
-policy_pattern='oracle::|reveal|gordian_eval|\bTruth\b|\bEpisode\b|\bSimulator\b|\bStream\b|StreamParams|StreamTruth'
+policy_pattern='oracle::|reveal|gordian_eval|\bTruth\b|\bEpisode\b|\bSimulator\b|\bStream\b|StreamParams|StreamTruth|StreamSimulator'
 
 status=0
 # Tracked and untracked-but-not-ignored Rust files, so the check works before the first commit.

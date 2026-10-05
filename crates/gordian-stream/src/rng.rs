@@ -184,6 +184,16 @@ mod tests {
     }
 
     #[test]
+    fn the_series_return_pinned_bits() {
+        // Bit-exact values: a platform whose basic operations differed would fail here, and
+        // generation would no longer replay across platforms.
+        assert_eq!(det_exp(1.0).to_bits(), 0x4005bf0a8b145768);
+        assert_eq!(det_exp(-3.7).to_bits(), 0x3f99511fc6871045);
+        assert_eq!(det_ln(0.3).to_bits(), 0xbff34378fcbda720);
+        assert_eq!(det_ln(1234.5).to_bits(), 0x401c79436f818745);
+    }
+
+    #[test]
     fn sigmoid_is_symmetric_and_bounded() {
         assert!((sigmoid(0.0) - 0.5).abs() < 1e-15);
         for x in [-9.0, -2.0, -0.3, 0.7, 4.0] {

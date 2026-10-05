@@ -214,3 +214,59 @@ fn a_mini_burst_looks_like_the_start_of_an_incident_and_has_no_heartbeat() {
     }
     assert!(seen > 3, "{seen}");
 }
+
+/// Chi-square of `counts` against a uniform distribution, with its degrees of freedom.
+fn uniform_chi2(counts: &[u64]) -> (f64, f64) {
+    let n: u64 = counts.iter().sum();
+    let e = n as f64 / counts.len() as f64;
+    let chi: f64 = counts.iter().map(|c| (*c as f64 - e).powi(2) / e).sum();
+    (chi, counts.len() as f64 - 1.0)
+}
+
+#[test]
+fn an_incidents_observations_cannot_be_grouped_by_their_time_modulo_a_millisecond() {
+    // Offsets inside an incident are whole milliseconds from its onset, so without sub-
+    // millisecond jitter every observation of an incident would share one residue, and the
+    // residue would segment the stream for free. Check that the residue of an incident's
+    // observations is uniform, as the background's is, at three resolutions, and that the
+    // residues of one incident's first observations are not equal to each other.
+    for modulus in [1_000_000u64, 1_000_000_000, 100_000] {
+        let mut incident = vec![0u64; 20];
+        let mut background = vec![0u64; 20];
+        for seed in 0..20 {
+            let (s, t) = with_truth(&StreamParams::new(seed));
+            for (i, (at, _)) in s.events().iter().enumerate() {
+                let bin = ((at.0 % modulus) * 20 / modulus) as usize;
+                match t.labels[i] {
+                    ObsLabel::Incident { .. } => incident[bin] += 1,
+                    ObsLabel::Background(_) => background[bin] += 1,
+                }
+            }
+        }
+        for (name, counts) in [("incident", &incident), ("background", &background)] {
+            let (chi, df) = uniform_chi2(counts);
+            assert!(
+                chi < df + 5.0 * (2.0 * df).sqrt(),
+                "{name} residues modulo {modulus} are not uniform: chi2 {chi} on {df}"
+            );
+        }
+    }
+    // Within one incident: no two of its first ten observations share a residue modulo 1 ms
+    // more often than chance (1 in 10^6 per pair, so essentially never).
+    let (s, t) = with_truth(&StreamParams::new(3));
+    let mut equal_pairs = 0;
+    for inc in &t.incidents {
+        let r: Vec<u64> = inc
+            .observations
+            .iter()
+            .take(10)
+            .map(|o| s.events()[o.0 as usize].0.0 % 1_000_000)
+            .collect();
+        for i in 0..r.len() {
+            for j in (i + 1)..r.len() {
+                equal_pairs += (r[i] == r[j]) as u32;
+            }
+        }
+    }
+    assert!(equal_pairs <= 1, "{equal_pairs}");
+}
