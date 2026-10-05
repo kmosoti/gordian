@@ -96,7 +96,9 @@ def pilot():
     arms = [C.sel_arm(key, d) for key, _, _ in C.all_builders()]
     arms.append(C.ctxonly_arm(d))
     arms += [a for a in C.reference_arms() if a[0] in (C.ORACLE, C.NEVER)]
-    arms += [C.always_arm(key, 14) for key in ("rung", "win_w20_n064", "coc_d02000", "nbh_k2")]
+    # The pilot ran at 1d0107f with the first grid (cooccur and neighbourhood without a cap axis,
+    # keys `coc_d02000` and `nbh_k2`); its recorded manifest is the record, this line is not it.
+    arms += [C.always_arm(key, 14) for key in ("rung", "win_w20_n064", "coc_d02000_n128", "nbh_k2_n128")]
     write("pilot", b, rho, (C.TUNING_SEEDS[0], 10), arms, 0.0, 6000, "exploration-r6-pilot")
 
 

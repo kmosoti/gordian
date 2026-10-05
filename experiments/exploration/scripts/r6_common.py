@@ -29,10 +29,14 @@ load_json = C5.load_json
 # ---- the builder grids (swept on the tuning streams only) -------------------------------------
 
 WINDOW_W_S = [5, 10, 20, 40, 80]  # retention is 120 s
-WINDOW_N = [8, 16, 32, 64, 128, 256]
+WINDOW_N = [8, 16, 32, 64, 128, 256, 512]
 COOCCUR_DELTA_MS = [250, 500, 1000, 2000, 4000, 8000, 16000]
 NEIGH_HOPS = [0, 1, 2, 3, 4, 6]
-FIXED_CAP = 128  # cooccur and neighbourhood: the rung's own cap (RungConfig::context_max_refs)
+# The plan sweeps W x N, delta and k. The pilot (10 tuning streams, `r6-pilot-b5-rho0.7`) showed the
+# rung's cap of 128 truncating the larger cooccur and neighbourhood contexts, which would confound
+# their parameters with a cap nobody chose, so their cap is swept too (a superset of the plan's
+# sweep, more generous to the public builders), and window's N goes to 512.
+CAPS = [64, 128, 256]
 
 ALWAYS_DELAYS_S = list(C4.ALWAYS_DELAYS_S)
 
@@ -50,9 +54,9 @@ def builder_key(kind, **p):
     if kind == "window":
         return f"win_w{p['w']:02d}_n{p['n']:03d}"
     if kind == "cooccur":
-        return f"coc_d{p['d_ms']:05d}"
+        return f"coc_d{p['d_ms']:05d}_n{p['n']:03d}"
     if kind == "neighbourhood":
-        return f"nbh_k{p['k']}"
+        return f"nbh_k{p['k']}_n{p['n']:03d}"
     raise KeyError(kind)
 
 
@@ -63,9 +67,9 @@ def builder_spec(kind, **p):
     if kind == "window":
         return {"builder": "window", "window_ns": p["w"] * NS, "max_refs": p["n"]}
     if kind == "cooccur":
-        return {"builder": "cooccur", "delta_ns": p["d_ms"] * 1_000_000, "max_refs": FIXED_CAP}
+        return {"builder": "cooccur", "delta_ns": p["d_ms"] * 1_000_000, "max_refs": p["n"]}
     if kind == "neighbourhood":
-        return {"builder": "neighbourhood", "hops": p["k"], "max_refs": FIXED_CAP}
+        return {"builder": "neighbourhood", "hops": p["k"], "max_refs": p["n"]}
     raise KeyError(kind)
 
 
@@ -76,9 +80,11 @@ def all_builders():
         for n in WINDOW_N:
             out.append((builder_key("window", w=w, n=n), "window", {"w": w, "n": n}))
     for d in COOCCUR_DELTA_MS:
-        out.append((builder_key("cooccur", d_ms=d), "cooccur", {"d_ms": d}))
+        for n in CAPS:
+            out.append((builder_key("cooccur", d_ms=d, n=n), "cooccur", {"d_ms": d, "n": n}))
     for k in NEIGH_HOPS:
-        out.append((builder_key("neighbourhood", k=k), "neighbourhood", {"k": k}))
+        for n in CAPS:
+            out.append((builder_key("neighbourhood", k=k, n=n), "neighbourhood", {"k": k, "n": n}))
     return out
 
 
