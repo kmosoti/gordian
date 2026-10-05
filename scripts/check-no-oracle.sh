@@ -11,7 +11,6 @@
 #   crates/gordian-stream/                     the stream crate, which defines its own accessor
 #   crates/gordian-eval/                       the evaluator
 #   crates/gordian-stream-eval/                the stream evaluator
-#   crates/gordian-stream-reveal/              the stream's accessor for the stream harness (work item R3)
 #   crates/gordian-run/src/policy/oracle.rs    the privileged oracle baselines (module `privileged`)
 #
 # It is a grep, so it is conservative in one direction and blind in another: an unrelated
@@ -23,7 +22,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-allow_re='^(crates/gordian-world/|crates/gordian-stream/|crates/gordian-stream-eval/|crates/gordian-stream-reveal/|crates/gordian-eval/|crates/gordian-run/src/policy/oracle\.rs$)'
+allow_re='^(crates/gordian-world/|crates/gordian-stream/|crates/gordian-stream-eval/|crates/gordian-eval/|crates/gordian-run/src/policy/oracle\.rs$)'
 pattern='oracle::|reveal\('
 
 # Policies get a stricter check than the rest of the tree. A policy may not name the evaluator
@@ -40,13 +39,16 @@ pattern='oracle::|reveal\('
 #
 # The stream harness's arms (work item R3) get the same strict check: every file under
 # `crates/gordian-run/src/stream/arms/` is a policy file. The ban also covers the stream
-# evaluator's seam types (`StreamVerdict`), the reasoner's call records (`CallSummary`,
-# `CallTrace`) and the truth's parts (`IncidentTruth`), and, through `reveal`, the accessor crate
-# `gordian_stream_reveal`. The stream's privileged arm is `src/stream/oracle.rs`, outside `arms/`
-# and, like the harness, never writing `oracle::`: it reaches hidden state only through
-# `gordian_stream_reveal`, which is the one new allowlist entry above.
+# evaluator (the crate `gordian_stream_eval` and its two accessors `truth_from_stream` and
+# `calls_from_sim`, work item R3b), its seam types (`StreamVerdict`), the reasoner's call records
+# (`CallSummary`, `CallTrace`), the truth's parts (`IncidentTruth`), and the privileged arm's plan
+# (`OraclePlan`, `PlanIncident`). The stream's privileged arm is `src/stream/oracle.rs`, outside
+# `arms/` and, like the harness, never writing `oracle::`: it acts on an `OraclePlan` that the
+# harness fills from the truth it holds, and no file of the crate outside the allowlist names the
+# truth's type. (R3's `gordian-stream-reveal` shim crate, and its allowlist line, are gone: the
+# evaluator's helpers replaced it.)
 policy_re='^crates/gordian-run/src/(policy|stream/arms)/'
-policy_pattern='oracle::|reveal|gordian_eval|\bTruth\b|\bEpisode\b|\bSimulator\b|\bStream\b|StreamParams|StreamTruth|StreamSimulator|CallSummary|CallTrace|IncidentTruth|StreamVerdict'
+policy_pattern='oracle::|reveal|gordian_eval|\bTruth\b|\bEpisode\b|\bSimulator\b|\bStream\b|StreamParams|StreamTruth|StreamSimulator|CallSummary|CallTrace|IncidentTruth|StreamVerdict|gordian_stream_eval|truth_from_stream|calls_from_sim|OraclePlan|PlanIncident'
 
 status=0
 # Tracked and untracked-but-not-ignored Rust files, so the check works before the first commit.

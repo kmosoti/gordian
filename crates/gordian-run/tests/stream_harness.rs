@@ -12,7 +12,7 @@ use gordian_run::stream::arms::{
 use gordian_run::stream::manifest::{Exchange, StreamLimits};
 use gordian_run::stream::meter::Meter;
 use gordian_run::stream::spec::StreamPolicySpec;
-use gordian_run::stream::{CountScorer, SegmentRecord, StreamHarnessError, run_segment};
+use gordian_run::stream::{SegmentRecord, StreamHarnessError, run_segment};
 use gordian_stream::{
     ObsId, ObsRef, Question, StreamAction, StreamOutcome, StreamParams, StreamPublic,
 };
@@ -100,7 +100,7 @@ fn play_with(
     l: &StreamLimits,
     make: impl Fn(&StreamPublic) -> Box<dyn StreamPolicy>,
 ) -> Result<SegmentRecord, StreamHarnessError> {
-    run_segment(p, &make, l, &Exchange::default(), &CountScorer)
+    run_segment(p, &make, l, &Exchange::default())
 }
 
 /// An arm that asks the reasoner about its first `n` observations at the first step that has
@@ -145,8 +145,8 @@ fn a_reasoner_call_is_paid_for_before_it_is_made() {
     let (p, l) = with_tokens(3, 150, 460);
     let record = play_with(&p, &l, |_| asks_twice(3, 10)).unwrap();
     // The first call fits exactly (400 + 3 * 20 tokens); the second does not fit in what is left.
-    assert_eq!(record.verdict.reasoner_calls, 1);
-    assert_eq!(record.verdict.reasoner_tokens, 460);
+    assert_eq!(record.verdict.totals.reasoner.calls, 1);
+    assert_eq!(record.verdict.totals.reasoner.tokens, 460);
     assert_eq!(record.counts.escalations_refused, 1);
     assert_eq!(record.bill.total(Resource::Communication), 460);
 
@@ -207,7 +207,7 @@ fn a_call_that_does_not_fit_is_refused_and_nothing_is_charged() {
         .filter(|s| matches!(s.action, StreamAction::Escalate { .. }))
         .count();
     assert_eq!(asked, 1);
-    assert_eq!(record.verdict.reasoner_declared_ns, 460 * 250_000);
+    assert_eq!(record.verdict.totals.reasoner.modelled_ns, 460 * 250_000);
     // Bill and ledger agree.
     let replayed = Bill::replay(l.budget(), &record.ledger).unwrap();
     for r in [
@@ -224,10 +224,10 @@ fn a_call_that_does_not_fit_is_refused_and_nothing_is_charged() {
 fn a_first_call_over_the_limit_is_refused_with_nothing_charged() {
     let (p, l) = with_tokens(3, 150, 100);
     let record = play_with(&p, &l, |_| asks_twice(3, 10)).unwrap();
-    assert_eq!(record.verdict.reasoner_calls, 0);
+    assert_eq!(record.verdict.totals.reasoner.calls, 0);
     assert_eq!(record.counts.escalations_refused, 2);
     assert_eq!(record.bill.total(Resource::Communication), 0);
-    assert_eq!(record.verdict.reasoner_declared_ns, 0);
+    assert_eq!(record.verdict.totals.reasoner.modelled_ns, 0);
     assert!(
         record
             .ledger
@@ -260,7 +260,7 @@ fn a_malformed_call_is_refused_without_charge() {
     })
     .unwrap();
     assert!(record.counts.escalations_refused >= 3);
-    assert_eq!(record.verdict.reasoner_calls, 0);
+    assert_eq!(record.verdict.totals.reasoner.calls, 0);
     assert_eq!(record.bill.total(Resource::Communication), 0);
     // Refused for the reason, not by the bill.
     assert!(record.ledger.iter().any(|e| e.kind == EntryKind::Outcome
@@ -272,8 +272,8 @@ fn the_reasoner_limit_holds_for_an_arm_that_asks_about_everything() {
     let (p, l) = with_tokens(5, 200, 3_000);
     let record = play(&p, &StreamPolicySpec::Always, &l).unwrap();
     assert!(record.bill.total(Resource::Communication) <= 3_000);
-    assert!(record.verdict.reasoner_tokens <= 3_000);
-    assert!(record.verdict.reasoner_declared_ns <= 3_000 * 250_000);
+    assert!(record.verdict.totals.reasoner.tokens <= 3_000);
+    assert!(record.verdict.totals.reasoner.modelled_ns <= 3_000 * 250_000);
     assert!(
         record.counts.escalations_refused > 0,
         "the limit bound: {:?}",
@@ -287,7 +287,7 @@ fn the_reasoner_limit_holds_for_an_arm_that_asks_about_everything() {
         .filter(|(r, _)| *r == Resource::Communication)
         .map(|(_, a)| a)
         .sum();
-    assert_eq!(accepted, record.verdict.reasoner_tokens);
+    assert_eq!(accepted, record.verdict.totals.reasoner.tokens);
 }
 
 #[test]
@@ -306,23 +306,34 @@ fn the_reasoners_cost_is_in_its_own_units_and_through_the_exchange_rate() {
             &Exchange {
                 reasoner_ns_per_token: rate,
             },
-            &CountScorer,
         )
         .unwrap()
     };
     let (a, b) = (run(250_000), run(1_000));
-    assert!(a.verdict.reasoner_calls > 0);
+    assert!(a.verdict.totals.reasoner.calls > 0);
     // Own units: calls, tokens and declared latency do not depend on the exchange rate.
-    assert_eq!(a.verdict.reasoner_calls, b.verdict.reasoner_calls);
-    assert_eq!(a.verdict.reasoner_tokens, b.verdict.reasoner_tokens);
-    assert_eq!(a.verdict.reasoner_latency_ns, b.verdict.reasoner_latency_ns);
     assert_eq!(
-        a.verdict.reasoner_declared_ns,
-        b.verdict.reasoner_declared_ns
+        a.verdict.totals.reasoner.calls,
+        b.verdict.totals.reasoner.calls
+    );
+    assert_eq!(
+        a.verdict.totals.reasoner.tokens,
+        b.verdict.totals.reasoner.tokens
+    );
+    assert_eq!(
+        a.trajectory_counts.reasoner_latency_ns,
+        b.trajectory_counts.reasoner_latency_ns
+    );
+    assert_eq!(
+        a.verdict.totals.reasoner.modelled_ns,
+        b.verdict.totals.reasoner.modelled_ns
     );
     // Converted: tokens times the rate, and total cost is substrate plus that.
-    assert_eq!(a.reasoner_cost_ns, a.verdict.reasoner_tokens * 250_000);
-    assert_eq!(b.reasoner_cost_ns, b.verdict.reasoner_tokens * 1_000);
+    assert_eq!(
+        a.reasoner_cost_ns,
+        a.verdict.totals.reasoner.tokens * 250_000
+    );
+    assert_eq!(b.reasoner_cost_ns, b.verdict.totals.reasoner.tokens * 1_000);
     assert_eq!(a.total_cost_ns(), a.substrate_ns() + a.reasoner_cost_ns);
     assert_eq!(a.substrate_ns(), b.substrate_ns());
     assert!(a.substrate_ns() > 0);
@@ -404,7 +415,6 @@ fn the_final_call_declares_what_an_arm_has_when_it_would_otherwise_say_nothing()
             },
             &l,
             &Exchange::default(),
-            &CountScorer,
         )
         .unwrap();
         let first = record
@@ -412,7 +422,7 @@ fn the_final_call_declares_what_an_arm_has_when_it_would_otherwise_say_nothing()
             .iter()
             .find(|s| matches!(s.action, StreamAction::Declare { .. }))
             .map(|s| s.at);
-        (record.verdict.declarations, first)
+        (record.trajectory_counts.declarations, first)
     };
     let (patient_n, patient_first) = first_declaration(10_000_000_000_000);
     let (default_n, default_first) = first_declaration(RungConfig::default().patience_ns);
@@ -438,7 +448,7 @@ fn a_binding_compute_limit_stops_the_arm_working_and_the_bill_holds() {
     // With the limit this tight the arm cannot do the work that notices and concludes.
     let free = play(&p, &StreamPolicySpec::Always, &limits(&p)).unwrap();
     assert!(free.components_run > record.components_run);
-    assert!(free.verdict.declarations >= record.verdict.declarations);
+    assert!(free.trajectory_counts.declarations >= record.trajectory_counts.declarations);
 }
 
 #[test]
@@ -479,9 +489,9 @@ fn the_trajectory_holds_every_action_the_stream_answered_in_order() {
                 other => panic!("an unexpected step {other:?}"),
             }
         }
-        assert_eq!(probes, record.verdict.probes_used);
-        assert_eq!(calls, record.verdict.reasoner_calls);
-        assert_eq!(decls, record.verdict.declarations);
+        assert_eq!(probes, record.trajectory_counts.probes_used);
+        assert_eq!(u64::from(calls), record.verdict.totals.reasoner.calls);
+        assert_eq!(decls, record.trajectory_counts.declarations);
         assert_eq!(
             record.counts.cheap_declarations + record.counts.reasoner_declarations,
             decls
@@ -489,57 +499,6 @@ fn the_trajectory_holds_every_action_the_stream_answered_in_order() {
         // Probes are in the bill as probe units and in the trajectory as probes.
         assert!(record.bill.total(Resource::Probes) >= u64::from(probes));
     }
-}
-
-// ---- The scorer's seam
-
-#[test]
-fn the_count_scorer_reads_no_truth_and_refuses_a_trajectory_no_harness_could_record() {
-    use gordian_run::stream::score::{StreamScorer, StreamStep};
-    use gordian_stream::generate;
-    use gordian_stream_reveal::{call_records, truth_of};
-    let p = params(8, 200);
-    let record = play(&p, &StreamPolicySpec::Always, &limits(&p)).unwrap();
-    let truth_a = truth_of(&generate(&p));
-    let truth_b = truth_of(&generate(&params(9, 200)));
-    let calls: Vec<_> = Vec::new();
-    let a = CountScorer
-        .score_stream(&truth_a, &record.trajectory, &calls)
-        .unwrap();
-    let b = CountScorer
-        .score_stream(&truth_b, &record.trajectory, &calls)
-        .unwrap();
-    assert_eq!(a, b, "the verdict does not depend on the truth");
-    assert_eq!(a, record.verdict);
-    let _ = call_records;
-
-    // An action answered with the wrong kind of outcome, and time running backwards.
-    let mut bad = record.trajectory.clone();
-    if let Some(step) = bad.first_mut() {
-        step.outcome = StreamOutcome::Declared { index: 0 };
-        let probe_like = matches!(step.action, StreamAction::Declare { .. });
-        if !probe_like {
-            assert!(CountScorer.score_stream(&truth_a, &bad, &calls).is_err());
-        }
-    }
-    let step = |ms: u64| StreamStep {
-        at: at(ms),
-        action: StreamAction::Declare {
-            anchor: ObsId(0),
-            diagnosis: None,
-        },
-        outcome: StreamOutcome::Declared { index: 0 },
-    };
-    assert!(
-        CountScorer
-            .score_stream(&truth_a, &[step(5), step(4)], &calls)
-            .is_err()
-    );
-    assert!(
-        CountScorer
-            .score_stream(&truth_a, &[step(4), step(5)], &calls)
-            .is_ok()
-    );
 }
 
 // ---- Measured timings and counted operations

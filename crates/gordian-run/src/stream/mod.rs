@@ -13,9 +13,9 @@
 //! | `meter.rs` | the one way an arm runs a component or the shared rule: charged first, timed, counted, recorded |
 //! | `arms/` | the shared cheap rung (`rung.rs`) and the escalation rules (`never`, `always`, `periodic`, `change`, `threshold`, `random`), and the labelled ablation (`ablation.rs`) |
 //! | `oracle.rs` | the privileged arm, declared as module `privileged` |
-//! | `score.rs` | the seam to the stream evaluator (R2), and the scorer that needs no truth |
+//! | `score.rs` | the stream evaluator's types as the harness uses them, the counts read from the trajectory alone, the hard-fault family names |
 //! | `manifest.rs`, `spec.rs` | the manifest, the arms as it writes them, the registry |
-//! | `results.rs`, `recorder.rs` | `results.csv`, `measured.csv`, `drift.csv`, the events sample, interleaving |
+//! | `results.rs`, `recorder.rs` | `results.csv`, `incidents.csv`, `measured.csv`, `drift.csv`, the events sample, interleaving |
 //!
 //! # Segments
 //!
@@ -57,9 +57,9 @@
 //!   weights, so it is outside the modelled cost. It is small against the components' and far
 //!   smaller than the reasoner's, but an experiment that varies it (a scoring arm against a
 //!   scoreless one) does not see it priced until it is calibrated, which is open work.
-//! - *Reasoner*: calls, tokens and declared latency in `results.csv`'s scorer columns; the tokens
-//!   times the manifest's exchange rate (`manifest.exchange`) is `reasoner_cost_ns`. The world's
-//!   own declared price is reported beside it (`reasoner_declared_ns`). The hard limit on the
+//! - *Reasoner*: calls, references, tokens, the world's declared price (`reasoner_modelled_ns`) and
+//!   declared latency in `results.csv`; the tokens times the manifest's exchange rate
+//!   (`manifest.exchange`) is `reasoner_cost_ns`. The hard limit on the
 //!   reasoner is the segment's token budget, enforced by the bill before every call.
 //!
 //! # Placeholders
@@ -98,5 +98,5 @@ pub use harness::{
 };
 pub use manifest::{Exchange, StreamArmSpec, StreamLimits, StreamManifest};
 pub use recorder::{StreamRunError, StreamRunReport, execute_stream};
-pub use score::{CountScorer, StreamScorer, StreamVerdict};
+pub use score::{StreamVerdict, TrajectoryCounts};
 pub use spec::StreamPolicySpec;

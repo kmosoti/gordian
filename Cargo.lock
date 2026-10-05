@@ -256,7 +256,7 @@ dependencies = [
  "gordian-core",
  "gordian-eval",
  "gordian-stream",
- "gordian-stream-reveal",
+ "gordian-stream-eval",
  "gordian-world",
  "rand_chacha 0.10.0",
  "rand_core 0.10.1",
@@ -286,13 +286,6 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "gordian-stream-reveal"
-version = "0.1.0"
-dependencies = [
- "gordian-stream",
 ]
 
 [[package]]

@@ -1,193 +1,102 @@
-//! The stream scorer's seam: the types the harness hands a scorer, and the scorer that needs no
-//! hidden truth.
+//! The stream harness's use of the stream evaluator (work items R2 and R3b).
 //!
-//! # The interface
+//! # What the harness does with it
 //!
-//! The stream evaluator (work item R2, `gordian-stream-eval`) is built in parallel and scores a
-//! segment with one call:
+//! A segment is scored once, after the last step, by
+//! `gordian_stream_eval::score_stream`, called with `(&truth, &trajectory, &calls)`:
 //!
-//! ```text
-//! score_stream(truth: &StreamTruth, trajectory: &[StreamStep], calls: &[CallSummary])
-//!     -> Result<StreamVerdict, StreamEvalError>
-//! ```
+//! - `truth` is built by `truth_from_stream` immediately after the stream is generated;
+//! - `trajectory` is the list of [`StreamStep`]s the harness recorded (every action the stream
+//!   answered, with the instant it was applied);
+//! - `calls` is built by `calls_from_sim` from the simulator after the last step.
 //!
-//! [`StreamScorer`] is that call as a trait. The harness builds the truth and the call records
-//! at the start and end of a segment, holds them aside exactly as the episode harness holds
-//! `gordian_eval::Truth`, and hands them to the scorer after the last step; no policy is ever
-//! given either (the arm interface has no place for them, and `harness.rs` and `oracle.rs` are
-//! the only files that may name them).
+//! The harness holds the truth and the call records aside exactly as the episode harness holds
+//! `gordian_eval::Truth`: they are locals of `harness.rs`'s `play`, handed to the scorer and to
+//! nothing else, and no arm interface has a place for either. **This file names neither**: the
+//! harness reads the truth by inference (it binds what `truth_from_stream` returns and never
+//! writes its type), so no file of this crate writes the truth's type or the oracle's path, and
+//! the only allowlisted places in the repository that do are `gordian-stream` and
+//! `gordian-stream-eval` (`scripts/check-no-oracle.sh`).
 //!
-//! # What is here and what R2 replaces
+//! An `Err` from the evaluator is a defect in the harness (a trajectory no correct harness could
+//! have recorded, or call records from another simulator). It becomes
+//! [`StreamHarnessError::Eval`](super::harness::StreamHarnessError::Eval), the run stops and no
+//! row is written; it is never a result.
 //!
-//! The five names `StreamTruth`, `StreamStep`, `CallSummary`, `StreamVerdict` and
-//! `StreamEvalError` are R2's. This file defines the ones that must exist for the harness to build
-//! and test without R2: [`StreamStep`], [`StreamVerdict`] and [`StreamEvalError`] are minimal
-//! definitions, and `StreamTruth` and [`CallSummary`] are the stream crate's own types, reached
-//! through `gordian-stream-reveal`. **When R2 lands, replace the definitions here with R2's
-//! re-exports and write one adapter in the scorer's `impl`**; `results.rs` takes its verdict
-//! columns from [`StreamVerdict::HEADER`] and [`StreamVerdict::row`], so a richer verdict adds
-//! columns in this one file.
+//! # What is here
 //!
-//! The [`CountScorer`] is the only scorer built here. It counts what the trajectory contains
-//! (probes bought, reasoner calls and their cost in the calls' own units, declarations by kind)
-//! and reads no truth: it says how much an arm did and what it paid, never whether it was right.
-//! Whether a declaration was right, when, and for which tier is R2's.
+//! The evaluator's types, re-exported under the names the harness uses; the one count the
+//! evaluator does not make, [`TrajectoryCounts`] (probes bought and the reasoner's declared
+//! latency, read from the trajectory alone, no truth); and [`family_name`], the label of a hard
+//! incident's family for `incidents.csv`.
+//!
+//! The evaluator's verdict says what a trajectory did against a stream. It does not say whether an
+//! arm is good: `RULES.md` of the evaluator lists the judgements (a late correct declaration, a
+//! wrong declaration beside a correct one, a late dismissal) that an experiment's preregistration
+//! must settle.
 
-use gordian_core::Instant;
-use gordian_stream::{StreamAction, StreamOutcome};
-use std::fmt;
+use gordian_stream::{HardKind, StreamAction, StreamOutcome};
 
-pub use gordian_stream_reveal::CallTrace as CallSummary;
-pub use gordian_stream_reveal::StreamTruth;
+pub use gordian_stream_eval::{
+    CallSummary, EscalationCounts, IncidentVerdict, ReasonerUsage, ScoredCounts, StreamEvalError,
+    StreamStep, StreamTotals, StreamVerdict, TierCounts,
+};
 
-/// One action the stream simulator answered, in order, with the instant it was applied.
+/// Counts the evaluator does not make, read from the trajectory alone.
 ///
-/// The scored trajectory is exactly the actions the simulator answered: an action the bill
-/// refused is not in it (the simulator was not asked), and the ledger holds the refusal. It
-/// excludes nothing an evaluator needs: probes with their results and costs, reasoner calls with
-/// their full contexts, foci and costs, declarations with their anchors and diagnoses.
-#[derive(Debug, Clone, PartialEq)]
-pub struct StreamStep {
-    /// When the action was applied.
-    pub at: Instant,
-    /// What was done.
-    pub action: StreamAction,
-    /// What the simulator answered.
-    pub outcome: StreamOutcome,
-}
-
-/// Why a trajectory could not be scored. A defect in the harness or the scorer, never a result.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StreamEvalError {
-    /// The trajectory is not one a correct harness could have recorded.
-    Malformed(String),
-}
-
-impl fmt::Display for StreamEvalError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StreamEvalError::Malformed(why) => write!(f, "malformed trajectory: {why}"),
-        }
-    }
-}
-
-impl std::error::Error for StreamEvalError {}
-
-/// What a scorer reports for one segment, as the columns of `results.csv`.
-///
-/// This is the count-only verdict. R2's verdict is richer (per incident: whether and when a
-/// correct declaration was made, critical misses, wrong declarations, decoys declared, escalations
-/// by tier) and replaces it here.
+/// None of them needs the truth. `declarations` and `reasoner_calls`-like totals that the evaluator
+/// also makes are cross-checked against its own in the harness's tests, so two independent
+/// readings of the same trajectory must agree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct StreamVerdict {
-    /// Probes the simulator carried out.
+pub struct TrajectoryCounts {
+    /// Probes the stream carried out.
     pub probes_used: u32,
-    /// Declarations the simulator recorded.
+    /// Declarations the stream recorded.
     pub declarations: u32,
     /// Declarations that named a diagnosis.
     pub declared_incident: u32,
     /// Declarations that said the anchor is not an incident.
     pub declared_dismissal: u32,
-    /// Reasoner calls the simulator accepted.
+    /// Reasoner calls the stream accepted.
     pub reasoner_calls: u32,
-    /// Tokens of those calls (their own unit).
-    pub reasoner_tokens: u64,
-    /// Declared latency of those calls, summed, nanoseconds (their own unit).
+    /// Declared latency of those calls, summed, nanoseconds (the reasoner's own unit).
     pub reasoner_latency_ns: u64,
-    /// The world's declared price of those calls, modelled nanoseconds. The manifest's exchange
-    /// rate, not this, converts tokens into total cost.
-    pub reasoner_declared_ns: u64,
 }
 
-impl StreamVerdict {
-    /// The verdict columns of `results.csv`, in order.
-    pub const HEADER: &'static str = "probes_used,declarations,declared_incident,declared_dismissal,reasoner_calls,reasoner_tokens,reasoner_latency_ns,reasoner_declared_ns";
-
-    /// The verdict's values for the columns of [`StreamVerdict::HEADER`], comma separated.
-    pub fn row(&self) -> String {
-        format!(
-            "{},{},{},{},{},{},{},{}",
-            self.probes_used,
-            self.declarations,
-            self.declared_incident,
-            self.declared_dismissal,
-            self.reasoner_calls,
-            self.reasoner_tokens,
-            self.reasoner_latency_ns,
-            self.reasoner_declared_ns,
-        )
+impl TrajectoryCounts {
+    /// Count `trajectory`. Refused actions are not counted; an action answered with the wrong kind
+    /// of outcome is the evaluator's error (S31), not this function's, so it is ignored here.
+    pub fn of(trajectory: &[StreamStep]) -> Self {
+        let mut c = Self::default();
+        for step in trajectory {
+            match (&step.action, &step.outcome) {
+                (StreamAction::Probe { .. }, StreamOutcome::Probed { .. }) => c.probes_used += 1,
+                (StreamAction::Escalate { .. }, StreamOutcome::Escalated { cost, .. }) => {
+                    c.reasoner_calls += 1;
+                    c.reasoner_latency_ns = c.reasoner_latency_ns.saturating_add(cost.latency_ns);
+                }
+                (StreamAction::Declare { diagnosis, .. }, StreamOutcome::Declared { .. }) => {
+                    c.declarations += 1;
+                    if diagnosis.is_some() {
+                        c.declared_incident += 1;
+                    } else {
+                        c.declared_dismissal += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        c
     }
 }
 
-/// Scores one stream segment.
-///
-/// The harness calls it once, after the last step, with the truth it built at the start and the
-/// call records it read at the end. The signature is R2's fixed interface.
-pub trait StreamScorer {
-    /// Score `trajectory` against `truth`, with the reasoner's `calls` as recorded on the hidden
-    /// side.
-    ///
-    /// # Errors
-    ///
-    /// A [`StreamEvalError`] when the trajectory is not one a correct harness could have recorded.
-    fn score_stream(
-        &self,
-        truth: &StreamTruth,
-        trajectory: &[StreamStep],
-        calls: &[CallSummary],
-    ) -> Result<StreamVerdict, StreamEvalError>;
-}
-
-/// The scorer that needs no truth: it counts the trajectory.
-///
-/// It ignores `truth` and `calls` by design (a test shows that a different truth gives the same
-/// verdict), so that the harness can be run, tested and smoke-tested before the evaluator is
-/// wired in, and so that a cost-and-count comparison never depends on hidden state.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct CountScorer;
-
-impl StreamScorer for CountScorer {
-    fn score_stream(
-        &self,
-        _truth: &StreamTruth,
-        trajectory: &[StreamStep],
-        _calls: &[CallSummary],
-    ) -> Result<StreamVerdict, StreamEvalError> {
-        let mut v = StreamVerdict::default();
-        let mut last = Instant::ZERO;
-        for step in trajectory {
-            if step.at < last {
-                return Err(StreamEvalError::Malformed(format!(
-                    "step at {} follows step at {}",
-                    step.at.0, last.0
-                )));
-            }
-            last = step.at;
-            match (&step.action, &step.outcome) {
-                (StreamAction::Probe { .. }, StreamOutcome::Probed { .. }) => v.probes_used += 1,
-                (StreamAction::Escalate { .. }, StreamOutcome::Escalated { cost, .. }) => {
-                    v.reasoner_calls += 1;
-                    v.reasoner_tokens = v.reasoner_tokens.saturating_add(cost.tokens);
-                    v.reasoner_latency_ns = v.reasoner_latency_ns.saturating_add(cost.latency_ns);
-                    v.reasoner_declared_ns =
-                        v.reasoner_declared_ns.saturating_add(cost.modelled_ns);
-                }
-                (StreamAction::Declare { diagnosis, .. }, StreamOutcome::Declared { .. }) => {
-                    v.declarations += 1;
-                    if diagnosis.is_some() {
-                        v.declared_incident += 1;
-                    } else {
-                        v.declared_dismissal += 1;
-                    }
-                }
-                (_, StreamOutcome::Refused(_)) => {}
-                (action, outcome) => {
-                    return Err(StreamEvalError::Malformed(format!(
-                        "action {action:?} was answered with {outcome:?}"
-                    )));
-                }
-            }
-        }
-        Ok(v)
+/// The label a hard incident's family has in `incidents.csv`: the name of its hard kind. Hidden
+/// state, written only into evaluator output (`HARNESS.md`, section 11).
+pub fn family_name(kind: HardKind) -> &'static str {
+    match kind {
+        HardKind::Compound => "compound",
+        HardKind::Cascade => "cascade",
+        HardKind::SplitBrain => "split_brain",
+        HardKind::SlowLeak => "slow_leak",
     }
 }
