@@ -49,7 +49,11 @@ def write(stage, b, rho, seeds, arms, trace_rate, run_seed, experiment):
     tmp = C.MANIFESTS / (rid + ".base")
     out = C.MANIFESTS / (rid + ".json")
     if out.exists():
-        raise SystemExit(f"{out} exists; a recorded manifest is not overwritten")
+        # Already written, and perhaps run, at an earlier revision (the driver refuses a manifest
+        # whose revision is not HEAD, so a batch written before a later commit has to be rewritten
+        # for the runs it did not reach; the manifest of a run that was made is never touched).
+        print(f"{out} exists; kept", file=sys.stderr)
+        return
     tmp.unlink(missing_ok=True)
     subprocess.run(
         [
