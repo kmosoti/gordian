@@ -148,6 +148,9 @@ An agent may implement alternatives, build instruments, and analyse results. An 
 - discard, hide, or relabel failed, timed-out, excluded, or negative runs;
 - modify the hidden evaluator or simulator ground truth to make an implementation pass;
 - let hidden simulator state reach a policy's inputs;
+- encode in any arm knowledge that exists only on the hidden side of a world (for example a hidden
+  fault rule read from a design document). An arm may use the public rules and what it learns
+  from its own run history. A knowledge-injected arm exists only as a labelled ablation;
 - report "not significant" as "equivalent."
 
 A result that motivates a redesign motivates a **new** experiment id. The original keeps its pass
