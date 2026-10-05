@@ -255,6 +255,8 @@ dependencies = [
  "gordian-components",
  "gordian-core",
  "gordian-eval",
+ "gordian-stream",
+ "gordian-stream-reveal",
  "gordian-world",
  "rand_chacha 0.10.0",
  "rand_core 0.10.1",
@@ -266,14 +268,19 @@ dependencies = [
 name = "gordian-stream"
 version = "0.1.0"
 dependencies = [
- "gordian-components",
  "gordian-core",
- "gordian-run",
  "gordian-world",
  "rand_chacha 0.10.0",
  "rand_core 0.10.1",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "gordian-stream-reveal"
+version = "0.1.0"
+dependencies = [
+ "gordian-stream",
 ]
 
 [[package]]

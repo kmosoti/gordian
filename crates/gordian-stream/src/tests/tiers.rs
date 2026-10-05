@@ -1,14 +1,18 @@
-//! What each tier guarantees, checked by running the first world's four components and the shared
-//! decision rule, never by reading how the generator builds them.
+//! What each tier guarantees, checked against the first world's public rules and through the
+//! stream's own interface, never by reading how the generator builds them.
+//!
+//! The tests that run the first world's four components and the shared decision rule on an
+//! incident (plain incidents identified from their own evidence and in noise; hard incidents the
+//! cheap rung cannot identify) moved to `crates/gordian-run/tests/stream_cheap.rs` with work item
+//! R3, because `gordian-run` now depends on this crate.
 
-use super::cheap::{self, exhaustive_probes, probing_sim};
+use super::cheap::probing_sim;
 use super::*;
-use crate::kinds::{HardKind, StreamKind, Tier};
+use crate::kinds::{HardKind, Tier};
 use crate::oracle::IncidentTruth;
 use gordian_core::Instant;
-use gordian_world::graph::dependents_mask;
 use gordian_world::physics::{HIGH, consistent_hypotheses};
-use gordian_world::{FaultKind, Hypothesis, Observation, ServiceId};
+use gordian_world::{FaultKind, Observation, ServiceId};
 
 fn no_regime(seed: u64, plain: u32, hard: u32) -> StreamParams {
     let mut p = with_mix(seed, plain, hard);
@@ -16,204 +20,7 @@ fn no_regime(seed: u64, plain: u32, hard: u32) -> StreamParams {
     p
 }
 
-fn known_truth(i: &IncidentTruth) -> Hypothesis {
-    match i.truth {
-        Some(h) => match h.kind {
-            StreamKind::Known(k) => Some((k, h.site)),
-            StreamKind::Hard(_) => panic!("not a known kind"),
-        },
-        None => None,
-    }
-}
-
-// ---- Plain
-
-#[test]
-fn the_cheap_rung_identifies_every_plain_incident_from_its_own_evidence() {
-    let (mut identified, mut duos, mut total) = (0, 0, 0);
-    for seed in 0..12 {
-        let p = no_regime(seed, 1000, 0);
-        let (s, t) = with_truth(&p);
-        let public = s.public_info().world_public_info();
-        let template = probing_sim(&p);
-        for inc in &t.incidents {
-            let ev = evidence_of(&s, &t, inc.id);
-            let mut sim = template.clone();
-            let run = cheap::run(&public, &ev, 3_000_000_000, &mut sim);
-            total += 1;
-            assert_eq!(
-                run.declared,
-                Some(known_truth(inc)),
-                "seed {seed} incident {}: {:?}",
-                inc.id,
-                inc.shape
-            );
-            if inc.shape.duo {
-                duos += 1;
-                // Exactly one cheap probe settles a duo.
-                assert_eq!(run.probes, 1, "{:?}", inc.shape);
-                // From the stream alone the open set is exactly two kinds at the site.
-                let before: Vec<Hypothesis> = consistent_hypotheses(&public, &ev);
-                assert_eq!(before.len(), 2, "{before:?}");
-            } else {
-                assert_eq!(run.probes, 0, "{:?}", inc.shape);
-                let before = consistent_hypotheses(&public, &ev);
-                assert_eq!(before, vec![known_truth(inc)]);
-            }
-            identified += 1;
-        }
-    }
-    assert_eq!(identified, total);
-    println!(
-        "cheap rung identified {identified} of {total} plain incidents from their own evidence ({duos} duos, one probe each)"
-    );
-    assert!(total > 200, "{total}");
-    assert!(
-        duos > 20,
-        "the one-probe presentation was exercised only {duos} times"
-    );
-}
-
-#[test]
-fn a_cheap_rung_that_windows_by_site_still_identifies_most_plain_incidents_in_noise() {
-    // The cheap rung is given everything the stream shows at the site and its dependents in the
-    // first three seconds (the true site: an idealised segmentation), noise and other incidents
-    // included. This is the number that says whether noise makes plain incidents unwinnable.
-    let (mut ok, mut total) = (0, 0);
-    for seed in 0..10 {
-        let p = no_regime(seed, 1000, 0);
-        let (s, t) = with_truth(&p);
-        let public = s.public_info().world_public_info();
-        let template = probing_sim(&p);
-        for inc in &t.incidents {
-            let site = inc.occupies[0];
-            let mask = dependents_mask(&t.services, site);
-            let near = |sv: ServiceId| sv == site || mask[sv.index()];
-            let ev: Evidence = s
-                .events()
-                .iter()
-                .filter(|(at, o)| {
-                    at.0 >= inc.onset_ns
-                        && at.0 < inc.onset_ns + 3_000_000_000
-                        && match o {
-                            Observation::Counter { service, .. }
-                            | Observation::Message { service, .. }
-                            | Observation::Snapshot { service, .. } => near(*service),
-                            _ => false,
-                        }
-                })
-                .cloned()
-                .collect();
-            let mut sim = template.clone();
-            let run = cheap::run(&public, &ev, 3_000_000_000, &mut sim);
-            total += 1;
-            if run.declared == Some(known_truth(inc)) {
-                ok += 1;
-            }
-        }
-    }
-    let rate = ok as f64 / total as f64;
-    println!("windowed cheap rung, plain incidents in noise: {ok}/{total} = {rate:.3}");
-    assert!(rate > 0.85, "{ok}/{total}");
-    assert!(
-        rate < 1.0,
-        "noise must cost the cheap rung something here too"
-    );
-}
-
 // ---- Hard
-
-#[test]
-fn the_cheap_rung_cannot_identify_a_hard_incident_even_given_everything() {
-    // Per family: how many incidents the public rules found contradictory at the end of a
-    // patient run, and how many the shared rule declared as the known kind the first moments
-    // imitate at the true site.
-    let mut counts: std::collections::BTreeMap<HardKind, [u32; 4]> = Default::default();
-    let patient = 40_000_000_000u64;
-    for seed in 0..8 {
-        let p = no_regime(seed, 0, 1000);
-        let (s, t) = with_truth(&p);
-        let public = s.public_info().world_public_info();
-        let template = probing_sim(&p);
-        for inc in &t.incidents {
-            assert_eq!(inc.tier, Tier::Hard);
-            let hk = inc.shape.hard_kind.unwrap();
-            let ev = evidence_of(&s, &t, inc.id);
-            let site = inc.occupies[0];
-
-            // 1. The rule, patient enough to see every decisive observation, with the first
-            //    world's default probe budget. Whatever it declares, it is a first-world
-            //    hypothesis, and the truth is a hard kind: it cannot be right.
-            let mut sim = template.clone();
-            let run = cheap::run(&public, &ev, patient, &mut sim);
-            let entry = counts.entry(hk).or_default();
-            entry[0] += 1;
-            entry[3] += (inc.shape.contradicts_early == Some(true)) as u32;
-            if run.consistent(&public).is_empty() {
-                entry[1] += 1;
-            }
-            if matches!(run.declared, Some(Some((k, at))) if Some(k) == inc.shape.mimics && at == site)
-            {
-                entry[2] += 1;
-            }
-
-            // 2. Exhaustive probing, beyond any budget: every probe at every service after
-            //    everything has arrived. Not one known hypothesis explains a compound, a
-            //    cascade or a split brain; a leak is explained, wrongly, as resource exhaustion.
-            let mut sim2 = template.clone();
-            let end = Instant(inc.onset_ns + 25_000_000_000);
-            let mut all = ev.clone();
-            all.extend(exhaustive_probes(&mut sim2, t.services.len(), end));
-            let open = consistent_hypotheses(&public, &all);
-            if hk == HardKind::SlowLeak {
-                assert!(
-                    open.iter()
-                        .all(|h| matches!(h, Some((FaultKind::ResourceExhausted, _)))),
-                    "{open:?}"
-                );
-            } else {
-                assert!(
-                    open.is_empty(),
-                    "seed {seed} incident {} ({hk:?}): the public rules explain it: {open:?}",
-                    inc.id
-                );
-            }
-        }
-    }
-    println!(
-        "hard incidents: [total, rules contradictory in what the run saw, declared the imitated \
-         kind at the site, contradictory from the start]"
-    );
-    for (hk, c) in &counts {
-        println!("  {hk:?}: {c:?}");
-    }
-    for hk in HardKind::ALL {
-        let [n, contradictory, imitated, from_start] = counts[&hk];
-        assert!(n >= 20, "{hk:?}: only {n} incidents");
-        match hk {
-            // A leak never contradicts the rules: it is read as a plain resource problem.
-            HardKind::SlowLeak => {
-                assert_eq!(contradictory, 0);
-                assert!(imitated * 10 >= n * 9, "{imitated}/{n}");
-            }
-            // A split brain leaves two kinds open, so the rule waits, and by the time it
-            // declares the contradicting evidence has arrived.
-            HardKind::SplitBrain => assert_eq!(contradictory, n),
-            // A compound or cascade that imitates a plain incident is declared at once, as the
-            // imitated kind, before the evidence that breaks the rules arrives; one that
-            // contradicts the rules from the start is seen to.
-            HardKind::Compound | HardKind::Cascade => {
-                assert_eq!(contradictory, from_start, "{hk:?}");
-                assert!(from_start > 0 && from_start < n, "both modes occur: {hk:?}");
-            }
-        }
-    }
-    // The shared rule still names a confident known kind at the right site for a large share of
-    // all hard incidents, which is what makes a confident cheap answer a poor router.
-    let total: u32 = counts.values().map(|c| c[0]).sum();
-    let imitated: u32 = counts.values().map(|c| c[2]).sum();
-    assert!(imitated * 2 > total, "{imitated}/{total}");
-}
 
 #[test]
 fn the_first_moments_of_a_hard_or_decoy_incident_give_the_cheap_rung_every_kind_of_reading() {

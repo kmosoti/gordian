@@ -26,7 +26,7 @@ exists only as a labelled ablation (section 12), never as an arm of a confirmato
 
 Built: `generate(&StreamParams) -> Stream`; the policy-facing `StreamSimulator` with `observe_until`
 and `apply`; the actions `Probe`, `Escalate` and `Declare`; the simulated reasoner; the feature-gated
-`oracle`; `scripts/check-no-oracle.sh` extended to the crate; the `dump` example; 83 tests.
+`oracle`; `scripts/check-no-oracle.sh` extended to the crate; the `dump` example; 79 tests (four more, the cheap-rung tests, moved to `gordian-run`; item 10 of section 13).
 
 Not built, and not claimed: the stream evaluator (R2), the stream harness and baselines (R3), the
 headroom check (R4), a real-model rung, a second domain. Nothing here shows that any policy does
@@ -573,11 +573,14 @@ rung is what the world's hard tier asks of knowledge alone.
 9. **Parameter clamps**: services 6 to 12; mean gap at least 100 ms (smaller makes the arrival loop run for
    as many iterations as there are nanoseconds); tail at least 31.5 s; probabilities per mille at most
    1000; `hard <= 1000 - plain`.
-10. **`gordian-run` is a dev-dependency**, for the shared decision rule (`Decider`) and
-    `standard_components`. `gordian-run` does not depend on this crate yet. When plan item R3 adds that
-    dependency, this becomes a dev-dependency cycle, which cargo allows, and the tests here pass only
-    `gordian-world` and `gordian-components` types through it. If it causes trouble, move
-    `src/tests/cheap.rs` and the tests that use it into a crate that sits above both.
+10. **The cheap-rung tests live in `gordian-run`, not here.** They need the shared decision rule
+    (`Decider`) and `standard_components`, which `gordian-run` owns, and work item R3 made `gordian-run`
+    depend on this crate, so a dev-dependency back would be a cycle. Four tests moved to
+    `crates/gordian-run/tests/stream_cheap.rs` with their driver and assertions unchanged (plain incidents
+    identified from their own evidence; the same in noise by the true site's window; hard incidents the
+    cheap rung cannot identify even given everything; the reasoner's cost against a typical component
+    call). This crate no longer dev-depends on `gordian-run`, or on `gordian-components`, which only those
+    tests used. `src/tests/cheap.rs` keeps the one helper that needs neither (`probing_sim`).
 11. **The law is not the plan's `sigma(a + b q - c d)`.** At the coordinator's direction it is
     `p0 + (1 - p0) h(q, d)` with a truth-independent guess, so that the answer depends on the truth only
     through decisive evidence, and draws are keyed by the question's fingerprint with a Gaussian copula
@@ -633,8 +636,9 @@ meant to be reachable, at a price.
 
 ## 15. Tests
 
-83 tests in the crate, `cargo test -p gordian-stream` (about 50 s in a debug build on two threads).
-The ones that carry the claims:
+79 tests in the crate, `cargo test -p gordian-stream` (about 50 s in a debug build on two threads), and four
+more in `crates/gordian-run/tests/stream_cheap.rs` (section 13, item 10; the claims they carry are listed
+below under their old names). The ones that carry the claims:
 
 - **Determinism** (`determinism.rs`): twice-generated streams are equal for 25 seeds and for odd
   parameters; different seeds differ; parameters round-trip through JSON; a fixed action script run twice gives
@@ -646,8 +650,8 @@ The ones that carry the claims:
   the tail; no shared service between live incidents; the tier mix, criticality and hard families
   and modes as declared; ids; every refusal; budgets as hard limits; time may not go backwards; the
   non-serializability and redaction checks; the public information; regime non-announcement.
-- **Tiers** (`tiers.rs`, `cheap.rs`): the cheap rung is `gordian_run::standard_components()` and the shared
-  `Decider`, with probes answered by the stream. Plain: identified in 324 of 324 from its own evidence, one
+- **Tiers** (`tiers.rs`; the cheap-rung ones in `gordian-run/tests/stream_cheap.rs`): the cheap rung is
+  `gordian_run::standard_components()` and the shared `Decider`, with probes answered by the stream. Plain: identified in 324 of 324 from its own evidence, one
   probe per duo (35 duos), none otherwise; 94% in noise by the true site's window.
   Hard: never explained by the public rules once everything has arrived, even with every probe at every
   service (137 of 137 non-leak incidents contradictory, the leak read as resource exhaustion); the shared
