@@ -1,0 +1,335 @@
+{
+  "b2.5-rho0": {
+    "selection_delay_s": 14,
+    "configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w05_n128",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n128",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00500_n256",
+      "coc_d01000_n064",
+      "coc_d01000_n256",
+      "coc_d08000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n064",
+      "nbh_k1_n128",
+      "nbh_k2_n128",
+      "nbh_k3_n128",
+      "nbh_k3_n256",
+      "nbh_k4_n256"
+    ],
+    "frontier_sizes": {
+      "rung": 1,
+      "window": 10,
+      "cooccur": 6,
+      "neighbourhood": 8
+    },
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w20_n256",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d08000_n256",
+        "knee": "coc_d08000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k4_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b2.5-rho0.7": {
+    "selection_delay_s": 16,
+    "configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n064",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n128",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00500_n064",
+      "coc_d00500_n256",
+      "coc_d01000_n128",
+      "coc_d02000_n256",
+      "coc_d04000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "frontier_sizes": {
+      "rung": 1,
+      "window": 11,
+      "cooccur": 8,
+      "neighbourhood": 5
+    },
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d04000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b5-rho0": {
+    "selection_delay_s": 16,
+    "configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n064",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n128",
+      "win_w40_n256",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00500_n064",
+      "coc_d00500_n128",
+      "coc_d00500_n256",
+      "coc_d01000_n256",
+      "coc_d02000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "frontier_sizes": {
+      "rung": 1,
+      "window": 12,
+      "cooccur": 10,
+      "neighbourhood": 6
+    },
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w40_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d08000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b5-rho0.7": {
+    "selection_delay_s": 16,
+    "configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w80_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00250_n256",
+      "coc_d00500_n256",
+      "coc_d01000_n128",
+      "coc_d01000_n256",
+      "coc_d02000_n128",
+      "coc_d02000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n128",
+      "nbh_k3_n256",
+      "nbh_k4_n256"
+    ],
+    "frontier_sizes": {
+      "rung": 1,
+      "window": 10,
+      "cooccur": 11,
+      "neighbourhood": 7
+    },
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w80_n512",
+        "knee": "win_w40_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d08000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k4_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b8-rho0": {
+    "selection_delay_s": 16,
+    "configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n032",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00250_n256",
+      "coc_d00500_n256",
+      "coc_d01000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n128",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "frontier_sizes": {
+      "rung": 1,
+      "window": 11,
+      "cooccur": 8,
+      "neighbourhood": 5
+    },
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d04000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b8-rho0.7": {
+    "selection_delay_s": 16,
+    "configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n032",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00250_n256",
+      "coc_d00500_n256",
+      "coc_d01000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "frontier_sizes": {
+      "rung": 1,
+      "window": 11,
+      "cooccur": 8,
+      "neighbourhood": 6
+    },
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d04000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  }
+}
