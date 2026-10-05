@@ -4,6 +4,121 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R6 context-construction headroom — merged; simple builders capture the context lever in quality
+
+**Provenance.** 26 runs through the driver, all exit 0; none failed, timed out or was excluded.
+Eleven manifests refused by the driver's revision preflight were set aside and rewritten, not
+deleted (`r6-stale-manifests.csv`). The six R5 held-out runs were replayed: 317 arm-runs are
+byte-identical to R5's hashes. Gates on exit codes on the merged tree: fmt, clippy `--locked`, 545
+Rust tests, the oracle guard, 308 analysis tests. Run outputs moved to `artifacts/runs/r6/`
+(ignored).
+
+**Re-verified at b = 5, ρ = 0.7 from raw files** (hard quality excludes slow leak).
+
+| Arm | Hard quality | Refs/call | Critical misses |
+|---|---|---|---|
+| R4 oracle (`oracle_escalation_privileged`) | 0.952 | 5.1 | 194 |
+| Context-only ceiling (`oracle_selection_context_d16_privileged`, supplementary) | 0.820 | 5.3 | 255 |
+| Selection oracle + `window` 40 s, N 256 | 0.796 | 251.1 | 255 |
+| Selection oracle + rung's own context | 0.489 | 43.3 | 282 |
+| `always_escalate` + `window` 40 s, N 256 | 0.500 | 249.0 | 268 |
+
+All match the worker's report.
+
+**Verdict as written.** Both clauses hold at every setting, and the verdict is uninformative.
+Clause 1 compares at no more than the ceiling's 5 references per call. No public builder is that
+small, so the comparator is the empty context. Clause 2 is unreachable because R4's oracle carries
+privileges no builder can supply.
+
+**Coordinator error, recorded (second time).** This is the same mistake as R4.
+
+- I took R4's oracle as the context ceiling although it bundles more than context.
+- I wrote a clause (equal or fewer references) that no public builder could satisfy.
+
+Lessons, applied to every criterion from here on:
+
+- A ceiling isolates exactly one privilege. Its comparison arm differs from the public arms in
+  that privilege only.
+- Each clause is checked for feasibility against what a public arm can do, before any run.
+- The worker's supplementary context-only ceiling is the correct comparator. It was labelled and
+  did not replace the verdict.
+
+**What it means.**
+
+- With selection held at the oracle, simple builders capture almost all of the context lever in
+  quality.
+  - `window` reaches 0.796, against 0.820 for the context-only ceiling: a gap of 0.024
+    [0.000, 0.051].
+  - They do it with 33× the references per call (31.7 to 49.5), which is 8–11× the cost per
+    stream.
+  - EXP-102 can therefore claim references or cost at matched quality, not quality.
+- Binding evidence across services and over the following seconds is solved by simple builders.
+  Evidence that precedes the anchor by more than 2 s is not: only a long `window` carries it.
+- The realistic public pairing, `always_escalate` with a builder, tops out at 0.723 for 17.4 s per
+  stream.
+  - The reasoner's token budget refuses up to 1153 calls in 200 streams.
+  - Plain accuracy falls to 0.756 with `window`.
+
+**Correction to the worker's report: the 0.132 is mostly salience, not timing.** The worker read
+R4's oracle minus the context-only ceiling as timing (readiness). The coordinator counted, from
+`incidents.csv`, hard non-leak incidents with no reasoner call at all.
+
+- The selection-oracle arms make no call on 34 of 372 such incidents. R4's oracle calls on all of
+  them. The selection-oracle arms call only about anomalies the shared rung noticed, so these 34
+  are incidents the public rung never noticed.
+- That alone accounts for 0.091 of the gap at every setting:
+
+  | Setting | Gap | No-call part | Called but wrong |
+  |---|---|---|---|
+  | b5 | 0.132 | 0.091 | 0.040 |
+  | b8 | 0.137 | 0.091 | 0.046 |
+  | b2.5 | 0.067 | 0.091 | −0.024 |
+  | b5, ρ0 | 0.121 | 0.091 | 0.030 |
+
+- The decomposition subtracts counts. It is not paired per incident and has no interval, so it is
+  coordinator arithmetic, not a measured lever.
+
+Consequences:
+
+- The worker's proposed first substrate job, readiness and compaction, loses most of its readiness
+  half. Timing given a call is worth about 0.03–0.05 at b ≥ 5 and nothing at b = 2.5.
+- Noticing is the larger item. A public rung that misses 9% of non-leak hard incidents, plus the
+  slow-leak family (0.28 against 0.91), is a salience gap. It belongs to EXP-101 and needs its own
+  privileged ceiling: an oracle that notices, with the rung's context and delay.
+
+**Assumption that carries the result.** In the simulated reasoner, extra references "cost but never
+hurt" (no distractor penalty, `gordian-stream/DESIGN.md` section 11).
+
+- Under that law a broad window loses only tokens, which is why `window` is competitive.
+- Published evidence for real models runs the other way (Shi et al. 2023; Liu et al. 2023, "Lost in
+  the Middle"; to be checked against the primary texts).
+- R6 swept b and ρ only. Until a distractor penalty and the per-reference price are swept, the
+  0.024 gap is a property of this reasoner, not of context construction.
+
+**Hidden-document exposure.** While looking for the public sections of `gordian-stream/DESIGN.md`,
+the worker read sections 4, 5 and 11, which describe the hidden rules, and disclosed it.
+
+- The grids (starting at 0.25 s; a 2 s lookback) may be influenced.
+- The best builder, `window`, encodes no timing, and every builder is a tested pure function of the
+  public view.
+- The coordinator accepts the result with this caveat. The cause is structural: the public and
+  hidden design share one file.
+
+**Decided.**
+
+1. Separate the hidden-rule sections of `gordian-stream/DESIGN.md` into their own file, so that
+   workers can read the public design without exposure.
+2. R7, reasoner-law sensitivity. Rerun the R6 comparison with:
+   - a swept distractor penalty, including zero;
+   - a swept per-reference price.
+
+   The criterion will be fixed before any run, with one privilege per ceiling and every clause
+   checked for feasibility.
+3. The salience gap above becomes part of EXP-101's headroom: a noticing oracle with the rung's
+   context is a separate ceiling.
+4. EXP-102, when registered, claims references or cost at matched quality, against `window` and
+   `cooccur` tuned by the frontier method. It bounds critical misses and plain accuracy.
+
 ## R5 decomposed headroom — merged; selection buys cost, context buys quality
 
 **Provenance.** A container restart interrupted the run; a new worker resumed in place, retained
