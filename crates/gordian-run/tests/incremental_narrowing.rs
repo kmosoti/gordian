@@ -73,7 +73,7 @@ fn verdicts_at_the_default_budget_are_those_the_rule_gave_before_incremental_nar
 
 // ---- the mechanism and its accounting ----
 
-use gordian_components::{ComponentOutput, VERIFIER_ID, WorkingState};
+use gordian_components::{ComponentOutput, ESTIMATOR_ID, HEURISTIC_ID, VERIFIER_ID, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId, Instant};
 use gordian_run::policy::decide::{DecideConfig, Decider, Remaining, RuleOps};
 use gordian_run::policy::{
@@ -243,10 +243,7 @@ fn an_emptied_set_is_remembered_and_the_next_source_acts() {
     );
     let mut rule = Decider::default();
     let mut reference = Decider::without_cache(DecideConfig::default());
-    let outputs = [
-        (VERIFIER_ID, verifier),
-        (gordian_components::HEURISTIC_ID, heuristic),
-    ];
+    let outputs = [(VERIFIER_ID, verifier), (HEURISTIC_ID, heuristic)];
     let got = rule.decide(&state, &outputs);
     assert_eq!(got, reference.decide(&state, &outputs));
     assert!(got.is_some(), "the heuristic's set acts: {got:?}");
@@ -425,6 +422,14 @@ fn the_rule_decides_as_the_reference_that_narrows_at_every_call_and_does_less_wo
         PolicySpec::FixedPipeline(fixed_pipeline::Config {
             components: vec![VERIFIER_ID],
             every: 1,
+        }),
+        PolicySpec::FixedPipeline(fixed_pipeline::Config {
+            components: vec![ESTIMATOR_ID],
+            every: 1,
+        }),
+        PolicySpec::FixedPipeline(fixed_pipeline::Config {
+            components: vec![HEURISTIC_ID],
+            every: 4,
         }),
     ];
     for compute in [None, Some(250_000), Some(60_000)] {

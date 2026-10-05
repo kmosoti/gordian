@@ -247,6 +247,10 @@ that A6c left (`a6c-before-after.md`).
 states (11 classes, 12 seeds, three stream prefixes), runs the four components to get outputs, and
 times `Decider::decide` 300 times in two modes: with a fresh rule given the outputs (decoding
 included) and with the same rule given none. Weighted least squares on relative error, rounded.
+(The fit below is of the rule as it was before A6c: it narrowed and scored at every call, so the
+"steady" mode paid for both. Since A6d a rule given nothing new does neither, the test prints the work
+the fresh call did, and the table's world and evaluation constants are the per-unit costs of that
+fit, which the lag form of section 3 applies to the work done; they were not refitted.)
 
 | term | fitted (two runs) | what it is |
 |---|---|---|
@@ -285,6 +289,76 @@ here is what the bill enforces. At the default limits (20 ms of compute) no arm 
 limit: the heaviest, `all_components`, spent about 0.5 ms per episode on average when this was measured
 (section 8; since A6c, 0.19 ms on seeds 1000 to 1499 against 0.42 ms before it), so
 the compute limit does not bind in any condition measured so far.
+
+### 3.2 A stored set is narrowed once (work item A6d)
+
+**What was found.** After A6c the rule still narrowed the first stored set against the bought probes
+at every call, and scored the probes it could buy from it, and declared both for every step from the
+set it held: 10.5 ns a world, and 36 ns a probe evaluation. Neither the set nor the probes bought
+change at most steps (`a6c-before-after.md` section 5, `a6d-before-after.md`).
+
+**What the rule does now.** It keeps, with each stored set (the verifier's, the estimator's and the
+heuristic's), the narrowed view of that set and, once a call has needed them, the scores of the
+probes of that view (`Held.narrowed`). A call takes the stored sets in source order and narrows one
+only when it holds no view made against the probe results and corrections of this call's working
+state (`Bought`, compared by `==`); the first set whose view has a world left is the rule's, as
+before, and an empty view is kept too. The view lives inside the stored set, so replacing the set (an
+output that arrives and differs from the held one, 3.1) drops it; an arriving output equal to the held
+one keeps both. The key is therefore the stored set and the probes bought; what is not in it is the
+world's services, which are fixed for the episode a rule plays (the `Policy` contract), and which
+probes are affordable, which is decided from what is left to spend at every call from the kept
+scores. `worlds` and `probe_evals` count the work done, so a call that kept its view counts none.
+
+**What it costs.** The declared cost carries the work of the previous call, as the decoding terms
+do (section 3): `10.5` ns per world narrowed and `36` ns per probe evaluation, from the call before.
+That is exact (an episode is billed for all of it except the last step's, which the final call picks
+up), and a step that kept everything it holds is billed the base and the scan. The constants did not
+change; what they multiply did. The cost is no longer an upper bound, so a call that narrows a large
+set (the verifier's first output on a symptom-free window, 56 hypotheses) is billed for it one step
+after it happens, and the last such call before a refused final charge is counted and not billed.
+
+**What is unchanged.** Every decision. `Decider::without_cache` is the rule as it was after A6c
+(narrowing and scoring at every call, declared forward): the reference the tests hold the rule to.
+Over six arms by 11 classes by four seeds at the default budget and at 250,000 and 60,000 ns
+(30,403 calls, 448 of which bought a probe and 131 of which were final calls) the two give the same
+action at every call, count the same calls, decodings and comparisons, and the rule counts 30,007
+worlds against 764,647 and 18,666 probe evaluations against 47,562. End to end,
+`tests/incremental_narrowing.rs` compares every verdict column of the ten B1 arms at 20 ms over 20
+seeds by 11 classes, per episode, with a record written before the change: identical in all 2,200
+rows (and in all 55,000 rows of the 500-seed grid).
+
+**What it does not do.** The window is still scanned for bought probes at every call (0.95 ns an
+observation declared, inside the per-call unit counted), the output of every component that ran is
+still compared with the held one (3.1), and a changed output is decoded in full.
+
+### 3.3 Why a failed component can still raise success (the 35 episodes)
+
+`b3-finding4.md` found that a `Fail` directive can raise an arm's success at a binding budget. A6c
+removed most of it (210 raised episodes to 102) and traced the rest to the narrowing term; zeroing
+that term left 35 raised episodes, unexplained. After 3.2 the same comparison (ComponentTimeout,
+500 episodes, seven arms, the three binding budgets) raises 35, 31 of them the same episodes. They
+are explained in `a6d-before-after.md` section 7, from the ledger and from counterfactual runs; in
+short:
+
+- In 34 of the 35 the run with no directive ended on a refused scheduling charge, short of it by a
+  median of 37 ns (under 100 ns in 24 of them), while the `Fail` run went on to a later step and
+  decided correctly. The rule had charged the no-directive run a median of 8.1 µs more: the decoding
+  of the verifier's first output (the consistent set of a symptom-free window, 25 to 66 hypotheses
+  listed, 530 ns and 115 per hypothesis), the byte comparison of its unchanged repeats and its
+  narrowing, which the `Fail` run, whose verifier output is discarded, never pays. At 60,000 to
+  100,000 ns a bill of 5 to 10 µs is the margin.
+- That is work done and counted, not repeated work, and it is the cost model working as written
+  (2.1: an arm pays for the outputs it reads). A cache cannot remove it.
+- 31 of the 35 are decided right with no directive if only that bill is waived (the verifier's
+  stored set still read first); 6 would be right if only the stored set were ignored (all six also
+  cost-sufficient); 4 need both. The documented source order (2), the stale verifier set outranking
+  a newer answer, matters in ten of the 35 and is the only way out of none: the six it fixes alone
+  are fixed by the bill alone as well.
+
+The rule was left alone. Changing the source priority would change decisions, not cost, and would not
+remove the 31. The consequence for EXP-001 is the one `b3-finding4.md` section 6 gave, now with its
+size: an arm that reads fewer or smaller outputs gains a few episodes at a binding budget, and
+`ComponentTimeout` is not monotone in its `Fail` directives there.
 
 ## 4. JointlyDecisive
 

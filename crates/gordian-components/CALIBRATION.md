@@ -336,8 +336,8 @@ differently).
 | rule | `calls` | one per `decide` or final call: the step's fixed cost (cost declaration, selection, decision) |
 | | `decoded_outputs`, `decoded_ranked` | component outputs decoded; candidates in them. An output that arrives byte for byte equal to the one held for its component is not decoded (work item A6c, 9.10) |
 | | `compared_bytes` | payload bytes of an arriving output compared with the held copy (added by A6c) |
-| | `worlds` | worlds built from a candidate set, and visited when probes are scored |
-| | `probe_evals` | `probe_result` calls made to score candidate probes |
+| | `worlds` | worlds built from a candidate set, and visited when probes are scored; neither is done again for a stored set and probe results that have not changed (work item A6d, 9.11) |
+| | `probe_evals` | `probe_result` calls made to score candidate probes (once for a narrowed set, A6d) |
 
 Units that the data could not tell apart were dropped, not kept at weight zero: the checker's
 `mask_steps` (counted, tested, not priced by the verifier: a function of the graph alone, not
@@ -391,7 +391,7 @@ nanoseconds per operation:
 | estimator | calls 563, scanned 2.47, permit_scans 5.74, ancestors 0.604, site_updates 2.38, probe_evals 6.39, hypotheses 1.17, sort_cmps 3.23 |
 | memory | calls 19.5, scanned 1.62, records 2.84, entries 301 |
 | verifier | candidates 262, damaged 34.4, scanned 1.54, worlds 7.44, evals 6.71, probe_evals 21.6, ranked 61.5 |
-| rule | calls 70.9, decoded_outputs 223, decoded_ranked 110, worlds 15.4, probe_evals 27.6 (A8b; superseded by 9.10: calls 83.9, decoded_outputs 266, decoded_ranked 115, worlds 14.6, probe_evals 24.2, compared_bytes 0.0325) |
+| rule | calls 70.9, decoded_outputs 223, decoded_ranked 110, worlds 15.4, probe_evals 27.6 (A8b; superseded by 9.10: calls 83.9, decoded_outputs 266, decoded_ranked 115, worlds 14.6, probe_evals 24.2, compared_bytes 0.0325; 9.11: calls 85.3, decoded_outputs 269, decoded_ranked 110, worlds 13.5, probe_evals 23.3, compared_bytes 0.0115) |
 
 Across the five runs the well-determined weights move by 1 to 6% (heuristic `scanned` 1.93 to 1.96,
 `entries` 202 to 205; estimator `sort_cmps` 3.28 to 3.35; memory `records` 2.83 to 2.87; verifier
@@ -476,7 +476,7 @@ seeds 0 to 19) are in neither set.**
 | estimator | 1.388 | 23.6 ns |
 | memory | 1.845 | 19.6 ns |
 | verifier | 1.196 | 484 ns |
-| rule | 1.208 | 196 ns (A8b; 9.10: 1.374 and 130 ns) |
+| rule | 1.208 | 196 ns (A8b; 9.10: 1.374 and 130 ns; 9.11: 1.776 and 45.1 ns) |
 
 The beta goes onto the per-call unit (`calls`; for the verifier both `candidates` and `damaged`,
 exactly one of which counts per call). The shipped weights, in nanoseconds per unit, are in the
@@ -658,3 +658,74 @@ to 11% wide, and a check on two arms.
 **What was not refitted.** The declared cost's decoding constants (`POLICIES.md`, section 3): they
 are what the bill enforces, were fitted on another host, and a refit would move every binding
 budget; the comparison term is declared at the hot weight, 33 ps per byte.
+
+### 9.11 The rule after work item A6d (narrow each stored set once)
+
+The shared rule keeps the narrowed view of each stored candidate set, and the scores of its probes,
+until the set is replaced or the probe results in the working state change (`POLICIES.md`, section
+3.2). A call that changes nothing it keeps now counts no `worlds` and no `probe_evals`, so the rule's
+units were re-measured. Nothing else was: the components' code, units and weights are those of 9.4
+and 9.5, and `apply_weights.py --only rule` rewrote only the rule's table. Everything below was
+produced by the commands of 9.9 on 2026-10-05, same host and setup as 9.3 (the runner on core 2;
+another job held core 3 throughout), after the change.
+
+**A third timing path.** A repeated call now reaches only the comparison path, and the decoding path
+(alternating padded outputs) narrows and scores as well, because a replaced output drops the view kept
+with it. In both, `worlds` and `probe_evals` would occur only beside decoding, and the fit could not
+tell them from `decoded_ranked`. `calibrate_ops` therefore times each recorded state three ways: the
+repeated call (comparison only); the decoding path; and a **narrowing path**, in which the outputs are
+held and equal but the state alternates with a copy that holds one more probe result, so that the rule
+narrows the held set against different probes, and scores them, at every call, as a step that shows a
+new probe result does. The fit has 6,435 `real_fit` rows (A6c: 4,282) and the held-out set 4,692
+(3,124); the new rows are of source `episode_narrow`.
+
+**Hot weights** (five runs of 25 timings; ns per unit; in brackets the A6c figure):
+
+| unit | weight | across the five runs | share of fit time |
+|---|---:|---|---:|
+| calls | 85.3 (83.9) | 86.1 to 89.4 | 5.6% |
+| decoded_outputs | 269 (266) | 268 to 277 | 11.8% |
+| decoded_ranked | 110 (115) | 111 to 112 | 58.2% |
+| worlds | 13.5 (14.6) | 13.9 to 14.1 | 18.8% |
+| probe_evals | 23.3 (24.2) | 23.6 to 24.0 | 5.1% |
+| compared_bytes | 0.0115 (0.0325) | 0.0119 to 0.0129 | 0.7% |
+
+(The last column but one is the fit of each run alone; the first is the fit of the minimum over the
+five runs, which is what is used.) The hot weights of the units that did not change moved by 1 to 8%;
+`compared_bytes` fell to a third (about 12 ns for 1 KB over a call that compares nothing, which is a
+bytewise `==`; the A6c figure carried costs that now sit in `calls`). Validity, weights as fitted, R^2
+of the weighted counts against the minimum time per call: **rule, `real_fit` 6,435 calls R^2 0.9960
+(median |relative error| 6.9%, 90th percentile 26.5%, mean -3.4%, worst class FeedbackBait -6.5%);
+`real` held-out seeds 4,692 calls R^2 0.9972 (6.4%, 26.8%, -2.8%, worst class FeedbackBait -7.3%).
+The bar of A8b, R^2 >= 0.9, is met on both.** The relative errors are larger than in 9.10 because a
+third of the rows are now repeated calls of 70 to 150 ns (median 112 ns), where the model's median
+relative error is 21% (a few tens of nanoseconds). By path, on the fit set, mean relative error and
+median |relative error|: -2.5% and 21.1% for the repeated call (2,243 rows), -0.5% and 4.1% for the
+decoding path (2,058), -7.1% and 8.1% for the narrowing path (2,134). By measured median (held-out
+states), a call that changes nothing it keeps costs 112 ns, one that narrows and scores 749 ns, and one
+that also decodes a new output 4,519 ns. The components, run again in the same five runs on the same
+windows, also met the bar (lowest 0.976, memory held-out); their fits are not applied.
+
+**In situ** (three runs of five passes, 51,446 rule calls fitted): the rule is 1.776 x hot + 45.1 ns
+per call (A6c: 1.374 x and 130 ns). Shipped weights, ps per unit: calls 197,000, decoded_outputs
+477,000, decoded_ranked 195,000, worlds 24,000, probe_evals 41,400, compared_bytes 20. Single calls
+(R^2 of the model against the minimum in-situ time of each call): rule 0.886 fit, 0.886 held out, 0.921
+on the states of the check arms (A6c: 0.905, 0.911, 0.932). That is under 0.9 on two sets where A6c's
+were over; 9.5 says single in-situ calls scatter (this is not a fault of the counters, and the bar is
+the hot fit's), but it is a weaker fit of single calls than before. Median |relative error| 13.2%,
+13.2% and 11.9%. Totals per arm, model over measured, for the rule: 0.97 to 1.13 on the four fit and
+held-out arms (A6c: 0.94 to 1.04), 1.07 for `all_components` and 1.09 for `heuristic_only` (A6c: 1.04
+and 1.15). The judgement of the constants as shipped (`calibrate_insitu.py --from-source`):
+`all_components` over `heuristic_only` on the check's own calls, 10.19 measured, 9.68 modelled (A6c:
+10.44, 9.77).
+
+**The non-identical-arm check again** (`heuristic_only` against `all_components`, interleaved,
+20 seeds by 11 classes, through `scripts/run-driver.sh`, `--run-seed` 1, 2 and 3,
+`gordian-analyze cost-check ... --seed 1`): modelled ratio 9.68, identical in the three runs; the
+wall-time ratio, median of episodes, 9.60 (90% interval 9.21 to 10.16), 9.59 (9.24 to 10.01) and 9.54
+(9.13 to 9.87). **Inside in all three** (A6c: 9.77 against 9.73, 9.54, 10.04). The same limits apply
+as in 9.6 and 9.10: intervals 8 to 10% wide, and a check on two arms.
+
+**What was not refitted.** The components' weights, and the declared cost's constants, as in 9.10:
+the declared world and evaluation constants are the per-unit prices of A6, now applied to the work of
+the previous call (`POLICIES.md`, section 3).
