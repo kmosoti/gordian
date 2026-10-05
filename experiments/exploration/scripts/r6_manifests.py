@@ -33,7 +33,7 @@ import sys
 import r6_common as C
 
 TIMEOUT_S = 6 * 3600
-R5_RUNS = C.ROOT / "artifacts" / "runs" / "r5"
+R5_RUNS = C.R5_RUNS
 
 
 def arm_entry(name, policy, context):

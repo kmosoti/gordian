@@ -8,6 +8,9 @@ disagree. The grids below were fixed, as generic geometric ladders, before any R
 Run directories live in artifacts/runs/ (git-ignored); manifests in artifacts/runs/_manifests/.
 """
 
+import os
+import pathlib
+
 import r5_common as C5
 
 C4 = C5.C4
@@ -37,6 +40,10 @@ NEIGH_HOPS = [0, 1, 2, 3, 4, 6]
 # their parameters with a cap nobody chose, so their cap is swept too (a superset of the plan's
 # sweep, more generous to the public builders), and window's N goes to 512.
 CAPS = [64, 128, 256]
+
+# R5's committed run outputs are in the main checkout's ignored artifacts directory, not in this
+# worktree's. Read only: R6 never writes there.
+R5_RUNS = pathlib.Path(os.environ.get("R5_RUNS", "/home/user/gordian/artifacts/runs/r5"))
 
 ALWAYS_DELAYS_S = list(C4.ALWAYS_DELAYS_S)
 
