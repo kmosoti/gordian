@@ -202,8 +202,9 @@ pub struct CallTrace {
     pub call: u32,
     /// The incident asked about; `None` for a question about background.
     pub incident: Option<u32>,
-    /// Index among the calls about that incident, the third word of the draw's key.
-    pub call_index: u32,
+    /// The fingerprint of the question (focus and sorted context): the last word of the draw's
+    /// key.
+    pub fingerprint: u64,
     /// When the call was made, nanoseconds.
     pub at_ns: u64,
     /// When the answer was delivered, nanoseconds.
@@ -214,9 +215,16 @@ pub struct CallTrace {
     pub q: f64,
     /// The incident's difficulty.
     pub d: f64,
-    /// The probability the answer was right.
+    /// The probability that the call was informed, `h(q, d)`.
+    pub h: f64,
+    /// The share of the guess distribution that falls on the truth: the accuracy of a
+    /// truth-independent guess from this context.
+    pub p0: f64,
+    /// The probability the answer was right, `p0 + (1 - p0) h`.
     pub p: f64,
-    /// Whether it was right.
+    /// Whether this call was informed (answered the truth because of decisive evidence).
+    pub informed: bool,
+    /// Whether the answer equals the truth (an informed call, or a lucky guess).
     pub correct: bool,
     /// What was answered.
     pub diagnosis: Diagnosis,
@@ -242,13 +250,16 @@ pub fn calls(sim: &StreamSimulator) -> Vec<CallTrace> {
         .map(|(i, c)| CallTrace {
             call: i as u32,
             incident: c.incident,
-            call_index: c.call_index,
+            fingerprint: c.fingerprint,
             at_ns: c.at.0,
             ready_at_ns: c.ready_at.0,
             refs: c.refs,
             q: c.q,
             d: c.d,
+            h: c.h,
+            p0: c.p0,
             p: c.p,
+            informed: c.informed,
             correct: c.correct,
             diagnosis: c.diagnosis,
         })

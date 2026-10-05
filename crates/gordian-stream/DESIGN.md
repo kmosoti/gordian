@@ -12,19 +12,21 @@ observation vocabulary, service graph, fault kinds, probe semantics and public p
 what the charter's section 5 asks for: a resource ladder, persistent streams, and relevance that
 costs computation to judge.
 
-**A warning for anyone writing a baseline.** Sections 4 and 5 describe the hidden rules of the hard
-incidents, because a reviewer must be able to check the construction. That description is
-evaluator-side knowledge. A baseline policy that hard-codes those rules (for example "two
-characteristic messages at one site means a compound fault") is a cheap rung with the reasoner's
-knowledge injected, not a conventional baseline, and the coordinator should read any such diff as
-a leak of this file into a policy. A policy that *learns* such rules from the stream is a different
-matter and a legitimate research outcome. Section 12 says how to measure the difference.
+**The rule for anyone writing an arm: the hidden-rule sections are experimenter knowledge, not arm
+knowledge.** Sections 4 and 5 describe the hidden rules of the hard incidents, because a reviewer must
+be able to check the construction. An arm (a baseline, the substrate, any policy) may encode only the
+first world's public physics and what it learns from its own run history. A policy that hard-codes
+the hidden rules (for example "two characteristic messages at one site means a compound fault") is a
+cheap rung with the reasoner's knowledge injected, not a conventional baseline, and the coordinator
+should read any such diff as a leak of this file into a policy. A policy that *learns* such rules from
+the stream is a different matter and a legitimate research outcome. A knowledge-injected cheap rung
+exists only as a labelled ablation (section 12), never as an arm of a confirmatory comparison.
 
 ## 1. What is built, and what is not
 
 Built: `generate(&StreamParams) -> Stream`; the policy-facing `StreamSimulator` with `observe_until`
 and `apply`; the actions `Probe`, `Escalate` and `Declare`; the simulated reasoner; the feature-gated
-`oracle`; `scripts/check-no-oracle.sh` extended to the crate; the `dump` example; 79 tests.
+`oracle`; `scripts/check-no-oracle.sh` extended to the crate; the `dump` example; 83 tests.
 
 Not built, and not claimed: the stream evaluator (R2), the stream harness and baselines (R3), the
 headroom check (R4), a real-model rung, a second domain. Nothing here shows that any policy does
@@ -394,68 +396,116 @@ be written by hand.
 
 It lives on the hidden side. A policy reaches it only through `Escalate`.
 
-**Law.** An answer is correct with probability
+**The invariant: the answer depends on the truth only through the decisive evidence in the context.** A
+real model's broad knowledge helps it interpret evidence; it cannot conjure the answer from none. The
+first version of this reasoner broke that (its accuracy at `q = 0` was 12 to 27%, more than a guess from
+the public context achieves, so it answered from hidden truth with no evidence). The law is now built so
+that the invariant holds by construction.
+
+**Law.** A call is *informed* with probability
 
 ```text
-p = sigma(a + b q - c d)
+h(q, d) = (sigma(a + b q - c d) - sigma(a - c d)) / (1 - sigma(a - c d))
 ```
 
-where `q` is the fraction of the focus incident's decisive evidence that is in the context,
-counted from hidden labels over the whole incident (including decisive evidence that has not arrived
-yet), `d` is the incident's difficulty, and `(a, b, c)` are stream parameters. Nothing else enters:
-not the size of the context, not how much of it is noise, not the call's position. A question
-about an observation that belongs to no incident has `q = 1` and `d` = `DifficultySpec::background`,
-and the correct answer is `None`. A probe reference in the context counts for cost and never for
-`q`.
+where `q` is the fraction of the focus incident's decisive evidence in the context (counted from hidden
+labels over the whole incident, including evidence that has not arrived yet), `d` is the incident's
+difficulty, and `(a, b, c)` are the swept parameters. `h(0, d) = 0` and `h` rises with `q` to the value the
+old law `sigma(a + b q - c d)` would have given with no chance of luck. An informed call answers the truth.
+An uninformed call answers a *guess*, drawn uniformly from `guess_distribution`, which is a function of the
+context, the focus's service and the public rules and of nothing else (it takes no truth, no tier, no
+label). The accuracy of a call is
 
-**Draws.** ChaCha8 keyed by `(stream seed, incident id, call index)`, where the call index counts
-the calls *about that incident*. Two policies that ask their first question about the same incident
-get the same draws whatever else they asked, which is common random numbers for paired comparison.
-Two words are drawn, both always: the correctness draw (right iff `u < p`) and the draw that picks
-a wrong answer. A refused call consumes no draw (a test). The draws are independent across calls
-about one incident: asking the same question three times and taking the majority is a sound way to
-raise accuracy here, and a real model's repeated samples are correlated; any policy that
-re-escalates gains more from it than it should.
+```text
+p = p0 + (1 - p0) h
+```
 
-**A wrong answer is a plausible one**, from a weighted pool that excludes the truth and is never
-empty:
+where `p0` is the share of the guess distribution that falls on the truth: the accuracy of a
+truth-independent guess from this context.
 
-- hard: the known kind the first moments imitate, at the right site (weight 4); another hard kind
-  at the site (1 each); the right kind at a neighbouring service (2 in all); `None` (2);
-- decoy: the hard kind it imitates at its site (4); the known kind it is read as (3); another hard kind (1 each);
-- plain: another kind its signature leaves open, 6 for the other of a duo's two and 0.5 for the
-  rest, 1 each otherwise; the right kind at a neighbour (2 in all); `None` (1);
-- background: a known kind at the observation's service (1 each).
+**The guess.** It reads the context's observations at the focus's service, upstream of it and downstream
+of it through the first world's public checker, as the cheap rung would, and picks uniformly among the
+hypotheses the checker leaves open that put the cause at the focus or upstream (and "not an incident"). When
+the checker leaves none (the evidence contradicts every single fault) it picks "not an incident" or one
+of the five known kinds at the focus. It never names a hard kind. So an uninformed answer about a mimic
+of a plain incident is the imitated kind at the site (checked: 114 of 114 compound and cascade mimics,
+with the regime changes off, because after a change the public rules are stale and the guess would be a
+stale reading), and an uninformed answer about a contradiction is a random known kind. `p0` is not an
+extra parameter: it is what the public evidence gets anyone. It is large exactly when the public rules
+already settle the incident (a plain incident's full signature in the context gives `p0` near one), zero
+for every hard incident, and near one in six for a decoy whose context is silent.
 
-A test checks every wrong answer against these pools over about 1,000 wrong answers, and that the
-most common wrong answer about a hard incident is the imitated kind (share 0.28 to 0.45; expected
-about 0.35).
+**What `q` counts.** Decisive evidence only (section 4). A probe reference counts for cost and never for `q`.
+A question about an observation that belongs to no incident has `q = 1` and the background difficulty,
+and its correct answer is `None`.
 
-**Cost.** Declared as tokens (`400 + 20 per reference`) priced at 250,000 modelled nanoseconds each,
-so that it adds to the components' declared `Resource::Compute` nanoseconds: 100 ms of modelled
-compute for an empty context, 5 ms per reference more, so a context of 100 costs six bases. The
-median declared cost of the four components over windows of 16, 64 and 256 observations is 1,743 ns,
-so one call costs 57,372 times a typical component call (the plan requires at least 10^4; a test
-asserts it, and that one call exceeds 1,000 times the dearest component call at the largest
-window). The cost is charged before the answer exists, and a refused call leaves no trace. The
-answer arrives after a declared latency (2 s plus 2 ms per reference).
+**Draws, and why repeating a question buys nothing.** ChaCha8 keyed by `(stream seed, subject,
+fingerprint)`, where the subject is the incident (for background, the focus observation) and the
+fingerprint hashes the focus and the context's references in sorted order. An identical question gets an
+identical answer however often it is asked and however its references are ordered; a repeat is still
+paid for. For different contexts about one incident, informed-ness is correlated by a Gaussian copula:
 
-**Law checked.** Over 12,500 calls at the defaults and 15,600, 16,380 and 16,380 calls at three other
-settings, each call about a different incident with a different share of its decisive evidence in
-the context and some noise: correctness judged by comparing each *delivered answer* with the truth (not
-by the simulator's own flag, which a test shows agrees), expected probability computed in the test with
-the standard library's `exp`, not the crate's. Total frequency within |z| < 1.4 at all four; the
-chi-square over about 300 to 520 cells within a fraction of a standard deviation of its degrees of
-freedom (for example 296.7 on 305 at the defaults); every decile of expected probability within
-4.5 standard errors. The cells span `q` in ten deciles and `d` from below 0.15 to above 0.85 (a test).
+```text
+z = sqrt(rho) z_incident + sqrt(1 - rho) z_context,    informed iff Phi(z) < h
+```
 
-**What this assumes.** That better context gives better answers, monotonically, and that noise in
-the context costs but never hurts: both are in the law by construction and are tested against a real
-model in EXP-106, not here. That the reasoner knows the truth and degrades by a logistic: so it can
-separate a hard incident from a decoy at an instant when no function of the public evidence could
-(its `q` for the decoy is zero until recovery evidence exists, which is how the law stays honest
-about it; the answer's *distribution* still differs by tier, which is the point of an expensive
-reasoner and is not a leak of hidden state into a policy's *evidence*).
+with `z_incident` drawn once per incident and `z_context` once per fingerprint, so each call's marginal is
+still `h`. `rho` is a stream parameter (default 0.7) swept like `(a, b, c)`. The guess is drawn independently
+per fingerprint. A refused call consumes nothing. `Phi^-1` is Wichura's AS 241 in basic operations
+(`rng::det_norm_inv`), so the draws replay bit for bit.
+
+**Cost.** Declared as tokens (`400 + 20 per reference`) priced at 250,000 modelled nanoseconds each, so
+that it adds to the components' declared `Resource::Compute` nanoseconds: 100 ms of modelled compute for
+an empty context, 5 ms per reference more, so a context of 100 costs six bases. The median declared cost of
+the four components over windows of 16, 64 and 256 observations is 1,743 ns, so one call costs 57,372 times a
+typical component call (the plan requires at least 10^4; a test asserts it, and that one call exceeds 1,000
+times the dearest component call at the largest window). The cost is charged before the answer exists, and a
+refused call leaves no trace. The answer arrives after a declared latency (2 s plus 2 ms per reference).
+
+**Checked** (section 15 has the tests):
+
+- *No information from no evidence.* Over 1,534 incidents of every tier, the mutual information between the
+  answer's category and the truth's, with no decisive evidence in the context, is 0.0139 for an empty context
+  and 0.0184 for a context of eight random background observations, against permutation maxima of 0.0221 and
+  0.0207; with all the decisive evidence it is 1.9205 against 0.0407 (the test has power). No uninformed
+  answer names a hard kind.
+- *Hard against decoy, when no public evidence separates them.* For 506 incidents, swapping the tier after
+  every draw is made leaves the answer identical when the context is the incident's first six seconds
+  (the swapped incident's public evidence, `q` and draws are the same). Over 1,943 unswapped hard and decoy
+  incidents the mutual information between the answer and the tier is 0.0017 against a permutation maximum of
+  0.0044; with the decisive evidence in the context it is 0.6343 against 0.0059.
+- *Marginal accuracy follows the law.* 12,450 calls at the defaults and 12,750 to 13,440 calls at four other
+  settings (including `rho` 0, 0.7 and 0.95), each with a different share of the decisive evidence and some
+  noise. Correctness is judged by comparing each delivered answer with the truth, `h` is recomputed in the
+  test with the standard library's `exp`, `p0` is the simulator's (and is itself checked: at `q = 0` the
+  frequency of right answers is `p0`, with `h` identically zero). Calls about one incident are dependent, so the
+  statistic is cluster-robust (one cluster per incident). Overall |z| <= 1.1 in all five runs and every one of
+  nine subsets (by `q`, by `d`, by expected accuracy above and below one half) within |z| < 2. A question
+  about background has `p0` equal to one over the size of the guess distribution, computed independently in the
+  test from the public graph.
+- *The same question gets the same answer*, with its references in any order, repeated; each repeat is charged;
+  different contexts about one incident do give different answers; the answer to a question does not depend
+  on what else was asked first.
+- *Majority of three different contexts follows the copula and is worse than independence.* On 1,952 hard
+  incidents, four triples each (`h` between 0.6 and 0.9, so single calls are right more than half the time):
+
+  | `rho` | majority right | copula predicts | independence predicts |
+  |---|---|---|---|
+  | 0 | 0.8043 | 0.8056 (z -0.30) | 0.8056 (z -0.30) |
+  | 0.7 | 0.7428 | 0.7393 (z 0.43) | 0.8056 (z -7.49) |
+  | 0.95 | 0.7278 | 0.7243 (z 0.37) | 0.8056 (z -8.07) |
+
+  Single-call accuracy z is -0.41, 0.88 and 0.57. (Positive correlation lowers a majority's accuracy only
+  when single calls are right more than half the time; below one half it raises it.)
+
+**What this assumes.** That better context gives better answers, monotonically, and that noise in the
+context costs but never hurts: both are in `h` by construction and are tested against a real model in
+EXP-106, not here. That errors on different contexts of one incident are correlated with one coefficient and
+Gaussian dependence, which is a stand-in for whatever a real model does. That the guess reads the first
+world's rules and nothing more, so a real model's broader priors about plausible incidents are not modelled.
+That the reasoner knows the truth when informed and degrades by a logistic in `q` and `d`. A repeated
+sample is no longer free (identical contexts agree, different ones are correlated), but how much a real
+model's repeated samples are worth is for EXP-106.
 
 ## 12. Default parameters and why
 
@@ -470,21 +520,25 @@ reasoner and is not a leak of hidden state into a policy's *evidence*).
 | critical | 15% plain, 30% hard | critical misses are scored separately; hard incidents are where they are decided |
 | deadlines | section 6 | see there |
 | difficulty `d` | plain 0 to 0.3, decoy 0.2 to 0.8, hard 0.4 to 1, background 0.3 | harder incidents are the ones that need the expensive rung |
-| `(a, b, c)` | `(-1, 5, 2)` | at `q = 1`: plain 0.98, hard 0.93, decoy 0.95; at `q = 0.5` and `d = 0.7`, hard 0.52; at `q = 0`: hard 0.08, decoy 0.12; background 0.97 |
+| `(a, b, c)` | `(-1, 5, 2)` | the informed probability `h`: at `q = 1`: plain 0.97, hard 0.92, decoy 0.95; at `q = 0.5` and `d = 0.7`, hard 0.48; at `q = 0`: zero; background 0.96. Accuracy is `p0 + (1 - p0) h` |
+| `rho` | 0.7 | strongly correlated calls about one incident (the majority of three is worth about 6 points less than under independence), not so much that repeating different contexts is worthless |
 | cost | 400 + 20 per ref tokens, 250 µs per token, latency 2 s + 2 ms per ref | section 11; per-reference cost matters from about 20 references |
 | budgets | 150 probes, 1.5 s probe time, 2x10^10 modelled ns of reasoner (200 empty calls) | hard limits stay on for every arm; an always-escalate arm reaches the reasoner limit |
 | regimes | `SignatureShift` at 200 s, `EdgeAdd` at 400 s | two changes inside 600 s, each leaving incidents before and after |
 | noise | section 9 | local window pollution about 6% |
 
-**Recommended sweep for experiments** (the plan requires `(a, b, c)` swept in every experiment;
-the headroom check R4 sets the final grid). Three settings, accuracy at plain `q=1 d=.15` / hard `q=1 d=.7` / hard
-`q=.5 d=.7` / hard `q=0 d=.7` / decoy `q=1 d=.5`:
+**Recommended sweep for experiments** (the plan requires `(a, b, c)` swept in every experiment; the
+headroom check R4 sets the final grid). Three settings and three values of `rho`, with `h` at plain `q=1 d=.15` / hard
+`q=1 d=.7` / hard `q=.5 d=.7` / hard `q=0` / decoy `q=1 d=.5` (accuracy is `p0 + (1 - p0) h`; `p0` is zero for every
+hard incident):
 
-| setting | `(a, b, c)` | accuracies |
+| setting | `(a, b, c)` | `h` |
 |---|---|---|
-| weak | `(-2, 4, 3)` | 0.82 / 0.48 / 0.11 / 0.02 / 0.62 |
-| default | `(-1, 5, 2)` | 0.98 / 0.93 / 0.52 / 0.08 / 0.95 |
-| strong | `(0, 6, 1)` | 1.00 / 1.00 / 0.91 / 0.33 / 1.00 |
+| weak | `(-2, 4, 3)` | 0.81 / 0.47 / 0.09 / 0 / 0.61 |
+| default | `(-1, 5, 2)` | 0.97 / 0.92 / 0.48 / 0 / 0.95 |
+| strong | `(0, 6, 1)` | 0.99 / 0.99 / 0.86 / 0 / 0.99 |
+
+`rho` in `{0, 0.7, 0.95}`: independent, the default, and nearly one draw per incident.
 
 Also sweep: the reasoner's cost per reference, the deadline windows, the noise rates and `r`.
 
@@ -524,7 +578,12 @@ rung is what the world's hard tier asks of knowledge alone.
     dependency, this becomes a dev-dependency cycle, which cargo allows, and the tests here pass only
     `gordian-world` and `gordian-components` types through it. If it causes trouble, move
     `src/tests/cheap.rs` and the tests that use it into a crate that sits above both.
-11. **Tests live in `src/tests/`**, as in the first world, so that `oracle` is available under `cfg(test)`
+11. **The law is not the plan's `sigma(a + b q - c d)`.** At the coordinator's direction it is
+    `p0 + (1 - p0) h(q, d)` with a truth-independent guess, so that the answer depends on the truth only
+    through decisive evidence, and draws are keyed by the question's fingerprint with a Gaussian copula
+    instead of by call index (section 11). The plan's per-incident call index and its independent draws are
+    gone.
+12. **Tests live in `src/tests/`**, as in the first world, so that `oracle` is available under `cfg(test)`
     without a self-referencing dev-dependency. `gordian-world` is a dev-dependency with its own
     `reveal-hidden-state` feature, for one control (the first world's `NoiseFlood` labels).
 
@@ -557,8 +616,8 @@ meant to be reachable, at a price.
 | 8 | Time residue of an incident's observations | Sub-millisecond jitter on every offset | `an_incidents_observations_cannot_be_grouped_by_their_time_modulo_a_millisecond`, with a mutation check |
 | 9 | Duo kind (`ResourceExhausted` or `DependencyDown`) from the stream | Same draws; the whole public stream is identical for the two kinds; only a probe parts them | `the_two_kinds_a_duo_leaves_open_are_the_same_in_the_whole_public_stream` |
 | 10 | Value and severity distributions | Abnormal values, benign values and severities are drawn from the same distributions in incident and background evidence; ext messages have random severity | by construction, and the MI test's severity and value views |
-| 11 | The reasoner's accuracy draw or `q` | Not returned; an answer carries a diagnosis only. Latency and cost depend on the number of references only | `a_reasoner_answer_is_not_delivered_before_it_is_ready`, the law tests |
-| 12 | The reasoner's answers themselves | **By design**: they are informative about the truth, at a price, with a plausible wrong answer. Repeated calls are independent draws (section 11) | the law, wrong-answer pool tests |
+| 11 | The reasoner's accuracy draw, `h`, `p0` or `q` | Not returned; an answer carries a diagnosis only. Latency and cost depend on the number of references only | `a_reasoner_answer_is_not_delivered_before_it_is_ready`, the law tests |
+| 12 | The reasoner's answers themselves | **Informative about the truth only through the decisive evidence in the context.** Without it the answer is a guess from the context and the public rules (its mutual information with the truth is within its permutation baseline; hard and decoy are answered alike when nothing public separates them, identically under a tier swap). With it the answer is the truth with probability `h`, **by design**, at a price. Repeating a question buys nothing: an identical context gets an identical answer, and different contexts about one incident are correlated (copula, `rho` 0.7) | `without_decisive_evidence_the_answer_carries_no_information_about_the_truth`, `a_hard_incident_and_a_decoy_are_answered_alike_when_no_public_evidence_separates_them`, `the_same_question_gets_the_same_answer_...`, `majority_of_three_different_contexts_follows_the_copula_...` |
 | 13 | A deadline or criticality | Hidden. Phase 1 is independent of both; the first public difference is closure, which follows the deadline | tier swap (which swaps criticality too), deadline tests |
 | 14 | An incident's end | **By design**: heartbeats stop (a decoy at its resolution, the others after their deadline plus a grace); this is the evidence over time | section 4.3 |
 | 15 | A regime change | Not announced; public information static; the stream before the first change is identical with and without regimes; effects are visible only as contradictions | `nothing_announces_a_regime_change`, section 8 tests |
@@ -574,7 +633,7 @@ meant to be reachable, at a price.
 
 ## 15. Tests
 
-79 tests in the crate, `cargo test -p gordian-stream` (about 35 s in a debug build on two threads).
+83 tests in the crate, `cargo test -p gordian-stream` (about 50 s in a debug build on two threads).
 The ones that carry the claims:
 
 - **Determinism** (`determinism.rs`): twice-generated streams are equal for 25 seeds and for odd
@@ -606,7 +665,11 @@ The ones that carry the claims:
   vocabulary of hard incidents appears in the noise; noise has its declared rates; mini-bursts are believable
   incidents; no residue grouping.
 - **Recurrence and regime** (`recurrence.rs`): section 7 and 8.
-- **Reasoner** (`reasoner.rs`): section 11.
+- **Reasoner** (`reasoner.rs`): section 11. The informed probability is zero at `q = 0` and increasing; the marginal law at five settings
+  with cluster-robust statistics; no information from no evidence (mutual information, with a control); hard and decoy answered alike
+  (tier swap and mutual information); the guess is the imitated kind for mimics; the same question gets the same answer; draws do not
+  depend on history; the copula's majority-of-three at `rho` 0, 0.7 and 0.95; background; cost before answer, and the ratio to a component call.
+  `rng.rs` also tests the inverse normal against an independent normal distribution function.
 
 The oracle guard: `bash scripts/check-no-oracle.sh` passes, and was run against three planted violations
 that it caught (a policy file naming `Stream`; one naming `StreamParams` and `StreamSimulator`; a file outside the
@@ -621,9 +684,16 @@ that does not exist.
 1. **The hard families' visible rules are simple.** A human can write recognizers for three of the four from
    section 4.2 (and the leak's ramp from one more). The world's guarantee is about the *fixed* cheap rung. Section 12
    says how to measure what the hidden rules are worth.
-2. **The reasoner knows the truth.** Its tier-dependent accuracy at an instant where the public evidence cannot
-   separate the tiers is a feature of an oracle with a logistic degradation, not of any real model.
-3. **Independent draws across repeated calls** flatter any policy that re-escalates.
+2. **The reasoner knows the truth when informed**, and degrades by a logistic in `q` and `d`; that is an oracle's
+   degradation, not any real model's. What it no longer does is answer from the truth without evidence: that
+   was fixed (section 11), and the answers to a hard incident and a decoy are the same function of the public
+   context until decisive evidence is in it.
+3. **Repeated questions are correlated by one Gaussian-copula coefficient.** An identical context repeats its
+   answer and different contexts share `rho` of an incident-level draw, so re-escalating is no longer free
+   accuracy, but how much a real model's repeats are worth is for EXP-106. The default `rho` of 0.7 is a
+   choice, not a measurement; sweep it.
+3a. **The guess reads only the first world's rules**, so it is a weak stand-in for a real model's priors, and
+   `p0` is high exactly where the cheap rung is already right.
 4. **The pool vocabulary is learnable.** A policy that learns which ids cluster at an alarming service gets cheap
    relevance. It is per stream, so it must be re-learned from each stream's own history.
 5. **Few hard incidents per stream** (about 2.3). Every claim about them needs many streams.

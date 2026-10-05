@@ -11,8 +11,10 @@
 //!   scheduled instants part of the public physics changes without announcement.
 //! - [`StreamSimulator`]: the policy-facing interface, `observe_until(now)` and
 //!   `apply(action, now)`, with the actions `Probe`, `Escalate` and `Declare`.
-//! - The simulated reasoner (its law is stated in `reasoner.rs` and in `DESIGN.md`): correct with probability
-//!   `sigma(a + b q - c d)`, paid for before it answers, answering after a declared latency.
+//! - The simulated reasoner (its law is stated in `reasoner.rs` and in `DESIGN.md`): informed with
+//!   a probability that is zero without decisive evidence in the context, otherwise a guess from
+//!   the context and the public rules; paid for before it answers, answering after a declared
+//!   latency.
 //! - `oracle` (feature `reveal-hidden-state`): the only way to read hidden state.
 //!
 //! # What is not built

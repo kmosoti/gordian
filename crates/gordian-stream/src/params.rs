@@ -221,15 +221,23 @@ impl ReasonerCostSpec {
     }
 }
 
-/// The simulated reasoner: an answer is correct with probability `sigma(a + b q - c d)`.
+/// The simulated reasoner (`DESIGN.md`, section 11). A call is *informed* with probability
+/// `h(q, d) = (sigma(a + b q - c d) - sigma(a - c d)) / (1 - sigma(a - c d))`, which is zero at
+/// `q = 0` and rises with `q`; an informed call answers the truth, an uninformed one answers a
+/// guess computed from the context and the public rules alone. Whether calls about one incident
+/// are informed is correlated across different contexts by a Gaussian copula with correlation
+/// `rho`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ReasonerSpec {
-    /// Intercept.
+    /// Intercept of the logistic inside `h`.
     pub a: f64,
     /// Weight of the fraction `q` of the incident's decisive evidence in the context.
     pub b: f64,
     /// Weight of the incident's difficulty `d`.
     pub c: f64,
+    /// Correlation, in `[0, 1]`, of the informed-ness of calls about one incident that have
+    /// different contexts. 0 makes them independent; 1 makes them all the same draw.
+    pub rho: f64,
     /// What a call costs.
     pub cost: ReasonerCostSpec,
 }
@@ -366,6 +374,7 @@ impl StreamParams {
                 a: -1.0,
                 b: 5.0,
                 c: 2.0,
+                rho: 0.7,
                 cost: ReasonerCostSpec {
                     base_tokens: 400,
                     per_ref_tokens: 20,
@@ -427,6 +436,10 @@ impl StreamParams {
                 background: self.difficulty.background.clamp(0.0, 1.0),
             },
             regimes,
+            reasoner: ReasonerSpec {
+                rho: self.reasoner.rho.clamp(0.0, 1.0),
+                ..self.reasoner
+            },
             max_context: self.max_context.max(1),
             ..self.clone()
         }

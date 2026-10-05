@@ -76,7 +76,8 @@ impl Family {
         }
     }
 
-    /// The known kind the cheap rung is led to by the first moments, if any.
+    /// The known kind the cheap rung is led to by the first moments, if any. Read by the oracle.
+    #[cfg_attr(not(any(test, feature = "reveal-hidden-state")), allow(dead_code))]
     pub(crate) fn mimic(&self) -> Option<FaultKind> {
         match self {
             Family::Known { .. } => None,

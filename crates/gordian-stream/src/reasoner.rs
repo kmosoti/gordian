@@ -3,207 +3,217 @@
 //! It lives on the hidden side. A policy reaches it only through `StreamAction::Escalate`, and
 //! gets its answer back as a hypothesis, never as a measurement, after the declared latency.
 //!
-//! # The law
+//! # The invariant
 //!
-//! An answer is correct with probability
+//! **The answer depends on the truth only through the decisive evidence in the context.** A real
+//! model's broad knowledge helps it interpret evidence; it cannot conjure an answer from none.
+//! The reasoner is built so that this holds by construction and not by tuning:
 //!
-//! ```text
-//! p = sigma(a + b q - c d)
-//! ```
+//! - A call is *informed* with probability `h(q, d)`, where `q` is the fraction of the focus
+//!   incident's decisive evidence in the context (counted from hidden labels over the whole
+//!   incident, including evidence not yet arrived), `d` is the incident's difficulty, and
 //!
-//! where `q` is the fraction of the focus incident's decisive evidence that is in the context
-//! (counted from hidden labels, over the whole incident, including evidence that has not arrived
-//! yet), `d` is the incident's difficulty, and `(a, b, c)` are stream parameters. Nothing else
-//! enters: not the size of the context, not how much of it is noise, not whether the question
-//! was asked before. A question about an observation that belongs to no incident has `q = 1` and
-//! `d` equal to `DifficultySpec::background`, and its correct answer is `None`.
+//!   ```text
+//!   h(q, d) = (sigma(a + b q - c d) - sigma(a - c d)) / (1 - sigma(a - c d))
+//!   ```
 //!
-//! # Draws
+//!   so `h(0, d) = 0` and `h` rises with `q` (for `b > 0`) to the value `sigma(a + b - c d)` would
+//!   have had in a law that gave an uninformed call no chance. `(a, b, c)` are the swept parameters.
+//! - An informed call answers the truth.
+//! - An uninformed call answers a *guess* drawn from [`guess_distribution`], a function of the
+//!   context, the focus's service and the public rules and of nothing else: it takes no truth, no
+//!   tier, no label. It reads the context's observations near the focus through the first world's
+//!   public checker, as the cheap rung would, and picks uniformly among the hypotheses that
+//!   checker leaves open and that put the cause at the focus or upstream of it; when it leaves
+//!   none (the evidence contradicts every single fault) the guess is "not an incident" or one of
+//!   the five known kinds at the focus. A guess never names a hard kind.
 //!
-//! The draws come from ChaCha8 keyed by `(stream seed, incident id, call index)`, where the call
-//! index counts the calls *about that incident*. Two policies that ask their first question about
-//! the same incident therefore see the same draws, whatever else they asked about, which makes
-//! paired comparisons of policies sharper. Two draws are taken in order, both always: the
-//! correctness draw, compared with `p` as `u < p`, and the draw that picks among the wrong
-//! answers (used only when the first says wrong).
+//! The accuracy of a call is therefore `p = p0 + (1 - p0) h`, where `p0` is the share of the guess
+//! distribution that falls on the truth, the accuracy of a truth-independent guess. At `q = 0` the
+//! answer is a function of the context alone, so its mutual information with the truth, given the
+//! context, is zero (tested); `p0` is not an extra parameter, it is what the public evidence gets
+//! anyone, and is large exactly when the public rules already settle the incident.
 //!
-//! # A wrong answer is a plausible one
+//! # Draws, and why repeating a question buys nothing
 //!
-//! When the draw says wrong, the answer is picked from a pool of hypotheses that are false but
-//! that the evidence could suggest, weighted: for a hard incident, mostly the known kind the
-//! cheap rung is led to (the one the first moments imitate), then another hard kind at the same
-//! site, the right kind at a neighbouring service, or "not an incident"; for a decoy, the hard
-//! kind it imitates or the known kind it is read as; for a plain incident, another kind that its
-//! signature leaves open or the right kind next door; for background, a known kind at the
-//! observation's service. Never the truth, never noise.
+//! ChaCha8 keyed by `(stream seed, subject, fingerprint)` where the subject is the incident (or,
+//! for a question about background, the focus observation) and the fingerprint is a hash of the
+//! focus and of the context's references sorted into canonical order. An identical question gets
+//! an identical answer, however often it is asked and however the references are ordered.
+//!
+//! For different contexts about one incident the informed-ness is correlated by a Gaussian copula:
+//! `z = sqrt(rho) z_incident + sqrt(1 - rho) z_context`, informed iff `Phi(z) < h`, where
+//! `z_incident` is drawn once per incident and `z_context` per fingerprint. Each call's marginal
+//! stays `h`. `rho` is a stream parameter (default 0.7). The guess is drawn independently per
+//! fingerprint.
 //!
 //! # What this assumes, and what it does not model
 //!
-//! Draws are independent across calls, so asking the same question three times and taking the
-//! majority is a sound way to raise accuracy here. A real model's repeated samples are
-//! correlated, so any policy that escalates repeatedly benefits more than it should. The law is
-//! monotone in `q` by assumption: more of the decisive evidence never hurts, and noise in the
-//! context never hurts, only costs. Both are assumptions of the simulated reasoner and are
-//! tested against a real model in EXP-106, not here.
+//! That better context gives better answers, monotonically, and that noise in the context costs
+//! but never hurts: both are in the law by construction and are tested against a real model in
+//! EXP-106, not here. That a model's errors on different contexts of one incident are correlated
+//! with a single coefficient `rho` and Gaussian dependence, which is a stand-in. That the guess
+//! reads the first world's rules and nothing more. That the reasoner knows the truth when informed
+//! and degrades by a logistic in `q` and `d`.
 
-use crate::incident::{Family, Incident};
-use crate::kinds::{Diagnosis, HardKind, StreamHypothesis, StreamKind, Tier};
+use crate::incident::Incident;
+use crate::kinds::{Diagnosis, StreamHypothesis, StreamKind};
 use crate::params::ReasonerSpec;
-use crate::rng::{Gen, domain, sigmoid};
+use crate::rng::{Gen, det_norm_inv, domain, sigmoid};
 use crate::stream::Stream;
-use gordian_world::{FaultKind, Service, ServiceId};
+use gordian_core::Instant;
+use gordian_world::episode::PublicInfo;
+use gordian_world::graph::dependents_mask;
+use gordian_world::physics::consistent_hypotheses;
+use gordian_world::{FaultKind, Hypothesis, Observation, ServiceId};
 
-/// The probability that the reasoner is right: `sigma(a + b q - c d)`.
-pub(crate) fn accuracy(spec: &ReasonerSpec, q: f64, d: f64) -> f64 {
-    sigmoid(spec.a + spec.b * q - spec.c * d)
+/// The probability that a call is informed: zero without decisive evidence, rising with `q`.
+pub(crate) fn informed_probability(spec: &ReasonerSpec, q: f64, d: f64) -> f64 {
+    let base = sigmoid(spec.a - spec.c * d);
+    let full = sigmoid(spec.a + spec.b * q - spec.c * d);
+    if 1.0 - base <= 1e-15 {
+        return 0.0;
+    }
+    ((full - base) / (1.0 - base)).clamp(0.0, 1.0)
 }
 
 /// What the reasoner said and the hidden facts behind it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Verdict {
     pub(crate) diagnosis: Diagnosis,
+    /// The probability the call is informed, `h(q, d)`.
+    pub(crate) h: f64,
+    /// The share of the guess distribution on the truth.
+    pub(crate) p0: f64,
+    /// The probability the answer is right, `p0 + (1 - p0) h`.
     pub(crate) p: f64,
+    /// Whether this call was informed.
+    pub(crate) informed: bool,
+    /// Whether the answer equals the truth.
     pub(crate) correct: bool,
 }
 
-fn neighbours(services: &[Service], site: ServiceId) -> Vec<ServiceId> {
-    let mut out: Vec<ServiceId> = Vec::new();
-    for s in services {
-        let linked = s.id != site
-            && (s.depends_on.contains(&site) || services[site.index()].depends_on.contains(&s.id));
-        if linked {
-            out.push(s.id);
-        }
+/// The service an observation is about.
+pub(crate) fn service_of(o: &Observation) -> ServiceId {
+    match o {
+        Observation::Counter { service, .. }
+        | Observation::Message { service, .. }
+        | Observation::Snapshot { service, .. } => *service,
+        Observation::Probed { probe, .. } => probe.target,
+        Observation::Correction { site, .. } => *site,
     }
-    if out.is_empty() {
-        let other = ServiceId(((site.index() + 1) % services.len()) as u32);
-        out.push(other);
-    }
-    out
 }
 
-fn known(kind: FaultKind, site: ServiceId) -> Diagnosis {
-    Some(StreamHypothesis {
+fn known(h: Hypothesis) -> Diagnosis {
+    h.map(|(kind, site)| StreamHypothesis {
         kind: StreamKind::Known(kind),
         site,
     })
 }
 
-fn hard(kind: HardKind, site: ServiceId) -> Diagnosis {
-    Some(StreamHypothesis {
-        kind: StreamKind::Hard(kind),
-        site,
-    })
-}
-
-/// The weighted pool of plausible wrong answers about `inc`, or about a background observation
-/// at `focus_site` when `inc` is `None`.
-fn wrong_pool(
-    services: &[Service],
-    inc: Option<&Incident>,
+/// The multiset of hypotheses an uninformed call guesses from, each equally likely. A function of
+/// the public rules, the focus's service and the context's observations, and of nothing hidden:
+/// it takes no incident, no truth and no label.
+pub(crate) fn guess_distribution(
+    public: &PublicInfo,
     focus_site: ServiceId,
-) -> Vec<(Diagnosis, f64)> {
-    let mut pool: Vec<(Diagnosis, f64)> = Vec::new();
-    match inc {
-        None => {
-            for k in FaultKind::ALL {
-                pool.push((known(k, focus_site), 1.0));
-            }
-        }
-        Some(inc) => {
-            let site = inc.site;
-            let near = neighbours(services, site);
-            let w_near = 2.0 / near.len() as f64;
-            match (inc.tier, inc.family) {
-                (Tier::Plain, Family::Known { kind, duo }) => {
-                    for k in FaultKind::ALL.into_iter().filter(|k| *k != kind) {
-                        let open =
-                            matches!(k, FaultKind::ResourceExhausted | FaultKind::DependencyDown);
-                        let w = if duo && open {
-                            6.0
-                        } else if duo {
-                            0.5
-                        } else {
-                            1.0
-                        };
-                        pool.push((known(k, site), w));
-                    }
-                    for n in &near {
-                        pool.push((known(kind, *n), w_near));
-                    }
-                    pool.push((None, 1.0));
-                }
-                (Tier::Hard, f) => {
-                    let hk = f.hard_kind().expect("hard family");
-                    if let Some(m) = f.mimic() {
-                        pool.push((known(m, site), 4.0));
-                    }
-                    for other in HardKind::ALL.into_iter().filter(|k| *k != hk) {
-                        pool.push((hard(other, site), 1.0));
-                    }
-                    for n in &near {
-                        pool.push((hard(hk, *n), w_near));
-                    }
-                    pool.push((None, 2.0));
-                }
-                (Tier::Decoy, f) => {
-                    let hk = f.hard_kind().expect("decoy imitates a hard family");
-                    pool.push((hard(hk, site), 4.0));
-                    if let Some(m) = f.mimic() {
-                        pool.push((known(m, site), 3.0));
-                    }
-                    for other in HardKind::ALL.into_iter().filter(|k| *k != hk) {
-                        pool.push((hard(other, site), 1.0));
-                    }
-                }
-                (Tier::Plain, _) => unreachable!("a plain incident has a known family"),
+    context: &[(Instant, Observation)],
+) -> Vec<Diagnosis> {
+    let services = &public.services;
+    let mut upstream = vec![false; services.len()];
+    let mut stack = vec![focus_site];
+    while let Some(s) = stack.pop() {
+        for d in &services[s.index()].depends_on {
+            if !upstream[d.index()] {
+                upstream[d.index()] = true;
+                stack.push(*d);
             }
         }
     }
-    let truth = inc.and_then(|i| i.truth);
-    pool.retain(|(d, _)| *d != truth);
-    pool
+    let downstream = dependents_mask(services, focus_site);
+    let near = |s: ServiceId| s == focus_site || upstream[s.index()] || downstream[s.index()];
+    let mut evidence: Vec<(Instant, Observation)> = context
+        .iter()
+        .filter(|(_, o)| near(service_of(o)))
+        .cloned()
+        .collect();
+    evidence.sort_by_key(|(at, _)| *at);
+    let open: Vec<Hypothesis> = consistent_hypotheses(public, &evidence)
+        .into_iter()
+        .filter(|h| match h {
+            None => true,
+            Some((_, site)) => *site == focus_site || upstream[site.index()],
+        })
+        .collect();
+    if !open.is_empty() {
+        return open.into_iter().map(known).collect();
+    }
+    let mut fallback: Vec<Diagnosis> = vec![None];
+    fallback.extend(
+        FaultKind::ALL
+            .into_iter()
+            .map(|k| known(Some((k, focus_site)))),
+    );
+    fallback
 }
 
-/// The reasoner's answer to the `call_index`-th question about `incident` (`None` for a question
-/// about background at `focus_site`), with decisive fraction `q`.
+/// A hash of the question: the focus and the context's references in canonical (sorted) order.
+/// FNV-1a over fixed-width words, so the same set gives the same value on every platform.
+pub(crate) fn fingerprint(focus: u32, sorted_refs: impl IntoIterator<Item = (u8, u32)>) -> u64 {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut eat = |w: u64| {
+        for b in w.to_le_bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    eat(focus as u64);
+    for (tag, id) in sorted_refs {
+        eat(((tag as u64) << 32) | id as u64);
+    }
+    h
+}
+
+/// The reasoner's answer to the question with this `fingerprint` about `incident` (`None` for a
+/// question about background; `subject` then identifies the focus observation), with decisive
+/// fraction `q`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn answer(
     stream: &Stream,
+    public: &PublicInfo,
     incident: Option<&Incident>,
+    subject: u64,
     focus_site: ServiceId,
-    call_index: u32,
+    context: &[(Instant, Observation)],
+    fingerprint: u64,
     q: f64,
 ) -> Verdict {
     let spec = &stream.params.reasoner;
     let d = incident.map_or(stream.params.difficulty.background, |i| i.difficulty);
-    let p = accuracy(spec, q, d);
-    let id = incident.map_or(u32::MAX as u64, |i| i.id as u64);
-    let mut g = Gen::keyed(&[stream.params.seed, domain::REASONER, id, call_index as u64]);
-    let u_correct = g.unit();
-    let u_pick = g.unit();
+    let h = informed_probability(spec, q, d);
+    let seed = stream.params.seed;
+    let u_incident = Gen::keyed(&[seed, domain::REASONER, subject, 0]).unit_open();
+    let mut g = Gen::keyed(&[seed, domain::REASONER, subject, 1, fingerprint]);
+    let u_context = g.unit_open();
+    let u_guess = g.unit();
+    let rho = spec.rho.clamp(0.0, 1.0);
+    let z = rho.sqrt() * det_norm_inv(u_incident) + (1.0 - rho).sqrt() * det_norm_inv(u_context);
+    let informed = h > 0.0 && z < det_norm_inv(h);
+
     let truth = incident.and_then(|i| i.truth);
-    if u_correct < p {
-        return Verdict {
-            diagnosis: truth,
-            p,
-            correct: true,
-        };
-    }
-    let pool = wrong_pool(&stream.services, incident, focus_site);
-    let total: f64 = pool.iter().map(|(_, w)| *w).sum();
-    let x = u_pick * total;
-    let mut acc = 0.0;
-    let mut pick = pool.last().expect("a wrong pool is never empty").0;
-    for (d, w) in &pool {
-        acc += *w;
-        if x < acc {
-            pick = *d;
-            break;
-        }
-    }
+    let guesses = guess_distribution(public, focus_site, context);
+    let p0 = guesses.iter().filter(|g| **g == truth).count() as f64 / guesses.len() as f64;
+    let diagnosis = if informed {
+        truth
+    } else {
+        guesses[((u_guess * guesses.len() as f64) as usize).min(guesses.len() - 1)]
+    };
     Verdict {
-        diagnosis: pick,
-        p,
-        correct: false,
+        diagnosis,
+        h,
+        p0,
+        p: p0 + (1.0 - p0) * h,
+        informed,
+        correct: diagnosis == truth,
     }
 }

@@ -41,7 +41,7 @@ use gordian_world::physics::probe_cost;
 use gordian_world::step::CostSummary;
 use gordian_world::{Observation, Probe, ProbeKind, ServiceId};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 /// What a policy can do.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -205,13 +205,16 @@ pub struct StreamRemaining {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct CallRecord {
     pub(crate) incident: Option<u32>,
-    pub(crate) call_index: u32,
+    pub(crate) fingerprint: u64,
     pub(crate) at: Instant,
     pub(crate) ready_at: Instant,
     pub(crate) refs: u32,
     pub(crate) q: f64,
     pub(crate) d: f64,
+    pub(crate) h: f64,
+    pub(crate) p0: f64,
     pub(crate) p: f64,
+    pub(crate) informed: bool,
     pub(crate) correct: bool,
     pub(crate) focus: ObsId,
     pub(crate) diagnosis: Diagnosis,
@@ -245,7 +248,8 @@ pub struct StreamSimulator {
     probes_done: u32,
     pending: Vec<Pending>,
     calls: Vec<CallRecord>,
-    per_incident: BTreeMap<Option<u32>, u32>,
+    world: gordian_world::episode::PublicInfo,
+    probe_obs: Vec<(Instant, Observation)>,
     declarations: Vec<DeclRecord>,
 }
 
@@ -264,6 +268,7 @@ impl StreamSimulator {
     /// A simulator at the start of `stream`, with the stream's budget.
     pub fn new(stream: Stream) -> Self {
         let budget = stream.params.budget.to_budget();
+        let world = stream.public_info().world_public_info();
         Self {
             stream,
             budget,
@@ -272,7 +277,8 @@ impl StreamSimulator {
             probes_done: 0,
             pending: Vec::new(),
             calls: Vec::new(),
-            per_incident: BTreeMap::new(),
+            world,
+            probe_obs: Vec::new(),
             declarations: Vec::new(),
         }
     }
@@ -377,9 +383,11 @@ impl StreamSimulator {
                 };
                 let index = self.probes_done;
                 self.probes_done += 1;
+                let observation = Observation::Probed { probe, result };
+                self.probe_obs.push((now, observation.clone()));
                 StreamOutcome::Probed {
                     probe: index,
-                    observation: Observation::Probed { probe, result },
+                    observation,
                     ready_at: Instant(now.0.saturating_add(cost.time_ns)),
                     cost,
                 }
@@ -442,29 +450,50 @@ impl StreamSimulator {
                         }
                     }
                 };
-                let slot = self.per_incident.entry(incident).or_insert(0);
-                let call_index = *slot;
-                *slot += 1;
                 let inc = incident.map(|id| &self.stream.incidents[id as usize]);
-                let focus_site = match &self.stream.events[focus.0 as usize].1 {
-                    Observation::Counter { service, .. }
-                    | Observation::Message { service, .. }
-                    | Observation::Snapshot { service, .. } => *service,
-                    Observation::Probed { probe, .. } => probe.target,
-                    Observation::Correction { site, .. } => *site,
-                };
-                let verdict = reasoner::answer(&self.stream, inc, focus_site, call_index, q);
+                let focus_site =
+                    crate::reasoner::service_of(&self.stream.events[focus.0 as usize].1);
+                let context_obs: Vec<(Instant, Observation)> = context
+                    .iter()
+                    .map(|r| match r {
+                        ObsRef::Passive(o) => self.stream.events[o.0 as usize].clone(),
+                        ObsRef::Probe(n) => self.probe_obs[*n as usize].clone(),
+                    })
+                    .collect();
+                // `seen` is the context as a sorted set: the canonical form the draws are keyed by.
+                let fingerprint = reasoner::fingerprint(
+                    focus.0,
+                    seen.iter().map(|r| match r {
+                        ObsRef::Passive(o) => (0u8, o.0),
+                        ObsRef::Probe(n) => (1u8, *n),
+                    }),
+                );
+                // A question about background has no incident; its draws are keyed by the focus.
+                let subject = incident.map_or((1u64 << 32) + focus.0 as u64, |id| id as u64);
+                let verdict = reasoner::answer(
+                    &self.stream,
+                    &self.world,
+                    inc,
+                    subject,
+                    focus_site,
+                    &context_obs,
+                    fingerprint,
+                    q,
+                );
                 let call = self.calls.len() as u32;
                 let ready_at = Instant(now.0.saturating_add(cost.latency_ns));
                 self.calls.push(CallRecord {
                     incident,
-                    call_index,
+                    fingerprint,
                     at: now,
                     ready_at,
                     refs: context.len() as u32,
                     q,
                     d: inc.map_or(self.stream.params.difficulty.background, |i| i.difficulty),
+                    h: verdict.h,
+                    p0: verdict.p0,
                     p: verdict.p,
+                    informed: verdict.informed,
                     correct: verdict.correct,
                     focus,
                     diagnosis: verdict.diagnosis,
