@@ -4,6 +4,35 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R1 to R3 — stream world, evaluator and harness merged
+
+**R1 stream world.** Re-verified on exit codes. Two reasoner fixes required before merge and
+delivered: no information from no evidence (truth enters an answer only through the informed
+branch, probability zero without decisive evidence; checked in code), and repeated questions are
+keyed by context fingerprint with copula-correlated correctness (`ρ` default 0.7). The
+policy-facing answer carries only focus and diagnosis.
+
+**R2 stream evaluator.** Re-verified on exit codes; six randomly sampled fixtures recomputed by
+hand from RULES.md without reading the scorer, all matched. Judgements left to each
+preregistration: wrong declarations do not cancel a correct one (spam), and alarms on a decoy
+before it resolves count as false alarms.
+
+**R3 stream harness and baselines.** Re-verified on exit codes; read the guard diff (a tightening
+plus one allowlisted shim directory) and the privileged oracle's surface. Merge conflicts with R2
+were additive and resolved as the union. Accepted the worker's reading that oracle escalation
+fires once the hard incident's decisive evidence is delivered (escalating earlier is empty-handed
+under the revised reasoner law).
+
+**Carried forward to R4.**
+
+- The R3 smoke parameters are placeholders. `always_escalate` escalates at notice, before any
+  decisive evidence, and got no hard incident right in the worker's diagnostic; periodic and
+  change-triggered hit the reasoner budget. Every baseline is tuned before comparison.
+- The shared rung never notices the slow-leak family; that headroom belongs to salience, not to
+  escalation timing, and is reported separately.
+- Plain-incident accuracy of the cheap rung fell from about 84% to 73% after the first regime
+  change in the worker's diagnostic, by design (its rules are not updated).
+
 ## A7b ratio interval — merged with a freeze condition
 
 **Re-verified.** Only `analysis/` and `experiments/exploration/` touched; the analysis suite passes

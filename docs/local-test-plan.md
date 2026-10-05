@@ -617,9 +617,25 @@ that need no learning (charter section 7): never, always, periodic, change-trigg
 anomaly score, random at matched cost, and privileged oracle escalation. Total cost is modelled
 substrate and rule cost plus reasoner cost in its own units and through a manifest exchange rate.
 
+### R3b Integration of the stream evaluator (after R2 and R3)
+
+Wire `gordian-stream-eval` into the stream harness in place of R3's count-only scorer; replace R3's
+seam types with R2's; extend `results.csv` with the verdict columns; remove the
+`gordian-stream-reveal` shim crate and its allowlist line if the evaluator's helpers make it
+unnecessary; add `focus` to the stream's `oracle::calls` trace so the evaluator can fill
+`CallSummary.focus`; add `gordian_stream_eval` to the policy-file ban; teach the analysis package
+the stream results schema (one row per stream, verdict counts, reasoner cost in its own units,
+total cost), with its schema guard. Acceptance: every arm on 10 streams through the driver,
+verdicts recorded, analysis loads them; all gates on exit codes.
+
 ### R4 Headroom check
 
-Run every R3 baseline on held-out streams across the reasoner sweep. Report, per tier and
+Tune every R3 baseline first (charter section 7): timing parameters (periodic period, threshold
+τ and wait, escalation delay after notice, random p) per reasoner setting, on tuning streams
+disjoint from the held-out streams. Then run every tuned baseline on held-out streams across the
+reasoner sweep, including `ρ`. Report gaps per tier *and per hard-fault family*: the shared rung
+never notices the slow-leak family, so its gap is salience headroom, not escalation-timing
+headroom, and must be shown separately. Report, per tier and
 parameter setting, the gap between oracle escalation and the best tuned non-privileged baseline in
 verified decisions per unit of total cost, with intervals. If the gap is under the margin the
 coordinator sets before the run on every setting, revise R1 before anything is frozen. The
