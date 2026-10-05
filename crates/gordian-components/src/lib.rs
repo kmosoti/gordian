@@ -10,7 +10,7 @@
 //!   nanoseconds, fitted to criterion medians on one CPU (see `CALIBRATION.md`). It is what a
 //!   policy sees and what the bill enforces.
 //! - A count of the work each call did, in the component's own units ([`ops`], work item A8b),
-//!   priced by weights fitted to minimum timings. It is what the harness records as the
+//!   priced by weights fitted to minimum timings and scaled in situ. It is what the harness records as the
 //!   components' cost; it follows the content of the window where the declared cost follows
 //!   only its size.
 //!

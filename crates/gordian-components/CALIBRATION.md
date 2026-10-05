@@ -278,3 +278,316 @@ measurements cannot say is how much of the verifier's fall is the session and ho
 profile. The part that can be said is that the optimized checker costs 0 to 20% more than the
 reference on the shapes where the reference was already linear (`DESIGN.md`, section 8.4 of
 gordian-world), and that the verifier's constants include that.
+
+## 9. Counted operations and their weights (work item A8b)
+
+Sections 1 to 8 are the declared cost: what a policy is charged and the `Bill` enforces. This
+section is the cost an experiment reports, the charter's `C`: a count of the work each call did,
+weighted. Everything below was produced by the commands in 9.9 on 2026-10-05. The data files are
+scratch (4 to 70 MB each) and are not kept; the scripts that read them are
+`crates/gordian-run/calibrate_ops.py`, `calibrate_insitu.py` and `apply_weights.py`.
+
+### 9.1 Why a count, and what it is
+
+On this VM wall time carries bursts of stolen CPU time that hit one copy of an episode and not the
+other (`docs/review-log.md`, A8): two of four A/A runs excluded zero. A count of the work done does
+not move. Each component returns, with its output, the number of times it did each of a few
+named things (`Component::run_counted`, `src/ops.rs`); the shared rule counts the same way
+(`RULE_UNITS` in `gordian-run/src/policy/decide.rs`, `Policy::take_ops`); the world's checker has
+a counted variant that the plain function wraps (`physics::consistent_worlds_counted`, with
+`CheckerOps`), and its reference functions are unchanged. A count is a function of the input and
+the component's configuration. A policy is never handed one and cannot set one
+(`gordian-run/tests/counted_ops.rs`). `results.csv` records, per episode, `ops_component` and
+`ops_sched` (sums of counts, a sanity check: the units differ) and `modelled_component_ns` and
+`modelled_sched_ns` (counts times weights, summed once per episode). The charter's `C` is their
+sum, `modelled_cost_ns` in the analysis package. It covers what a policy controls (which
+components ran, and what the rule did with them) and not the harness's own work (generating the
+episode, the simulator, the ledger), which is in `measured_harness_ns` only.
+
+### 9.2 The units
+
+A unit is a loop (or a fixed overhead) the code runs a number of times that depends on content.
+Each was counted where the code does it, not derived from the input size. The tests next to the
+components check each unit on windows where the answer can be worked out, and that a count follows
+content (two windows of one size and one graph that make a component work differently are counted
+differently).
+
+| component | unit | counts |
+|---|---|---|
+| heuristic | `calls` | one per call: the summary's allocations, the entry's envelope |
+| | `scanned` | observations the one pass over the window looked at |
+| | `rules` | rows of the rule table looked at before one decided (up to 15) |
+| | `mask_steps` | steps of the dependents-mask construction when the upstream-site rule locates a site (no generated window reaches this rule: the site's own message decides first; it is calibrated on hand-built windows) |
+| | `entries`, `ranked` | entries emitted (0 or 1); candidates written into it |
+| estimator | `calls` | one per call: its entry always lists the top five |
+| | `scanned` | observations looked at |
+| | `permit_scans` | informative observations, each scanning five fault kinds' permit tables |
+| | `ancestors`, `site_updates` | ancestors examined to find the sites an observation is anchored at; anchored sites updated |
+| | `probe_evals` | `probe_result` calls made to judge a probe result against every hypothesis |
+| | `hypotheses` | hypotheses scored, `1 + 5 * services` (the ancestor sets scale with it) |
+| | `sort_cmps` | comparisons made by the ranking sort, which is cheap when every score is equal and dear when the evidence separates them: the unit that made the estimator's fit work |
+| memory | `calls`, `scanned` | one per call; observations looked at |
+| | `records` | prior records compared with the window's signature |
+| | `entries` | entries emitted (0 or 1) |
+| verifier | `candidates`, `damaged` | exactly one of the two per call: the envelope of the entry, a list of candidates, or the shorter damaged-evidence entry when the window lost its anchor |
+| | `scanned` | observations touched: the copy into the checker's slice, and the checker's first pass |
+| | `worlds`, `evals`, `probe_evals` | the checker's counts: candidate worlds tried; evaluations of a world against an observation; against a probe result |
+| | `ranked` | hypotheses written into the entry (the whole consistent set) |
+| rule | `calls` | one per `decide` or final call: the step's fixed cost (cost declaration, selection, decision) |
+| | `decoded_outputs`, `decoded_ranked` | component outputs decoded; candidates in them |
+| | `worlds` | worlds built from a candidate set, and visited when probes are scored |
+| | `probe_evals` | `probe_result` calls made to score candidate probes |
+
+Units that the data could not tell apart were dropped, not kept at weight zero: the checker's
+`mask_steps` (counted, tested, not priced by the verifier: a function of the graph alone, not
+separable from `worlds`), the verifier's and the estimator's separate per-call and graph terms, the
+memory lookup's `ranked` and `record_tags`, and for the rule the scan for bought probes (0.3 ns an
+observation), the check of bought probes against a world, the grouping of worlds by a probe's
+result and the per-probe set-up (each under 2% of the time; dropping all four moves no fit by more
+than 0.0002 in R^2). Not counted at all: the selectors' own work (a few random draws, a period
+test), the rule's checks of corrections (it never buys one), and the clock reads (a pair costs 25
+to 75 ns here).
+
+### 9.3 Setup
+
+| | |
+|---|---|
+| Date | 2026-10-05 |
+| CPU | the VM reports `Intel(R) Xeon(R) Processor @ 2.10GHz`, 4 vCPU, kernel 6.18.44. Sections 1 to 8 say `@ 2.80GHz` for 2026-10-04: **the host is not the one the declared cost was fitted on**, which is one more reason the declared constants are not reused |
+| Toolchain, profile | rustc 1.98.0; the `release`/`bench` profile of the workspace (`debug = 1`, thin LTO, one codegen unit) |
+| Isolation | `scripts/cgroup-run.sh --cpus 2 --cpu-quota 100 --memory 2G` (cgroup v1); nothing else was running and no build ran during a measurement. `/proc/stat` over the five hot runs shows 69 to 90 steal ticks of about 34,000 (0.2 to 0.3% of the machine's time), and 7 to 12 of about 3,800 over the three in-situ runs: the host does steal time here, in bursts, which is the reason for taking minima |
+| Hot calibration | `examples/calibrate_ops.rs`, five runs of 84 to 85 s, 25 timings per datum, each timing about 300 microseconds of calls; the datum's time is the minimum over all 125 |
+| In-situ calibration | `examples/calibrate_insitu.rs`, three runs of 9 to 10 s, five passes each, so 15 plays of every episode; the call's time is the minimum over them |
+
+### 9.4 Do the counters track the work? Fixed windows, timed in a loop
+
+The program times every component, and the rule, on windows built to cover every class and a range
+of sizes, each timed as the minimum over repeated loops:
+
+- `fit`: three generated episodes of each of the eleven classes, the stream cut (or repeated) to 0,
+  1, 2, 4, 8, 16, 32, 64, 128, 256, 512 and 1,024 observations; two episodes per class with 2, 6 and
+  12 probe results appended (taken from the real simulator); two episodes per class over 12 to
+  1,036 prior records (the lookup only); every stream admitted into windows of 8, 16, 32 and 64 (so
+  that the recency rule evicts the anchor and the verifier answers some with the damaged entry); and
+  the hand-built upstream windows. 674 windows per component (762 for the lookup).
+- `heldout`: three *other* episodes of each class at sizes the fit never saw (3, 6, 12, 24, 48, 96,
+  192, 384, 768, 1,536), with the same probe, record, eviction and upstream variants. 612 windows
+  (700 for the lookup).
+- `real`: 1,368 states recorded from episodes played by the real harness (four arms, the default
+  limits and a 250 microsecond compute budget, seeds 104 to 106), each component timed on the
+  window it saw. The rule has no fixed windows, since its input is a candidate set that only
+  episodes make: it is fitted on states recorded from seeds 100 to 103 (1,999 calls, every call in
+  which it bought a probe kept) and judged on seeds 104 to 106 (1,443 calls).
+
+Weights are a non-negative least squares fit of the minimum time on the counts, weighted by 1/time
+so that the fixed costs of small windows count as much as the slopes of large ones, with no
+intercept beyond the explicit per-call unit. The hot weights, rounded to three figures, in
+nanoseconds per operation:
+
+| component | weights (ns per unit) |
+|---|---|
+| heuristic | calls 20.7, scanned 1.90, rules 4.49, mask_steps 3.11, entries 196, ranked 35.2 |
+| estimator | calls 563, scanned 2.47, permit_scans 5.74, ancestors 0.604, site_updates 2.38, probe_evals 6.39, hypotheses 1.17, sort_cmps 3.23 |
+| memory | calls 19.5, scanned 1.62, records 2.84, entries 301 |
+| verifier | candidates 262, damaged 34.4, scanned 1.54, worlds 7.44, evals 6.71, probe_evals 21.6, ranked 61.5 |
+| rule | calls 70.9, decoded_outputs 223, decoded_ranked 110, worlds 15.4, probe_evals 27.6 |
+
+Across the five runs the well-determined weights move by 1 to 6% (heuristic `scanned` 1.93 to 1.96,
+`entries` 202 to 205; estimator `sort_cmps` 3.28 to 3.35; memory `records` 2.83 to 2.87; verifier
+`ranked` 64 to 68; rule `decoded_ranked` 109 to 115). Weights that are functions of the same size
+are not individually determined and move a lot: the verifier's `damaged` (9 to 53 ns) and `worlds`,
+the estimator's `ancestors`, `site_updates` and `permit_scans`, the rule's `probe_evals`. Their sum
+predicts well; the table claims no more for them than that. Validity, weights as rounded above (R^2
+of the weighted counts against the minimum time per call; relative errors are predicted over
+measured):
+
+| component | set | calls | R^2 | median abs. rel. | 90th pct | mean rel. | median abs. error | worst class (mean rel.) |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| heuristic | fit | 674 | 0.995 | 2.6% | 7.0% | -0.2% | 10 ns | JointlyDecisive +4.3% |
+| | heldout | 612 | 0.996 | 2.7% | 7.8% | -0.1% | 12 ns | JointlyDecisive +5.2% |
+| | real | 1,368 | 0.993 | 2.7% | 4.6% | +2.5% | 7 ns | JointlyDecisive +4.9% |
+| estimator | fit | 674 | 0.994 | 2.4% | 6.1% | -0.1% | 31 ns | StaleMemory +3.3% |
+| | heldout | 612 | 0.994 | 2.6% | 5.8% | -0.5% | 41 ns | JointlyDecisive +3.0% |
+| | real | 1,368 | 0.990 | 3.2% | 4.9% | +2.9% | 23 ns | DelayedConfigChange +3.9% |
+| memory | fit | 762 | 0.988 | 6.5% | 20.4% | -1.2% | 11 ns | JointlyDecisive -7.0% |
+| | heldout | 700 | 0.983 | 5.8% | 15.8% | +0.6% | 15 ns | JointlyDecisive -6.2% |
+| | real | 1,368 | 0.994 | 10.2% | 21.1% | -0.5% | 4 ns | DelayedConfigChange -20.4% |
+| verifier | fit | 674 | 0.981 | 5.0% | 11.1% | -0.4% | 101 ns | DelayedConfigChange +6.8% |
+| | heldout | 612 | 0.984 | 4.6% | 10.0% | -0.7% | 98 ns | DelayedConfigChange +5.3% |
+| | real | 1,368 | 0.989 | 2.9% | 8.7% | -0.2% | 82 ns | FeedbackBait +2.2% |
+| rule | fit (real states) | 1,999 | 0.996 | 2.8% | 11.8% | -0.2% | 76 ns | DelayedConfigChange +1.2% |
+| | real (held-out seeds) | 1,443 | 0.997 | 2.2% | 7.7% | -0.1% | 43 ns | DelayedConfigChange -1.0% |
+
+**Every component and the rule pass R^2 >= 0.9 on every set; the lowest is 0.981.** The bar was not
+lowered and no class was dropped. In development the first versions of the counters did not pass
+on the real states: the estimator's cost was dominated by the comparisons of its ranking sort,
+which a count of observations and hypotheses cannot see, and the verifier's by the size of the entry
+it emits; both became units. The worst class is the one with the largest mean relative residual
+among the eleven (the hand-built upstream windows are a source, not a class).
+
+**Residual shape.** By window size the mean relative residual stays within 2% for the heuristic and
+the estimator on the fit and held-out sets (the largest, +1.9%, at 512 or more observations),
+within 5.3% for the verifier (slightly low at 32 to 127 observations, slightly high beyond 512),
+and shows the memory lookup's: -11% at 0 to 7 observations and +11% at 8 to 31 on the fit set.
+That is an absolute error of about 4 ns on a call of 25 to 45 ns (the lookup returns early when the
+window shows no symptom, and the count cannot see that the first few observations are mostly
+benign), which is why its median relative error is 10% on real states while its median absolute
+error is 4 ns. By source of the window (fit set): generated prefixes -0.5% to +1.2% for the four
+components other than the lookup; windows with probe results -0.4% to -4.5% (the verifier is the
+low one); evicted windows +1.1% (heuristic), +1.3% (estimator), -1.8% (verifier), +11% (lookup);
+the hand-built upstream windows +0.3% (heuristic, which is what they are for), -5.6% (estimator),
++3.9% (verifier). On the real states the heuristic and the estimator are overpredicted by 2.5% and
+2.9% in every class (+1.7% to +4.9%), the verifier is within 2.2% in every class, and the rule
+within 1.2%.
+
+### 9.5 The first non-identical-arm check failed, and what the weights of C are
+
+The check of plan A8b (`heuristic_only` against `all_components`, interleaved, 20 seeds by 11
+classes, through the driver) was made first with the weights of 9.4. It failed in all three runs:
+modelled ratio sum(B)/sum(A) 15.66 against a wall-time median-of-episodes ratio of 12.13 (90%
+interval 11.61 to 13.06), 12.18 (11.82 to 12.80) and 12.10 (11.83 to 13.00). The counters were not
+at fault: replaying the actual calls of both arms in a loop gave 1.01 to 1.04 times the modelled
+time for the heuristic, the estimator and the verifier (1.31 for the lookup, 4 ns a call). The
+model was a model of a loop. A call inside an episode costs more than that, and by different
+factors: measured over modelled with the hot weights was 2.2 for the components' calls (the
+heuristic's alone) and 1.9 for the rule's steps in `heuristic_only`, and 1.7 (four components) and
+1.4 in `all_components`. The gap per call is roughly constant through an episode (it does not grow
+with the ledger) and is not the timer: a pair of clock reads costs 25 to 75 ns here. Touching a
+megabyte of memory between calls moves a call by 6 to 20%; touching four to sixteen megabytes (the
+order of what an episode's ledger and JSON churn pass through) adds 0.4 to 1.8 microseconds to a
+call, nearly the same for a 500 ns call as for a 1.6 microsecond one. (Those probes were ad hoc
+and are not kept; they say which way the gap goes, not how big it is.) The cheaper arm pays
+proportionally more, so the loop-calibrated ratio overstates the expensive arm.
+
+The weights that ship are therefore the hot weights **scaled to what the harness pays**
+(`calibrate_insitu.py`): for each component and for the rule, in-situ time = alpha x (hot weighted
+count) + beta, fitted by non-negative least squares to the minimum in-situ time of each call over
+thousands of calls. The in-situ calls are the harness's own timer entries (each now carries the
+operation counts of the call it timed), replayed over episodes of four arms that select varied
+subsets of the components (`random_matched` at p = 0.5 and 0.25, and two `fixed_pipeline`
+configurations; seeds 100 to 129 for the fit, seeds 200 to 209 held out), taking for every call the
+minimum over 15 plays. **The arms and episodes of the check (`heuristic_only`, `all_components`,
+seeds 0 to 19) are in neither set.**
+
+| | alpha | beta |
+|---|---:|---:|
+| heuristic | 1.606 | 20.0 ns |
+| estimator | 1.388 | 23.6 ns |
+| memory | 1.845 | 19.6 ns |
+| verifier | 1.196 | 484 ns |
+| rule | 1.208 | 196 ns |
+
+The beta goes onto the per-call unit (`calls`; for the verifier both `candidates` and `damaged`,
+exactly one of which counts per call). The shipped weights, in nanoseconds per unit, are in the
+unit tables of the sources; the heuristic's, for instance: calls 53.3, scanned 3.06, rules 7.22,
+mask_steps 5.00, entries 314, ranked 56.5. Judged on the in-situ calls, with the weights as rounded
+in the code:
+
+| component | single-call R^2: fit, held out, check arms | median abs. rel. error (check arms) |
+|---|---|---:|
+| heuristic | 0.71, 0.75, 0.74 | 10.7% |
+| estimator | 0.82, 0.80, 0.75 | 7.8% |
+| memory | 0.89, 0.86, 0.86 | 17.5% |
+| verifier | 0.93, 0.91, 0.91 | 4.9% |
+| rule | 0.96, 0.96, 0.96 | 15.0% |
+
+**Single in-situ calls are scattered**: the minimum over 15 plays of a call that takes 300 ns to 8
+microseconds still varies with the allocator's and the caches' state, so the R^2 of the model
+against single in-situ calls is below 0.9 for the heuristic, the estimator and the lookup. That is
+a property of the measurement, not a fault of the counters (9.4 tests those, in loops, and every
+one passes), but it is a limit on what can be said call by call. What an experiment sums is
+episodes, and there the model is close:
+
+| set | arm | components, model / measured | rule | total | unscaled hot weights, total |
+|---|---|---:|---:|---:|---:|
+| fit | `pipeline_he` | 1.03 | 0.97 | 0.995 | 0.70 |
+| fit | `pipeline_hvm_2` | 1.00 | 1.08 | 1.05 | 0.79 |
+| fit | `random_25` | 0.93 | 0.99 | 0.97 | 0.72 |
+| fit | `random_50` | 0.95 | 1.01 | 0.99 | 0.75 |
+| held out | the same four arms | 0.92 to 1.01 | 0.97 to 1.08 | 0.97 to 1.05 | 0.70 to 0.79 |
+| check arms | `all_components` | 0.99 | 1.09 | 1.05 | 0.80 |
+| check arms | `heuristic_only` | 1.01 | 1.15 | 1.10 | 0.66 |
+
+On the check's own calls the ratio of the two arms is 12.77 measured, 12.18 modelled, and 15.65
+with the hot weights. The model prices `heuristic_only`'s rule steps 15% too high (its steps are
+the cheapest in the set, where the fit arms' are dearer), which is most of the 5% by which the
+modelled ratio is below the measured one.
+
+### 9.6 The non-identical-arm check, with the weights that ship
+
+Through `scripts/run-driver.sh` (cgroup v1, cores 0 to 2, driver pinned to core 3), three runs with
+`--run-seed` 1, 2 and 3, and `gordian-analyze cost-check --a heuristic_only --b all_components
+--seed 1` (the median over the 220 episodes of B_i/A_i of `measured_policy_ns`, paired bootstrap,
+10,000 resamples):
+
+| run | modelled ratio, sum(B)/sum(A) | wall-time ratio, median of episodes | 90% interval | inside |
+|---|---:|---:|---|---|
+| 1 | 12.18 | 12.24 | 11.68 to 12.97 | yes |
+| 2 | 12.18 | 12.66 | 11.90 to 13.15 | yes |
+| 3 | 12.18 | 12.48 | 11.73 to 13.03 | yes |
+
+The modelled ratio is identical in the three runs, as it must be. The ratio of wall-time totals,
+for reference, is 11.90, 11.70 and 11.94. The intervals are 10% wide, so the check separates a 29%
+error from none and says little about a 5% one. Two things it does not show. On
+`measured_total_ns`, the whole episode, the modelled ratio is *not* inside: the whole episode's
+wall-time median ratio is 4.9 to 5.0, because the harness's own work, which `C` excludes, is in both
+arms and dilutes it. And the weights have been shown to suit arms that run between zero and four
+components per step; the heuristic-only rule steps show a 15% miss.
+
+An A/A on the modelled cost is exactly zero (`analysis/tests/test_real_runs.py`, on the real A/A
+fixture: the two copies have identical `modelled_cost_ns` in every episode, `S = 0` with a
+zero-width interval, while their wall times differ).
+
+### 9.7 What this does and does not establish
+
+- The counters follow the work in the components and the rule on fixed windows over all classes
+  and many sizes (R^2 0.98 to 0.997), on held-out episodes and window sizes, and on the states real
+  episodes produce, with a worst-class bias of 7% (20% for a lookup call of 4 ns).
+- `C` is a deterministic function of what the arm did. It does not move with host interference, it
+  is the same in two copies of an arm, and a re-run reproduces it byte for byte.
+- `C` agrees with in-situ wall time at the level of arm totals and of the ratio of two arms, to
+  within the 5 to 10% seen on the arms tried, once the harness's per-call and per-step costs are in
+  the weights. Those costs are properties of this harness on this host: a change to the harness's
+  memory behaviour (the ledger, the payloads) changes them, and they are not an intrinsic cost of a
+  component. A recalibration is needed after such a change.
+- The weights are not intrinsic costs of an operation. Several are not individually determined
+  (9.4). They are a model of this harness at this revision, as the declared constants were.
+- Not tested: an arm that selects components by content (the selector EXP-001 will freeze), which
+  changes the mix of calls; windows larger than the 256 of the default limits inside an episode
+  (the fixed-window fits go to 1,536); a stress class that makes calls dearer than any generated
+  one.
+- That `C` excludes the harness's own work is a choice made here (the plan says "the charter's `C`
+  becomes modelled cost" and states the check against "the wall-time ratio's median-of-episodes
+  estimate" without saying which wall time). The wall time that matches is `measured_policy_ns`.
+
+### 9.8 Reading a result
+
+`gordian-analyze compare --relative-savings` defaults to `modelled_cost_ns`, labels it the
+charter's `C`, and reports the measured wall time of the same pairs underneath, labelled a
+secondary check (`analysis/README.md`). `gordian-analyze cost-check` is the check of 9.6.
+
+### 9.9 Recalibrating
+
+After a change to the CPU, the toolchain, the profile, the harness, or the code of a component, of
+the rule or of the checker:
+
+```bash
+cargo build --locked --release --example calibrate_ops --example calibrate_insitu
+for i in 1 2 3 4 5; do
+  CALIBRATE_REPS=25 scripts/cgroup-run.sh --name calib-ops-$i --cpus 2 --cpu-quota 100 --memory 2G -- \
+    target/release/examples/calibrate_ops > target/calib-ops-$i.jsonl
+done
+analysis/.venv/bin/python crates/gordian-run/calibrate_ops.py target/calib-ops-?.jsonl --json target/hot.json
+for i in 1 2 3; do
+  CALIBRATE_PASSES=5 scripts/cgroup-run.sh --name calib-insitu-$i --cpus 2 --cpu-quota 100 --memory 2G -- \
+    target/release/examples/calibrate_insitu > target/calib-insitu-$i.jsonl
+done
+analysis/.venv/bin/python crates/gordian-run/calibrate_insitu.py target/hot.json target/calib-insitu-?.jsonl \
+    --json target/weights.json
+python3 crates/gordian-run/apply_weights.py target/weights.json --record "<what ran, and when>"
+```
+
+`calibrate_ops.py` exits 1 if any target fails R^2 >= 0.9 on any set: fix the counter, do not edit
+the bar. `calibrate_insitu.py HOT.json RUNS --from-source` judges the constants that are in the
+code. Run every measurement alone; a build must not overlap one. Regenerate the analysis fixtures
+(`analysis/README.md`) after changing weights, since they hold `modelled_*_ns`.

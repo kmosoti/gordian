@@ -5,7 +5,7 @@
 track the work. A call in an episode costs more than that: the same call, on the same window,
 takes 1.2 to 2 times as long between the harness's other work. The cost an experiment pays is the
 second, and a model of C that stopped at the first would, in the non-identical-arm check, price
-the expensive arm 29% above what it costs (`CALIBRATION.md`, section 9.6).
+the expensive arm 29% above what it costs (`CALIBRATION.md`, section 9.5).
 
 This script keeps the *shape* of the hot weights (so that what the counters say about content is
 unchanged) and fits, per target, how the harness changes it: `in_situ_ns = alpha * hot_ns + beta`,

@@ -8,7 +8,8 @@
 //! worlds and observations the checker evaluated, hypotheses a probe result was checked against,
 //! entries and candidates encoded. A weight in picoseconds per unit turns the counts into
 //! modelled nanoseconds. The weights are fitted to the *minimum* of repeated timings (a minimum,
-//! because interference only ever adds time); see `CALIBRATION.md`, section 9.
+//! because interference only ever adds time) of fixed windows, and then scaled to what a call
+//! costs inside the harness, which is more than in a loop; see `CALIBRATION.md`, section 9.
 //!
 //! # What a count is
 //!

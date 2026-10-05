@@ -203,9 +203,16 @@ the validity fits).
   wraps; the reference functions are unchanged (`gordian-world`, `src/tests/counting.rs`).
 - A component a `Fail` directive stopped is charged but did no work, so it counts nothing. A
   `Slow` directive multiplies declared cost, not work, so it changes no count.
+- Each `harness/timer` entry carries the counts of the call it timed (`"ops"`, in the order of the
+  unit table), next to its nanoseconds. The counts are deterministic and the nanoseconds are not;
+  the entry is where what a call did and what it took are read together (the in-situ calibration
+  does exactly that).
 - Per episode, `results.csv` gets `ops_component`, `ops_sched` (sums of counts: units differ, so
   these are checks and never a cost) and `modelled_component_ns`, `modelled_sched_ns` (counts
   times weights, summed over components and units, rounded once per episode). Their sum is `C`.
+  The weights are the weights of fixed windows timed in a loop, scaled to what a call costs in
+  this harness (`CALIBRATION.md` of the components crate, section 9.5): a loop-calibrated `C`
+  priced `all_components` 29% too high against `heuristic_only`.
   They are deterministic, so protocol replay covers them. The modelled cost covers what a policy
   controls (which components ran and what the rule did with them), not the harness's own work
   (generation, simulator, charging, ledger, scoring, the affordability check), which an arm does
@@ -436,12 +443,27 @@ unit's scope.
     refused (no `select`) is counted the same. The fit includes the cost declaration and the
     selector (`heuristic_only`, `all_components`, `fixed_pipeline`, `random_matched` states).
 
+25. **`harness/timer` payloads gain `ops`.** A list of the counts of the call, in the order of
+    the component's or the rule's unit table. The events-sample key allowlist gains `ops`.
+26. **The weights of `C` are scaled in situ, not only calibrated on fixed windows (A8b item 3).**
+    The plan's calibration is the minimum over repeated timings of fixed windows. That is done
+    (`examples/calibrate_ops.rs`; every counter passes R^2 >= 0.9, the lowest 0.981) and it is what
+    shows the counters follow the work. Used alone it failed the plan's own non-identical-arm check
+    (modelled ratio 15.7 against 12.1, interval 11.6 to 13.1), because a call in an episode costs
+    1.2 to 1.9 times a call in a loop and the factor is larger for the cheaper arm. The shipped
+    weights are the loop weights times a per-target factor plus a per-call constant, fitted on
+    the harness's own timer entries for other arms (`examples/calibrate_insitu.rs`,
+    `calibrate_insitu.py`); the check then passes in three of three runs (12.18 against 12.24,
+    12.66, 12.48). This is a departure from the plan's wording: record it, and reject it if
+    loop-calibrated weights and a failed check are preferred.
+
 ## 9. Built and not built
 
 Built in A8b: counted operations (`gordian-components` `src/ops.rs`; `Component::run_counted`;
 `RuleOps` and `Policy::take_ops`; `EpisodeOps` in `harness.rs`), the four `results.csv` columns, the
-calibration program `examples/calibrate_ops.rs` and its fit script `calibrate_ops.py`, and in the
-analysis package the modelled cost as the default cost and `gordian-analyze cost-check`; section 4.
+calibration programs `examples/calibrate_ops.rs` (fixed windows, in a loop) and
+`examples/calibrate_insitu.rs` (the harness's own timer entries) with their fit scripts
+`calibrate_ops.py`, `calibrate_insitu.py` and `apply_weights.py`, and in the analysis package the modelled cost as the default cost and `gordian-analyze cost-check`; section 4.
 
 Built in A8: interleaved arms (`src/interleave.rs`, `src/recorder.rs`), the drift workload
 (`src/drift.rs`), `arm_position` in `measured.csv`, the driver's ratio over all arms plus the drift
