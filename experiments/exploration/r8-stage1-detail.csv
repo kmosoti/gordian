@@ -1,0 +1,17 @@
+run,level,family,calls,correct,answers
+r8-main-1p5b-s1,0,Cascade,12,10,Cascade 10; Compound 2
+r8-main-1p5b-s1,0,Compound,9,4,Cascade 3; Compound 4; CredentialExpired 1; SplitBrain 1
+r8-main-1p5b-s1,0,SplitBrain,7,0,Cascade 3; Compound 4
+r8-main-1p5b-s1,0,all,28,14,Cascade 16; Compound 10; CredentialExpired 1; SplitBrain 1
+r8-main-1p5b-s1,control,Cascade,12,3,Cascade 3; Compound 9
+r8-main-1p5b-s1,control,Compound,9,7,Cascade 2; Compound 7
+r8-main-1p5b-s1,control,SplitBrain,7,0,Compound 7
+r8-main-1p5b-s1,control,all,28,10,Cascade 5; Compound 23
+r8-main-3b-s1,0,Cascade,4,2,Cascade 2; SplitBrain 2
+r8-main-3b-s1,0,Compound,7,0,ConfigDrift 1; CredentialExpired 1; NONE 2; SlowLeak 3
+r8-main-3b-s1,0,SplitBrain,5,2,Cascade 2; NONE 1; SplitBrain 2
+r8-main-3b-s1,0,all,16,4,Cascade 4; ConfigDrift 1; CredentialExpired 1; NONE 3; SlowLeak 3; SplitBrain 4
+r8-main-3b-s1,control,Cascade,4,0,Compound 2; SplitBrain 2
+r8-main-3b-s1,control,Compound,7,2,Cascade 2; Compound 2; SlowLeak 1; SplitBrain 2
+r8-main-3b-s1,control,SplitBrain,5,2,Compound 3; SplitBrain 2
+r8-main-3b-s1,control,all,16,4,Cascade 2; Compound 7; SlowLeak 1; SplitBrain 6

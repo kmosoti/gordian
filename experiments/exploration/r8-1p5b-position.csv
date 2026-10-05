@@ -1,0 +1,31 @@
+set,levels,third,calls,correct,A,wilson_lo,wilson_hi
+hard,levels 50-400 pooled,first,0,0,nan,nan,nan
+hard,levels 50-400 pooled,middle,102,41,0.401961,0.32564,0.483348
+hard,levels 50-400 pooled,last,10,2,0.2,0.068558,0.459207
+hard,level 50,first,0,0,nan,nan,nan
+hard,level 50,middle,26,10,0.384615,0.245736,0.545245
+hard,level 50,last,2,0,0,0,0.574969
+hard,level 100,first,0,0,nan,nan,nan
+hard,level 100,middle,24,10,0.416667,0.267962,0.582256
+hard,level 100,last,4,1,0.25,0.0579073,0.643832
+hard,level 200,first,0,0,nan,nan,nan
+hard,level 200,middle,26,11,0.423077,0.278479,0.582175
+hard,level 200,last,2,1,0.5,0.120866,0.879134
+hard,level 400,first,0,0,nan,nan,nan
+hard,level 400,middle,26,10,0.384615,0.245736,0.545245
+hard,level 400,last,2,0,0,0,0.574969
+plain,levels 50-400 pooled,first,1,0,0,0,0.730134
+plain,levels 50-400 pooled,middle,39,1,0.025641,0.00574125,0.107087
+plain,levels 50-400 pooled,last,0,0,nan,nan,nan
+plain,level 50,first,1,0,0,0,0.730134
+plain,level 50,middle,9,1,0.111111,0.0251915,0.376801
+plain,level 50,last,0,0,nan,nan,nan
+plain,level 100,first,0,0,nan,nan,nan
+plain,level 100,middle,10,0,0,0,0.212942
+plain,level 100,last,0,0,nan,nan,nan
+plain,level 200,first,0,0,nan,nan,nan
+plain,level 200,middle,10,0,0,0,0.212942
+plain,level 200,last,0,0,nan,nan,nan
+plain,level 400,first,0,0,nan,nan,nan
+plain,level 400,middle,10,0,0,0,0.212942
+plain,level 400,last,0,0,nan,nan,nan
