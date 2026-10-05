@@ -47,10 +47,22 @@
 //! stays `h`. `rho` is a stream parameter (default 0.7). The guess is drawn independently per
 //! fingerprint.
 //!
+//! # The distractor penalty
+//!
+//! With the stream parameter `distractor_penalty` (`delta`, default 0) the informed probability is
+//! `h_delta = h(q, d) * exp(-delta * m / 100)`, where `m` is the number of references in the
+//! context that are not decisive evidence of the focus incident (probes included; for a question
+//! about background, which has no focus incident, every reference). It takes no draw: the same
+//! copula variates are compared with a smaller threshold, so an answer that is informed at `delta`
+//! is informed at 0, and at `delta = 0`, or `m = 0`, every answer and every draw is the one the
+//! law without the parameter gives. `h_delta(0, d) = 0`, so the invariant above is untouched.
+//!
 //! # What this assumes, and what it does not model
 //!
-//! That better context gives better answers, monotonically, and that noise in the context costs
-//! but never hurts: both are in the law by construction and are tested against a real model in
+//! That better context gives better answers, monotonically, and (at `delta = 0`, the default) that
+//! noise in the context costs but never hurts; a positive `delta` is the stand-in for a model hurt
+//! by irrelevant references, one exponential in their number, with no dependence on their
+//! position. These are in the law by construction and are tested against a real model in
 //! EXP-106, not here. That a model's errors on different contexts of one incident are correlated
 //! with a single coefficient `rho` and Gaussian dependence, which is a stand-in. That the guess
 //! reads the first world's rules and nothing more. That the reasoner knows the truth when informed
@@ -59,7 +71,7 @@
 use crate::incident::Incident;
 use crate::kinds::{Diagnosis, StreamHypothesis, StreamKind};
 use crate::params::ReasonerSpec;
-use crate::rng::{Gen, det_norm_inv, domain, sigmoid};
+use crate::rng::{Gen, det_exp, det_norm_inv, domain, sigmoid};
 use crate::stream::Stream;
 use gordian_core::Instant;
 use gordian_world::episode::PublicInfo;
@@ -77,11 +89,30 @@ pub(crate) fn informed_probability(spec: &ReasonerSpec, q: f64, d: f64) -> f64 {
     ((full - base) / (1.0 - base)).clamp(0.0, 1.0)
 }
 
+/// The probability that a call is informed when `m` of the references in its context are not
+/// decisive evidence of the focus incident: `h(q, d) * exp(-delta * m / 100)`, with `delta` the
+/// spec's distractor penalty. At `m = 0` or `delta = 0` this is `h(q, d)` exactly (the factor is
+/// not applied, rather than applied as 1.0), so a stream without the penalty replays bit for bit.
+/// The factor is at most 1 and multiplies `h`, so `h_delta(0, d) = 0` still holds and `h_delta`
+/// never increases with `m`. It takes no draw.
+pub(crate) fn informed_probability_with_distractors(
+    spec: &ReasonerSpec,
+    q: f64,
+    d: f64,
+    m: usize,
+) -> f64 {
+    let h = informed_probability(spec, q, d);
+    if m == 0 || spec.distractor_penalty <= 0.0 {
+        return h;
+    }
+    h * det_exp(-spec.distractor_penalty * m as f64 / 100.0)
+}
+
 /// What the reasoner said and the hidden facts behind it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Verdict {
     pub(crate) diagnosis: Diagnosis,
-    /// The probability the call is informed, `h(q, d)`.
+    /// The probability the call is informed: `h(q, d)` times the distractor factor.
     pub(crate) h: f64,
     /// The share of the guess distribution on the truth.
     pub(crate) p0: f64,
@@ -176,7 +207,8 @@ pub(crate) fn fingerprint(focus: u32, sorted_refs: impl IntoIterator<Item = (u8,
 
 /// The reasoner's answer to the question with this `fingerprint` about `incident` (`None` for a
 /// question about background; `subject` then identifies the focus observation), with decisive
-/// fraction `q`.
+/// fraction `q` and `m` references in the context that are not decisive evidence of the focus
+/// incident (all of them, for a question about background, which has no focus incident).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn answer(
     stream: &Stream,
@@ -187,10 +219,11 @@ pub(crate) fn answer(
     context: &[(Instant, Observation)],
     fingerprint: u64,
     q: f64,
+    m: usize,
 ) -> Verdict {
     let spec = &stream.params.reasoner;
     let d = incident.map_or(stream.params.difficulty.background, |i| i.difficulty);
-    let h = informed_probability(spec, q, d);
+    let h = informed_probability_with_distractors(spec, q, d, m);
     let seed = stream.params.seed;
     let u_incident = Gen::keyed(&[seed, domain::REASONER, subject, 0]).unit_open();
     let mut g = Gen::keyed(&[seed, domain::REASONER, subject, 1, fingerprint]);

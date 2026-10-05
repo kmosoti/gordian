@@ -1,0 +1,13 @@
+run_id,setting,delta,arm,results_equal_to_r6_but_run_id,incidents_equal_to_r6_but_run_id
+r7-heldout-b5-rho0.7-d0.05,b5-rho0.7,0.05,oracle_selection_context_d16_privileged,True,True
+r7-heldout-b5-rho0.7-d0.05,b5-rho0.7,0.05,oracle_escalation_privileged,True,True
+r7-heldout-b5-rho0.7-d0.1,b5-rho0.7,0.1,oracle_selection_context_d16_privileged,True,True
+r7-heldout-b5-rho0.7-d0.1,b5-rho0.7,0.1,oracle_escalation_privileged,True,True
+r7-heldout-b5-rho0.7-d0.2,b5-rho0.7,0.2,oracle_selection_context_d16_privileged,True,True
+r7-heldout-b5-rho0.7-d0.2,b5-rho0.7,0.2,oracle_escalation_privileged,True,True
+r7-heldout-b5-rho0.7-d0.4,b5-rho0.7,0.4,oracle_selection_context_d16_privileged,True,True
+r7-heldout-b5-rho0.7-d0.4,b5-rho0.7,0.4,oracle_escalation_privileged,True,True
+r7-heldout-b2.5-rho0.7-d0.2,b2.5-rho0.7,0.2,oracle_selection_context_d16_privileged,True,True
+r7-heldout-b2.5-rho0.7-d0.2,b2.5-rho0.7,0.2,oracle_escalation_privileged,True,True
+r7-heldout-b8-rho0.7-d0.2,b8-rho0.7,0.2,oracle_selection_context_d16_privileged,True,True
+r7-heldout-b8-rho0.7-d0.2,b8-rho0.7,0.2,oracle_escalation_privileged,True,True

@@ -506,9 +506,29 @@ refused call leaves no trace. The answer arrives after a declared latency (2 s p
   Single-call accuracy z is -0.41, 0.88 and 0.57. (Positive correlation lowers a majority's accuracy only
   when single calls are right more than half the time; below one half it raises it.)
 
-**What this assumes.** That better context gives better answers, monotonically, and that noise in the
-context costs but never hurts: both are in `h` by construction and are tested against a real model in
-EXP-106, not here. That errors on different contexts of one incident are correlated with one coefficient and
+**Distractor penalty (added for R7; default off).** `ReasonerSpec.distractor_penalty` (`delta`, default 0,
+`serde(default)`, clamped to at least 0 by `normalized`, written to a serialized spec only when not 0) turns
+the informed probability into
+
+```text
+h_delta = h(q, d) * exp(-delta * m / 100)
+```
+
+where `m` is the number of references in the context that are not decisive evidence of the focus incident,
+probes included (a probe reference is never decisive). A question about background has no focus incident, so
+every reference of its context counts. `exp` is `rng::det_exp`. The penalty takes no draw: the copula
+variates are the same and are compared with a smaller threshold, so a call informed at `delta` is informed
+at 0, and at `delta = 0` (or `m = 0`) the factor is not applied and every answer and draw is unchanged.
+`h_delta(0, d) = 0`, so the invariant (the answer depends on the truth only through the decisive evidence in
+the context) holds at every `delta`. The accuracy is still `p0 + (1 - p0) h_delta`. `StreamPublic` does not
+carry `delta`, and a test shows the public information does not depend on it. The context the ceiling arm
+`oracle_selection_context` asks about holds decisive evidence only, so `m = 0` for it and the penalty cannot
+touch it. What this models: one exponential in the count of irrelevant references, with no dependence on
+their position or on how much they resemble the evidence. It is a stand-in, not a measurement of any model.
+
+**What this assumes.** That better context gives better answers, monotonically, and (at `delta = 0`) that
+noise in the context costs but never hurts: both are in `h` by construction and are tested against a real
+model in EXP-106, not here. That errors on different contexts of one incident are correlated with one coefficient and
 Gaussian dependence, which is a stand-in for whatever a real model does. That the guess reads the first
 world's rules and nothing more, so a real model's broader priors about plausible incidents are not modelled.
 That the reasoner knows the truth when informed and degrades by a logistic in `q` and `d`. A repeated

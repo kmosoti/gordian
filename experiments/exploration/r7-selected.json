@@ -1,0 +1,188 @@
+{
+  "r7-tune-b5-rho0.7-d0.05": {
+    "setting": "b5-rho0.7",
+    "b": 5.0,
+    "rho": 0.7,
+    "delta": 0.05,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w20_n128",
+      "win_w80_n512",
+      "coc_d16000_n256",
+      "coc_d08000_n256",
+      "coc_d04000_n256",
+      "coc_d02000_n256",
+      "nbh_k4_n256",
+      "nbh_k3_n256",
+      "nbh_k2_n256",
+      "nbh_k1_n256"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w20_n256",
+      "cooccur": "coc_d16000_n256",
+      "neighbourhood": "nbh_k4_n256"
+    },
+    "selected": "win_w20_n256",
+    "selected_tuning_quality": 0.6834170854271356,
+    "ceiling_tuning_quality": 0.7587939698492462
+  },
+  "r7-tune-b5-rho0.7-d0.1": {
+    "setting": "b5-rho0.7",
+    "b": 5.0,
+    "rho": 0.7,
+    "delta": 0.1,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w20_n128",
+      "win_w10_n128",
+      "coc_d16000_n256",
+      "coc_d08000_n256",
+      "coc_d02000_n256",
+      "coc_d04000_n256",
+      "nbh_k3_n256",
+      "nbh_k4_n256",
+      "nbh_k2_n256",
+      "nbh_k1_n256"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w20_n256",
+      "cooccur": "coc_d16000_n256",
+      "neighbourhood": "nbh_k3_n256"
+    },
+    "selected": "win_w20_n256",
+    "selected_tuning_quality": 0.6331658291457286,
+    "ceiling_tuning_quality": 0.7587939698492462
+  },
+  "r7-tune-b5-rho0.7-d0.2": {
+    "setting": "b5-rho0.7",
+    "b": 5.0,
+    "rho": 0.7,
+    "delta": 0.2,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w20_n256",
+      "win_w20_n128",
+      "win_w40_n256",
+      "win_w10_n128",
+      "coc_d01000_n256",
+      "coc_d01000_n128",
+      "coc_d16000_n256",
+      "coc_d02000_n256",
+      "nbh_k4_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n256",
+      "nbh_k1_n256"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w20_n256",
+      "cooccur": "coc_d01000_n256",
+      "neighbourhood": "nbh_k4_n256"
+    },
+    "selected": "coc_d01000_n256",
+    "selected_tuning_quality": 0.5376884422110553,
+    "ceiling_tuning_quality": 0.7587939698492462
+  },
+  "r7-tune-b5-rho0.7-d0.4": {
+    "setting": "b5-rho0.7",
+    "b": 5.0,
+    "rho": 0.7,
+    "delta": 0.4,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w20_n256",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w40_n256",
+      "coc_d01000_n128",
+      "coc_d01000_n256",
+      "coc_d00250_n256",
+      "coc_d00250_n128",
+      "nbh_k0_n064",
+      "nbh_k1_n256",
+      "nbh_k1_n128",
+      "nbh_k3_n256"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w20_n256",
+      "cooccur": "coc_d01000_n128",
+      "neighbourhood": "nbh_k0_n064"
+    },
+    "selected": "coc_d01000_n128",
+    "selected_tuning_quality": 0.46733668341708545,
+    "ceiling_tuning_quality": 0.7587939698492462
+  },
+  "r7-tune-b2.5-rho0.7-d0.2": {
+    "setting": "b2.5-rho0.7",
+    "b": 2.5,
+    "rho": 0.7,
+    "delta": 0.2,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w20_n256",
+      "win_w40_n128",
+      "win_w20_n128",
+      "win_w10_n128",
+      "coc_d01000_n128",
+      "coc_d04000_n256",
+      "coc_d16000_n256",
+      "coc_d02000_n256",
+      "nbh_k3_n256",
+      "nbh_k2_n256",
+      "nbh_k1_n256",
+      "nbh_k1_n128"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w20_n256",
+      "cooccur": "coc_d01000_n128",
+      "neighbourhood": "nbh_k3_n256"
+    },
+    "selected": "coc_d01000_n128",
+    "selected_tuning_quality": 0.2964824120603015,
+    "ceiling_tuning_quality": 0.44221105527638194
+  },
+  "r7-tune-b8-rho0.7-d0.2": {
+    "setting": "b8-rho0.7",
+    "b": 8.0,
+    "rho": 0.7,
+    "delta": 0.2,
+    "selection_delay_s": 16,
+    "carried": [
+      "rung",
+      "win_w20_n256",
+      "win_w20_n128",
+      "win_w10_n128",
+      "win_w40_n256",
+      "coc_d00500_n256",
+      "coc_d00250_n256",
+      "coc_d01000_n256",
+      "coc_d00250_n128",
+      "nbh_k1_n256",
+      "nbh_k1_n128",
+      "nbh_k3_n256",
+      "nbh_k0_n128"
+    ],
+    "top_of_kind": {
+      "rung": "rung",
+      "window": "win_w20_n256",
+      "cooccur": "coc_d00500_n256",
+      "neighbourhood": "nbh_k1_n256"
+    },
+    "selected": "coc_d00500_n256",
+    "selected_tuning_quality": 0.6130653266331658,
+    "ceiling_tuning_quality": 0.8190954773869347
+  }
+}

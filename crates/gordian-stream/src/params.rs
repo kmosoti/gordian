@@ -226,7 +226,9 @@ impl ReasonerCostSpec {
 /// `q = 0` and rises with `q`; an informed call answers the truth, an uninformed one answers a
 /// guess computed from the context and the public rules alone. Whether calls about one incident
 /// are informed is correlated across different contexts by a Gaussian copula with correlation
-/// `rho`.
+/// `rho`. With a distractor penalty `delta > 0` the informed probability is multiplied by
+/// `exp(-delta * m / 100)`, `m` being the number of references in the context that are not
+/// decisive evidence of the focus incident (see `distractor_penalty`).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ReasonerSpec {
     /// Intercept of the logistic inside `h`.
@@ -240,6 +242,18 @@ pub struct ReasonerSpec {
     pub rho: f64,
     /// What a call costs.
     pub cost: ReasonerCostSpec,
+    /// The penalty `delta` on the informed probability per 100 references in the context that are
+    /// not decisive evidence of the focus incident: `h_delta = h * exp(-delta * m / 100)`, where
+    /// `m` counts those references, probes included. 0 (the default, and what a manifest written
+    /// before this field existed parses to) leaves the law exactly as it was; `normalized` clamps
+    /// it to at least 0. It is written to a serialized spec only when it is not 0, so that a
+    /// manifest at 0 serializes as it did before the field existed.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub distractor_penalty: f64,
+}
+
+fn is_zero(x: &f64) -> bool {
+    *x == 0.0
 }
 
 /// Hard limits the stream enforces on everything a policy can pay for.
@@ -382,6 +396,7 @@ impl StreamParams {
                     latency_base_ns: 2 * SEC,
                     latency_per_ref_ns: 2 * MS,
                 },
+                distractor_penalty: 0.0,
             },
             budget: StreamBudgetSpec {
                 probes: 150,
@@ -438,6 +453,8 @@ impl StreamParams {
             regimes,
             reasoner: ReasonerSpec {
                 rho: self.reasoner.rho.clamp(0.0, 1.0),
+                // `max` returns the other operand for NaN, so NaN becomes 0.
+                distractor_penalty: self.reasoner.distractor_penalty.max(0.0),
                 ..self.reasoner
             },
             max_context: self.max_context.max(1),
