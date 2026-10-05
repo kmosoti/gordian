@@ -12,7 +12,7 @@ Read [`charter.md`](charter.md) first. Section numbers below refer to it where c
 
 | Resource | Value | Consequence |
 |---|---|---|
-| CPU | 4 vCPU Intel Xeon 2.8 GHz, AVX2, AVX-512F, AVX-512 VNNI, FMA, F16C | Enough for the simulator, all scheduler experiments, and tiny learned components. VNNI makes the int8 arm of EXP-007 measurable here |
+| CPU | 4 vCPU Intel Xeon (2.8 GHz in the first sessions, 2.10 GHz since a host change; manifests record the model and frequency), AVX2, AVX-512F, AVX-512 VNNI, FMA, F16C | Enough for the simulator, all scheduler experiments, and tiny learned components. VNNI makes the int8 arm of EXP-007 measurable here |
 | Memory | 15 GiB | Resident-memory measurements are credible; learned components stay at most in the tens of millions of parameters |
 | Disk | about 30 GB free | Enough for episode-level results tables at thousands of episodes. Per-event traces must be sampled, never kept wholesale |
 | GPU | none | EXP-006 at the scale of its precedent is impossible here. Tiny-scale recurrence is possible and is labelled as such |
@@ -656,6 +656,43 @@ recommendation of sweep settings and margins for EXP-101 is the deliverable.
 - If headroom exists only on settings where the reasoner is very informative and uncorrelated
   (high `b`, `ρ` = 0), that is reported as a conditional result, not as headroom for EXP-101.
 
+
+### R5 Decomposed headroom (required before EXP-101 is preregistered)
+
+R4 met its margin on every setting (smallest gap 0.489, lower bound 0.446), but the privileged
+oracle it compared against bundles three privileges: it knows which anomalies are hard
+(selection), it fires once the decisive evidence has arrived (timing), and its context is exactly
+that evidence (context construction). EXP-101 concerns selection only; context construction is
+EXP-102. R5 decomposes the headroom and adds the strongest public-information baseline before
+anything is frozen.
+
+**New arms.**
+
+- `contradiction_escalation` (comparison): escalate after a delay once the cheap rung's hypothesis
+  set for an anomaly is empty or contradictory, with a persistence requirement; delay and
+  persistence tuned like every baseline. Uses public rules only.
+- `oracle_selection_privileged`: knows which noticed anomalies are hard and escalates exactly
+  those, with the rung's own context and a delay tuned on the tuning streams like the baselines.
+  Isolates selection.
+- `oracle_decoy_privileged`: knows which noticed anomalies are decoys and dismisses them, without
+  escalating. Isolates decoy handling, which R4's oracle did not cover.
+
+**Trace.** For delayed calls whose context lacks decisive evidence that has already arrived,
+classify why (evidence at a service the rung did not attach; outside the window; context cap; other).
+
+**Criterion, fixed by the coordinator before any R5 run (2026-10-06).** EXP-101 has selection
+headroom if, at the primary setting (b = 5, ρ = 0.7), either:
+
+1. `oracle_selection_privileged` exceeds the best non-privileged frontier, now including
+   `contradiction_escalation`, at equal or lower cost by at least 0.10 in hard-incident quality
+   (slow leak excluded), with the 90% cluster-bootstrap lower bound above 0.05; or
+2. at quality within 0.05 of `oracle_selection_privileged`, the best non-privileged configuration
+   costs at least 1.5 times as much, with the 90% interval of the cost ratio excluding 1.25.
+
+The same two numbers are reported at b = 2.5 and b = 8 as sensitivity. If neither criterion holds at
+the primary setting, EXP-101 as designed has too little to win, and the coordinator decides between
+revising the world and reordering the program around context construction (EXP-102) before any
+freeze. Seeds as in R4: tuning 10000–10099, held-out 20000–20199.
 
 ## 6. Stage B: exploration runs
 

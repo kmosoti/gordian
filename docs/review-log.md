@@ -4,6 +4,35 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R4 headroom — merged; the margin was met but did not discriminate
+
+**Re-verified.** Gates on exit codes; at b = 5, ρ = 0.7 the coordinator recomputed from raw
+`incidents.csv` and `results.csv`: oracle 354/372 = 0.952 at 0.32 modelled s per stream; best
+baseline at the oracle's cost 0.008; `always_escalate` with a 14 s delay 0.489 at 7.36 s;
+hidden-rules ablation 0.427 at zero reasoner cost. All match the worker's report.
+
+**Verdict as written.** Headroom on all six settings (smallest gap 0.489, lower bound 0.446); the
+conditional clause did not trigger. R1 is not revised.
+
+**Coordinator error, recorded.** The margin compared baselines against an oracle that bundles
+selection, timing and context. EXP-101 concerns selection only; the worker's arithmetic splits
+roughly 0.49 selection and 0.46 context at b = 5. A margin met by a factor of five against such a
+comparator discriminates nothing. R5 decomposes the headroom with separate privileged ceilings
+and adds a public-information cascade baseline, under a new criterion fixed before any R5 run. This
+is a new pre-run criterion for a new question, not a reinterpretation of R4's verdict.
+
+**Other findings carried forward.**
+
+- At escalation time, `always_escalate`'s contexts held none of the decisive evidence in 17 of 22
+  burst incidents; with a 14 s delay, contexts were complete in only 22 of 66. Why contexts miss
+  evidence that has arrived is traced in R5.
+- R4's oracle does not handle decoys (it alarms as `never_escalate` does); decoy headroom is
+  unmeasured until R5's decoy ceiling.
+- Hidden-rule knowledge is worth a lot (ablation 0.427 at no reasoner cost); at b = 2.5 it nearly
+  equals the oracle.
+- Periodic configurations with periods up to 20 s, and `change_triggered`, are bound by the
+  reasoner token budget.
+
 ## R1 to R3 — stream world, evaluator and harness merged
 
 **R1 stream world.** Re-verified on exit codes. Two reasoner fixes required before merge and
