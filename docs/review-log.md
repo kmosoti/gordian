@@ -4,6 +4,31 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A6d incremental narrowing — merged; the shared rule no longer repeats work
+
+**Re-verified.** Fixture committed before the rule change and untouched after it; gates on exit
+codes. Worker evidence: 2,200 fixture rows and 55,000 B1 rows at 20 ms identical in every verdict
+column; 30,403 calls step-equivalent to the cache-free reference; rule fit R² 0.996 / 0.997.
+
+**Effect.** Narrowing work fell about 96% (30,007 against 764,647 world evaluations over the step
+test). "A failed component raises success" fell from 102 to 35 episodes.
+
+**The 35 are real cost, not repeated work.** In 31 of them the no-directive run ended short of
+affordable work by a median of 37 ns, after paying about 8 µs once to read the verifier's first
+output. A failed verifier never pays that bill, and at a 60–100 µs budget it is the margin. No
+cache removes a first read. The other 4 also need the verifier's stale set to lose priority.
+Documented in POLICIES.md §3.3; the rule is unchanged. Changing what reading an output costs would
+be a change to the instrument and is not made.
+
+**Accepted with a note.** Declared world and evaluation terms are now billed one call late, so the
+hard limit can be overshot once per episode by at most about 8 µs. The work is still counted in
+modelled cost. Under the revision proposal, any expensive reasoner call must be paid before it
+runs, never in arrears.
+
+**State of the shared rule.** Three successive fixes (A6b, A6c, A6d) made it rational at exhaustion
+and incremental on unchanged inputs. It is now a strong cheap rung: change-triggered by
+construction.
+
 ## A6c decode once — merged; the residue becomes A6d
 
 **Re-verified.** The verdict fixture was committed before the rule change and is untouched by it;
