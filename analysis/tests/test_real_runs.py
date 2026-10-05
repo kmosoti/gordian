@@ -59,8 +59,11 @@ def test_real_fixture_undecided_rows_load_with_missing_decision_time(fixtures_di
     assert b.results.loc[b.results["undecided"], "decision_at_ns"].isna().all()
     assert b.results.loc[~b.results["undecided"], "decision_at_ns"].notna().all()
     assert a.results["undecided"].sum() == 0 and a.results["decision_at_ns"].notna().all()
-    # a property of this harness's output, not a loader rule: undecided means a non-terminal stop
-    assert (b.results["undecided"] == (b.results["stop_reason"] != "terminal")).all()
+    # a property of this harness's output, not a loader rule: undecided means a stop that is not
+    # a decision (`terminal` and `final_declaration` are the decided ones)
+    decided = b.results["stop_reason"].map(load_module.STOP_REASON_DECIDED)
+    assert decided.notna().all()
+    assert (b.results["undecided"] == ~decided.astype(bool)).all()
     # corrections and directives_ignored are loaded as numbers
     assert (b.results["corrections"] >= 0).all() and (b.results["directives_ignored"] >= 0).all()
 
@@ -282,6 +285,44 @@ def test_real_schema_is_the_harness_header():
     measured = re.search(r'MEASURED_HEADER: &str =\s*"([^"]+)"', src).group(1).split(",")
     assert load_module.RESULTS_COLUMNS == results
     assert load_module.MEASURED_COLUMNS == measured
+
+
+def test_stop_reasons_are_the_harness_stop_reasons():
+    # harness.rs: `StopReason::as_str` names every value of the stop_reason column, and
+    # `StopReason::is_decided` says which of them close an episode with a decision. The loader's
+    # table must say the same, so that a new reason is noticed here and not misread as undecided.
+    import re
+    from pathlib import Path
+
+    path = Path(__file__).parents[2] / "crates/gordian-run/src/harness.rs"
+    if not path.is_file():
+        pytest.skip("harness source not present")
+    src = path.read_text()
+    as_str = src[src.index("pub fn as_str(self)"):]
+    as_str = as_str[: as_str.index("\n    }\n")]
+    names = dict(re.findall(r'StopReason::(\w+) => "(\w+)"', as_str))
+    decided_fn = src[src.index("pub fn is_decided(self)"):]
+    decided_fn = decided_fn[: decided_fn.index("\n    }\n")]
+    decided = set(re.findall(r"StopReason::(\w+)", decided_fn))
+    assert len(names) >= 5 and decided <= set(names)
+    assert load_module.STOP_REASON_DECIDED == {
+        text: variant in decided for variant, text in names.items()
+    }
+    assert load_module.STOP_REASON_DECIDED["final_declaration"] is True
+
+
+def test_final_declaration_loads_as_a_decided_row_with_a_decision_time(tmp_path):
+    p = write_run(
+        tmp_path / "r",
+        [{"seed": 1}, {"seed": 2, "stop_reason": "final_declaration"}, undecided_row(3)],
+    )
+    res = load_run(p).results
+    assert res["stop_reason"].tolist() == ["terminal", "final_declaration", "budget_exhausted"]
+    assert res["undecided"].tolist() == [False, False, True]
+    assert res["decision_at_ns"].notna().tolist() == [True, True, False]
+    # a final declaration counts as an answer in the coverage tables, not as an undecided episode
+    t = coverage_error_table(res).iloc[0]
+    assert t["undecided_rate"] == pytest.approx(1 / 3)
 
 
 # ---- measured.csv and the join ------------------------------------------------------------
