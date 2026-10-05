@@ -7,7 +7,12 @@
 //! - The [`Component`] trait and four components: [`RuleHeuristic`], [`CountEstimator`],
 //!   [`PriorRecordLookup`], [`ConsistencyVerifier`].
 //! - A declared cost per component, an affine function of input size in `Resource::Compute`
-//!   nanoseconds, fitted to criterion medians on one CPU (see `CALIBRATION.md`).
+//!   nanoseconds, fitted to criterion medians on one CPU (see `CALIBRATION.md`). It is what a
+//!   policy sees and what the bill enforces.
+//! - A count of the work each call did, in the component's own units ([`ops`], work item A8b),
+//!   priced by weights fitted to minimum timings and scaled in situ. It is what the harness records as the
+//!   components' cost; it follows the content of the window where the declared cost follows
+//!   only its size.
 //!
 //! Not built here: scheduling, the run harness that owns the ledger and the bill, and any
 //! learned component. A component does not append to the ledger; it returns entries and the
@@ -42,6 +47,7 @@
 pub mod estimator;
 pub mod heuristic;
 pub mod memory;
+pub mod ops;
 pub mod payload;
 pub mod verifier;
 pub mod working;
@@ -52,6 +58,7 @@ mod symptoms;
 pub use estimator::CountEstimator;
 pub use heuristic::RuleHeuristic;
 pub use memory::PriorRecordLookup;
+pub use ops::Ops;
 pub use verifier::ConsistencyVerifier;
 pub use working::WorkingState;
 
@@ -100,7 +107,16 @@ pub trait Component {
     /// content.
     fn declared_cost(&self, input: &WorkingState) -> Vec<Charge>;
 
-    /// Run on `input`. Deterministic given `input` and the component's configuration. The clock
-    /// is `input.now`; no component reads a wall clock.
-    fn run(&mut self, input: &WorkingState) -> ComponentOutput;
+    /// Run on `input` and count the work done. Deterministic given `input` and the component's
+    /// configuration, in output and in count. The clock is `input.now`; no component reads a wall
+    /// clock. The count ([`Ops`]) is the work the call did in the component's declared units
+    /// (observations scanned, records compared, worlds evaluated, ...), and is what the harness
+    /// prices; see [`ops`]. Counting never changes the output.
+    fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops);
+
+    /// Run on `input`. The output of [`Component::run_counted`] without its count: what a policy
+    /// sees, and what every caller that does not price the work uses.
+    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
+        self.run_counted(input).0
+    }
 }

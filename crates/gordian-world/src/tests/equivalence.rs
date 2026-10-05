@@ -24,8 +24,9 @@ use crate::episode::{BudgetSpec, PublicInfo};
 use crate::fault::FaultKind;
 use crate::graph::World;
 use crate::physics::{
-    HIGH, SignalText, consistent_hypotheses_reference, consistent_worlds,
-    consistent_worlds_reference, counters, messages, probe_result,
+    HIGH, SignalText, consistent_hypotheses_counted, consistent_hypotheses_reference,
+    consistent_worlds, consistent_worlds_counted, consistent_worlds_reference, counters, messages,
+    probe_result,
 };
 use crate::sense::{CounterName, Probe, ProbeResult, Severity};
 use proptest::prelude::*;
@@ -79,6 +80,15 @@ fn agree(
     prop_assert_eq!(&consistent_worlds(public, evidence), &worlds_ref);
     let hyps_ref = consistent_hypotheses_reference(public, evidence);
     prop_assert_eq!(&consistent_hypotheses(public, evidence), &hyps_ref);
+    // Work item A8b: the counted variants return what the plain functions and the references
+    // return, and the same counts every time (the counts are a function of the input alone).
+    let (worlds_counted, ops) = consistent_worlds_counted(public, evidence);
+    prop_assert_eq!(&worlds_counted, &worlds_ref);
+    let (hyps_counted, ops_h) = consistent_hypotheses_counted(public, evidence);
+    prop_assert_eq!(&hyps_counted, &hyps_ref);
+    prop_assert_eq!(ops, ops_h);
+    prop_assert_eq!(consistent_worlds_counted(public, evidence).1, ops);
+    prop_assert!(ops.scanned <= evidence.len() as u64);
     bump(&t.comparisons);
     if !hyps_ref.is_empty() {
         bump(&t.non_empty);

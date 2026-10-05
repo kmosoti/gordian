@@ -26,6 +26,8 @@ gordian-analyze power --sd 1 --margin 0.5 --alpha 0.05 --power 0.8 \
 gordian-analyze drift --run RUNDIR [--json FILE]
 gordian-analyze position --arm ARMDIR [--paired-with ARMDIR] [--metric measured_total_ns] \
     [--margin 0.05] --seed 1 [--alpha 0.05] [--resamples 10000] [--permutations 10000] [--json FILE]
+gordian-analyze cost-check --a ARMDIR --b ARMDIR --seed 1 [--wall measured_policy_ns] \
+    [--alpha 0.05] [--resamples 10000] [--json FILE]
 ```
 
 `drift` and `position` are the diagnostics of interleaved runs (work item A8); they are described
@@ -36,10 +38,13 @@ directory, and `RUN/drift.csv`, which `drift --run RUN` reads.
 `--seed` is required, and exactly one of `--higher-is-better` / `--lower-is-better` is
 required (there is no default, so a cost metric cannot silently be read with the wrong sign).
 Metrics: `success`, `critical_miss`, `false_alarm`, `abstained`, `undecided`, `probes_used`,
-`corrections`, `decision_at_ns`, each `bill_*` column, each `measured_*_ns` column, and
-`measured_total_ns`. `measured_total_ns` is the sum of the three measured columns, computed in
-memory; input files are never modified. Booleans are accepted as `true/false/0/1`. `--margin`
-is in the metric's own units.
+`corrections`, `decision_at_ns`, each `bill_*` column, `ops_component`, `ops_sched`, each
+`modelled_*_ns` column, each `measured_*_ns` column, and three derived ones computed in memory
+(input files are never modified): `modelled_cost_ns`, the sum of the two modelled columns, which
+is the charter's cost C; `measured_total_ns`, the sum of the three measured columns; and
+`measured_policy_ns`, the component and scheduling wall times alone, which is the wall time of
+what the modelled cost covers. Booleans are accepted as `true/false/0/1`. `--margin` is in the
+metric's own units.
 
 `bill_total` no longer exists. It added nanoseconds to probe counts and bytes, which have no
 common unit; asking for it is an error that says so. The `bill_*` columns are declared cost,
@@ -51,15 +56,42 @@ the comparison on the outcome; compare `undecided` and `success` instead.
 
 ### Which cost: `--relative-savings`
 
-The charter's cost `C` is measured wall time (`docs/local-test-plan.md`, A4 and A5). So
-`--relative-savings` defaults to `--metric measured_total_ns` and the report says
-"Cost basis: measured wall time, the charter's cost C". Other choices:
+The charter's cost `C` is the modelled cost (`docs/local-test-plan.md`, A8b): the operations the
+components and the shared decision rule counted, weighted by calibrated nanoseconds per
+operation. It is a deterministic column of `results.csv`, so host interference cannot move it
+(wall time can: bursts of stolen CPU time, which land on one copy of an episode and not the
+other, moved the S of an A/A run by several percent). So `--relative-savings` defaults to
+`--metric modelled_cost_ns` and the report says "Cost basis: modelled cost, the charter's cost
+C". With the modelled cost the report also gives, as a secondary check, S on the measured wall
+time of the same pairs: `measured_policy_ns` (components and scheduling, which is what the
+modelled cost covers) and `measured_total_ns` (the whole episode, harness work included). They
+are labelled "MEASURED wall time ... not the charter's cost C", and the JSON carries them under
+`secondary`. Other choices:
 
-- another `measured_*_ns` column is allowed and labelled as one part of the episode, not `C`;
+- another `modelled_*_ns` column is allowed and labelled as one part of the episode, not `C`;
+- a measured wall time (`measured_total_ns`, `measured_policy_ns`, `measured_*_ns`) is allowed
+  and labelled a secondary check, not `C`; no second check is added to it;
 - a `bill_*` column is refused unless `--declared-cost` is passed, and the report then says
   "DECLARED cost (a bill column), NOT the charter's cost C". The JSON carries `cost_basis`
-  (`measured`, `measured_partial`, `declared`);
+  (`modelled`, `modelled_partial`, `measured`, `measured_partial`, `declared`);
 - anything that is not a cost (`success`, `decision_at_ns`, ...) is refused.
+
+An A/A comparison on the modelled cost is exactly `S = 0` with a zero-width interval, because
+the cost is deterministic. That is not evidence that the model is right; the evidence is the
+calibration's validity fits and `cost-check`, below.
+
+### The non-identical-arm check: `cost-check`
+
+`gordian-analyze cost-check --a RUN --b RUN --seed N` compares two different arms: the modelled
+cost ratio `sum(B)/sum(A)` of `modelled_cost_ns`, and the wall-time ratio estimated as the median
+over episodes of `B_i/A_i` with a paired percentile bootstrap interval (90% by default; whole
+episodes are resampled as pairs). It reports whether the modelled ratio lies inside the interval,
+and the interval's relative width, because an interval wide enough contains anything. The median
+of episodes is the estimate a few interrupted episodes cannot move; the ratio of wall-time totals
+is printed beside it for reference. `--wall` picks the wall time: `measured_policy_ns` (default;
+components and scheduling, what the modelled cost covers) or `measured_total_ns`, which adds the
+harness's own work (episode generation, simulator, ledger) that a policy does not choose and
+that dilutes the ratio towards 1.
 
 Undecided episodes stay in the totals: cost is spent whether or not the episode decided.
 Relative savings says nothing about quality. An arm that never decides can cost much less, and
@@ -388,10 +420,13 @@ expectations). Their `measured.csv` is invented too: component, scheduler and ha
 nanoseconds were chosen so `measured_total_ns` equals what the old `bill_total` was per row.
 
 `tests/fixtures/real_a` and `real_b` are unedited `gordian-run` output, three seeds by eleven
-classes, `heuristic_only`, from the harness at commit `b187142`:
+classes, `heuristic_only`. They and `real_aa` were regenerated for work item A8b, when
+`results.csv` gained the four counted-operation columns, from the harness at the commit that
+carries the calibrated weights (`source_revision` in each `manifest.json`); the older ones were
+made at `b187142` and `98a27bb`:
 
 ```bash
-CARGO_BUILD_JOBS=1 cargo build --release -p gordian-run
+cargo build --release -p gordian-run
 target/release/gordian-run init --run-id real-a --arm real-a --policy heuristic_only \
     --seed-start 1 --seed-count 3 --trace-sample-rate 0 --out a.json
 # real-b: the same manifest with run_id and arm real-b and limits.max_steps edited 1000 -> 20
@@ -407,8 +442,8 @@ The manifest edit is visible in `real_b/manifest.json`. The measured nanoseconds
 machine's wall times and are only used as numbers in tests, never as expected values.
 
 `tests/fixtures/real_aa` is unedited `gordian-run` output of an interleaved A/A run: two copies
-(`a1`, `a2`) of `heuristic_only`, three seeds by eleven classes, from the harness at commit
-`98a27bb`, with the drift workload every 10 episodes:
+(`a1`, `a2`) of `heuristic_only`, three seeds by eleven classes, with the drift workload every 10
+episodes:
 
 ```bash
 target/release/gordian-run init --run-id real-aa --experiment A8-AA --policy heuristic_only \
@@ -430,6 +465,14 @@ data, bootstrap reproducibility and pair-preservation, loader rejection of dupli
 unmatched keys, of unknown columns, of a results/measured key mismatch, and of an empty
 decision time on a decided row (`tests/test_real_runs.py`, also the real-output fixtures), power textbook cases and monotonicity, a Monte Carlo check of
 `achieved_power_t`, and the CLI end to end on `tests/fixtures/run_a` and `run_b` and on `real_a` and `real_b`.
+
+`tests/test_modelled.py` (A8b): the loader's modelled and measured totals; the modelled cost as
+the default of `--relative-savings` with hand-computed S and a labelled secondary check on wall
+time; an A/A on the modelled cost being exactly zero while the wall times differ; the median of
+episode ratios by hand, and unmoved by a few interrupted episodes where the ratio of totals moves a
+long way; `cost-check` passing when the model tracks wall time and failing when it does not, and
+the CLI end to end. `tests/test_real_runs.py` runs the real fixtures through the same defaults and
+checks that the two copies of `real_aa` have identical modelled cost in every episode.
 
 `tests/test_drift.py` (A8): hand-computed CV and last/first ratio and every `drift.csv`
 rejection; the stratified statistic and the paired statistic against hand-computed values

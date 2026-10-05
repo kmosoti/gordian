@@ -1,9 +1,15 @@
 """Read run directories and pair two arms on (seed, class).
 
-A run directory holds `results.csv` (declared quantities, written by the harness) and
-`measured.csv` (wall-clock timings). Both are required and are joined on (seed, class). The
-charter's cost C is the measured cost, `measured_total_ns`; the `bill_*` columns are declared
-cost and are only ever compared one resource at a time, because they do not share a unit.
+A run directory holds `results.csv` (declared and counted quantities, written by the harness)
+and `measured.csv` (wall-clock timings). Both are required and are joined on (seed, class).
+
+The charter's cost C is the modelled cost, `modelled_cost_ns` (work item A8b): the counted
+operations of the components and of the shared decision rule, weighted by nanoseconds per
+operation fitted to minimum timings. It is a deterministic column of `results.csv`, so a re-run
+reproduces it and host interference cannot move it. The measured wall time, `measured_total_ns`,
+is a secondary check on it: on this VM bursts of stolen CPU time make a ratio of wall-time totals
+move by several percent with nothing changed. The `bill_*` columns are declared cost and are only
+ever compared one resource at a time, because they do not share a unit.
 """
 
 from __future__ import annotations
@@ -24,6 +30,7 @@ RESULTS_COLUMNS = [
     "undecided", "probes_used", "corrections", "decision_at_ns", "bill_compute", "bill_memory",
     "bill_time", "bill_probes", "bill_comm", "bill_storage", "components_run",
     "components_skipped", "directives_ignored", "stop_reason",
+    "ops_component", "ops_sched", "modelled_component_ns", "modelled_sched_ns",
 ]  # fmt: skip
 MEASURED_COLUMNS = [
     "run_id", "seed", "class", "measured_component_ns", "measured_sched_ns",
@@ -44,9 +51,14 @@ BILL_COLUMNS = [
     "bill_compute", "bill_memory", "bill_time", "bill_probes", "bill_comm", "bill_storage",
 ]  # fmt: skip
 MEASURED_VALUE_COLUMNS = ["measured_component_ns", "measured_sched_ns", "measured_harness_ns"]
+# Counted operations (work item A8b). `ops_*` are sums of counts in units that differ between
+# components, so they are sanity checks and never a cost; `modelled_*_ns` are the counts weighted
+# by the calibrated nanoseconds per operation, and their sum is the charter's cost C.
+OPS_COLUMNS = ["ops_component", "ops_sched"]
+MODELLED_VALUE_COLUMNS = ["modelled_component_ns", "modelled_sched_ns"]
 NUMERIC_COLUMNS = [
     "probes_used", "corrections", *BILL_COLUMNS, "components_run", "components_skipped",
-    "directives_ignored",
+    "directives_ignored", *OPS_COLUMNS, *MODELLED_VALUE_COLUMNS,
 ]  # fmt: skip
 # `decision_at_ns` is empty exactly when the episode is undecided (evaluator R9); it is parsed
 # separately and is NaN for those rows.
@@ -64,17 +76,26 @@ STOP_REASON_DECIDED = {
     "step_cap": False,
 }  # fmt: skip
 # Derived in code only; input files are never modified.
+#
+# `modelled_cost_ns` is the charter's cost C: the modelled cost of what a policy controls, which
+# components ran and what the shared rule did with them. `measured_total_ns` also holds the
+# harness's own work (generating the episode, the simulator, the ledger), which an arm does not
+# choose, so the like-for-like wall time of `modelled_cost_ns` is `measured_policy_ns`, the
+# component and scheduling wall times alone. Both measured totals are secondary checks.
+MODELLED_TOTAL = "modelled_cost_ns"
 MEASURED_TOTAL = "measured_total_ns"
-DERIVED_METRICS = [MEASURED_TOTAL]
+MEASURED_POLICY = "measured_policy_ns"
+DERIVED_METRICS = [MODELLED_TOTAL, MEASURED_TOTAL, MEASURED_POLICY]
 METRICS = [
-    *BOOL_COLUMNS, "probes_used", "corrections", DECISION_COLUMN, *BILL_COLUMNS,
-    *MEASURED_VALUE_COLUMNS, *DERIVED_METRICS,
+    *BOOL_COLUMNS, "probes_used", "corrections", DECISION_COLUMN, *BILL_COLUMNS, *OPS_COLUMNS,
+    *MODELLED_VALUE_COLUMNS, *MEASURED_VALUE_COLUMNS, *DERIVED_METRICS,
 ]  # fmt: skip
 # Metrics that were offered once and are now refused with an explanation, not "unknown".
 REMOVED_METRICS = {
     "bill_total": (
         "bill_total was removed: it summed nanoseconds, probe counts and bytes, which have no "
-        "common unit. Use measured_total_ns (the charter's cost C) or one bill_* column"
+        "common unit. Use modelled_cost_ns (the charter's cost C), measured_total_ns (a secondary "
+        "check) or one bill_* column"
     ),
 }
 
@@ -152,10 +173,15 @@ def _parse_decision(series: pd.Series, undecided: pd.Series, where: str) -> pd.S
 def with_derived(df: pd.DataFrame) -> pd.DataFrame:
     """Return df with derived metrics added (a copy; the input is untouched).
 
-    `measured_total_ns` is the sum of the three measured columns, all nanoseconds of wall time.
+    `modelled_cost_ns` is the sum of the two modelled columns, nanoseconds of weighted counted
+    operations. `measured_total_ns` is the sum of the three measured columns and
+    `measured_policy_ns` the sum of the component and scheduling ones, all nanoseconds of wall
+    time.
     """
     out = df.copy()
+    out[MODELLED_TOTAL] = out[MODELLED_VALUE_COLUMNS].sum(axis=1)
     out[MEASURED_TOTAL] = out[MEASURED_VALUE_COLUMNS].sum(axis=1)
+    out[MEASURED_POLICY] = out["measured_component_ns"] + out["measured_sched_ns"]
     return out
 
 
@@ -265,7 +291,8 @@ def load_run(path: str | Path) -> Run:
     results = _load_results(results_path)
     if not measured_path.is_file():
         raise LoadError(
-            f"{path}: no measured.csv; measured cost is the charter's cost C and is required"
+            f"{path}: no measured.csv; the measured wall time is the secondary check on the "
+            "charter's cost C and is required"
         )
     df = _join_measured(results, _load_measured(measured_path), path)
     run_ids = sorted(df["run_id"].unique())

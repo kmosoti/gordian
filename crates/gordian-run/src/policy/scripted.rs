@@ -8,6 +8,7 @@
 //!
 //! It is a test instrument, not a baseline, and is not registered in [`super::build`].
 
+use super::decide::RuleOps;
 use super::{Policy, PolicyId, zero_cost};
 use gordian_components::{ComponentOutput, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId};
@@ -116,5 +117,10 @@ impl Policy for ScriptedPolicy {
 
     fn decide_final(&mut self, _state: &WorkingState) -> Option<Action> {
         self.final_action
+    }
+
+    fn take_ops(&mut self) -> RuleOps {
+        // A script looks at nothing and counts no work.
+        RuleOps::ZERO
     }
 }

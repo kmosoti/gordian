@@ -173,10 +173,56 @@ result of a probe is delivered at the next step, merged by instant with whatever
 the probe ran. The default `step_ns` is 50 ms and the default horizon 10 s, so an idle policy runs
 201 steps (tested).
 
-## 4. Measured cost is the primary cost
+## 4. Modelled cost is the primary cost; measured wall time is the check
 
 Declared cost is what policies see and what the `Bill` enforces. The charter's cost `C` is the
-*measured* wall time (`docs/review-log.md`, A5; plan A4).
+*modelled* cost: counted operations, weighted (plan A8b, "Counted operations" below). It replaced
+measured wall time, which was `C` from A5 until A8b, because on this VM wall time carries bursts of
+stolen CPU time that land on one copy of an episode and not another, so a ratio of wall-time totals
+moves by several percent with nothing changed (`docs/review-log.md`, A8). Wall time is still
+recorded, per episode, as the secondary check on the model.
+
+**Counted operations (A8b).** Every component, and the shared decision rule, counts the work it
+does in declared units: observations scanned, records compared, worlds and observations the
+checker evaluated, probe results judged against a hypothesis, entries and candidates encoded
+(`gordian-components` `src/ops.rs`, each component's `UNITS`, and `RULE_UNITS` in `decide.rs`;
+`CALIBRATION.md` of the components crate, section 9, has what each unit counts, the weights, and
+the validity fits).
+
+- A component returns its count with its output (`Component::run_counted`; `run` is the same call
+  without the count). The harness keeps the count and gives a policy only the `ComponentOutput`,
+  which has no field for one (a test destructures it without `..`).
+- The rule counts itself. The harness takes the count after each timed scheduling call through
+  `Policy::take_ops`, which has no default so that a policy that wraps another cannot silently drop
+  the count. A `RuleOps` can be built only by the rule; the privileged arms report `RuleOps::ZERO`,
+  as they declare zero cost. Nothing in the rule reads its count (a test pins this textually, and
+  another shows two copies of the rule acting identically when one has its count taken and the
+  other does not).
+- Counting is deterministic: a function of the input and of the component's configuration, with
+  no clock and no randomness. The world's checker has a counted variant that the plain function
+  wraps; the reference functions are unchanged (`gordian-world`, `src/tests/counting.rs`).
+- A component a `Fail` directive stopped is charged but did no work, so it counts nothing. A
+  `Slow` directive multiplies declared cost, not work, so it changes no count.
+- Each `harness/timer` entry carries the counts of the call it timed (`"ops"`, in the order of the
+  unit table), next to its nanoseconds. The counts are deterministic and the nanoseconds are not;
+  the entry is where what a call did and what it took are read together (the in-situ calibration
+  does exactly that).
+- Per episode, `results.csv` gets `ops_component`, `ops_sched` (sums of counts: units differ, so
+  these are checks and never a cost) and `modelled_component_ns`, `modelled_sched_ns` (counts
+  times weights, summed over components and units, rounded once per episode). Their sum is `C`.
+  The weights are the weights of fixed windows timed in a loop, scaled to what a call costs in
+  this harness (`CALIBRATION.md` of the components crate, section 9.5): a loop-calibrated `C`
+  priced `all_components` 29% too high against `heuristic_only`.
+  They are deterministic, so protocol replay covers them. The modelled cost covers what a policy
+  controls (which components ran and what the rule did with them), not the harness's own work
+  (generation, simulator, charging, ledger, scoring, the affordability check), which an arm does
+  not choose and which is in `measured_harness_ns` only.
+- Not counted: the selector's own work (a few random draws, a period test), which `Selector`s do
+  not report; the rule's checks of corrections (the rule never buys one); the `timed()` calls
+  themselves. All are small against the counted work; the validity fits are made on the whole
+  scheduling path as the harness times it.
+
+**Measured wall time (the secondary check).**
 
 - `std::time::Instant` brackets each `Component::run` and each scheduling call. This is the one
   wall-clock read in the system, because it is a recorded boundary effect.
@@ -234,7 +280,7 @@ is part of the run. An index with no such component is ignored and counted in `d
 | File | Holds | Deterministic |
 |---|---|---|
 | `manifest.json` | the canonical manifest | yes |
-| `results.csv` | one row per episode, plan columns then `directives_ignored`, `stop_reason` (column semantics: `src/results.rs`) | yes, byte for byte |
+| `results.csv` | one row per episode, plan columns then `directives_ignored`, `stop_reason`, then the counted-operation columns `ops_component`, `ops_sched`, `modelled_component_ns`, `modelled_sched_ns` (column semantics: `src/results.rs`) | yes, byte for byte |
 | `measured.csv` | the three measured sums per episode, and `arm_position` | the timings no; `arm_position` and the keys yes |
 | `drift.csv` | one timing of the fixed reference workload per block (section 10) | no |
 | `events-sample.jsonl` | for a hashed sample of episodes: the public information, the passive stream, every ledger entry | except `harness/timer` payloads |
@@ -378,7 +424,46 @@ unit's scope.
     needs to say which arm was playing. `execute` still returns the totals; `execute_report` also
     returns each arm's counts and the number of drift blocks.
 
+21. **Four more `results.csv` columns (A8b, plan A8b item 2).** The plan names `ops_component`
+    and `ops_sched`. They are sums of counts in units that differ between components, so a weight
+    cannot be applied to them after the fact. `modelled_component_ns` and `modelled_sched_ns` carry
+    the weighted counts, computed where the weights are constants (next to the code that is
+    counted) and rounded once per episode. The analysis package's `modelled_cost_ns` is their sum.
+    A recalibration changes these two columns and nothing else, and a run is tied to the source
+    revision in its manifest, so each run's weights are the ones of that revision.
+22. **`Component::run_counted` is the required method; `run` is provided.** The count is the
+    output's twin and cannot be forgotten: a component that does not implement `run_counted` does
+    not compile. `Policy::take_ops` is required for the same reason.
+23. **`ComponentOutput` does not carry the count.** The plan says components report their counts
+    "in their output". The output is what a policy is handed, and a policy must not see a count, so
+    the count travels beside it, in the pair `run_counted` returns, and the harness holds it.
+24. **The rule's per-step fixed cost is one `calls` unit per `decide` or final call.** A step is a
+    cost declaration, a `select` and a `decide`; all three are timed into `measured_sched_ns`. They
+    run once per step each, so one unit stands for the lot, and a step whose scheduling charge was
+    refused (no `select`) is counted the same. The fit includes the cost declaration and the
+    selector (`heuristic_only`, `all_components`, `fixed_pipeline`, `random_matched` states).
+
+25. **`harness/timer` payloads gain `ops`.** A list of the counts of the call, in the order of
+    the component's or the rule's unit table. The events-sample key allowlist gains `ops`.
+26. **The weights of `C` are scaled in situ, not only calibrated on fixed windows (A8b item 3).**
+    The plan's calibration is the minimum over repeated timings of fixed windows. That is done
+    (`examples/calibrate_ops.rs`; every counter passes R^2 >= 0.9, the lowest 0.981) and it is what
+    shows the counters follow the work. Used alone it failed the plan's own non-identical-arm check
+    (modelled ratio 15.7 against 12.1, interval 11.6 to 13.1), because a call in an episode costs
+    1.2 to 1.9 times a call in a loop and the factor is larger for the cheaper arm. The shipped
+    weights are the loop weights times a per-target factor plus a per-call constant, fitted on
+    the harness's own timer entries for other arms (`examples/calibrate_insitu.rs`,
+    `calibrate_insitu.py`); the check then passes in three of three runs (12.18 against 12.24,
+    12.66, 12.48). This is a departure from the plan's wording: record it, and reject it if
+    loop-calibrated weights and a failed check are preferred.
+
 ## 9. Built and not built
+
+Built in A8b: counted operations (`gordian-components` `src/ops.rs`; `Component::run_counted`;
+`RuleOps` and `Policy::take_ops`; `EpisodeOps` in `harness.rs`), the four `results.csv` columns, the
+calibration programs `examples/calibrate_ops.rs` (fixed windows, in a loop) and
+`examples/calibrate_insitu.rs` (the harness's own timer entries) with their fit scripts
+`calibrate_ops.py`, `calibrate_insitu.py` and `apply_weights.py`, and in the analysis package the modelled cost as the default cost and `gordian-analyze cost-check`; section 4.
 
 Built in A8: interleaved arms (`src/interleave.rs`, `src/recorder.rs`), the drift workload
 (`src/drift.rs`), `arm_position` in `measured.csv`, the driver's ratio over all arms plus the drift

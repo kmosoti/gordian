@@ -26,6 +26,7 @@
 //! proposal (see the crate documentation); the candidates are in the entry.
 
 use crate::cost::{affine_ns, compute};
+use crate::ops::{Ops, Unit};
 use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
 use crate::symptoms::{
     SLOT_CHANGED_CONFIG, SLOT_PROBE_CREDENTIAL, SLOT_PROBE_RESOURCE, Summary, counter_slot,
@@ -35,7 +36,7 @@ use crate::{
     Component, ComponentOutput, ComputationRequest, HEURISTIC_ID, VERIFIER_ID, WorkingState,
 };
 use gordian_core::{Charge, ComponentId};
-use gordian_world::graph::dependents_mask;
+use gordian_world::graph::dependents_mask_counted;
 use gordian_world::physics::SignalText;
 use gordian_world::{CounterName, FaultKind, Hypothesis, PublicInfo, ServiceId};
 
@@ -50,6 +51,41 @@ use gordian_world::{CounterName, FaultKind, Hypothesis, PublicInfo, ServiceId};
 // component's code.
 const A_NS: u64 = 365;
 const B_PS: u64 = 2_140;
+
+// Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
+//
+// - `calls`: one per call (the summary's allocations and the envelope of the work);
+// - `scanned`: observations the one pass over the window looked at;
+// - `rules`: rows of the rule table looked at before one decided (all of them if none did);
+// - `mask_steps`: steps of the dependents-mask construction a located-upstream rule runs;
+// - `entries`: entries emitted (0 or 1);
+// - `ranked`: candidates written into the entry.
+const U_CALLS: usize = 0;
+const U_SCANNED: usize = 1;
+const U_RULES: usize = 2;
+const U_MASK_STEPS: usize = 3;
+const U_ENTRIES: usize = 4;
+const U_RANKED: usize = 5;
+
+// Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
+// windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
+// (calibrate_insitu.py, 3 runs of 5 passes).
+// In situ: 1.61 x the weights fitted on fixed windows in a loop, plus
+// 20 ns on the per-call unit(s) (`calibrate_insitu.py`).
+// Non-negative least squares on the minimum time per call, weighted by 1/time, with no
+// intercept beyond the explicit per-call unit; rounded to three figures. What each unit
+// counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
+// after a change to the CPU, the release profile, the harness, or the code that is counted.
+#[rustfmt::skip]
+/// The heuristic's units and their weights.
+pub const UNITS: &[Unit] = &[
+    Unit { name: "calls", weight_ps: 53300 },
+    Unit { name: "scanned", weight_ps: 3060 },
+    Unit { name: "rules", weight_ps: 7220 },
+    Unit { name: "mask_steps", weight_ps: 5000 },
+    Unit { name: "entries", weight_ps: 314000 },
+    Unit { name: "ranked", weight_ps: 56500 },
+];
 
 /// Where a rule puts the site of its candidates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,26 +220,27 @@ impl RuleHeuristic {
     }
 }
 
-fn locate(rule: &Rule, summary: &Summary, public: &PublicInfo) -> Option<ServiceId> {
+fn locate(rule: &Rule, summary: &Summary, public: &PublicInfo, ops: &mut Ops) -> Option<ServiceId> {
     let subject = summary.first[rule.slot]?;
     match rule.site {
         SiteRule::Subject => Some(subject),
         SiteRule::EarliestError => Some(summary.first_error().unwrap_or(subject)),
         SiteRule::UpstreamOfSubject => summary.error_order.iter().copied().find(|site| {
-            dependents_mask(&public.services, *site)
-                .get(subject.index())
-                .copied()
-                .unwrap_or(false)
+            let (mask, steps) = dependents_mask_counted(&public.services, *site);
+            ops.add(U_MASK_STEPS, steps);
+            mask.get(subject.index()).copied().unwrap_or(false)
         }),
     }
 }
 
 /// The rule that decides, and its candidates. `None` when the window shows a symptom whose site
-/// cannot be located, or when the window is empty.
+/// cannot be located, or when the window is empty. Counts the rows it looks at and the mask
+/// steps it takes into `ops`.
 fn decide(
     summary: &Summary,
     public: &PublicInfo,
     window: usize,
+    ops: &mut Ops,
 ) -> Option<(&'static str, Vec<Hypothesis>)> {
     if window == 0 {
         return None;
@@ -211,14 +248,17 @@ fn decide(
     if summary.mask == 0 {
         return Some(("silence: no abnormal observation", vec![None]));
     }
-    RULES
-        .iter()
-        .filter(|rule| summary.mask & (1 << rule.slot) != 0)
-        .find_map(|rule| {
-            let site = locate(rule, summary, public)?;
+    for rule in RULES {
+        ops.add(U_RULES, 1);
+        if summary.mask & (1 << rule.slot) == 0 {
+            continue;
+        }
+        if let Some(site) = locate(rule, summary, public, ops) {
             let candidates = rule.kinds.iter().map(|k| Some((*k, site))).collect();
-            Some((rule.basis, candidates))
-        })
+            return Some((rule.basis, candidates));
+        }
+    }
+    None
 }
 
 impl Component for RuleHeuristic {
@@ -230,11 +270,17 @@ impl Component for RuleHeuristic {
         vec![compute(affine_ns(A_NS, B_PS, input.size()))]
     }
 
-    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
+    fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops) {
+        let mut ops = Ops::zero(HEURISTIC_ID);
+        ops.add(U_CALLS, 1);
+        ops.add(U_SCANNED, input.size() as u64);
         let summary = summarize(&input.public, input.evidence());
-        let Some((basis, candidates)) = decide(&summary, &input.public, input.size()) else {
-            return ComponentOutput::default();
+        let Some((basis, candidates)) = decide(&summary, &input.public, input.size(), &mut ops)
+        else {
+            return (ComponentOutput::default(), ops);
         };
+        ops.add(U_ENTRIES, 1);
+        ops.add(U_RANKED, candidates.len() as u64);
         let tied = candidates.len() as u32;
         let ranked: Vec<Ranked> = candidates
             .into_iter()
@@ -257,11 +303,12 @@ impl Component for RuleHeuristic {
             ranked,
             tied_at_top: tied,
         };
-        ComponentOutput {
+        let output = ComponentOutput {
             entries: vec![hypothesis_entry(&entry)],
             requests,
             proposal,
-        }
+        };
+        (output, ops)
     }
 }
 
@@ -426,8 +473,13 @@ mod tests {
             ]
             .into();
             let summary = summarize(&public, &evidence);
-            let (basis, candidates) =
-                decide(&summary, &public, evidence.len()).expect("a rule decides");
+            let (basis, candidates) = decide(
+                &summary,
+                &public,
+                evidence.len(),
+                &mut Ops::zero(HEURISTIC_ID),
+            )
+            .expect("a rule decides");
             assert_eq!(basis, rule.basis);
             let expected: Vec<Hypothesis> = rule.kinds.iter().map(|k| Some((*k, site))).collect();
             assert_eq!(candidates, expected, "{}", rule.basis);

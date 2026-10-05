@@ -32,6 +32,7 @@
 //! the declared cost uses the number actually read.
 
 use crate::cost::{affine_ns, compute};
+use crate::ops::{Ops, Unit};
 use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
 use crate::symptoms::{Summary, TAG_MASK, summarize, tag_mask, text_slot};
 use crate::{Component, ComponentOutput, ComputationRequest, MEMORY_ID, VERIFIER_ID, WorkingState};
@@ -54,6 +55,39 @@ use std::cmp::Reverse;
 const A_NS: u64 = 275;
 const B_PS: u64 = 2_140;
 const C_PS: u64 = 2_710;
+
+// Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
+//
+// - `calls`: one per call;
+// - `scanned`: observations the one pass over the window looked at;
+// - `records`: prior records whose signature was compared with the window's;
+// - `entries`: entries emitted (0 or 1; a window with no symptom or no matching record emits none).
+//
+// The candidates in the entry are not a unit: the lookup ranks the kinds its matching records
+// vote for, which is one kind in every window of the calibration and at most five, so they cannot
+// be told apart from the entry itself.
+const U_CALLS: usize = 0;
+const U_SCANNED: usize = 1;
+const U_RECORDS: usize = 2;
+const U_ENTRIES: usize = 3;
+
+// Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
+// windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
+// (calibrate_insitu.py, 3 runs of 5 passes).
+// In situ: 1.85 x the weights fitted on fixed windows in a loop, plus
+// 19.6 ns on the per-call unit(s) (`calibrate_insitu.py`).
+// Non-negative least squares on the minimum time per call, weighted by 1/time, with no
+// intercept beyond the explicit per-call unit; rounded to three figures. What each unit
+// counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
+// after a change to the CPU, the release profile, the harness, or the code that is counted.
+#[rustfmt::skip]
+/// The lookup's units and their weights.
+pub const UNITS: &[Unit] = &[
+    Unit { name: "calls", weight_ps: 55600 },
+    Unit { name: "scanned", weight_ps: 2990 },
+    Unit { name: "records", weight_ps: 5240 },
+    Unit { name: "entries", weight_ps: 555000 },
+];
 
 /// The prior-record lookup.
 #[derive(Debug, Clone, Copy)]
@@ -103,11 +137,14 @@ impl Component for PriorRecordLookup {
         vec![compute(ns)]
     }
 
-    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
+    fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops) {
+        let mut ops = Ops::zero(MEMORY_ID);
+        ops.add(U_CALLS, 1);
+        ops.add(U_SCANNED, input.size() as u64);
         let summary = summarize(&input.public, input.evidence());
         let window = summary.mask & TAG_MASK;
         if window == 0 {
-            return ComponentOutput::default();
+            return (ComponentOutput::default(), ops);
         }
         let mut votes = [0u32; 5];
         for record in input
@@ -116,6 +153,7 @@ impl Component for PriorRecordLookup {
             .iter()
             .take(self.records_read(input))
         {
+            ops.add(U_RECORDS, 1);
             if tag_mask(&record.signature) == window {
                 votes[kind_index(record.resolution)] += 1;
             }
@@ -138,8 +176,9 @@ impl Component for PriorRecordLookup {
             })
             .collect();
         let Some(top) = ranked.first().and_then(|r| r.score) else {
-            return ComponentOutput::default();
+            return (ComponentOutput::default(), ops);
         };
+        ops.add(U_ENTRIES, 1);
         let tied = ranked.iter().take_while(|r| r.score == Some(top)).count() as u32;
         let proposal: Option<Hypothesis> = unique_best(&ranked, tied);
         let mut requests = Vec::new();
@@ -155,11 +194,12 @@ impl Component for PriorRecordLookup {
             ranked,
             tied_at_top: tied,
         };
-        ComponentOutput {
+        let output = ComponentOutput {
             entries: vec![hypothesis_entry(&entry)],
             requests,
             proposal,
-        }
+        };
+        (output, ops)
     }
 }
 

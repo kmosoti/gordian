@@ -39,6 +39,7 @@
 //!   all contradicted.
 
 use crate::cost::{affine_ns, compute};
+use crate::ops::{Ops, Unit};
 use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
 use crate::{
     Component, ComponentOutput, ComputationRequest, ESTIMATOR_ID, VERIFIER_ID, WorkingState,
@@ -63,6 +64,53 @@ const A_NS: u64 = 485;
 const B_PS: u64 = 2_930;
 const C_PS: u64 = 101_000;
 
+// Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
+//
+// - `calls`: one per call (the entry's envelope: it always lists the top five);
+// - `scanned`: observations the one pass over the window looked at;
+// - `permit_scans`: informative observations, each of which scans the five fault kinds' permit
+//   tables at its own service;
+// - `ancestors`: ancestors examined to find the sites an observation at a dependent is
+//   anchored at;
+// - `site_updates`: anchored sites updated, each scanning the five kinds again;
+// - `probe_evals`: calls of `probe_result` made to judge a probe result against a hypothesis;
+// - `hypotheses`: hypotheses scored (`1 + 5 * services`), which is also what the ancestor sets
+//   built from the graph scale with (services, a factor of five apart), so the graph has no unit
+//   of its own;
+// - `sort_cmps`: comparisons the ranking sort made, which follow how much the scores differ: a
+//   window with nothing informative leaves every score equal and the sort finds that out in one
+//   pass, while a window that separates the hypotheses makes it work.
+const U_CALLS: usize = 0;
+const U_SCANNED: usize = 1;
+const U_PERMIT_SCANS: usize = 2;
+const U_ANCESTORS: usize = 3;
+const U_SITE_UPDATES: usize = 4;
+const U_PROBE_EVALS: usize = 5;
+const U_HYPOTHESES: usize = 6;
+const U_SORT_CMPS: usize = 7;
+
+// Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
+// windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
+// (calibrate_insitu.py, 3 runs of 5 passes).
+// In situ: 1.39 x the weights fitted on fixed windows in a loop, plus
+// 23.6 ns on the per-call unit(s) (`calibrate_insitu.py`).
+// Non-negative least squares on the minimum time per call, weighted by 1/time, with no
+// intercept beyond the explicit per-call unit; rounded to three figures. What each unit
+// counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
+// after a change to the CPU, the release profile, the harness, or the code that is counted.
+#[rustfmt::skip]
+/// The estimator's units and their weights.
+pub const UNITS: &[Unit] = &[
+    Unit { name: "calls", weight_ps: 805000 },
+    Unit { name: "scanned", weight_ps: 3430 },
+    Unit { name: "permit_scans", weight_ps: 7970 },
+    Unit { name: "ancestors", weight_ps: 838 },
+    Unit { name: "site_updates", weight_ps: 3310 },
+    Unit { name: "probe_evals", weight_ps: 8870 },
+    Unit { name: "hypotheses", weight_ps: 1620 },
+    Unit { name: "sort_cmps", weight_ps: 4480 },
+];
+
 /// The count-based estimator.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CountEstimator;
@@ -82,7 +130,12 @@ impl CountEstimator {
 
     /// The score of every hypothesis, in the order no fault, then by site, then by kind.
     pub fn scores(&self, input: &WorkingState) -> Vec<(Hypothesis, u32)> {
-        let (permits, informative) = tally(input);
+        self.scores_counted(input, &mut Ops::zero(ESTIMATOR_ID))
+    }
+
+    /// [`CountEstimator::scores`], adding the work done to `ops`.
+    fn scores_counted(&self, input: &WorkingState, ops: &mut Ops) -> Vec<(Hypothesis, u32)> {
+        let (permits, informative) = tally(input, ops);
         let score = |p: u32| -> u32 {
             let gain = u64::from(Self::BASE) + u64::from(p);
             let loss = u64::from(Self::PENALTY) * u64::from(informative - p);
@@ -128,7 +181,7 @@ const NO_BITS: [(bool, bool); 1] = [(false, false)];
 /// The permit rules restate those of `physics::consistent_worlds` as counts. A test pins the two
 /// together: over generated streams, the hypotheses with no forbidden observation are exactly the
 /// checker's set.
-fn tally(input: &WorkingState) -> (Vec<u32>, u32) {
+fn tally(input: &WorkingState, ops: &mut Ops) -> (Vec<u32>, u32) {
     let services = &input.public.services;
     let s_count = services.len();
     let mut permits = vec![0u32; 1 + 5 * s_count];
@@ -165,6 +218,7 @@ fn tally(input: &WorkingState) -> (Vec<u32>, u32) {
     };
 
     for (t, obs) in input.evidence() {
+        ops.add(U_SCANNED, 1);
         match obs {
             Observation::Counter {
                 service,
@@ -181,12 +235,15 @@ fn tally(input: &WorkingState) -> (Vec<u32>, u32) {
                     continue;
                 }
                 informative += 1;
+                ops.add(U_PERMIT_SCANS, 1);
                 for kind in FaultKind::ALL {
                     if counters(kind, Role::Site).contains(name) {
                         permits[hyp_index(v, kind)] += 1;
                     }
                 }
+                ops.add(U_ANCESTORS, u64::from(anc[v].count_ones()));
                 let mut sites = anchored(v, *t, &error_seen);
+                ops.add(U_SITE_UPDATES, u64::from(sites.count_ones()));
                 while sites != 0 {
                     let s = sites.trailing_zeros() as usize;
                     sites &= sites - 1;
@@ -215,12 +272,15 @@ fn tally(input: &WorkingState) -> (Vec<u32>, u32) {
                     continue;
                 }
                 informative += 1;
+                ops.add(U_PERMIT_SCANS, 1);
                 for kind in FaultKind::ALL {
                     if messages(kind, Role::Site).contains(&text) {
                         permits[hyp_index(v, kind)] += 1;
                     }
                 }
+                ops.add(U_ANCESTORS, u64::from(anc[v].count_ones()));
                 let mut sites = anchored(v, *t, &error_seen);
+                ops.add(U_SITE_UPDATES, u64::from(sites.count_ones()));
                 while sites != 0 {
                     let s = sites.trailing_zeros() as usize;
                     sites &= sites - 1;
@@ -244,6 +304,7 @@ fn tally(input: &WorkingState) -> (Vec<u32>, u32) {
                     continue;
                 }
                 informative += 1;
+                ops.add(U_PERMIT_SCANS, 1);
                 // Only a drift at this service permits a changed snapshot, and only if every
                 // changed hash seen at the service is the same one.
                 if note_drift(&mut drift[v], *config_hash) {
@@ -266,11 +327,20 @@ fn tally(input: &WorkingState) -> (Vec<u32>, u32) {
                 }
                 let drift_hash = drift[target].unwrap_or(start.wrapping_add(1));
                 if consistent_drift {
+                    let mut evaluated = 0u64;
                     for (i, count) in permits.iter_mut().enumerate() {
-                        if probe_permits(services, hypothesis_at(i), drift_hash, *probe, *result) {
+                        if probe_permits(
+                            services,
+                            hypothesis_at(i),
+                            drift_hash,
+                            *probe,
+                            *result,
+                            &mut evaluated,
+                        ) {
                             *count += 1;
                         }
                     }
+                    ops.add(U_PROBE_EVALS, evaluated);
                 }
             }
             Observation::Correction { site, resolved } => {
@@ -303,12 +373,14 @@ fn probe_permits(
     drift_hash: u64,
     probe: Probe,
     result: ProbeResult,
+    evaluated: &mut u64,
 ) -> bool {
     let entangled = truth.is_some_and(|(k, _)| k == ENTANGLED.0 || k == ENTANGLED.1);
     let options: &[(bool, bool)] = if entangled { &ALL_BITS } else { &NO_BITS };
-    options
-        .iter()
-        .any(|bits| probe_result(services, truth, *bits, drift_hash, probe) == result)
+    options.iter().any(|bits| {
+        *evaluated += 1;
+        probe_result(services, truth, *bits, drift_hash, probe) == result
+    })
 }
 
 impl Component for CountEstimator {
@@ -325,12 +397,21 @@ impl Component for CountEstimator {
         vec![compute(ns)]
     }
 
-    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
-        let scores = self.scores(input);
+    fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops) {
+        let mut ops = Ops::zero(ESTIMATOR_ID);
+        ops.add(U_CALLS, 1);
+        let scores = self.scores_counted(input, &mut ops);
+        ops.add(U_HYPOTHESES, scores.len() as u64);
         let mut order: Vec<usize> = (0..scores.len()).collect();
         // Best score first; equal scores keep hypothesis order. Indices are unique, so the sort
-        // is total and the result does not depend on the sort algorithm.
-        order.sort_unstable_by_key(|i| (Reverse(scores[*i].1), *i));
+        // is total and the result does not depend on the sort algorithm. The comparator counts
+        // its own calls.
+        let mut comparisons = 0u64;
+        order.sort_unstable_by(|a, b| {
+            comparisons += 1;
+            (Reverse(scores[*a].1), *a).cmp(&(Reverse(scores[*b].1), *b))
+        });
+        ops.add(U_SORT_CMPS, comparisons);
         let top = scores[order[0]].1;
         let tied = order.iter().take_while(|i| scores[**i].1 == top).count() as u32;
         let ranked: Vec<Ranked> = order
@@ -355,10 +436,11 @@ impl Component for CountEstimator {
             ranked,
             tied_at_top: tied,
         };
-        ComponentOutput {
+        let output = ComponentOutput {
             entries: vec![hypothesis_entry(&entry)],
             requests,
             proposal,
-        }
+        };
+        (output, ops)
     }
 }

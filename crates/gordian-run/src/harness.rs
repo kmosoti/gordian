@@ -14,10 +14,11 @@
 //! Logical time is a [`ManualClock`] that moves only by declared costs and by the step quantum.
 
 use crate::policy::Policy;
+use crate::policy::decide::RuleOps;
 use crate::policy::privileged::OracleFactory;
 use gordian_components::payload::{HypothesisEntry, decode};
 use gordian_components::{
-    Component, ComponentOutput, ConsistencyVerifier, CountEstimator, PriorRecordLookup,
+    Component, ComponentOutput, ConsistencyVerifier, CountEstimator, Ops, PriorRecordLookup,
     RuleHeuristic, WorkingState,
 };
 use gordian_core::{
@@ -179,6 +180,57 @@ pub struct Measured {
     pub harness_ns: u64,
 }
 
+/// The work one episode did, counted (work item A8b): deterministic, a function of the episode
+/// and the policy, and so part of `results.csv` and covered by protocol replay.
+///
+/// Components report their own counts with their output ([`Component::run_counted`]) and the
+/// shared rule reports its own ([`Policy::take_ops`]); the harness only adds them up. A policy is
+/// never shown a count. The weights that turn counts into modelled nanoseconds are constants next
+/// to the code that is counted (`CALIBRATION.md`, section 9).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpisodeOps {
+    /// For each component of the run, in the order the run listed them, the sum over the calls
+    /// that ran. A component that was never selected, or whose call a `Fail` directive stopped,
+    /// has all zeros.
+    pub components: Vec<Ops>,
+    /// The shared rule's work: scheduling steps and final call. Zero for a privileged arm.
+    pub sched: RuleOps,
+}
+
+impl EpisodeOps {
+    /// Counts of the work of every component added together. Informational: units differ.
+    pub fn ops_component(&self) -> u64 {
+        self.components
+            .iter()
+            .fold(0u64, |s, o| s.saturating_add(o.total()))
+    }
+
+    /// Counts of the rule's work added together. Informational: units differ.
+    pub fn ops_sched(&self) -> u64 {
+        self.sched.total()
+    }
+
+    /// Modelled cost of the components' work, nanoseconds: weighted counts summed over every
+    /// component and unit, in picoseconds, then rounded to the nearest nanosecond once.
+    pub fn modelled_component_ns(&self) -> u64 {
+        ps_to_ns(
+            self.components
+                .iter()
+                .fold(0u64, |s, o| s.saturating_add(o.modelled_ps())),
+        )
+    }
+
+    /// Modelled cost of the rule's work, nanoseconds.
+    pub fn modelled_sched_ns(&self) -> u64 {
+        ps_to_ns(self.sched.modelled_ps())
+    }
+}
+
+/// Picoseconds to the nearest nanosecond, saturating.
+fn ps_to_ns(ps: u64) -> u64 {
+    ps.saturating_add(500) / 1000
+}
+
 /// Everything one episode produced.
 #[derive(Debug, Clone)]
 pub struct EpisodeRecord {
@@ -206,6 +258,8 @@ pub struct EpisodeRecord {
     pub stop: StopReason,
     /// Wall-clock durations.
     pub measured: Measured,
+    /// Counted operations, and with the weights the modelled cost. Deterministic.
+    pub ops: EpisodeOps,
     /// What the policy was told at the start. Public by construction.
     pub public_info: PublicInfo,
     /// The episode's passive observation stream in full, including what was never delivered.
@@ -413,19 +467,25 @@ fn append(
     Ok(ledger.append(at, kind, provenance(producer, inputs), body)?)
 }
 
-/// Record one timing as a `Measurement` from `harness/timer`.
+/// Record one timing as a `Measurement` from `harness/timer`, with the operation counts of the call
+/// it timed (work item A8b): the component's units for a component call, the rule's for a
+/// scheduling call, in the order of their unit tables. The counts are deterministic and the
+/// nanoseconds are not, and the entry holds both so that what a call did and what it took can be
+/// read together (the in-situ calibration, `examples/calibrate_insitu.rs`, does exactly that).
 fn record_timing(
     ledger: &mut Ledger,
     at: Instant,
     what: &str,
     component: Option<ComponentId>,
     ns: u64,
+    counts: &[u64],
     inputs: Vec<EntryId>,
 ) -> Result<(), HarnessError> {
     let body = payload(&json!({
         "what": what,
         "component": component.map(|c| c.0),
         "ns": ns,
+        "ops": counts,
     }))?;
     append(
         ledger,
@@ -651,6 +711,8 @@ fn play(
     let mut trajectory: Vec<Step> = Vec::new();
     let mut ready_results: Vec<(Instant, Observation)> = Vec::new();
     let mut measured = Measured::default();
+    let mut component_ops: Vec<Ops> = components.iter().map(|c| Ops::zero(c.id())).collect();
+    let mut sched_ops = RuleOps::ZERO;
     let (mut components_run, mut components_skipped) = (0u32, 0u32);
     let mut steps = 0u32;
 
@@ -691,6 +753,8 @@ fn play(
             }
             Charged::Refused(refusal) => (Vec::new(), 0, refusal),
         };
+        let select_ops = policy.take_ops();
+        sched_ops.accumulate(&select_ops);
         let ns = cost_ns.saturating_add(select_ns);
         measured.sched_ns = measured.sched_ns.saturating_add(ns);
         record_timing(
@@ -699,6 +763,7 @@ fn play(
             "select",
             None,
             ns,
+            select_ops.counts(),
             vec![accounting],
         )?;
 
@@ -753,7 +818,10 @@ fn play(
                 )?;
                 continue;
             }
-            let (output, ns) = timed(|| component.run(&state));
+            let ((output, counted), ns) = timed(|| component.run_counted(&state));
+            if let Some(total) = component_ops.iter_mut().find(|o| o.component() == id) {
+                total.accumulate(&counted);
+            }
             measured.component_ns = measured.component_ns.saturating_add(ns);
             record_timing(
                 &mut ledger,
@@ -761,6 +829,7 @@ fn play(
                 "component",
                 Some(id),
                 ns,
+                counted.counts(),
                 vec![accounting],
             )?;
             for (kind, body) in &output.entries {
@@ -792,8 +861,18 @@ fn play(
 
         // Decide, and act.
         let (action, ns) = timed(|| policy.decide(&state, &outputs));
+        let decide_ops = policy.take_ops();
+        sched_ops.accumulate(&decide_ops);
         measured.sched_ns = measured.sched_ns.saturating_add(ns);
-        record_timing(&mut ledger, clock.now(), "decide", None, ns, Vec::new())?;
+        record_timing(
+            &mut ledger,
+            clock.now(),
+            "decide",
+            None,
+            ns,
+            decide_ops.counts(),
+            Vec::new(),
+        )?;
         let mut terminal = false;
         if let Some(action) = action {
             let decision = append(
@@ -975,6 +1054,8 @@ fn play(
             Charged::Refused(refusal) => refusal,
         };
         let (action, decide_ns) = timed(|| policy.decide_final(&state));
+        let final_ops = policy.take_ops();
+        sched_ops.accumulate(&final_ops);
         let ns = cost_ns.saturating_add(decide_ns);
         measured.sched_ns = measured.sched_ns.saturating_add(ns);
         record_timing(
@@ -983,6 +1064,7 @@ fn play(
             "decide",
             None,
             ns,
+            final_ops.counts(),
             vec![accounting],
         )?;
 
@@ -1068,6 +1150,10 @@ fn play(
         directives_ignored,
         stop,
         measured,
+        ops: EpisodeOps {
+            components: component_ops,
+            sched: sched_ops,
+        },
         public_info,
         public_stream,
     })

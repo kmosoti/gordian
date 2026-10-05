@@ -19,10 +19,11 @@
 //! been paid for, because a stream that only permits symptoms leaves several hypotheses open.
 
 use crate::cost::{affine_ns, compute};
+use crate::ops::{Ops, Unit};
 use crate::payload::{HypothesisEntry, Ranked, hypothesis_entry, unique_best};
 use crate::{Component, ComponentOutput, VERIFIER_ID, WorkingState};
 use gordian_core::{Charge, ComponentId};
-use gordian_world::physics::consistent_hypotheses;
+use gordian_world::physics::consistent_hypotheses_counted;
 
 // Declared cost, `Resource::Compute` nanoseconds: `A_NS + B_PS * n / 1000 + C_PS * s / 1000` for
 // a window of `n` observations over `s` services.
@@ -39,6 +40,50 @@ use gordian_world::physics::consistent_hypotheses;
 const A_NS: u64 = 415;
 const B_PS: u64 = 5_770;
 const C_PS: u64 = 156_000;
+
+// Counted operations (work item A8b; `CALIBRATION.md`, section 9). One `run` counts:
+//
+// - `candidates` or `damaged`: exactly one of the two per call, the envelope of the entry the call
+//   emits, which is a list of candidates when the consistent set is not empty and the shorter
+//   damaged-evidence entry when it is empty (the window lost the anchor); the call's own fixed
+//   cost is in them;
+// - `scanned`: observations touched: the copy of the window into the checker's slice, and the
+//   checker's first pass (so twice the window length unless the pass ends early);
+// - `worlds`, `evals`, `probe_evals`: the checker's own counts (`physics::CheckerOps`): candidate
+//   worlds tried, evaluations of a world against an observation, and against a probe result;
+// - `ranked`: hypotheses written into the entry, which is the whole consistent set.
+//
+// The checker also counts the steps of building its dependents masks (`mask_steps`). The verifier
+// does not price them: they depend on the graph alone, and the fit cannot tell them from `worlds`
+// (dropping them changes no fit by more than 0.0002 in R^2).
+const U_CANDIDATES: usize = 0;
+const U_DAMAGED: usize = 1;
+const U_SCANNED: usize = 2;
+const U_WORLDS: usize = 3;
+const U_EVALS: usize = 4;
+const U_PROBE_EVALS: usize = 5;
+const U_RANKED: usize = 6;
+
+// Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
+// windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
+// (calibrate_insitu.py, 3 runs of 5 passes).
+// In situ: 1.2 x the weights fitted on fixed windows in a loop, plus
+// 484 ns on the per-call unit(s) (`calibrate_insitu.py`).
+// Non-negative least squares on the minimum time per call, weighted by 1/time, with no
+// intercept beyond the explicit per-call unit; rounded to three figures. What each unit
+// counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
+// after a change to the CPU, the release profile, the harness, or the code that is counted.
+#[rustfmt::skip]
+/// The verifier's units and their weights.
+pub const UNITS: &[Unit] = &[
+    Unit { name: "candidates", weight_ps: 798000 },
+    Unit { name: "damaged", weight_ps: 526000 },
+    Unit { name: "scanned", weight_ps: 1840 },
+    Unit { name: "worlds", weight_ps: 8890 },
+    Unit { name: "evals", weight_ps: 8020 },
+    Unit { name: "probe_evals", weight_ps: 25800 },
+    Unit { name: "ranked", weight_ps: 73500 },
+];
 
 /// The consistency verifier.
 #[derive(Debug, Clone, Copy, Default)]
@@ -65,20 +110,30 @@ impl Component for ConsistencyVerifier {
         vec![compute(ns)]
     }
 
-    fn run(&mut self, input: &WorkingState) -> ComponentOutput {
+    fn run_counted(&mut self, input: &WorkingState) -> (ComponentOutput, Ops) {
+        let mut ops = Ops::zero(VERIFIER_ID);
         let evidence = input.evidence_vec();
-        let set = consistent_hypotheses(&input.public, &evidence);
+        ops.add(U_SCANNED, evidence.len() as u64);
+        let (set, checked) = consistent_hypotheses_counted(&input.public, &evidence);
+        ops.add(U_SCANNED, checked.scanned);
+        ops.add(U_WORLDS, checked.worlds_tried);
+        ops.add(U_EVALS, checked.evals);
+        ops.add(U_PROBE_EVALS, checked.probe_evals);
         if set.is_empty() {
+            ops.add(U_DAMAGED, 1);
             let entry = HypothesisEntry::EvidenceDamaged {
                 source: "verifier".to_string(),
                 window: input.size() as u32,
             };
-            return ComponentOutput {
+            let output = ComponentOutput {
                 entries: vec![hypothesis_entry(&entry)],
                 requests: Vec::new(),
                 proposal: None,
             };
+            return (output, ops);
         }
+        ops.add(U_CANDIDATES, 1);
+        ops.add(U_RANKED, set.len() as u64);
         let ranked: Vec<Ranked> = set
             .into_iter()
             .map(|hypothesis| Ranked {
@@ -94,10 +149,11 @@ impl Component for ConsistencyVerifier {
             ranked,
             tied_at_top: tied,
         };
-        ComponentOutput {
+        let output = ComponentOutput {
             entries: vec![hypothesis_entry(&entry)],
             requests: Vec::new(),
             proposal,
-        }
+        };
+        (output, ops)
     }
 }

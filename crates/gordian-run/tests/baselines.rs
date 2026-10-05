@@ -17,8 +17,8 @@ use gordian_core::{Bill, Charge, ComponentId, EntryKind, Instant, Phase, Resourc
 use gordian_eval::Truth;
 use gordian_run::manifest::{EpisodeParams, IsolationSpec, Manifest, PRIVILEGED};
 use gordian_run::policy::decide::{
-    Bought, DEFAULT_PATIENCE, DecideConfig, Decider, RULE, Remaining, probe_units, score_probes,
-    worlds_of,
+    Bought, DEFAULT_PATIENCE, DecideConfig, Decider, RULE, Remaining, RuleOps, probe_units,
+    score_probes, worlds_of,
 };
 use gordian_run::policy::privileged::{OracleFactory, Variant};
 use gordian_run::policy::{
@@ -184,6 +184,14 @@ impl Policy for Mirror {
         if matches!(got, Some(Action::Probe { .. })) {
             self.probes.set(self.probes.get() + 1);
         }
+        got
+    }
+    fn take_ops(&mut self) -> RuleOps {
+        // The reference rule's own count is drained too, so that it cannot grow without bound,
+        // and the two must agree: the arm counts exactly what the shared rule counts.
+        let want = self.reference.take_ops();
+        let got = self.inner.take_ops();
+        assert_eq!(got, want, "the arm's count differs from the shared rule's");
         got
     }
     fn declared_final_cost(&self, state: &WorkingState) -> Vec<Charge> {

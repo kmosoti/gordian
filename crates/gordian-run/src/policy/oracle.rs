@@ -61,7 +61,7 @@
 //! These arms are free: `zero_cost` is declared for their scheduling, because they are a ceiling
 //! and not a cost-bearing mechanism. They select no components.
 
-use super::decide::{DecideConfig, Remaining, probe_units};
+use super::decide::{DecideConfig, Remaining, RuleOps, probe_units};
 use super::{Policy, PolicyId, zero_cost};
 use gordian_components::{ComponentOutput, WorkingState};
 use gordian_core::{Bill, Charge, ComponentId, Instant};
@@ -325,5 +325,11 @@ impl Policy for OraclePolicy {
             Variant::Immediate => Some(Action::Declare { fault: self.truth }),
             Variant::Evidence => self.decide_evidence(state, true),
         }
+    }
+
+    fn take_ops(&mut self) -> RuleOps {
+        // Privileged and free: the arm declares zero cost and counts zero work, whatever its
+        // planner does. It is a ceiling, not a mechanism whose cost is compared.
+        RuleOps::ZERO
     }
 }

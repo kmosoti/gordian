@@ -71,7 +71,7 @@
 
 use crate::episode::PublicInfo;
 use crate::fault::{FaultKind, Hypothesis};
-use crate::graph::{Service, ServiceId, dependents_mask};
+use crate::graph::{Service, ServiceId, dependents_mask, dependents_mask_counted};
 use crate::sense::{CounterName, Observation, Probe, ProbeKind, ProbeResult};
 use gordian_core::{Charge, Instant, Resource};
 use serde::{Deserialize, Serialize};
@@ -327,6 +327,43 @@ fn role_of(masks: &[Vec<bool>], site: ServiceId, service: ServiceId) -> Option<R
     }
 }
 
+/// What [`consistent_worlds`] returns: every (hypothesis, hidden bits) pair the evidence does not
+/// contradict.
+pub type Worlds = Vec<(Hypothesis, (bool, bool))>;
+
+/// The work one call of the consistency checker did, in declared units.
+///
+/// Each field counts a step of a loop the optimized checker really runs, so the counts follow the
+/// content of the evidence and not only its length: a window the checker refutes early costs
+/// little and a window it must read to the end costs much. Deterministic: a function of the
+/// public information and the evidence, produced by [`consistent_worlds_counted`] and
+/// [`consistent_hypotheses_counted`] and by nothing else.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckerOps {
+    /// Observations looked at in the first pass (all of them, unless a dangling reference
+    /// ended the pass early).
+    pub scanned: u64,
+    /// Steps of the dependents-mask construction: services visited plus dependencies examined,
+    /// summed over every site (`graph::dependents_mask_counted`).
+    pub mask_steps: u64,
+    /// Candidate worlds tested (`1 + 7 * services` unless the first pass ended early).
+    pub worlds_tried: u64,
+    /// Evaluations of one candidate world against one non-probe observation, the contradicting
+    /// one included.
+    pub evals: u64,
+    /// Evaluations of one candidate world against one probe result, which call
+    /// `probe_result` and look up a drifted hash.
+    pub probe_evals: u64,
+}
+
+impl CheckerOps {
+    /// Every count added together. For display and tests only: the units differ, and a cost is
+    /// a weighted sum, never this.
+    pub fn total(&self) -> u64 {
+        self.scanned + self.mask_steps + self.worlds_tried + self.evals + self.probe_evals
+    }
+}
+
 /// Every (hypothesis, hidden bits) pair that the evidence does not contradict.
 ///
 /// For a hypothesis outside the parity pair the bits are irrelevant and reported as
@@ -342,9 +379,25 @@ pub fn consistent_worlds(
     public: &PublicInfo,
     evidence: &[(Instant, Observation)],
 ) -> Vec<(Hypothesis, (bool, bool))> {
+    consistent_worlds_counted(public, evidence).0
+}
+
+/// [`consistent_worlds`] and the work it did, in the units of [`CheckerOps`].
+///
+/// The first element is exactly what [`consistent_worlds`] returns (it is a wrapper over this
+/// function) and so exactly what [`consistent_worlds_reference`] returns; the counting only reads
+/// what the checker already does and cannot change a result. The second is a pure function of
+/// `(public, evidence)`: no clock, no randomness, nothing a caller can set. The counts follow
+/// the loops the checker really runs, early exits included, so a window the checker refutes
+/// after a few observations is counted as cheap and a window it must read to the end as dear.
+pub fn consistent_worlds_counted(
+    public: &PublicInfo,
+    evidence: &[(Instant, Observation)],
+) -> (Worlds, CheckerOps) {
     let services = &public.services;
     let n = services.len();
     let valid = |id: ServiceId| id.index() < n;
+    let mut ops = CheckerOps::default();
 
     // Pass 1: reject dangling references, keep only observations that can discriminate, and
     // collect the (single) drifted configuration hash per service.
@@ -353,10 +406,11 @@ pub fn consistent_worlds(
         |service: ServiceId, hash: u64| -> bool { *drift.entry(service).or_insert(hash) == hash };
     let mut informative: Vec<(Instant, &Observation)> = Vec::new();
     for (t, o) in evidence {
+        ops.scanned += 1;
         match o {
             Observation::Counter { service, value, .. } => {
                 if !valid(*service) {
-                    return Vec::new();
+                    return (Vec::new(), ops);
                 }
                 if *value >= HIGH {
                     informative.push((*t, o));
@@ -366,7 +420,7 @@ pub fn consistent_worlds(
                 service, text_id, ..
             } => {
                 if !valid(*service) {
-                    return Vec::new();
+                    return (Vec::new(), ops);
                 }
                 match SignalText::from_text_id(*text_id) {
                     None | Some(SignalText::CheckHealth) => {}
@@ -378,31 +432,31 @@ pub fn consistent_worlds(
                 config_hash,
             } => {
                 if !valid(*service) {
-                    return Vec::new();
+                    return (Vec::new(), ops);
                 }
                 if *config_hash != services[service.index()].config_hash {
                     if !note_drift(*service, *config_hash) {
-                        return Vec::new();
+                        return (Vec::new(), ops);
                     }
                     informative.push((*t, o));
                 }
             }
             Observation::Probed { probe, result } => {
                 if !valid(probe.target) {
-                    return Vec::new();
+                    return (Vec::new(), ops);
                 }
                 if let (ProbeKind::ConfigSnapshot, ProbeResult::ConfigHash(h)) =
                     (probe.kind, result)
                     && *h != services[probe.target.index()].config_hash
                     && !note_drift(probe.target, *h)
                 {
-                    return Vec::new();
+                    return (Vec::new(), ops);
                 }
                 informative.push((*t, o));
             }
             Observation::Correction { site, .. } => {
                 if !valid(*site) {
-                    return Vec::new();
+                    return (Vec::new(), ops);
                 }
                 informative.push((*t, o));
             }
@@ -410,16 +464,30 @@ pub fn consistent_worlds(
     }
 
     let masks: Vec<Vec<bool>> = (0..n)
-        .map(|s| dependents_mask(services, ServiceId(s as u32)))
+        .map(|s| {
+            let (mask, steps) = dependents_mask_counted(services, ServiceId(s as u32));
+            ops.mask_steps += steps;
+            mask
+        })
         .collect();
 
-    let explains = |h: Hypothesis, bits: (bool, bool)| -> bool {
+    // `explains` is the dominant loop: it tests one world against the informative observations
+    // in order and stops at the first contradiction. Each observation it looks at is one
+    // evaluation, counted as a probe evaluation when the observation is a probe result (which
+    // calls `probe_result` and a map lookup) and as a plain evaluation otherwise.
+    let mut explains = |h: Hypothesis, bits: (bool, bool)| -> bool {
+        ops.worlds_tried += 1;
         // The earliest instant of an `ErrorRate` alarm at `h`'s site among the observations
         // already passed. `anchored` at observation `i` is "some `j < i` is such an alarm with
         // `t_j <= t_i`", which is `min t_j <= t_i`; the minimum is kept as the pass goes on, so
         // no observation is looked at twice. (The reference rescans `informative[..i]` instead.)
         let mut earliest_anchor: Option<Instant> = None;
         for (t, o) in informative.iter() {
+            if matches!(o, Observation::Probed { .. }) {
+                ops.probe_evals += 1;
+            } else {
+                ops.evals += 1;
+            }
             let anchored = earliest_anchor.is_some_and(|a| a <= *t);
             let ok = match o {
                 Observation::Counter { service, name, .. } => h.is_some_and(|(k, s)| {
@@ -493,7 +561,7 @@ pub fn consistent_worlds(
             }
         }
     }
-    worlds
+    (worlds, ops)
 }
 
 /// The set of hypotheses the evidence does not contradict, under the public rules.
@@ -537,13 +605,24 @@ pub fn consistent_hypotheses(
     public: &PublicInfo,
     evidence: &[(Instant, Observation)],
 ) -> Vec<Hypothesis> {
+    consistent_hypotheses_counted(public, evidence).0
+}
+
+/// [`consistent_hypotheses`] and the work it did ([`CheckerOps`]). The first element is exactly
+/// what [`consistent_hypotheses`] returns, which is a wrapper over this function, and so exactly
+/// what [`consistent_hypotheses_reference`] returns.
+pub fn consistent_hypotheses_counted(
+    public: &PublicInfo,
+    evidence: &[(Instant, Observation)],
+) -> (Vec<Hypothesis>, CheckerOps) {
+    let (worlds, ops) = consistent_worlds_counted(public, evidence);
     let mut out: Vec<Hypothesis> = Vec::new();
-    for (h, _) in consistent_worlds(public, evidence) {
+    for (h, _) in worlds {
         if out.last() != Some(&h) {
             out.push(h);
         }
     }
-    out
+    (out, ops)
 }
 
 /// Every (hypothesis, hidden bits) pair that the evidence does not contradict.

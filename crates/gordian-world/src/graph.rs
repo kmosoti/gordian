@@ -114,3 +114,34 @@ pub fn dependents_mask(services: &[Service], site: ServiceId) -> Vec<bool> {
     }
     reach
 }
+
+/// [`dependents_mask`] with a count of the work it does: one step for every service the loop
+/// visits plus one for every dependency it looks at before it decides whether that service is a
+/// dependent. A pure function of its arguments. [`dependents_mask`] is kept as it was, because
+/// the reference checker calls it; a test pins the two masks together.
+pub fn dependents_mask_counted(services: &[Service], site: ServiceId) -> (Vec<bool>, u64) {
+    let mut reach = vec![false; services.len()];
+    let start = site.index();
+    if start >= services.len() {
+        return (reach, 0);
+    }
+    let mut steps = 0u64;
+    let mut member = vec![false; services.len()];
+    member[start] = true;
+    for i in (start + 1)..services.len() {
+        steps += 1;
+        let mut hit = false;
+        for d in &services[i].depends_on {
+            steps += 1;
+            if member[d.index()] {
+                hit = true;
+                break;
+            }
+        }
+        if hit {
+            member[i] = true;
+            reach[i] = true;
+        }
+    }
+    (reach, steps)
+}

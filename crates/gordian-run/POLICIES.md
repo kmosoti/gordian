@@ -150,6 +150,12 @@ binding-budget table must read `NoFault` success apart from the rest.
 
 ## 3. The cost of the rule
 
+*Two costs.* This section is about the **declared** cost: what a policy is charged and the `Bill`
+enforces. The cost an experiment reports, the charter's `C`, is the rule's **counted** work, in
+the units of `RULE_UNITS` weighted by the constants next to them; their calibration and validity
+fits are `crates/gordian-components/CALIBRATION.md`, section 9. The declared cost below is not
+refitted by A8b and is not what `modelled_sched_ns` holds.
+
 The declared cost of one `decide` call is, in `Resource::Compute` nanoseconds (constants in
 `decide.rs`, stored in picoseconds so slopes of a few nanoseconds keep their precision):
 

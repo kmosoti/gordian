@@ -166,7 +166,17 @@ fn results_have_the_plans_columns_in_order_then_the_additions_one_row_per_episod
     let results = read(&dir, "results.csv");
     let header: Vec<&str> = results.lines().next().unwrap().split(',').collect();
     assert_eq!(&header[..19], &PLAN_COLUMNS);
-    assert_eq!(&header[19..], &["directives_ignored", "stop_reason"]);
+    assert_eq!(
+        &header[19..],
+        &[
+            "directives_ignored",
+            "stop_reason",
+            "ops_component",
+            "ops_sched",
+            "modelled_component_ns",
+            "modelled_sched_ns"
+        ]
+    );
     let r = rows(&results);
     assert_eq!(r.len(), m.episodes().len());
     assert_eq!(r.len(), 33);
@@ -419,6 +429,7 @@ fn the_events_sample_holds_no_hidden_state() {
         "reason",
         "what",
         "ns",
+        "ops",
         "refused",
         "Candidates",
         "EvidenceDamaged",

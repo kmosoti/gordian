@@ -22,12 +22,20 @@ from .drift import (
     position_effect_paired,
     position_effect_stratified,
 )
-from .intervals import DEFAULT_RESAMPLES, paired_bootstrap_ci, ratio_of_totals_ci
+from .intervals import (
+    DEFAULT_RESAMPLES,
+    median_ratio_ci,
+    paired_bootstrap_ci,
+    ratio_of_totals_ci,
+)
 from .load import (
     BILL_COLUMNS,
+    MEASURED_POLICY,
     MEASURED_TOTAL,
     MEASURED_VALUE_COLUMNS,
     METRICS,
+    MODELLED_TOTAL,
+    MODELLED_VALUE_COLUMNS,
     OPTIONAL_CONFIDENCE,
     LoadError,
     check_metric,
@@ -184,10 +192,21 @@ def _sample_size_header(r: dict) -> list[str]:
 
 
 COST_BASIS_TEXT = {
-    "measured": "measured wall time, the charter's cost C",
+    "modelled": (
+        "modelled cost, the charter's cost C: counted operations of the components and the "
+        "shared rule, weighted by calibrated nanoseconds per operation (deterministic)"
+    ),
+    "modelled_partial": (
+        "modelled cost of one part of the episode; NOT the charter's cost C "
+        f"({MODELLED_TOTAL} is C)"
+    ),
+    "measured": (
+        "MEASURED wall time, a secondary check, NOT the charter's cost C "
+        f"({MODELLED_TOTAL} is C): it moves with host interference that no policy chose"
+    ),
     "measured_partial": (
         "measured wall time of one part of the episode; NOT the charter's cost C "
-        f"({MEASURED_TOTAL} is C)"
+        f"({MODELLED_TOTAL} is C)"
     ),
     "declared": (
         "DECLARED cost (a bill column), NOT the charter's cost C; it is what the policy was "
@@ -199,14 +218,15 @@ COST_BASIS_TEXT = {
 def cost_basis(metric: str, declared_cost: bool) -> str:
     """Classify a relative-savings metric, refusing a declared cost that was not asked for.
 
-    The charter's C is measured cost (docs/local-test-plan.md, A4 and A5), so
-    `measured_total_ns` is the default and a bill column needs `declared_cost=True`.
+    The charter's C is the modelled cost (docs/local-test-plan.md, A8b), so `modelled_cost_ns`
+    is the default; measured wall time is accepted and labelled a secondary check, and a bill
+    column needs `declared_cost=True`.
     """
     if metric in BILL_COLUMNS:
         if not declared_cost:
             raise ValueError(
-                f"{metric} is declared cost, not the charter's cost C (measured cost, "
-                f"{MEASURED_TOTAL}). To compute relative savings on a declared cost anyway, "
+                f"{metric} is declared cost, not the charter's cost C (modelled cost, "
+                f"{MODELLED_TOTAL}). To compute relative savings on a declared cost anyway, "
                 "pass --declared-cost; the report will say so"
             )
         return "declared"
@@ -215,14 +235,19 @@ def cost_basis(metric: str, declared_cost: bool) -> str:
             f"--declared-cost applies only to a bill_* column, named with --metric; got metric "
             f"{metric!r}"
         )
-    if metric == MEASURED_TOTAL:
+    if metric == MODELLED_TOTAL:
+        return "modelled"
+    if metric in MODELLED_VALUE_COLUMNS:
+        return "modelled_partial"
+    if metric in (MEASURED_TOTAL, MEASURED_POLICY):
         return "measured"
     if metric in MEASURED_VALUE_COLUMNS:
         return "measured_partial"
     check_metric(metric)
     raise ValueError(
-        f"{metric!r} is not a cost metric; relative savings takes {MEASURED_TOTAL} (default), "
-        f"another measured_* column, or with --declared-cost a bill_* column"
+        f"{metric!r} is not a cost metric; relative savings takes {MODELLED_TOTAL} (default), "
+        f"another modelled_* column, a measured wall time ({MEASURED_TOTAL}, {MEASURED_POLICY}, "
+        f"measured_*_ns), or with --declared-cost a bill_* column"
     )
 
 
@@ -230,7 +255,7 @@ def analyze_relative_savings(
     dir_a: str,
     dir_b: str,
     *,
-    metric: str = MEASURED_TOTAL,
+    metric: str = MODELLED_TOTAL,
     declared_cost: bool = False,
     threshold: float,
     seed: int,
@@ -240,8 +265,9 @@ def analyze_relative_savings(
 ) -> dict:
     """EXP-001 style cost measure: S = 1 - sum(B)/sum(A), decision S > threshold.
 
-    The metric defaults to the measured total (the charter's C). A declared-cost bill column
-    is accepted only with `declared_cost=True`, and the result then says so.
+    The metric defaults to the modelled cost (the charter's C). With it, the measured wall time
+    is reported alongside as a secondary check. A declared-cost bill column is accepted only
+    with `declared_cost=True`, and the result then says so.
     """
     basis = cost_basis(metric, declared_cost)
     if not math.isfinite(threshold) or threshold >= 1.0:
@@ -285,6 +311,27 @@ def analyze_relative_savings(
         "exceeds_raw": raw == "exceeds",
         "warnings": warnings,
     }
+    if basis == "modelled":
+        # The measured wall time of the same pairs, alongside: the policy part (components and
+        # scheduling, which is what the modelled cost covers) and the whole episode.
+        secondary = {}
+        for name in (MEASURED_POLICY, MEASURED_TOTAL):
+            try:
+                m = ratio_of_totals_ci(paired, name, seed, n_resamples, conf)
+            except ValueError as e:
+                # The check is secondary: when it cannot be computed (no wall time recorded, an
+                # arm with none) the primary result stands and says why the check is missing.
+                secondary[name] = {"cost_basis": "measured", "unavailable": str(e)}
+                warnings.append(f"secondary check on {name} is unavailable: {e}")
+                continue
+            secondary[name] = {
+                "cost_basis": "measured",
+                "savings": m.savings,
+                "sum_a": m.sum_a,
+                "sum_b": m.sum_b,
+                "bootstrap": asdict(m),
+            }
+        out["secondary"] = secondary
     return _clean(out)
 
 
@@ -314,6 +361,26 @@ def format_relative(r: dict) -> str:
         ]
     else:
         lines += [f"DECISION: {raw_text} (lower limit of the interval vs threshold)"]
+    if r.get("secondary"):
+        lines += [
+            "",
+            "Secondary check, MEASURED wall time of the same pairs (not the charter's cost C; "
+            "host interference moves it):",
+        ]
+        for name, m in r["secondary"].items():
+            if "unavailable" in m:
+                lines.append(f"  {name}: unavailable ({m['unavailable']})")
+                continue
+            mb = m["bootstrap"]
+            part = (
+                "components and scheduling, what the modelled cost covers"
+                if name == MEASURED_POLICY
+                else "the whole episode, harness work included"
+            )
+            lines.append(
+                f"  {name}: S = {_f(m['savings'])}  {pct} interval "
+                f"[{_f(mb['low'])}, {_f(mb['high'])}]  ({part})"
+            )
     if r["warnings"]:
         lines += ["", "WARNINGS:"] + [f"  - {w}" for w in r["warnings"]]
     return "\n".join(lines)
@@ -575,6 +642,100 @@ def format_position(r: dict) -> str:
     return "\n".join(lines)
 
 
+def analyze_cost_check(
+    dir_a: str,
+    dir_b: str,
+    *,
+    seed: int,
+    wall: str = MEASURED_POLICY,
+    alpha: float = 0.05,
+    n_resamples: int = DEFAULT_RESAMPLES,
+) -> dict:
+    """The non-identical-arm check of the modelled cost (work item A8b).
+
+    Compares the modelled-cost ratio of two different arms, sum(B) / sum(A) of
+    `modelled_cost_ns`, with the median over episodes of the per-episode wall-time ratio
+    B_i / A_i and its paired bootstrap interval. The modelled ratio is deterministic; the wall
+    estimate is the one a few interrupted episodes cannot move. The check passes when the
+    modelled ratio lies inside the interval. It does not say the model is exact (an interval that
+    is wide enough contains anything), so the width is reported with it.
+
+    `wall` is the wall-time metric the median is taken on: by default `measured_policy_ns`,
+    component plus scheduling time, which is what the modelled cost covers. `measured_total_ns`
+    adds the harness's own work (episode generation, simulator, ledger), which a policy does not
+    choose, and is available as the other reading.
+    """
+    if wall not in (MEASURED_POLICY, MEASURED_TOTAL):
+        raise ValueError(f"wall must be {MEASURED_POLICY} or {MEASURED_TOTAL}")
+    if not 0.0 < alpha < 0.5:
+        raise ValueError("alpha must be in (0, 0.5)")
+    paired = load_pair(dir_a, dir_b)
+    conf = 1.0 - 2.0 * alpha
+    ma, mb = paired.values(MODELLED_TOTAL)
+    if float(ma.sum()) <= 0.0:
+        raise ValueError(
+            f"arm A has no modelled cost ({MODELLED_TOTAL} sums to zero); an arm that counts "
+            "nothing cannot be the baseline of a ratio"
+        )
+    modelled_ratio = float(mb.sum() / ma.sum())
+    med = median_ratio_ci(paired, wall, seed, n_resamples, conf)
+    wa, wb = paired.values(wall)
+    wall_total_ratio = float(wb.sum() / wa.sum())
+    inside = med.low <= modelled_ratio <= med.high
+    # The same estimate on the modelled cost itself, for reference: the per-episode median ratio
+    # of the model against the median of the wall ratios.
+    med_model = median_ratio_ci(paired, MODELLED_TOTAL, seed, n_resamples, conf)
+    return _clean(
+        {
+            "mode": "cost_check",
+            "a": {"path": str(paired.run_a.path), "run_id": paired.run_a.run_id},
+            "b": {"path": str(paired.run_b.path), "run_id": paired.run_b.run_id},
+            "n_pairs": len(ma),
+            "modelled": {
+                "metric": MODELLED_TOTAL,
+                "ratio_of_totals": modelled_ratio,
+                "median_episode_ratio": asdict(med_model),
+            },
+            "wall": {
+                "metric": wall,
+                "median_episode_ratio": asdict(med),
+                "ratio_of_totals": wall_total_ratio,
+                "interval_confidence": conf,
+                "interval_relative_width": (med.high - med.low) / med.median,
+            },
+            "modelled_ratio_inside_wall_interval": inside,
+        }
+    )
+
+
+def format_cost_check(r: dict) -> str:
+    w, m = r["wall"], r["modelled"]
+    med = w["median_episode_ratio"]
+    pct = f"{100 * w['interval_confidence']:g}%"
+    mm = m["median_episode_ratio"]
+    verdict = "INSIDE" if r["modelled_ratio_inside_wall_interval"] else "OUTSIDE"
+    return "\n".join(
+        [
+            "Cost-model check on two different arms (work item A8b)",
+            f"A: {r['a']['path']}  run_id={r['a']['run_id']}",
+            f"B: {r['b']['path']}  run_id={r['b']['run_id']}",
+            f"Paired episodes: {r['n_pairs']}",
+            "",
+            f"Modelled cost ratio, sum(B)/sum(A) of {m['metric']}: {_f(m['ratio_of_totals'], '.4f')}"
+            f"   (median episode ratio {_f(mm['median'], '.4f')})",
+            f"Wall-time ratio, median over episodes of B_i/A_i of {w['metric']}: "
+            f"{_f(med['median'], '.4f')}   {pct} bootstrap interval "
+            f"[{_f(med['low'], '.4f')}, {_f(med['high'], '.4f')}]  "
+            f"(resamples={med['n_resamples']}, seed={med['seed']}; relative width "
+            f"{_f(100 * w['interval_relative_width'], '.1f')}%)",
+            f"Wall-time ratio of totals, sum(B)/sum(A), for reference: "
+            f"{_f(w['ratio_of_totals'], '.4f')}",
+            "",
+            f"The modelled ratio lies {verdict} the wall-time interval.",
+        ]
+    )
+
+
 def _metric_arg(value: str) -> str:
     try:
         check_metric(value)
@@ -592,7 +753,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--b", required=True, metavar="RUNDIR", help="treatment run directory")
     c.add_argument("--metric", type=_metric_arg, metavar="METRIC",
                    help="one of: " + ", ".join(METRICS) + ". Required, except with "
-                   f"--relative-savings, where it defaults to {MEASURED_TOTAL}")  # fmt: skip
+                   f"--relative-savings, where it defaults to {MODELLED_TOTAL}")  # fmt: skip
     c.add_argument("--margin", type=float, help="symmetric margin, in metric units (required "
                    "unless --relative-savings)")  # fmt: skip
     g = c.add_mutually_exclusive_group()
@@ -600,11 +761,13 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--lower-is-better", dest="higher", action="store_false", default=None)
     c.add_argument("--relative-savings", action="store_true",
                    help="report S = 1 - sum(B)/sum(A) for a cost metric against --threshold; "
-                   "implies lower-is-better and refuses --higher-is-better")  # fmt: skip
+                   "implies lower-is-better and refuses --higher-is-better. The cost is the "
+                   "modelled cost (the charter's C), and the measured wall time of the same "
+                   "pairs is reported alongside as a secondary check")  # fmt: skip
     c.add_argument("--declared-cost", action="store_true",
                    help="with --relative-savings, allow a declared-cost bill_* column as the "
                    "metric. The report states that it is declared cost, not the charter's "
-                   "cost C (measured)")  # fmt: skip
+                   "cost C (modelled)")  # fmt: skip
     c.add_argument("--threshold", type=float, help="S must exceed this (EXP-001: 0.20)")
     c.add_argument("--planned-n", type=int, help="preregistered number of paired episodes; "
                    "fewer observed pairs forces the category to unresolved")  # fmt: skip
@@ -629,6 +792,19 @@ def build_parser() -> argparse.ArgumentParser:
                    help="the run directory holding drift.csv (the interleaved run's root, "
                    "not an arm directory)")  # fmt: skip
     d.add_argument("--json", metavar="FILE", help="also write the result as JSON")
+
+    k = sub.add_parser("cost-check", help="modelled cost ratio against the wall-time ratio of "
+                       "two different arms (the check of work item A8b)")  # fmt: skip
+    k.add_argument("--a", required=True, metavar="RUNDIR", help="baseline arm directory")
+    k.add_argument("--b", required=True, metavar="RUNDIR", help="treatment arm directory")
+    k.add_argument("--wall", choices=[MEASURED_POLICY, MEASURED_TOTAL], default=MEASURED_POLICY,
+                   help=f"wall time the median is taken on (default {MEASURED_POLICY}: components "
+                   f"and scheduling, which the modelled cost covers; {MEASURED_TOTAL} adds the "
+                   "harness's own work)")  # fmt: skip
+    k.add_argument("--seed", required=True, type=int, help="bootstrap RNG seed")
+    k.add_argument("--alpha", type=float, default=0.05)
+    k.add_argument("--resamples", type=int, default=DEFAULT_RESAMPLES)
+    k.add_argument("--json", metavar="FILE", help="also write the result as JSON")
 
     q = sub.add_parser("position", help="does measured cost depend on arm_position, for one arm")
     q.add_argument("--arm", required=True, metavar="ARMDIR",
@@ -680,7 +856,7 @@ def main(argv: list[str] | None = None) -> int:
             result = analyze_relative_savings(
                 args.a,
                 args.b,
-                metric=args.metric or MEASURED_TOTAL,
+                metric=args.metric or MODELLED_TOTAL,
                 declared_cost=args.declared_cost,
                 threshold=args.threshold,
                 seed=args.seed,
@@ -703,6 +879,16 @@ def main(argv: list[str] | None = None) -> int:
                 planned_n=args.planned_n,
             )
             text = format_compare(result)
+        elif args.command == "cost-check":
+            result = analyze_cost_check(
+                args.a,
+                args.b,
+                seed=args.seed,
+                wall=args.wall,
+                alpha=args.alpha,
+                n_resamples=args.resamples,
+            )
+            text = format_cost_check(result)
         elif args.command == "drift":
             result = analyze_drift(args.run)
             text = format_drift(result)
