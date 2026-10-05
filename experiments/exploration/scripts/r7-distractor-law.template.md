@@ -40,8 +40,8 @@ check any that matter.
    figure at delta 0.05 and 0.1 is not valid: the re-priced tokens exceed the per-stream limit). Section 8.
 6. **What this is and is not.** The penalty is a hidden-side stand-in, one exponential in the count
    of non-decisive references, chosen by the plan and not measured on any model. The outcome says that
-   R6's conclusion depends on the reasoner's law: at the plan's grid, the penalty at which it fails
-   lies between 0.05 and 0.1 per 100 references. It says nothing about which delta real models
+   R6's conclusion depends on the reasoner's law: on the plan's grid, the robust outcome already fails
+   at 0.05 (upper bound 0.129) and the fragile condition first holds at 0.1, per 100 references. It says nothing about which delta real models
    have; the two papers the plan cites for the direction of the effect were not checked against
    their primary texts, and nothing here relies on them. Section 9.
 
@@ -298,9 +298,9 @@ not used.
   plan's "Fragile" branch. At delta 0.1 the best simple builder is 0.137 [0.104, 0.169] below a ceiling that
   holds only the evidence, and at 0.2 it is 0.280 below, so context construction has quality headroom
   wherever extra references hurt at that size.
-- **R6's recommendation (references at matched quality against `window` and `cooccur`) stands only for
-  delta below about 0.05**; the plan's grid brackets the change between 0.05 (G 0.097, upper bound 0.129)
-  and 0.1.
+- **R6's recommendation (references at matched quality against `window` and `cooccur`) was established
+  at delta 0 only.** At the grid's smallest penalty, 0.05, G is already 0.097 (upper bound 0.129) and no
+  carried builder is within 0.05 of the ceiling, so it stands, if at all, below the grid.
 - **The builders to beat are the small ones at high delta** (`cooccur` 0.25 to 1 s, `neighbourhood` k 0),
   not `window`; at 0.4 the rung's own context is within 0.045 of the best and `window` 40 s is below it.
 - **The first measurement worth making is delta itself** on a real model with contexts of 5, 50 and 250
