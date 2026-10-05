@@ -4,6 +4,82 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## R10 salience ceiling — merged; noticing is worth 0.10 on burst families and 0.75 on the leak
+
+**Provenance.**
+
+- The new privileged arm reads two plan fields, `hard` and `first`, and nothing else. The
+  coordinator grepped the diff for every plan accessor.
+- R6's held-out run at b = 5, ρ = 0.7 replays byte-identical with the new binary: 62 of 62 arms,
+  hashes recomputed by the coordinator. The R10 comparison arms equal R6's own files once the
+  `run_id` column is dropped.
+- 8 driver runs and 5 replays, all exit 0, none refused or excluded. No waits on the other
+  worker.
+- Gates on exit codes on the merged tree: fmt, clippy `--locked`, 572 Rust tests, the oracle
+  guard, 326 analysis tests. Run outputs moved to `artifacts/runs/r10/` (ignored).
+
+**Re-verified from raw files, rung's own context, 90% paired cluster bootstrap.**
+
+| Setting | Result 1: hard, no leak | Result 2: slow leak |
+|---|---|---|
+| b = 5 (primary) | 0.586 − 0.489 = +0.097 [+0.062, +0.132], holds | 0.935 − 0.187 = +0.748 [+0.678, +0.814], holds |
+| b = 2.5 | +0.024 [−0.013, +0.060], not shown | +0.324 [+0.252, +0.400], holds |
+| b = 8 | +0.099 [+0.063, +0.136], holds | +0.777 [+0.709, +0.841], holds |
+
+All match the worker's report to 0.001.
+
+**Verdict as written.** Both results hold at the primary setting. Result 1 does not hold at
+b = 2.5, where it is "not shown", not "equivalent": the interval reaches 0.06 and the full oracle
+itself reaches only 0.538 there.
+
+**What it means.**
+
+- **Noticing is a real lever, and a larger one than the R6 correction estimated.** The R6
+  entry predicted at most 0.091 from the never-noticed incidents. The measured gain is 0.097 with
+  the rung's context and 0.156 with the window builder. The extra comes from asking earlier
+  about incidents the rung notices late.
+- **With a good context, noticing alone reaches the full oracle's quality.** `notice` with the
+  window builder scores 0.952 on hard incidents, equal to R4's oracle, at 3.44 s per stream
+  against 0.32 s. So R4's oracle decomposes as: noticing (this item) plus context (R6) plus
+  selection (R5, cost only). Timing beyond notice + delay is worth little, which agrees with
+  the R6 correction.
+- **The slow leak is almost entirely a noticing problem.** The rung sees the leak only after
+  its threshold crossing, a median 17.8 s late, and never for 40 of 80 diagnostic leaks.
+  Noticed at its first reading, the leak is answered in 0.935 of cases with the rung's own
+  context.
+- **"Never noticed" is mostly mis-anchoring.** Every never-noticed hard incident has abnormal
+  observations attached to an anomaly the rung anchored elsewhere, usually on background
+  about 0.3 s earlier. The rung sees the activity and files it under the wrong anchor. This is
+  a segmentation failure, which is close to what the charter's salience function is for.
+- **The threshold sweep says the burst-family gap is partly tuning and the leak gap is not.**
+  Lowering the notice threshold to z = 2 recovers 0.038 of the 0.097 at the price of doubled
+  false alarms. No threshold helps the leak, because its sub-alarm readings are not abnormal
+  observations at any threshold.
+
+**Accepted with notes.**
+
+- The injected notice is the arm's own record, not a rung anomaly, so it does not retire after
+  6 s of quiet. Four of 270 diagnostic incidents were called by `notice` whose selection
+  anomaly had retired before the delay. This is a small timing privilege inside the ceiling.
+  It is recorded, not corrected; a ceiling that retires like the rung would be slightly lower.
+- Result 2 mixes "whether it asks" with "when it asks" (about 16 s apart). The notice arm
+  beats R4's oracle on the leak (0.935 against 0.906), which shows the ask time matters there.
+- The never-noticed / late-noticed decomposition rests on 14 incidents and the late part's
+  interval includes zero.
+- The worker reported ignoring an instruction that arrived inside a tool result. Correct.
+
+**Decided.**
+
+1. EXP-101's registration names noticing as its first function, not threshold-versus-oracle
+   selection. Its privileged ceiling is `oracle_notice` with the rung's context; its public
+   baselines include the threshold sweep at z = 2 and a change-triggered rung.
+2. The slow leak gets its own preregistered secondary measure in EXP-101, since it is where
+   noticing matters most and where no threshold helps.
+3. The anchoring finding is the first concrete job for a substrate mechanism: attribute
+   activity to the right anchor. A public baseline for it is designed before any substrate is
+   built.
+4. R9's result decides whether the context half of the oracle is a quality or a cost lever.
+
 ## R8 real-model distractor sensitivity — merged; unidentifiable with these models
 
 **Provenance.**
