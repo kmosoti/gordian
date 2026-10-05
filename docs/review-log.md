@@ -4,6 +4,41 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A8b counted operations — merged with a freeze gate
+
+**Re-verified.** fmt, clippy (`--locked`), workspace tests with `--no-fail-fast`, oracle guard,
+driver test, dump sha256 and the analysis suite on exit codes; reference checker functions
+untouched.
+
+**Accepted.** Counters follow the dominant loops of each component and the shared rule, are
+deterministic, and cannot be seen or set by a policy (type-enforced, tested). Against hot-loop
+minimum timings they fit with R² 0.98–0.99 on fit, held-out and real states.
+
+**Scrutinized: in-situ rescaling.** With pure hot-loop weights the non-identical-arm check failed
+(modelled ratio 15.66 against a wall-time median ratio of about 12.1). The worker found that a call
+inside an episode costs 1.2–2.2× the same call in a loop, more so for arms that call components
+sparsely, consistent with cache effects, and rescaled each weight by a per-component factor and
+per-call constant fitted on other arms and seeds. The fit and the check share no arms or episodes,
+and the worker reported the failure and offered rejection, so this is calibration, not tuning to
+the test. Coordinator check on an unfitted sparse pattern (heuristic only against the verifier
+every second step, seeds 200–219): modelled 5.25, wall-time median 5.40 [5.05, 5.85], inside.
+
+**Residual risk.** The in-episode premium depends on the scheduling policy's call pattern, which is
+exactly what EXP-001 varies. Fixed factors fitted on other arms priced the sparse arm about 5% off
+in the worker's data and about 3% off in the coordinator's. The check is weak (intervals about 15%
+wide).
+
+**Carried forward to C1 (EXP-001 freeze gate).** Before freezing, run the cost check on the actual
+EXP-001 arms (selective against the tuned periodic pipeline) on exploration seeds. If the modelled
+ratio falls outside the wall-time interval, or the two disagree by more than a quarter of the
+preregistered savings margin, the cost conclusion of EXP-001 is reported as unresolved, whatever
+the modelled result.
+
+**Host change.** The VM now reports a 2.10 GHz Xeon; earlier sessions reported 2.80 GHz. Modelled
+cost is in calibration-host nanoseconds and does not change with the host; wall-time checks are
+valid only on the host where they run. The manifest should record the CPU model and frequency, not
+only flags (small follow-up).
+
 ## A8 interleaved arms — merged; A/A fails on an idle machine
 
 **Re-verified.** Merged cleanly onto A6b; fmt, clippy (`--locked`), 293 workspace tests with
