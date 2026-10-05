@@ -117,6 +117,8 @@ fn the_informed_probability_is_zero_without_evidence_and_rises_with_it() {
 struct Row {
     incident: u32,
     k: usize,
+    /// References in the context that are not decisive evidence of the focus incident.
+    m: usize,
     d: f64,
     q: f64,
     h: f64,
@@ -129,6 +131,11 @@ struct Row {
 /// decisive evidence in the context and some noise, collect every answer. Correctness is judged by
 /// comparing the *delivered answer* with the truth, not by the simulator's own flag.
 fn run_law(params: &StreamParams, rounds: usize) -> Vec<Row> {
+    run_law_with(params, rounds, 6)
+}
+
+/// As [`run_law`], with up to `noise_below - 1` non-decisive references added to each context.
+fn run_law_with(params: &StreamParams, rounds: usize, noise_below: u64) -> Vec<Row> {
     let (stream, truth) = with_truth(params);
     let mut sim = StreamSimulator::new(stream);
     let end = Instant(params.duration_ns);
@@ -144,7 +151,7 @@ fn run_law(params: &StreamParams, rounds: usize) -> Vec<Row> {
                 .iter()
                 .map(|o| ObsRef::Passive(*o))
                 .collect();
-            for _ in 0..rng.below(6) {
+            for _ in 0..rng.below(noise_below) {
                 let o = ObsId(rng.below(n_obs) as u32);
                 let decisive_here = matches!(
                     truth.labels[o.0 as usize],
@@ -173,6 +180,7 @@ fn run_law(params: &StreamParams, rounds: usize) -> Vec<Row> {
         rows.push(Row {
             incident: inc_id,
             k,
+            m: t.refs as usize - k,
             d: inc.difficulty,
             q,
             h: t.h,
@@ -185,16 +193,29 @@ fn run_law(params: &StreamParams, rounds: usize) -> Vec<Row> {
 }
 
 fn check_law(rows: &[Row], abc: (f64, f64, f64), label: &str) {
+    check_law_delta(rows, abc, 0.0, label);
+}
+
+/// The informed probability with the distractor penalty `delta`, recomputed from the definition
+/// with the standard library's `exp`: `h(q, d) * exp(-delta * m / 100)`.
+fn h_delta_std(abc: (f64, f64, f64), delta: f64, q: f64, d: f64, m: usize) -> f64 {
+    h_std(abc, q, d) * (-delta * m as f64 / 100.0).exp()
+}
+
+fn check_law_delta(rows: &[Row], abc: (f64, f64, f64), delta: f64, label: &str) {
     assert!(rows.len() >= 10_000, "{label}: only {} calls", rows.len());
     // The crate's informed probability is the definition's, computed here with std's exp.
     for r in rows {
-        assert!((r.h - h_std(abc, r.q, r.d)).abs() < 1e-9, "{label}");
+        assert!(
+            (r.h - h_delta_std(abc, delta, r.q, r.d, r.m)).abs() < 1e-9,
+            "{label}"
+        );
         assert!(
             !r.informed || r.q > 0.0,
             "{label}: informed without evidence"
         );
     }
-    let expected = |r: &Row| r.p0 + (1.0 - r.p0) * h_std(abc, r.q, r.d);
+    let expected = |r: &Row| r.p0 + (1.0 - r.p0) * h_delta_std(abc, delta, r.q, r.d, r.m);
     let z_of = |keep: &dyn Fn(&Row) -> bool| -> (f64, usize) {
         let mut clusters: BTreeMap<u32, f64> = BTreeMap::new();
         let mut n = 0;
@@ -216,6 +237,8 @@ fn check_law(rows: &[Row], abc: (f64, f64, f64), label: &str) {
             Box::new(|r: &Row| r.d >= 0.4 && r.d < 0.7),
         ),
         ("d >= 0.7", Box::new(|r: &Row| r.d >= 0.7)),
+        ("m >= 100", Box::new(|r: &Row| r.m >= 100)),
+        ("m < 100", Box::new(|r: &Row| r.m < 100)),
         ("expected p < 0.5", Box::new(|r: &Row| expected(r) < 0.5)),
         ("expected p >= 0.5", Box::new(|r: &Row| expected(r) >= 0.5)),
     ] {
@@ -289,6 +312,306 @@ fn the_law_covers_a_wide_range_of_q_and_d() {
     }
     assert!(qs.len() >= 9, "q covers {qs:?}");
     assert!(dmin < 0.15 && dmax > 0.85, "d covers [{dmin}, {dmax}]");
+}
+
+// ---- The distractor penalty (R7)
+
+/// The penalties of the R7 grid, and 0.
+const DELTAS: [f64; 5] = [0.0, 0.05, 0.1, 0.2, 0.4];
+
+fn law_rows_delta(
+    seeds: std::ops::Range<u64>,
+    abc: (f64, f64, f64),
+    rho: f64,
+    delta: f64,
+    noise_below: u64,
+) -> Vec<Row> {
+    let mut rows = Vec::new();
+    for seed in seeds {
+        let mut p = open_params(seed, abc);
+        p.reasoner.rho = rho;
+        p.reasoner.distractor_penalty = delta;
+        for mut r in run_law_with(&p, 30, noise_below) {
+            r.incident += (seed as u32) * 10_000;
+            rows.push(r);
+        }
+    }
+    rows
+}
+
+#[test]
+fn the_penalised_informed_probability_equals_h_without_distractors_and_never_rises_with_them() {
+    for abc in [(-1.0, 5.0, 2.0), (0.0, 3.0, 1.0), (-2.0, 6.0, 4.0)] {
+        for delta in [0.0, 0.05, 0.1, 0.2, 0.4, 3.0] {
+            let mut spec = StreamParams::new(0).reasoner;
+            (spec.a, spec.b, spec.c) = abc;
+            spec.distractor_penalty = delta;
+            for di in 0..=10 {
+                let d = di as f64 / 10.0;
+                for qi in 0..=10 {
+                    let q = qi as f64 / 10.0;
+                    let h = crate::reasoner::informed_probability(&spec, q, d);
+                    let at =
+                        |m| crate::reasoner::informed_probability_with_distractors(&spec, q, d, m);
+                    // Equal to h at m = 0, exactly, and exactly h at any m when delta is 0.
+                    assert_eq!(at(0), h, "{abc:?} delta {delta} q {q} d {d}");
+                    if delta == 0.0 {
+                        assert!((0..500).all(|m| at(m) == h));
+                    }
+                    let mut prev = at(0);
+                    for m in 1..=500 {
+                        let now = at(m);
+                        assert!(now <= prev, "h rose with m at m {m}: {prev} -> {now}");
+                        if delta > 0.0 && h > 0.0 && m <= 300 {
+                            assert!(now < prev, "h did not fall at m {m}");
+                        }
+                        // The definition, with the standard library's exp.
+                        let want = h_delta_std(abc, delta, q, d, m);
+                        assert!((now - want).abs() < 1e-12, "{abc:?} {delta} {q} {d} {m}");
+                        assert!(now >= 0.0 && now <= h);
+                        prev = now;
+                    }
+                    // No decisive evidence, no information, at every m and delta.
+                    if q == 0.0 {
+                        assert!((0..=500).all(|m| at(m) == 0.0));
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn the_grids_multipliers_are_the_ones_the_plan_states() {
+    // R7 states them to two decimals: at m = 250 and at m = 50, for delta in the grid.
+    let mut spec = StreamParams::new(0).reasoner;
+    for (delta, at250, at50) in [
+        (0.05, 0.88, 0.98),
+        (0.1, 0.78, 0.95),
+        (0.2, 0.61, 0.90),
+        (0.4, 0.37, 0.82),
+    ] {
+        spec.distractor_penalty = delta;
+        let h = crate::reasoner::informed_probability(&spec, 1.0, 0.7);
+        let f = |m| crate::reasoner::informed_probability_with_distractors(&spec, 1.0, 0.7, m) / h;
+        assert!((f(250) - at250).abs() < 0.005, "delta {delta}: {}", f(250));
+        assert!((f(50) - at50).abs() < 0.005, "delta {delta}: {}", f(50));
+    }
+}
+
+#[test]
+fn the_penalty_defaults_to_zero_clamps_at_zero_and_leaves_old_manifests_unchanged() {
+    let spec = StreamParams::new(0).reasoner;
+    assert_eq!(spec.distractor_penalty, 0.0);
+    // A spec written before the field existed parses with 0, and a spec at 0 serializes without it.
+    let text = serde_json::to_string(&spec).unwrap();
+    assert!(!text.contains("distractor"), "{text}");
+    let back: crate::ReasonerSpec = serde_json::from_str(&text).unwrap();
+    assert_eq!(back, spec);
+    // A positive penalty is written and read back.
+    let mut hurt = spec;
+    hurt.distractor_penalty = 0.2;
+    let text = serde_json::to_string(&hurt).unwrap();
+    assert!(text.contains("\"distractor_penalty\":0.2"), "{text}");
+    assert_eq!(
+        serde_json::from_str::<crate::ReasonerSpec>(&text).unwrap(),
+        hurt
+    );
+    // `normalized` clamps a negative or NaN penalty to 0 and keeps a positive one.
+    for (given, kept) in [(-1.5, 0.0), (f64::NAN, 0.0), (0.0, 0.0), (0.4, 0.4)] {
+        let mut p = StreamParams::new(3);
+        p.reasoner.distractor_penalty = given;
+        assert_eq!(p.normalized().reasoner.distractor_penalty, kept, "{given}");
+    }
+    // The generator stores the normalized form: a negative penalty acts as 0.
+    let mut p = StreamParams::new(3);
+    p.reasoner.distractor_penalty = -2.0;
+    let s = generate(&p);
+    assert_eq!(s.params.reasoner.distractor_penalty, 0.0);
+}
+
+#[test]
+fn the_marginal_law_holds_with_the_penalty_at_every_delta_of_the_grid() {
+    // Cluster-robust, as at delta = 0, with h_delta recomputed from the definition and contexts
+    // that carry up to 300 non-decisive references, so that the penalty is large where it is
+    // tested (at delta 0.4 and m 250 it multiplies h by 0.37).
+    let abc = (-1.0, 5.0, 2.0);
+    for (i, delta) in DELTAS.into_iter().skip(1).enumerate() {
+        let seeds = 50 + 10 * i as u64..58 + 10 * i as u64;
+        let rows = law_rows_delta(seeds, abc, 0.7, delta, 300);
+        assert!(rows.iter().filter(|r| r.m >= 100).count() >= 5_000);
+        check_law_delta(&rows, abc, delta, &format!("delta {delta}, rho 0.7"));
+    }
+    // Another (a, b, c) and no correlation, at the largest penalty.
+    let abc = (0.0, 3.0, 1.0);
+    let rows = law_rows_delta(90..98, abc, 0.0, 0.4, 300);
+    check_law_delta(&rows, abc, 0.4, "delta 0.4, rho 0, (0, 3, 1)");
+}
+
+#[test]
+fn the_penalty_takes_no_draw_and_only_ever_turns_an_informed_answer_into_a_guess() {
+    // Two streams that differ only in the penalty ask the same questions. Every draw is the same,
+    // the threshold the informed-ness is compared with is smaller, so: with no distractors the
+    // answer is identical; an answer informed under the penalty is informed without it; where the
+    // two agree on informed-ness they give the same answer.
+    let abc = (-1.0, 5.0, 2.0);
+    let mut base = open_params(5, abc);
+    base.reasoner.rho = 0.7;
+    let mut hurt = base.clone();
+    hurt.reasoner.distractor_penalty = 0.4;
+    let (s0, t) = with_truth(&base);
+    let (s1, _) = with_truth(&hurt);
+    assert_eq!(
+        s0.events(),
+        s1.events(),
+        "the stream does not depend on the penalty"
+    );
+    let end = Instant(base.duration_ns);
+    let mut sims = [StreamSimulator::new(s0), StreamSimulator::new(s1)];
+    let n_obs = t.labels.len() as u64;
+    let mut rng = Gen::keyed(&[5, 0xD15]);
+    let mut asked = Vec::new();
+    for inc in &t.incidents {
+        for round in 0..6 {
+            let k = round % (inc.decisive.len() + 1);
+            let mut context: Vec<ObsRef> = inc.decisive[..k]
+                .iter()
+                .map(|o| ObsRef::Passive(*o))
+                .collect();
+            // Half the rounds carry no distractor at all.
+            let extra = if round % 2 == 0 {
+                0
+            } else {
+                40 + rng.below(200)
+            };
+            while context.len() < k + extra as usize {
+                let o = ObsId(rng.below(n_obs) as u32);
+                let decisive_here = matches!(
+                    t.labels[o.0 as usize],
+                    ObsLabel::Incident { id, role: crate::labels::EvidenceRole::Decisive } if id == inc.id
+                );
+                let r = ObsRef::Passive(o);
+                if !decisive_here && !context.contains(&r) {
+                    context.push(r);
+                }
+            }
+            for sim in sims.iter_mut() {
+                sim.observe_until(end);
+            }
+            let calls: Vec<u32> = sims
+                .iter_mut()
+                .map(|sim| ask(sim, inc.observations[0], context.clone(), end))
+                .collect();
+            asked.push((calls[0], calls[1], extra));
+        }
+    }
+    let mut hurt_changed = 0usize;
+    let (c0, c1) = (oracle::calls(&sims[0]), oracle::calls(&sims[1]));
+    for (a, b, extra) in asked {
+        let (x, y) = (&c0[a as usize], &c1[b as usize]);
+        assert_eq!(
+            (x.fingerprint, x.q, x.d, x.p0),
+            (y.fingerprint, y.q, y.d, y.p0)
+        );
+        assert!(y.h <= x.h);
+        assert!(!y.informed || x.informed, "informed under the penalty only");
+        if extra == 0 {
+            assert_eq!(
+                (x.h, x.informed, x.diagnosis),
+                (y.h, y.informed, y.diagnosis)
+            );
+        }
+        if x.informed == y.informed {
+            assert_eq!(x.diagnosis, y.diagnosis);
+        } else {
+            hurt_changed += 1;
+        }
+    }
+    assert!(hurt_changed > 20, "the test has no power: {hurt_changed}");
+}
+
+#[test]
+fn a_probe_reference_counts_as_a_distractor_and_never_as_evidence() {
+    use gordian_world::ProbeKind;
+    let delta = 0.2;
+    let abc = (-1.0, 5.0, 2.0);
+    let mut params = open_params(8, abc);
+    params.reasoner.distractor_penalty = delta;
+    let (s, t) = with_truth(&params);
+    let mut sim = StreamSimulator::new(s);
+    let end = Instant(params.duration_ns);
+    sim.observe_until(end);
+    let mut probes = Vec::new();
+    for _ in 0..3 {
+        match sim.apply(
+            StreamAction::Probe {
+                kind: ProbeKind::HealthCheck,
+                target: gordian_world::ServiceId(0),
+            },
+            end,
+        ) {
+            StreamOutcome::Probed { probe, .. } => probes.push(ObsRef::Probe(probe)),
+            o => panic!("{o:?}"),
+        }
+    }
+    let inc = t
+        .incidents
+        .iter()
+        .find(|i| i.decisive.len() >= 2)
+        .expect("an incident with decisive evidence");
+    let decisive: Vec<ObsRef> = inc.decisive.iter().map(|o| ObsRef::Passive(*o)).collect();
+    let others: Vec<ObsRef> = t
+        .labels
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| matches!(l, ObsLabel::Background(_)))
+        .take(7)
+        .map(|(i, _)| ObsRef::Passive(ObsId(i as u32)))
+        .collect();
+    let focus = inc.observations[0];
+    let mut with_probes = decisive.clone();
+    with_probes.extend(probes.iter().copied());
+    with_probes.extend(others.iter().copied());
+    let mut without = decisive.clone();
+    without.extend(others.iter().copied());
+    let a = ask(&mut sim, focus, with_probes, end);
+    let b = ask(&mut sim, focus, without, end);
+    let traced = oracle::calls(&sim);
+    let (ta, tb) = (&traced[a as usize], &traced[b as usize]);
+    assert_eq!((ta.q, tb.q), (1.0, 1.0), "probes are not evidence");
+    let d = inc.difficulty;
+    assert!((ta.h - h_delta_std(abc, delta, 1.0, d, 3 + 7)).abs() < 1e-12);
+    assert!((tb.h - h_delta_std(abc, delta, 1.0, d, 7)).abs() < 1e-12);
+    assert!(ta.h < tb.h);
+}
+
+#[test]
+fn a_question_about_background_counts_every_reference_as_a_distractor() {
+    // A background observation has no focus incident, so no reference is decisive evidence of it:
+    // q is 1 (as before) and m is the size of the context.
+    let delta = 0.4;
+    let abc = (-1.0, 5.0, 2.0);
+    let mut params = open_params(12, abc);
+    params.reasoner.distractor_penalty = delta;
+    let (s, t) = with_truth(&params);
+    let mut sim = StreamSimulator::new(s);
+    let end = Instant(params.duration_ns);
+    sim.observe_until(end);
+    let bg: Vec<ObsId> = t
+        .labels
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| matches!(l, ObsLabel::Background(_)))
+        .map(|(i, _)| ObsId(i as u32))
+        .collect();
+    let focus = bg[0];
+    let ctx: Vec<ObsRef> = bg[1..61].iter().map(|o| ObsRef::Passive(*o)).collect();
+    let call = ask(&mut sim, focus, ctx, end);
+    let tr = &oracle::calls(&sim)[call as usize];
+    assert_eq!(tr.incident, None);
+    assert_eq!(tr.q, 1.0);
+    let d = params.difficulty.background;
+    assert!((tr.h - h_delta_std(abc, delta, 1.0, d, 60)).abs() < 1e-12);
 }
 
 // ---- Invariant 1: no information from no evidence
@@ -411,6 +734,96 @@ fn without_decisive_evidence_the_answer_carries_no_information_about_the_truth()
     );
     // An uninformed answer never names a hard kind: its vocabulary is the public physics.
     assert!(empty.iter().chain(&noisy).all(|c| *c <= 5));
+}
+
+#[test]
+fn with_the_penalty_no_decisive_evidence_still_means_no_information_and_distractors_cost_some() {
+    // R7, test 4. At delta = 0.4 (the top of the grid), over many incidents of every tier, ask
+    // with no decisive evidence in three ways (empty; 8 background references; 250 background
+    // references) and the answer's mutual information with the truth stays within its permutation
+    // baseline. Then ask with all the decisive evidence alone and with it among 250 distractors:
+    // both carry information (the test could have failed) and the distractors lower it.
+    let (mut truths, mut empty, mut few, mut many) = (vec![], vec![], vec![], vec![]);
+    let (mut alone, mut buried) = (vec![], vec![]);
+    for seed in 0..30 {
+        let mut p = open_params(seed, (-1.0, 5.0, 2.0));
+        p.reasoner.distractor_penalty = 0.4;
+        p.mix.plain_permille = 400;
+        p.mix.hard_permille = 300;
+        p.recurrence_permille = 0;
+        let (s, t) = with_truth(&p);
+        let end = Instant(p.duration_ns);
+        let mut sim = StreamSimulator::new(s);
+        sim.observe_until(end);
+        let background: Vec<ObsRef> = t
+            .labels
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| matches!(l, ObsLabel::Background(_)))
+            .map(|(i, _)| ObsRef::Passive(ObsId(i as u32)))
+            .collect();
+        let mut rng = Gen::keyed(&[seed, 0xB7]);
+        let mut noise = |n: usize| {
+            let mut ctx: Vec<ObsRef> = Vec::new();
+            while ctx.len() < n {
+                let r = background[rng.below(background.len() as u64) as usize];
+                if !ctx.contains(&r) {
+                    ctx.push(r);
+                }
+            }
+            ctx
+        };
+        let mut calls: Vec<[u32; 5]> = Vec::new();
+        let mut truth_of = Vec::new();
+        for inc in &t.incidents {
+            let focus = inc.observations[0];
+            let decisive: Vec<ObsRef> = inc.decisive.iter().map(|o| ObsRef::Passive(*o)).collect();
+            let c0 = ask(&mut sim, focus, vec![], end);
+            let c1 = ask(&mut sim, focus, noise(8), end);
+            let c2 = ask(&mut sim, focus, noise(250), end);
+            let c3 = ask(&mut sim, focus, decisive.clone(), end);
+            let mut buried_ctx = decisive;
+            buried_ctx.extend(noise(250));
+            let c4 = ask(&mut sim, focus, buried_ctx, end);
+            calls.push([c0, c1, c2, c3, c4]);
+            truth_of.push(category(&inc.truth));
+        }
+        let got = answers(&mut sim, Instant(p.duration_ns + LATER));
+        for (c, truth) in calls.into_iter().zip(truth_of) {
+            truths.push(truth);
+            empty.push(category(&got[&c[0]]));
+            few.push(category(&got[&c[1]]));
+            many.push(category(&got[&c[2]]));
+            alone.push(category(&got[&c[3]]));
+            buried.push(category(&got[&c[4]]));
+        }
+        for c in oracle::calls(&sim).iter().filter(|c| c.q == 0.0) {
+            assert!(!c.informed && c.h == 0.0);
+        }
+    }
+    let mut g = Gen::keyed(&[0x1F1]);
+    let (m_empty, b_empty) = mi_against_baseline(&empty, &truths, &mut g);
+    let (m_few, b_few) = mi_against_baseline(&few, &truths, &mut g);
+    let (m_many, b_many) = mi_against_baseline(&many, &truths, &mut g);
+    let (m_alone, b_alone) = mi_against_baseline(&alone, &truths, &mut g);
+    let (m_buried, b_buried) = mi_against_baseline(&buried, &truths, &mut g);
+    println!(
+        "{} incidents at delta 0.4; MI(answer, truth): empty {m_empty:.4} ({b_empty:.4}), 8 \
+         distractors {m_few:.4} ({b_few:.4}), 250 distractors {m_many:.4} ({b_many:.4}); \
+         all decisive evidence {m_alone:.4} ({b_alone:.4}), among 250 distractors \
+         {m_buried:.4} ({b_buried:.4})",
+        truths.len()
+    );
+    assert!(m_empty <= b_empty, "{m_empty} > {b_empty}");
+    assert!(m_few <= b_few, "{m_few} > {b_few}");
+    assert!(m_many <= b_many, "{m_many} > {b_many}");
+    assert!(m_alone > 10.0 * b_alone, "{m_alone} vs {b_alone}");
+    assert!(m_buried > 3.0 * b_buried, "{m_buried} vs {b_buried}");
+    assert!(
+        m_buried < m_alone,
+        "distractors did not lower the information"
+    );
+    assert!(empty.iter().chain(&few).chain(&many).all(|c| *c <= 5));
 }
 
 #[test]

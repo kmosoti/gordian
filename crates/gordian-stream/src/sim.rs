@@ -429,6 +429,23 @@ impl StreamSimulator {
                     ObsLabel::Incident { id, .. } => Some(id),
                     ObsLabel::Background(_) => None,
                 };
+                // Decisive evidence of the focus incident present in the context (a probe
+                // reference is never decisive, and a question about background has no focus
+                // incident, so nothing is). Everything else in the context is a distractor.
+                let present = match incident {
+                    None => 0,
+                    Some(id) => context
+                        .iter()
+                        .filter(|r| match r {
+                            ObsRef::Passive(o) => matches!(
+                                self.stream.labels[o.0 as usize],
+                                ObsLabel::Incident { id: i, role: EvidenceRole::Decisive } if i == id
+                            ),
+                            ObsRef::Probe(_) => false,
+                        })
+                        .count(),
+                };
+                let distractors = context.len() - present;
                 let q = match incident {
                     None => 1.0,
                     Some(id) => {
@@ -436,16 +453,6 @@ impl StreamSimulator {
                         if total == 0 {
                             1.0
                         } else {
-                            let present = context
-                                .iter()
-                                .filter(|r| match r {
-                                    ObsRef::Passive(o) => matches!(
-                                        self.stream.labels[o.0 as usize],
-                                        ObsLabel::Incident { id: i, role: EvidenceRole::Decisive } if i == id
-                                    ),
-                                    ObsRef::Probe(_) => false,
-                                })
-                                .count();
                             present as f64 / total as f64
                         }
                     }
@@ -479,6 +486,7 @@ impl StreamSimulator {
                     &context_obs,
                     fingerprint,
                     q,
+                    distractors,
                 );
                 let call = self.calls.len() as u32;
                 let ready_at = Instant(now.0.saturating_add(cost.latency_ns));

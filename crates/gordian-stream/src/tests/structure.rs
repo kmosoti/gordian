@@ -561,6 +561,8 @@ fn the_public_information_has_exactly_the_documented_fields() {
         "regime",
         "tier",
         "recurrence",
+        "distractor",
+        "penalty",
     ] {
         assert!(
             !text.contains(word),
@@ -580,6 +582,7 @@ fn public_information_does_not_depend_on_any_hidden_parameter() {
     p.reasoner.a = 3.0;
     p.reasoner.b = 0.5;
     p.reasoner.c = 9.0;
+    p.reasoner.distractor_penalty = 0.4;
     p.regimes.clear();
     p.noise.catalogue_mhz = 0;
     p.difficulty.hard.lo = 0.0;
