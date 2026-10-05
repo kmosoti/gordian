@@ -1,0 +1,7 @@
+R4 run replayed,arms,arms in R4's record,results.csv identical,incidents.csv identical,differing arms
+r4-heldout-b2.5-rho0,33,33,33,33,none
+r4-heldout-b2.5-rho0.7,38,38,38,38,none
+r4-heldout-b5-rho0,40,40,40,40,none
+r4-heldout-b5-rho0.7,41,41,41,41,none
+r4-heldout-b8-rho0,44,44,44,44,none
+r4-heldout-b8-rho0.7,41,41,41,41,none
