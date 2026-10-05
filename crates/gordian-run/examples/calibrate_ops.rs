@@ -437,6 +437,8 @@ fn time_rule<S: Selector + Clone>(
         Kind::Step { outputs } => {
             // One real call first; then the arm is in the state the same call finds it in on
             // every later repeat, which is the state the counts and the timings are taken in.
+            // Since work item A6c that state is one that holds the outputs it is handed again,
+            // so it recognises them and decodes nothing: the rule's *comparison* path.
             let step = |arm: &mut Arm<S>| {
                 black_box(arm.declared_select_cost(black_box(state)));
                 black_box(arm.select(black_box(state), &snap.bill));
@@ -460,6 +462,64 @@ fn time_rule<S: Selector + Clone>(
                 rule_counts(counted.counts()),
                 timing,
             );
+
+            // The *decoding* path, which a repeated call no longer reaches: alternate between the
+            // outputs and the same outputs with one trailing space in every payload (JSON that
+            // decodes to exactly the same thing but is never byte for byte equal to the other),
+            // so that every call decodes what it is handed, as a call that brings a new output
+            // does. Only where there is something to decode.
+            let padded: Vec<(ComponentId, ComponentOutput)> = outputs
+                .iter()
+                .map(|(id, output)| {
+                    let mut output = output.clone();
+                    for (_, bytes) in &mut output.entries {
+                        bytes.push(b' ');
+                    }
+                    (*id, output)
+                })
+                .collect();
+            let mut flip = false;
+            let mut alternate = |arm: &mut Arm<S>| {
+                flip = !flip;
+                let handed = if flip { &padded } else { outputs };
+                black_box(arm.declared_select_cost(black_box(state)));
+                black_box(arm.select(black_box(state), &snap.bill));
+                black_box(arm.decide(black_box(state), black_box(handed)));
+            };
+            for _ in 0..4 {
+                alternate(&mut arm);
+            }
+            arm.take_ops();
+            alternate(&mut arm);
+            let decoding = arm.take_ops();
+            let decodes = RULE_UNITS
+                .iter()
+                .position(|u| u.name == "decoded_outputs")
+                .map(|at| decoding.counts()[at])
+                .unwrap_or(0);
+            if decodes > 0 {
+                let timing = measure(reps, || {
+                    alternate(&mut arm);
+                    black_box(arm.take_ops());
+                });
+                let decode_tag = Tag {
+                    set: tag.set,
+                    source: "episode_decode",
+                    class: tag.class.clone(),
+                    arm: tag.arm,
+                    n: tag.n,
+                    probes: tag.probes,
+                    extra_records: tag.extra_records,
+                };
+                emit(
+                    out,
+                    &decode_tag,
+                    "rule",
+                    state,
+                    rule_counts(decoding.counts()),
+                    timing,
+                );
+            }
         }
         Kind::Final => {
             let step = |arm: &mut Arm<S>| {

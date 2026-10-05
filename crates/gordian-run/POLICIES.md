@@ -35,9 +35,12 @@ every arm of a run. A per-arm patience would be a difference in `decide`.
 outputs it has been shown and the remaining limits it was told. No clock, no randomness, no I/O.
 
 **What it keeps.** The latest output of the verifier, of the estimator and of the heuristic, as
-decoded candidate lists. A component that is not selected leaves its previous output in place, so
-an arm that skips a component acts on stale output; that staleness is part of what selection
-costs (a test shows a stale verifier set outranking a newer heuristic answer). A component that
+decoded candidate lists, together with the entries they were decoded from. A component that is not
+selected leaves its previous output in place, so an arm that skips a component acts on stale
+output; that staleness is part of what selection costs (a test shows a stale verifier set
+outranking a newer heuristic answer). An output is decoded once: a stored output is never decoded
+again at a later step, and an output that arrives byte for byte equal to the one held for its
+component keeps the held decoded form instead of being decoded again (section 3.1). A component that
 ran and produced nothing, or whose output says the window was damaged, replaces its stored output
 with nothing. A `Fail` directive produces no output at all, so the previous one stays. The memory
 lookup is not read (2.5).
@@ -91,7 +94,8 @@ and the public `ENTANGLED` pair (and, in the oracle and the tests, on `physics::
 **2.1 Where the rule's cost is charged.** Under `Phase::Scheduling`, through the policy's declared
 select cost, for every non-privileged arm alike. `Arm::declared_select_cost` is the only place the
 selector's cost and the rule's meet. Every arm pays the rule's base cost at every step, including
-an arm that selects nothing, and pays the probe-evaluation and decoding terms from what it holds.
+an arm that selects nothing, and pays the probe-evaluation term from the candidate set it holds and
+the decoding and comparison terms for the outputs that arrived at the previous call.
 Charging the rule only to arms that "use" it would make the cost of the rule depend on the
 selector. The three trivial selectors declare no cost of their own (section 5).
 

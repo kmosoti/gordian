@@ -92,7 +92,7 @@ const DECODE_OUTPUT_PS: u64 = 530_000;
 const DECODE_HYPOTHESIS_PS: u64 = 115_000;
 // Work item A6c: an arriving output is compared with the entries held for its component, and only
 // decoded when they differ. The comparison is charged per byte it looks at (`COMPARED_BYTES`).
-const COMPARE_BYTE_PS: u64 = 0;
+const COMPARE_BYTE_PS: u64 = 33;
 
 // Counted operations (work item A8b; `CALIBRATION.md`, section 9). The shared rule counts the
 // work of the scheduling path it is part of, the same way a component does:
@@ -123,11 +123,13 @@ const R_COMPARED_BYTES: usize = 5;
 /// How many units the rule has.
 const R_UNITS: usize = 6;
 
-// Weights, picoseconds per unit: fitted 2026-10-05; the weights of calibrate_ops.py (fixed
-// windows in a loop, 5 runs of 25 timings) scaled to what the harness pays
-// (calibrate_insitu.py, 3 runs of 5 passes).
-// In situ: 1.21 x the weights fitted on fixed windows in a loop, plus
-// 196 ns on the per-call unit(s) (`calibrate_insitu.py`).
+// Weights, picoseconds per unit: fitted 2026-10-05 after work item A6c (the rule recognises a
+// repeated output): the weights of calibrate_ops.py (fixed windows and recorded states in a
+// loop, 5 runs of 25 timings, the rule timed on its comparison path and, alternating padded
+// outputs, its decoding path) scaled to what the harness pays (calibrate_insitu.py, 3 runs of 5
+// passes); only the rule's table was rewritten.
+// In situ: 1.37 x the weights fitted on fixed windows in a loop, plus
+// 130 ns on the per-call unit(s) (`calibrate_insitu.py`).
 // Non-negative least squares on the minimum time per call, weighted by 1/time, with no
 // intercept beyond the explicit per-call unit; rounded to three figures. What each unit
 // counts, the fit, its validity and its limits: CALIBRATION.md, section 9. Recalibrate
@@ -135,12 +137,12 @@ const R_UNITS: usize = 6;
 #[rustfmt::skip]
 /// The shared rule's units and their weights.
 pub const RULE_UNITS: &[Unit] = &[
-    Unit { name: "calls", weight_ps: 281000 },
-    Unit { name: "decoded_outputs", weight_ps: 270000 },
-    Unit { name: "decoded_ranked", weight_ps: 133000 },
-    Unit { name: "worlds", weight_ps: 18600 },
-    Unit { name: "probe_evals", weight_ps: 33300 },
-    Unit { name: "compared_bytes", weight_ps: 0 },
+    Unit { name: "calls", weight_ps: 246000 },
+    Unit { name: "decoded_outputs", weight_ps: 365000 },
+    Unit { name: "decoded_ranked", weight_ps: 158000 },
+    Unit { name: "worlds", weight_ps: 20000 },
+    Unit { name: "probe_evals", weight_ps: 33200 },
+    Unit { name: "compared_bytes", weight_ps: 45 },
 ];
 
 /// The work the shared rule did, in the units of [`RULE_UNITS`].
