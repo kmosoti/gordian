@@ -184,7 +184,7 @@ pub trait StreamPolicy {
     fn report(&self) -> ArmReport;
 }
 
-/// What a rule may see when it makes direct requests (the privileged arm's only).
+/// What a rule may see when it makes direct requests (the privileged arms' only).
 #[derive(Debug, Clone, Copy)]
 pub struct DirectCtx<'a> {
     /// The instant of the step.
@@ -193,6 +193,29 @@ pub struct DirectCtx<'a> {
     pub delivered: u32,
     /// The noticed anomalies.
     pub views: &'a [AnomalyView],
+    /// The context the rung's configured builder makes for an anchor the rung did not notice.
+    pub contexts: RungContexts<'a>,
+}
+
+/// The shared rung's context builder, offered to a rule's direct requests: the references the
+/// configured builder ([`rung::RungConfig::context`]) makes for a question about an observation,
+/// as [`Rung::context_at`] says. It lets a privileged rule ask about an anchor of its own with
+/// the same context a noticed anomaly there would get, without building a context of its own.
+#[derive(Clone, Copy)]
+pub struct RungContexts<'a>(&'a Rung);
+
+impl RungContexts<'_> {
+    /// The references the configured builder makes for a question about the held observation
+    /// `anchor`; empty when the observation is not held.
+    pub fn at(&self, anchor: ObsId) -> Vec<ObsRef> {
+        self.0.context_at(anchor)
+    }
+}
+
+impl std::fmt::Debug for RungContexts<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("RungContexts")
+    }
 }
 
 /// A question a rule asks the reasoner directly, not about a noticed anomaly.
@@ -406,6 +429,7 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
             now,
             delivered: self.rung.delivered(),
             views: &views,
+            contexts: RungContexts(&self.rung),
         }) {
             out.push(Proposed {
                 tag: 0,
