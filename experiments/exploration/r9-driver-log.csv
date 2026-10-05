@@ -1,0 +1,10 @@
+run_id,driver_exit,wall_s
+r9-tune-b5-rho0.7-d0.0055,11,0
+r9-tune-b5-rho0.7-d0.0135,11,0
+r9-tune-b5-rho0.7-d0.0225,11,0
+r9-tune-b5-rho0.7-d0.0055,0,106
+r9-tune-b5-rho0.7-d0.0135,0,104
+r9-tune-b5-rho0.7-d0.0225,0,107
+r9-heldout-b5-rho0.7-d0.0055,0,40
+r9-heldout-b5-rho0.7-d0.0135,0,41
+r9-heldout-b5-rho0.7-d0.0225,0,40

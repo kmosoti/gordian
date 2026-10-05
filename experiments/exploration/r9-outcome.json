@@ -1,0 +1,40 @@
+{
+  "outcome": "unresolved",
+  "reader_precondition_holds": true,
+  "delta_star": {
+    "lo": 0.0055000000000005045,
+    "point": 0.013500000000000512,
+    "hi": 0.02250000000000041
+  },
+  "run_delta": {
+    "lo": 0.0055,
+    "point": 0.0135,
+    "hi": 0.0225
+  },
+  "G": {
+    "lo": {
+      "G": 0.032258064516129115,
+      "lo": 0.010840108401083959,
+      "hi": 0.054263565891472854,
+      "selected": "win_w80_n512"
+    },
+    "point": {
+      "G": 0.07258064516129037,
+      "lo": 0.041884816753926635,
+      "hi": 0.1044386422976501,
+      "selected": "coc_d16000_n256"
+    },
+    "hi": {
+      "G": 0.08870967741935487,
+      "lo": 0.058673469387755084,
+      "hi": 0.11948051948051952,
+      "selected": "nbh_k4_n256"
+    }
+  },
+  "r6_regime_condition": {
+    "upper_bound_of_G_at_delta_star_hi_below_0.10": false
+  },
+  "r7_regime_condition": {
+    "G_at_delta_star_lo_at_least_0.10_with_lower_bound_above_0.05": false
+  }
+}

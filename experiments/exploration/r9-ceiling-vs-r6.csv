@@ -1,0 +1,7 @@
+run_id,delta,arm,results_equal_to_r6_but_run_id,incidents_equal_to_r6_but_run_id
+r9-heldout-b5-rho0.7-d0.0055,0.0055,oracle_selection_context_d16_privileged,True,True
+r9-heldout-b5-rho0.7-d0.0055,0.0055,oracle_escalation_privileged,True,True
+r9-heldout-b5-rho0.7-d0.0135,0.0135,oracle_selection_context_d16_privileged,True,True
+r9-heldout-b5-rho0.7-d0.0135,0.0135,oracle_escalation_privileged,True,True
+r9-heldout-b5-rho0.7-d0.0225,0.0225,oracle_selection_context_d16_privileged,True,True
+r9-heldout-b5-rho0.7-d0.0225,0.0225,oracle_escalation_privileged,True,True
