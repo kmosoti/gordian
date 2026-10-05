@@ -40,8 +40,10 @@
 use super::{Applied, Proposed, Source};
 use crate::policy::decide::{DecideConfig, Decider};
 use crate::stream::meter::{Meter, RuleCall};
+use gordian_components::payload::{HypothesisEntry, decode};
 use gordian_components::{
-    Component, ComponentOutput, ConsistencyVerifier, CountEstimator, RuleHeuristic, WorkingState,
+    Component, ComponentOutput, ConsistencyVerifier, CountEstimator, RuleHeuristic, VERIFIER_ID,
+    WorkingState,
 };
 use gordian_core::{ComponentId, Instant};
 use gordian_stream::{
@@ -257,6 +259,14 @@ pub struct AnomalyView {
     pub cheap_declared: bool,
     /// Observations delivered so far in the whole stream.
     pub delivered: u32,
+    /// Since when every check of the public consistency checker on the evidence attached to this
+    /// anomaly has found no hypothesis consistent with it (an empty set: the first world's own
+    /// word for "contradictory"): the instant of the first check of the current run of empty
+    /// results. `None` when the latest check found a consistent hypothesis, or none has been made.
+    /// The rung makes these checks only for an arm whose rule asks ([`Rung::set_monitor`]), so for
+    /// every other arm it is always `None`. Public information only: the checker reads the
+    /// attached observations and the probes bought, under the first world's public rules.
+    pub contradicted_since: Option<Instant>,
 }
 
 /// What one review of an anomaly concluded.
@@ -323,6 +333,12 @@ struct Anomaly {
     reasoner_declared: bool,
     /// Diagnoses a recognizer has declared (an arm that revises its conclusion).
     recognized: Vec<Diagnosis>,
+    /// Evidence arrived since the last consistency check (only read when the rung monitors).
+    monitor_dirty: bool,
+    /// When the consistency checker last ran on this anomaly (only set when the rung monitors).
+    last_check: Option<Instant>,
+    /// See [`AnomalyView::contradicted_since`].
+    contradicted_since: Option<Instant>,
 }
 
 impl Anomaly {
@@ -474,6 +490,10 @@ pub struct Rung {
     noticed_total: u32,
     /// The last diagnosis declared for each anchor, so an identical answer is not declared twice.
     declared: BTreeMap<ObsId, Diagnosis>,
+    /// Whether the rung keeps the consistency checker's verdict on each anomaly up to date, for a
+    /// rule that escalates on it. False for every arm but `contradiction_escalation`, for which
+    /// the rung then does exactly what it did before the field existed.
+    monitor: bool,
 }
 
 fn map_hypothesis(h: gordian_world::Hypothesis) -> Diagnosis {
@@ -481,6 +501,36 @@ fn map_hypothesis(h: gordian_world::Hypothesis) -> Diagnosis {
         kind: StreamKind::Known(kind),
         site,
     })
+}
+
+/// Whether the verifier's output says no hypothesis is consistent with the evidence: an
+/// `EvidenceDamaged` entry, or a candidate list that is empty. An output with no entry, or one the
+/// rung cannot read, says nothing and counts as a consistent set.
+fn verdict_is_empty(output: &ComponentOutput) -> bool {
+    !output.entries.is_empty()
+        && output.entries.iter().all(|(_, bytes)| match decode(bytes) {
+            Ok(HypothesisEntry::EvidenceDamaged { .. }) => true,
+            Ok(HypothesisEntry::Candidates { ranked, .. }) => ranked.is_empty(),
+            Err(_) => false,
+        })
+}
+
+/// Record a verdict: the start of a run of empty verdicts is remembered, and a verdict with a
+/// hypothesis ends the run.
+fn record_verdict(
+    empty: bool,
+    now: Instant,
+    dirty: &mut bool,
+    last_check: &mut Option<Instant>,
+    since: &mut Option<Instant>,
+) {
+    *dirty = false;
+    *last_check = Some(now);
+    if empty {
+        since.get_or_insert(now);
+    } else {
+        *since = None;
+    }
 }
 
 /// The ids of the components the cheap rung runs, in the order it runs them: the heuristic, the
@@ -507,7 +557,18 @@ impl Rung {
             next_id: 0,
             noticed_total: 0,
             declared: BTreeMap::new(),
+            monitor: false,
         }
+    }
+
+    /// Whether to keep each noticed anomaly's consistency verdict ([`AnomalyView::contradicted_since`])
+    /// up to date. Off by default; set once, before the first step, by an arm whose rule reads it.
+    /// When on, the rung runs the consistency verifier (through the meter, so charged, counted and
+    /// recorded like every component run) on a noticed anomaly that received evidence since its
+    /// last check and that no escalation has been proposed for, at most once per `review_ns`,
+    /// including after the shared rule has concluded and stopped reviewing it.
+    pub fn set_monitor(&mut self, on: bool) {
+        self.monitor = on;
     }
 
     /// The configuration.
@@ -590,6 +651,7 @@ impl Rung {
                             if let Some(cheap) = a.cheap.as_mut() {
                                 cheap.state.admit(rel, obs.clone());
                                 a.dirty = true;
+                                a.monitor_dirty = true;
                             }
                         }
                     }
@@ -609,6 +671,7 @@ impl Rung {
                             cheap.state.admit(rel, obs.clone());
                         }
                         a.dirty = true;
+                        a.monitor_dirty = true;
                         break;
                     }
                 }
@@ -695,6 +758,9 @@ impl Rung {
                     cheap_declared: false,
                     reasoner_declared: false,
                     recognized: Vec::new(),
+                    monitor_dirty: false,
+                    last_check: None,
+                    contradicted_since: None,
                 };
                 anomaly.note_attached(held, service, gap);
                 self.anomalies.push(anomaly);
@@ -740,6 +806,7 @@ impl Rung {
             });
             a.noticed_at = Some(now);
             a.dirty = true;
+            a.monitor_dirty = true;
             self.noticed_total += 1;
         }
         let ttl = self.cfg.score_window_ns;
@@ -782,6 +849,7 @@ impl Rung {
                 last_attempt_digest: a.last_attempt_digest,
                 cheap_declared: a.cheap_declared,
                 delivered: self.delivered,
+                contradicted_since: a.contradicted_since,
             });
         }
         out
@@ -938,6 +1006,14 @@ impl Rung {
         })
     }
 
+    /// Dismiss anomaly `id`: declare "not an incident" at its anchor, now, and never let the cheap
+    /// rung declare for it. The declaration is the cheap rung's by source (it is not a reasoner
+    /// answer), and the anomaly is no longer reviewed. For a rule that dismisses
+    /// ([`super::EscalationRule::dismissals`]); only the privileged decoy arm does.
+    pub fn dismiss(&mut self, id: u32) -> Option<Proposed> {
+        self.declare_recognized(id, None)
+    }
+
     /// The anomalies due a review, by id: noticed, not finished with the rule, not waiting for a
     /// probe, not in cool-down, and with something new to look at (or the
     /// patience newly passed).
@@ -968,6 +1044,7 @@ impl Rung {
     /// decide, both through the meter. Returns the rule's conclusion, if it reached one.
     pub fn review(&mut self, id: u32, now: Instant, meter: &mut Meter<'_>) -> Option<Conclusion> {
         let i = self.index_of(id)?;
+        let monitor = self.monitor;
         let a = &mut self.anomalies[i];
         let patience = a.patience_rel;
         let rel_now = Instant(now.0.saturating_sub(a.anchor_at.0));
@@ -978,6 +1055,15 @@ impl Rung {
             if let Some(output) = meter.run_component(component.as_mut(), &cheap.state) {
                 outputs.push((component.id(), output));
             }
+        }
+        if monitor && let Some((_, output)) = outputs.iter().find(|(c, _)| *c == VERIFIER_ID) {
+            record_verdict(
+                verdict_is_empty(output),
+                now,
+                &mut a.monitor_dirty,
+                &mut a.last_check,
+                &mut a.contradicted_since,
+            );
         }
         let call = meter.rule_call(&mut cheap.decider, &cheap.state, &outputs, false);
         let RuleCall::Ran(action) = call else {
@@ -997,6 +1083,54 @@ impl Rung {
                 Some(Conclusion::Probe(probe))
             }
             Some(Action::Correct { .. }) | None => None,
+        }
+    }
+
+    /// The noticed anomalies whose consistency check is due: the rung monitors, evidence arrived
+    /// since the last check, no escalation was proposed for it, and at least `review_ns` has
+    /// passed since the last check. By id.
+    pub fn due_checks(&self, now: Instant) -> Vec<u32> {
+        if !self.monitor {
+            return Vec::new();
+        }
+        self.anomalies
+            .iter()
+            .filter(|a| {
+                a.cheap.is_some()
+                    && a.attempts == 0
+                    && a.monitor_dirty
+                    && a.last_check
+                        .is_none_or(|t| now.0 >= t.0.saturating_add(self.cfg.review_ns))
+            })
+            .map(|a| a.id)
+            .collect()
+    }
+
+    /// Check anomaly `id` against the public rules: run the consistency verifier on its working
+    /// state through the meter and keep whether it left a hypothesis
+    /// ([`AnomalyView::contradicted_since`]). Only the verifier runs, not the other components
+    /// and not the shared rule, and nothing is declared: this is how a rule that escalates on
+    /// contradiction sees evidence that arrived after the shared rule concluded. A refusal by the
+    /// bill leaves the previous verdict in place.
+    pub fn check(&mut self, id: u32, now: Instant, meter: &mut Meter<'_>) {
+        let Some(i) = self.index_of(id) else {
+            return;
+        };
+        let a = &mut self.anomalies[i];
+        let rel_now = Instant(now.0.saturating_sub(a.anchor_at.0));
+        let Some(cheap) = a.cheap.as_mut() else {
+            return;
+        };
+        cheap.state.now = cheap.state.now.max(rel_now);
+        let mut verifier = ConsistencyVerifier::new();
+        if let Some(output) = meter.run_component(&mut verifier, &cheap.state) {
+            record_verdict(
+                verdict_is_empty(&output),
+                now,
+                &mut a.monitor_dirty,
+                &mut a.last_check,
+                &mut a.contradicted_since,
+            );
         }
     }
 

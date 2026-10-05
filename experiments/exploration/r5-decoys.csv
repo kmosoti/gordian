@@ -1,0 +1,37 @@
+setting,label,arm,cost_s,decoys,dismissed,alarmed,silent,false_alarms_per_stream,false_alarms_minus_never,fa_minus_never_lo,fa_minus_never_hi,wrong_declarations_per_stream,critical_misses,critical_incidents,critical_miss_rate,plain_accuracy,calls_per_stream
+b2.5-rho0,decoy oracle,oracle_decoy_privileged,0.000315387,541,352,13,179,3.645,-1.875,-2.075,-1.68,5.875,338,818,0.413203,0.740854,0
+b2.5-rho0,never_escalate,never_escalate,0.000341641,541,0,361,180,5.52,0,0,0,5.875,338,818,0.413203,0.740854,0
+b2.5-rho0,"best public, highest quality",periodic_t30,16.5735,541,66,360,179,7.02,1.5,1.335,1.67,16.355,299,818,0.365526,0.796201,42.35
+b2.5-rho0,public arm with most dismissals,always_d08,6.67799,541,93,361,179,7.12,1.6,1.445,1.76,11.945,274,818,0.334963,0.803471,26.115
+b2.5-rho0,selection oracle,oracle_selection_d14_privileged,0.641717,541,0,361,180,5.515,-0.005,-0.015,0,7.105,315,818,0.385086,0.740854,2.13
+b2.5-rho0,R4 oracle,oracle_escalation_privileged,0.320517,541,0,361,180,5.52,0,0,0,5.44,265,818,0.323961,0.740854,2.555
+b2.5-rho0.7,decoy oracle,oracle_decoy_privileged,0.000315387,541,352,13,179,3.645,-1.875,-2.08,-1.68,5.875,338,818,0.413203,0.740854,0
+b2.5-rho0.7,never_escalate,never_escalate,0.000341641,541,0,361,180,5.52,0,0,0,5.875,338,818,0.413203,0.740854,0
+b2.5-rho0.7,"best public, highest quality",always_d16,7.58204,541,66,361,180,6.74,1.22,1.095,1.345,11.895,289,818,0.353301,0.79667,24.315
+b2.5-rho0.7,public arm with most dismissals,always_d14,7.35869,541,87,361,179,6.78,1.26,1.125,1.395,11.685,292,818,0.356968,0.797842,24.715
+b2.5-rho0.7,selection oracle,oracle_selection_d16_privileged,0.664491,541,0,361,180,5.52,0,0,0,7.025,311,818,0.380196,0.740854,2.1
+b2.5-rho0.7,R4 oracle,oracle_escalation_privileged,0.320517,541,0,361,180,5.52,0,0,0,5.395,275,818,0.336186,0.740854,2.555
+b5-rho0,decoy oracle,oracle_decoy_privileged,0.000315387,541,352,13,179,3.645,-1.875,-2.075,-1.675,5.875,338,818,0.413203,0.740854,0
+b5-rho0,never_escalate,never_escalate,0.000341641,541,0,361,180,5.52,0,0,0,5.875,338,818,0.413203,0.740854,0
+b5-rho0,"best public, highest quality",always_d16,7.58204,541,99,361,180,6.005,0.485,0.4,0.57,7.84,255,818,0.311736,0.812148,24.315
+b5-rho0,public arm with most dismissals,always_d14,7.35869,541,123,361,179,6.095,0.575,0.485,0.665,7.795,259,818,0.316626,0.814962,24.715
+b5-rho0,selection oracle,oracle_selection_d16_privileged,0.664491,541,0,361,180,5.52,0,0,0,6.615,284,818,0.347188,0.740854,2.1
+b5-rho0,R4 oracle,oracle_escalation_privileged,0.320517,541,0,361,180,5.52,0,0,0,4.295,193,818,0.235941,0.740854,2.555
+b5-rho0.7,decoy oracle,oracle_decoy_privileged,0.000315387,541,352,13,179,3.645,-1.875,-2.075,-1.675,5.875,338,818,0.413203,0.740854,0
+b5-rho0.7,never_escalate,never_escalate,0.000341641,541,0,361,180,5.52,0,0,0,5.875,338,818,0.413203,0.740854,0
+b5-rho0.7,"best public, highest quality",always_d14,7.35869,541,128,361,179,6.035,0.515,0.43,0.6,7.825,256,818,0.312958,0.815197,24.715
+b5-rho0.7,public arm with most dismissals,always_d14,7.35869,541,128,361,179,6.035,0.515,0.43,0.6,7.825,256,818,0.312958,0.815197,24.715
+b5-rho0.7,selection oracle,oracle_selection_d16_privileged,0.664491,541,0,361,180,5.52,0,0,0,6.595,282,818,0.344743,0.740854,2.1
+b5-rho0.7,R4 oracle,oracle_escalation_privileged,0.320517,541,0,361,180,5.52,0,0,0,4.295,194,818,0.237164,0.740854,2.555
+b8-rho0,decoy oracle,oracle_decoy_privileged,0.000315387,541,352,13,179,3.645,-1.875,-2.075,-1.68,5.875,338,818,0.413203,0.740854,0
+b8-rho0,never_escalate,never_escalate,0.000341641,541,0,361,180,5.52,0,0,0,5.875,338,818,0.413203,0.740854,0
+b8-rho0,"best public, highest quality",always_d14,7.35869,541,139,361,179,5.92,0.4,0.325,0.48,7.035,235,818,0.287286,0.817542,24.715
+b8-rho0,public arm with most dismissals,always_d14,7.35869,541,139,361,179,5.92,0.4,0.325,0.48,7.035,235,818,0.287286,0.817542,24.715
+b8-rho0,selection oracle,oracle_selection_d16_privileged,0.664491,541,0,361,180,5.52,0,0,0,6.305,266,818,0.325183,0.740854,2.1
+b8-rho0,R4 oracle,oracle_escalation_privileged,0.320517,541,0,361,180,5.52,0,0,0,4.145,183,818,0.223716,0.740854,2.555
+b8-rho0.7,decoy oracle,oracle_decoy_privileged,0.000315387,541,352,13,179,3.645,-1.875,-2.08,-1.675,5.875,338,818,0.413203,0.740854,0
+b8-rho0.7,never_escalate,never_escalate,0.000341641,541,0,361,180,5.52,0,0,0,5.875,338,818,0.413203,0.740854,0
+b8-rho0.7,"best public, highest quality",always_d16,7.58204,541,118,361,180,5.865,0.345,0.27,0.42,6.97,238,818,0.290954,0.813555,24.315
+b8-rho0.7,public arm with most dismissals,always_d14,7.35869,541,140,361,179,5.93,0.41,0.335,0.49,7,229,818,0.279951,0.816839,24.715
+b8-rho0.7,selection oracle,oracle_selection_d16_privileged,0.664491,541,0,361,180,5.52,0,0,0,6.26,267,818,0.326406,0.740854,2.1
+b8-rho0.7,R4 oracle,oracle_escalation_privileged,0.320517,541,0,361,180,5.52,0,0,0,4.14,183,818,0.223716,0.740854,2.555

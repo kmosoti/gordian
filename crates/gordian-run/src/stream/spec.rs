@@ -10,12 +10,18 @@
 //! {"policy": "random_escalation", "p": 0.5}
 //! {"policy": "random_escalation", "p": 0.5, "delay_ns": 8000000000}
 //! {"policy": "always_escalate", "delay_ns": 8000000000}
+//! {"policy": "contradiction_escalation", "delay_ns": 8000000000, "persist_ns": 2000000000}
+//! {"policy": "oracle_selection", "delay_ns": 8000000000}
 //! ```
 //!
-//! `delay_ns` (`always_escalate` and `random_escalation`) is how long after an anomaly is noticed
-//! the arm escalates it. Its default is 0, the arm as R3 built it; a delay of 0 is not written
+//! `delay_ns` (`always_escalate`, `random_escalation`, `contradiction_escalation` and
+//! `oracle_selection`) is how long after an anomaly is noticed the arm escalates it. Its default is 0, the arm as R3 built it; a delay of 0 is not written
 //! (`always_escalate` is then its bare id, and `random_escalation` has no `delay_ns`), so a
 //! manifest written before the parameter existed is the same text as one written now.
+//!
+//! `persist_ns` (`contradiction_escalation`) is how long the consistency checker must have found
+//! no hypothesis consistent with the anomaly's evidence before the arm escalates; its default is 0
+//! and, like a zero delay, it is not written.
 //!
 //! A parameter an arm does not have, or an out-of-range one, is a parse error. Every parameter is
 //! written (a defaulted one is filled in at parse time), so a manifest records what ran. The
@@ -24,15 +30,16 @@
 //!
 //! # Roles
 //!
-//! Three arms are not comparison arms. `oracle_escalation` is privileged (it is built from the
-//! stream's truth) and `ablation_hidden_rules` encodes the hidden rules of the stream's hard
-//! incidents. [`StreamManifest::validate`](super::manifest::StreamManifest::validate) rejects a
+//! Five arms are not comparison arms. `oracle_escalation`, `oracle_selection` and `oracle_decoy`
+//! are privileged (they are built from the stream's truth) and `ablation_hidden_rules` encodes
+//! the hidden rules of the stream's hard incidents. [`StreamManifest::validate`](super::manifest::StreamManifest::validate) rejects a
 //! privileged arm whose name lacks `privileged` and an ablation arm whose name lacks `ablation`,
 //! so that every output that carries the arm's name says what it is, and every `results.csv` row
 //! carries an `arm_role` column.
 
 use super::arms::always::{self, Always};
 use super::arms::change::{self, Change};
+use super::arms::contradiction::{self, Contradiction};
 use super::arms::never::{self, Never};
 use super::arms::periodic::{self, Periodic};
 use super::arms::random::{self, Random};
@@ -53,7 +60,10 @@ pub const KNOWN: &[&str] = &[
     change::ID,
     threshold::ID,
     random::ID,
+    contradiction::ID,
     privileged::ID,
+    privileged::SELECTION_ID,
+    privileged::DECOY_ID,
     ablation::ID,
 ];
 
@@ -88,8 +98,22 @@ pub enum StreamPolicySpec {
         /// Nanoseconds after notice before a selected anomaly is escalated.
         delay_ns: u64,
     },
+    /// `contradiction_escalation` with its delay after notice and its persistence.
+    Contradiction {
+        /// Nanoseconds after notice before an anomaly may be escalated.
+        delay_ns: u64,
+        /// Nanoseconds the consistency checker must have found no hypothesis.
+        persist_ns: u64,
+    },
     /// `oracle_escalation`: privileged.
     Oracle,
+    /// `oracle_selection`: privileged; escalates exactly the hard anomalies.
+    OracleSelection {
+        /// Nanoseconds after notice before a hard anomaly is escalated.
+        delay_ns: u64,
+    },
+    /// `oracle_decoy`: privileged; dismisses exactly the decoy anomalies.
+    OracleDecoy,
     /// `ablation_hidden_rules`: encodes the stream's hidden rules.
     Ablation,
 }
@@ -97,7 +121,7 @@ pub enum StreamPolicySpec {
 impl StreamPolicySpec {
     /// The arm with `id` and its default configuration, or why there is none.
     pub fn from_id(id: &str) -> Result<Self, String> {
-        Self::from_parts(id, None, None, None, None, None)
+        Self::from_parts(id, None, None, None, None, None, None)
     }
 
     /// The arm `id` with the given parameters. A parameter the arm does not have is an error.
@@ -108,6 +132,7 @@ impl StreamPolicySpec {
         wait_ns: Option<u64>,
         p: Option<f64>,
         delay_ns: Option<u64>,
+        persist_ns: Option<u64>,
     ) -> Result<Self, String> {
         let stray = |name: &str| format!("policy {id:?} has no parameter {name:?}");
         let only = |allowed: &[&str]| -> Result<(), String> {
@@ -117,6 +142,7 @@ impl StreamPolicySpec {
                 ("wait_ns", wait_ns.is_some()),
                 ("p", p.is_some()),
                 ("delay_ns", delay_ns.is_some()),
+                ("persist_ns", persist_ns.is_some()),
             ] {
                 if given && !allowed.contains(&name) {
                     return Err(stray(name));
@@ -142,6 +168,23 @@ impl StreamPolicySpec {
             privileged::ID => {
                 only(&[])?;
                 Self::Oracle
+            }
+            privileged::SELECTION_ID => {
+                only(&["delay_ns"])?;
+                Self::OracleSelection {
+                    delay_ns: delay_ns.unwrap_or(0),
+                }
+            }
+            privileged::DECOY_ID => {
+                only(&[])?;
+                Self::OracleDecoy
+            }
+            contradiction::ID => {
+                only(&["delay_ns", "persist_ns"])?;
+                Self::Contradiction {
+                    delay_ns: delay_ns.unwrap_or(contradiction::DEFAULT_DELAY_NS),
+                    persist_ns: persist_ns.unwrap_or(contradiction::DEFAULT_PERSIST_NS),
+                }
             }
             ablation::ID => {
                 only(&[])?;
@@ -197,7 +240,10 @@ impl StreamPolicySpec {
             Self::Change => change::ID,
             Self::Threshold { .. } => threshold::ID,
             Self::Random { .. } => random::ID,
+            Self::Contradiction { .. } => contradiction::ID,
             Self::Oracle => privileged::ID,
+            Self::OracleSelection { .. } => privileged::SELECTION_ID,
+            Self::OracleDecoy => privileged::DECOY_ID,
             Self::Ablation => ablation::ID,
         }
     }
@@ -210,7 +256,7 @@ impl StreamPolicySpec {
     /// What the arm is: its name must say so unless it is a comparison arm.
     pub fn role(&self) -> ArmRole {
         match self {
-            Self::Oracle => ArmRole::Privileged,
+            Self::Oracle | Self::OracleSelection { .. } | Self::OracleDecoy => ArmRole::Privileged,
             Self::Ablation => ArmRole::Ablation,
             _ => ArmRole::Comparison,
         }
@@ -231,6 +277,8 @@ struct Tagged {
     p: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     delay_ns: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    persist_ns: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -242,28 +290,39 @@ enum Repr {
 
 impl Serialize for StreamPolicySpec {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let tagged = |period_ns, tau, wait_ns, p, delay_ns| Tagged {
+        let tagged = |period_ns, tau, wait_ns, p, delay_ns, persist_ns| Tagged {
             policy: self.id_str().to_owned(),
             period_ns,
             tau,
             wait_ns,
             p,
             delay_ns,
+            persist_ns,
         };
         // A delay of zero is the arm as it was before the parameter existed and is not written.
         let delay = |d: u64| (d != 0).then_some(d);
         match self {
             Self::Periodic { period_ns } => {
-                tagged(Some(*period_ns), None, None, None, None).serialize(serializer)
+                tagged(Some(*period_ns), None, None, None, None, None).serialize(serializer)
             }
             Self::Threshold { tau, wait_ns } => {
-                tagged(None, Some(*tau), Some(*wait_ns), None, None).serialize(serializer)
+                tagged(None, Some(*tau), Some(*wait_ns), None, None, None).serialize(serializer)
             }
             Self::Random { p, delay_ns } => {
-                tagged(None, None, None, Some(*p), delay(*delay_ns)).serialize(serializer)
+                tagged(None, None, None, Some(*p), delay(*delay_ns), None).serialize(serializer)
             }
             Self::Always { delay_ns } if *delay_ns != 0 => {
-                tagged(None, None, None, None, Some(*delay_ns)).serialize(serializer)
+                tagged(None, None, None, None, Some(*delay_ns), None).serialize(serializer)
+            }
+            Self::Contradiction {
+                delay_ns,
+                persist_ns,
+            } if *delay_ns != 0 || *persist_ns != 0 => {
+                tagged(None, None, None, None, delay(*delay_ns), delay(*persist_ns))
+                    .serialize(serializer)
+            }
+            Self::OracleSelection { delay_ns } if *delay_ns != 0 => {
+                tagged(None, None, None, None, Some(*delay_ns), None).serialize(serializer)
             }
             other => serializer.serialize_str(other.id_str()),
         }
@@ -274,9 +333,15 @@ impl<'de> Deserialize<'de> for StreamPolicySpec {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let result = match Repr::deserialize(deserializer)? {
             Repr::Id(id) => Self::from_id(&id),
-            Repr::Full(t) => {
-                Self::from_parts(&t.policy, t.period_ns, t.tau, t.wait_ns, t.p, t.delay_ns)
-            }
+            Repr::Full(t) => Self::from_parts(
+                &t.policy,
+                t.period_ns,
+                t.tau,
+                t.wait_ns,
+                t.p,
+                t.delay_ns,
+                t.persist_ns,
+            ),
         };
         result.map_err(serde::de::Error::custom)
     }
@@ -288,7 +353,14 @@ pub fn privileged_factory(
     spec: &StreamPolicySpec,
     rung: &RungConfig,
 ) -> Option<privileged::OracleFactory> {
-    matches!(spec, StreamPolicySpec::Oracle).then(|| privileged::OracleFactory::new(rung.clone()))
+    match spec {
+        StreamPolicySpec::Oracle => Some(privileged::OracleFactory::new(rung.clone())),
+        StreamPolicySpec::OracleSelection { delay_ns } => Some(
+            privileged::OracleFactory::selection(rung.clone(), *delay_ns),
+        ),
+        StreamPolicySpec::OracleDecoy => Some(privileged::OracleFactory::decoy(rung.clone())),
+        _ => None,
+    }
 }
 
 /// A fresh arm for one segment of the arm named `arm`, whose stream has seed `stream_seed`, or
@@ -324,11 +396,21 @@ pub fn build_public(
             public,
             config,
         )),
+        StreamPolicySpec::Contradiction {
+            delay_ns,
+            persist_ns,
+        } => Box::new(StreamArm::with(
+            Contradiction::new(*delay_ns, *persist_ns),
+            public,
+            config,
+        )),
         StreamPolicySpec::Ablation => Box::new(StreamArm::with(
             ablation::HiddenRules::new(),
             public,
             config,
         )),
-        StreamPolicySpec::Oracle => return None,
+        StreamPolicySpec::Oracle
+        | StreamPolicySpec::OracleSelection { .. }
+        | StreamPolicySpec::OracleDecoy => return None,
     })
 }

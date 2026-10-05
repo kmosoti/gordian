@@ -10,6 +10,13 @@
 //! file, so two arms cannot differ in how they notice, conclude or declare. Tests in
 //! `tests/stream_arms.rs` make that checkable and not merely stated.
 //!
+//! # The contradiction arm
+//!
+//! `contradiction_escalation` (work item R5) escalates on the cheap rung's own failure to explain an
+//! anomaly: the consistency checker's verdict ([`rung::AnomalyView::contradicted_since`]), which the
+//! rung keeps current only for a rule that asks ([`EscalationRule::monitors`]). It reads nothing the
+//! other arms do not, and its context is the rung's.
+//!
 //! # What an arm may see
 //!
 //! A [`StepInput`]: the observations and reasoner answers the stream delivered, the probe results
@@ -29,6 +36,7 @@
 pub mod ablation;
 pub mod always;
 pub mod change;
+pub mod contradiction;
 pub mod never;
 pub mod periodic;
 pub mod random;
@@ -234,6 +242,21 @@ pub trait EscalationRule {
         Vec::new()
     }
 
+    /// The noticed anomalies (by id) to dismiss now: declared "not an incident" at their anchor,
+    /// and never declared for by the cheap rung. No escalation is involved. Only the privileged
+    /// decoy arm dismisses anything.
+    fn dismissals(&mut self, _now: Instant, _views: &[AnomalyView]) -> Vec<u32> {
+        Vec::new()
+    }
+
+    /// Whether the rule reads [`AnomalyView::contradicted_since`], so that the rung must keep the
+    /// consistency checker's verdict on each anomaly up to date
+    /// ([`rung::Rung::set_monitor`]). Only `contradiction_escalation` does. When false the rung
+    /// does exactly what it does without the feature.
+    fn monitors(&self) -> bool {
+        false
+    }
+
     /// Whether the arm has recognisers ([`EscalationRule::recognize`]) to run on every noticed
     /// anomaly, outranking the shared rule's conclusion. Only the ablation does.
     fn revises(&self) -> bool {
@@ -267,9 +290,11 @@ pub struct StreamArm<E: EscalationRule> {
 impl<E: EscalationRule> StreamArm<E> {
     /// `rule` over a fresh rung for a stream with `public` information.
     pub fn with(rule: E, public: &StreamPublic, config: RungConfig) -> Self {
+        let mut rung = Rung::new(public, config);
+        rung.set_monitor(rule.monitors());
         Self {
             rule,
-            rung: Rung::new(public, config),
+            rung,
             outstanding: BTreeMap::new(),
             next_tag: 1,
         }
@@ -341,9 +366,22 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
         }
         self.rung.notice(now);
 
+        // Consistency checks, for a rule that reads them (`contradiction_escalation`; the list is
+        // empty for every other arm): before the views, so the rule sees this step's verdicts.
+        for id in self.rung.due_checks(now) {
+            self.rung.check(id, now, meter);
+        }
+
+        // Dismissals: before the reviews, so that a dismissed anomaly is not concluded about.
+        let views = self.rung.views(now);
+        for id in self.rule.dismissals(now, &views) {
+            if let Some(proposed) = self.rung.dismiss(id) {
+                out.push(proposed);
+            }
+        }
+
         // Escalations: decided before the reviews, so that a cheap conclusion reached at the same
         // step sees the hold.
-        let views = self.rung.views(now);
         let mut targets = self.rule.targets(now, &views);
         targets.sort_unstable();
         targets.dedup();

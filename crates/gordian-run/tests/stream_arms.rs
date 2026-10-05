@@ -42,6 +42,7 @@ fn view(id: u32) -> AnomalyView {
         last_attempt_digest: None,
         cheap_declared: false,
         delivered: 100,
+        contradicted_since: None,
     }
 }
 
@@ -252,11 +253,13 @@ fn a_call_in_flight_holds_the_cheap_declaration_by_default() {
 
 // ---- One decision procedure
 
+const PRIVILEGED_IDS: [&str; 3] = ["oracle_escalation", "oracle_selection", "oracle_decoy"];
+
 fn comparison_specs() -> Vec<(&'static str, StreamPolicySpec)> {
     ALL_ARMS
         .iter()
         .copied()
-        .filter(|id| *id != "oracle_escalation")
+        .filter(|id| !PRIVILEGED_IDS.contains(id))
         .map(|id| (id, StreamPolicySpec::from_id(id).unwrap()))
         .collect()
 }
@@ -581,7 +584,7 @@ fn no_arm_file_can_name_the_truth_the_call_records_the_stream_or_its_parameters(
     // `scripts/check-no-oracle.sh` is the same check as a grep over the whole tree; this repeats
     // it so that `cargo test` fails without the script.
     let files = arm_files();
-    assert!(files.len() >= 9);
+    assert!(files.len() >= 10);
     for (name, text) in &files {
         for word in [
             "StreamTruth",
@@ -748,7 +751,7 @@ fn every_policy_spec_is_either_a_comparison_arm_the_privileged_arm_or_the_ablati
         let spec = StreamPolicySpec::from_id(id).unwrap();
         roles.entry(spec.role().as_str()).or_default().push(id);
     }
-    assert_eq!(roles["privileged"], vec!["oracle_escalation"]);
+    assert_eq!(roles["privileged"], PRIVILEGED_IDS.to_vec());
     assert_eq!(roles["ablation"], vec!["ablation_hidden_rules"]);
-    assert_eq!(roles["comparison"].len(), 6);
+    assert_eq!(roles["comparison"].len(), 7);
 }

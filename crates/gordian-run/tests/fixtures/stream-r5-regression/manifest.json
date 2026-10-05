@@ -1,0 +1,306 @@
+{
+  "run_id": "r5-regression-fixture",
+  "experiment": "test-fixture",
+  "arms": [
+    {
+      "arm": "never_escalate",
+      "policy": "never_escalate"
+    },
+    {
+      "arm": "always_d08",
+      "policy": {
+        "policy": "always_escalate",
+        "delay_ns": 8000000000
+      }
+    },
+    {
+      "arm": "random_p025_d10",
+      "policy": {
+        "policy": "random_escalation",
+        "p": 0.25,
+        "delay_ns": 10000000000
+      }
+    },
+    {
+      "arm": "periodic_t06",
+      "policy": {
+        "policy": "periodic_escalation",
+        "period_ns": 6000000000
+      }
+    },
+    {
+      "arm": "thr_tau4_w06",
+      "policy": {
+        "policy": "threshold_score",
+        "tau": 4.0,
+        "wait_ns": 6000000000
+      }
+    },
+    {
+      "arm": "change_triggered",
+      "policy": "change_triggered"
+    },
+    {
+      "arm": "ablation_hidden_rules",
+      "policy": "ablation_hidden_rules"
+    },
+    {
+      "arm": "oracle_escalation_privileged",
+      "policy": "oracle_escalation"
+    }
+  ],
+  "run_seed": 0,
+  "drift_block": 50,
+  "source_revision": "22ca528e6d750dec9335a60b99f7cbf749cbde51",
+  "lockfile_sha256": "bafa4e4660344d0d37faba70e5386db1b5b1804416b59e98ac8c1ccd3494527a",
+  "toolchain": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "cpu_flags": [
+    "fpu",
+    "vme",
+    "de",
+    "pse",
+    "tsc",
+    "msr",
+    "pae",
+    "mce",
+    "cx8",
+    "apic",
+    "sep",
+    "mtrr",
+    "pge",
+    "mca",
+    "cmov",
+    "pat",
+    "pse36",
+    "clflush",
+    "mmx",
+    "fxsr",
+    "sse",
+    "sse2",
+    "ss",
+    "ht",
+    "syscall",
+    "nx",
+    "pdpe1gb",
+    "rdtscp",
+    "lm",
+    "constant_tsc",
+    "rep_good",
+    "nopl",
+    "xtopology",
+    "nonstop_tsc",
+    "cpuid",
+    "tsc_known_freq",
+    "pni",
+    "pclmulqdq",
+    "ssse3",
+    "fma",
+    "cx16",
+    "pcid",
+    "sse4_1",
+    "sse4_2",
+    "x2apic",
+    "movbe",
+    "popcnt",
+    "tsc_deadline_timer",
+    "aes",
+    "xsave",
+    "avx",
+    "f16c",
+    "rdrand",
+    "hypervisor",
+    "lahf_lm",
+    "abm",
+    "3dnowprefetch",
+    "cpuid_fault",
+    "ssbd",
+    "ibrs",
+    "ibpb",
+    "stibp",
+    "ibrs_enhanced",
+    "fsgsbase",
+    "tsc_adjust",
+    "bmi1",
+    "hle",
+    "avx2",
+    "smep",
+    "bmi2",
+    "erms",
+    "invpcid",
+    "rtm",
+    "avx512f",
+    "avx512dq",
+    "rdseed",
+    "adx",
+    "smap",
+    "avx512ifma",
+    "clflushopt",
+    "clwb",
+    "avx512cd",
+    "sha_ni",
+    "avx512bw",
+    "avx512vl",
+    "xsaveopt",
+    "xsavec",
+    "xgetbv1",
+    "xsaves",
+    "avx_vnni",
+    "avx512_bf16",
+    "wbnoinvd",
+    "arat",
+    "avx512vbmi",
+    "umip",
+    "avx512_vbmi2",
+    "gfni",
+    "vaes",
+    "vpclmulqdq",
+    "avx512_vnni",
+    "avx512_bitalg",
+    "avx512_vpopcntdq",
+    "rdpid",
+    "cldemote",
+    "movdiri",
+    "movdir64b",
+    "fsrm",
+    "md_clear",
+    "serialize",
+    "tsxldtrk",
+    "amx_bf16",
+    "avx512_fp16",
+    "amx_tile",
+    "amx_int8",
+    "arch_capabilities"
+  ],
+  "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpu_mhz": 2100.0,
+  "isolation": {
+    "cpus": "0-2",
+    "cpu_quota_percent": 300,
+    "memory_bytes": 2147483648,
+    "timeout_secs": 3600
+  },
+  "seeds": [
+    40,
+    41,
+    42,
+    43,
+    44,
+    45
+  ],
+  "stream_params": {
+    "seed": 0,
+    "duration_ns": 600000000000,
+    "min_services": 8,
+    "max_services": 12,
+    "mean_gap_ns": 20000000000,
+    "tail_ns": 60000000000,
+    "mix": {
+      "plain_permille": 800,
+      "hard_permille": 100
+    },
+    "recurrence_permille": 250,
+    "critical": {
+      "plain_permille": 150,
+      "hard_permille": 300
+    },
+    "deadlines": {
+      "plain": {
+        "lo_ns": 30000000000,
+        "hi_ns": 60000000000
+      },
+      "plain_critical": {
+        "lo_ns": 15000000000,
+        "hi_ns": 30000000000
+      },
+      "hard": {
+        "lo_ns": 40000000000,
+        "hi_ns": 90000000000
+      },
+      "hard_critical": {
+        "lo_ns": 20000000000,
+        "hi_ns": 40000000000
+      }
+    },
+    "difficulty": {
+      "plain": {
+        "lo": 0.0,
+        "hi": 0.3
+      },
+      "hard": {
+        "lo": 0.4,
+        "hi": 1.0
+      },
+      "decoy": {
+        "lo": 0.2,
+        "hi": 0.8
+      },
+      "background": 0.3
+    },
+    "noise": {
+      "benign_mhz": 2000,
+      "freeform_mhz": 1500,
+      "catalogue_mhz": 800,
+      "blip_mhz": 400,
+      "burst_mhz": 30,
+      "snapshot_mhz": 100
+    },
+    "regimes": [
+      {
+        "at_ns": 200000000000,
+        "change": "SignatureShift"
+      },
+      {
+        "at_ns": 400000000000,
+        "change": "EdgeAdd"
+      }
+    ],
+    "reasoner": {
+      "a": -1.0,
+      "b": 5.0,
+      "c": 2.0,
+      "rho": 0.7,
+      "cost": {
+        "base_tokens": 400,
+        "per_ref_tokens": 20,
+        "ns_per_token": 250000,
+        "latency_base_ns": 2000000000,
+        "latency_per_ref_ns": 2000000
+      }
+    },
+    "budget": {
+      "probes": 150,
+      "probe_time_ns": 1500000000,
+      "reasoner_ns": 20000000000
+    },
+    "max_context": 4096
+  },
+  "rung": {
+    "patience_ns": 3000000000,
+    "window": 256,
+    "review_ns": 500000000,
+    "notice_z": 3.0,
+    "score_window_ns": 8000000000,
+    "burst_ns": 400000000,
+    "burst_gap_ns": 2000000000,
+    "quiet_ns": 6000000000,
+    "retain_ns": 120000000000,
+    "prior_mhz": 100,
+    "prior_ns": 30000000000,
+    "context_lookback_ns": 2000000000,
+    "context_max_refs": 128
+  },
+  "limits": {
+    "compute": 2000000000,
+    "memory": 1073741824,
+    "probes": 150,
+    "probe_time_ns": 1500000000,
+    "reasoner_tokens": 80000,
+    "step_ns": 500000000,
+    "max_steps": 2418
+  },
+  "exchange": {
+    "reasoner_ns_per_token": 250000
+  },
+  "trace_sample_rate": 0.0,
+  "internal_external_ratio": null
+}

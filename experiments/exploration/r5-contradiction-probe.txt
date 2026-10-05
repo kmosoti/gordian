@@ -1,0 +1,21 @@
+tier/family: anomalies, contradicted at notice, ever contradicted, own-evidence-only contradicted at end of life
+background/               399   333   386   366
+     decoy/cascade         57    17    40     8
+     decoy/compound        52    32    42    26
+     decoy/slow_leak       18     9    11     0
+     decoy/split_brain     65    25    50     9
+      hard/cascade         72    29    71    11
+      hard/compound        61    45    59    58
+      hard/slow_leak       18     9    18     0
+      hard/split_brain     66    34    64     2
+     plain/              1931   870  1881   224
+background/              first contradiction after notice (s): median 0.00, p90 5.50, n 386
+decoy/cascade            first contradiction after notice (s): median 1.50, p90 11.50, n 40
+decoy/compound           first contradiction after notice (s): median 0.00, p90 4.00, n 42
+decoy/slow_leak          first contradiction after notice (s): median 0.00, p90 2.00, n 11
+decoy/split_brain        first contradiction after notice (s): median 1.00, p90 15.00, n 50
+hard/cascade             first contradiction after notice (s): median 1.00, p90 18.50, n 71
+hard/compound            first contradiction after notice (s): median 0.00, p90 6.50, n 59
+hard/slow_leak           first contradiction after notice (s): median 2.00, p90 22.00, n 18
+hard/split_brain         first contradiction after notice (s): median 0.00, p90 21.00, n 64
+plain/                   first contradiction after notice (s): median 1.00, p90 18.50, n 1881

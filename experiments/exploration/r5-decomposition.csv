@@ -1,0 +1,61 @@
+setting,step,arm,quality_excl_leak,cost_s,calls_per_stream,hard_incl_leak,compound_correct,compound_n,compound_rate,cascade_correct,cascade_n,cascade_rate,split_brain_correct,split_brain_n,split_brain_rate,slow_leak_correct,slow_leak_n,slow_leak_rate,quality_lo,quality_hi
+b2.5-rho0,"best public, highest quality at any cost",periodic_t30,0.263441,16.5735,42.35,0.221135,65,119,0.546218,18,122,0.147541,15,131,0.114504,15,139,0.107914,,
+b2.5-rho0,best public at cost <= selection oracle's,random_p006_d14,0.0188172,0.452242,1.54,0.0136986,5,119,0.0420168,0,122,0,2,131,0.0152672,0,139,0,,
+b2.5-rho0,"best contradiction_escalation, any cost",contra_d14_p00,0.204301,7.47781,24.265,0.162427,47,119,0.394958,8,122,0.0655738,21,131,0.160305,7,139,0.0503597,,
+b2.5-rho0,selection oracle (tuned delay),oracle_selection_d14_privileged,0.22043,0.641717,2.13,0.176125,49,119,0.411765,9,122,0.0737705,24,131,0.183206,8,139,0.057554,,
+b2.5-rho0,R4 oracle (selection + timing + context),oracle_escalation_privileged,0.494624,0.320517,2.555,0.491194,56,119,0.470588,61,122,0.5,67,131,0.51145,67,139,0.482014,,
+b2.5-rho0,ablation: hidden rules in the cheap rung,ablation_hidden_rules,0.427419,0.000319162,0,0.328767,89,119,0.747899,32,122,0.262295,38,131,0.290076,9,139,0.0647482,,
+b2.5-rho0,never_escalate,never_escalate,0,0.000341641,0,0,0,119,0,0,122,0,0,131,0,0,139,0,,
+b2.5-rho0,difference: selection oracle minus best public (any cost),oracle_selection_d14_privileged - periodic_t30,-0.0430108,,,,,,,,,,,,,,,,-0.0878553,0.00263193
+b2.5-rho0,difference: selection oracle minus best public at its cost (criterion 1),oracle_selection_d14_privileged - random_p006_d14,0.201613,,,,,,,,,,,,,,,,0.168639,0.234958
+b2.5-rho0,difference: R4 oracle minus selection oracle (timing and context),oracle_escalation_privileged - oracle_selection_d14_privileged,0.274194,,,,,,,,,,,,,,,,0.220429,0.329272
+b2.5-rho0.7,"best public, highest quality at any cost",always_d16,0.247312,7.58204,24.315,0.199609,54,119,0.453782,21,122,0.172131,17,131,0.129771,10,139,0.0719424,,
+b2.5-rho0.7,best public at cost <= selection oracle's,random_p006_d14,0.0322581,0.452242,1.54,0.0234834,8,119,0.0672269,1,122,0.00819672,3,131,0.0229008,0,139,0,,
+b2.5-rho0.7,"best contradiction_escalation, any cost",contra_d16_p00,0.244624,7.66386,23.905,0.197652,53,119,0.445378,22,122,0.180328,16,131,0.122137,10,139,0.0719424,,
+b2.5-rho0.7,selection oracle (tuned delay),oracle_selection_d16_privileged,0.247312,0.664491,2.1,0.199609,54,119,0.453782,21,122,0.172131,17,131,0.129771,10,139,0.0719424,,
+b2.5-rho0.7,R4 oracle (selection + timing + context),oracle_escalation_privileged,0.537634,0.320517,2.555,0.508806,67,119,0.563025,65,122,0.532787,68,131,0.519084,60,139,0.431655,,
+b2.5-rho0.7,ablation: hidden rules in the cheap rung,ablation_hidden_rules,0.427419,0.000319162,0,0.328767,89,119,0.747899,32,122,0.262295,38,131,0.290076,9,139,0.0647482,,
+b2.5-rho0.7,never_escalate,never_escalate,0,0.000341641,0,0,0,119,0,0,122,0,0,131,0,0,139,0,,
+b2.5-rho0.7,difference: selection oracle minus best public (any cost),oracle_selection_d16_privileged - always_d16,0,,,,,,,,,,,,,,,,0,0
+b2.5-rho0.7,difference: selection oracle minus best public at its cost (criterion 1),oracle_selection_d16_privileged - random_p006_d14,0.215054,,,,,,,,,,,,,,,,0.176,0.255618
+b2.5-rho0.7,difference: R4 oracle minus selection oracle (timing and context),oracle_escalation_privileged - oracle_selection_d16_privileged,0.290323,,,,,,,,,,,,,,,,0.241829,0.338068
+b5-rho0,"best public, highest quality at any cost",always_d16,0.467742,7.58204,24.315,0.395303,95,119,0.798319,38,122,0.311475,41,131,0.312977,28,139,0.201439,,
+b5-rho0,best public at cost <= selection oracle's,random_p006_d14,0.0483871,0.452242,1.54,0.037182,11,119,0.092437,3,122,0.0245902,4,131,0.0305344,1,139,0.00719424,,
+b5-rho0,"best contradiction_escalation, any cost",contra_d14_p00,0.446237,7.47781,24.265,0.37182,87,119,0.731092,33,122,0.270492,46,131,0.351145,24,139,0.172662,,
+b5-rho0,selection oracle (tuned delay),oracle_selection_d16_privileged,0.467742,0.664491,2.1,0.395303,95,119,0.798319,38,122,0.311475,41,131,0.312977,28,139,0.201439,,
+b5-rho0,R4 oracle (selection + timing + context),oracle_escalation_privileged,0.94086,0.320517,2.555,0.939335,114,119,0.957983,115,122,0.942623,121,131,0.923664,130,139,0.935252,,
+b5-rho0,ablation: hidden rules in the cheap rung,ablation_hidden_rules,0.427419,0.000319162,0,0.328767,89,119,0.747899,32,122,0.262295,38,131,0.290076,9,139,0.0647482,,
+b5-rho0,never_escalate,never_escalate,0,0.000341641,0,0,0,119,0,0,122,0,0,131,0,0,139,0,,
+b5-rho0,difference: selection oracle minus best public (any cost),oracle_selection_d16_privileged - always_d16,0,,,,,,,,,,,,,,,,0,0
+b5-rho0,difference: selection oracle minus best public at its cost (criterion 1),oracle_selection_d16_privileged - random_p006_d14,0.419355,,,,,,,,,,,,,,,,0.372222,0.467172
+b5-rho0,difference: R4 oracle minus selection oracle (timing and context),oracle_escalation_privileged - oracle_selection_d16_privileged,0.473118,,,,,,,,,,,,,,,,0.422277,0.523957
+b5-rho0.7,"best public, highest quality at any cost",always_d14,0.489247,7.35869,24.715,0.399217,96,119,0.806723,41,122,0.336066,45,131,0.343511,22,139,0.158273,,
+b5-rho0.7,best public at cost <= selection oracle's,random_p006_d14,0.0564516,0.452242,1.54,0.0430528,12,119,0.10084,5,122,0.0409836,4,131,0.0305344,1,139,0.00719424,,
+b5-rho0.7,"best contradiction_escalation, any cost",contra_d18_p02,0.478495,7.86465,23.54,0.391389,94,119,0.789916,42,122,0.344262,42,131,0.320611,22,139,0.158273,,
+b5-rho0.7,selection oracle (tuned delay),oracle_selection_d16_privileged,0.489247,0.664491,2.1,0.407045,94,119,0.789916,46,122,0.377049,42,131,0.320611,26,139,0.18705,,
+b5-rho0.7,R4 oracle (selection + timing + context),oracle_escalation_privileged,0.951613,0.320517,2.555,0.939335,116,119,0.97479,116,122,0.95082,122,131,0.931298,126,139,0.906475,,
+b5-rho0.7,ablation: hidden rules in the cheap rung,ablation_hidden_rules,0.427419,0.000319162,0,0.328767,89,119,0.747899,32,122,0.262295,38,131,0.290076,9,139,0.0647482,,
+b5-rho0.7,never_escalate,never_escalate,0,0.000341641,0,0,0,119,0,0,122,0,0,131,0,0,139,0,,
+b5-rho0.7,difference: selection oracle minus best public (any cost),oracle_selection_d16_privileged - always_d14,0,,,,,,,,,,,,,,,,-0.0350877,0.0330579
+b5-rho0.7,difference: selection oracle minus best public at its cost (criterion 1),oracle_selection_d16_privileged - random_p006_d14,0.432796,,,,,,,,,,,,,,,,0.389381,0.476323
+b5-rho0.7,difference: R4 oracle minus selection oracle (timing and context),oracle_escalation_privileged - oracle_selection_d16_privileged,0.462366,,,,,,,,,,,,,,,,0.418278,0.505884
+b8-rho0,"best public, highest quality at any cost",always_d14,0.653226,7.35869,24.715,0.540117,106,119,0.890756,64,122,0.52459,73,131,0.557252,33,139,0.23741,,
+b8-rho0,best public at cost <= selection oracle's,random_p006_d14,0.0564516,0.452242,1.54,0.0430528,12,119,0.10084,3,122,0.0245902,6,131,0.0458015,1,139,0.00719424,,
+b8-rho0,"best contradiction_escalation, any cost",contra_d14_p00,0.650538,7.47781,24.265,0.530333,105,119,0.882353,64,122,0.52459,73,131,0.557252,29,139,0.208633,,
+b8-rho0,selection oracle (tuned delay),oracle_selection_d16_privileged,0.653226,0.664491,2.1,0.53816,103,119,0.865546,67,122,0.54918,73,131,0.557252,32,139,0.230216,,
+b8-rho0,R4 oracle (selection + timing + context),oracle_escalation_privileged,0.997312,0.320517,2.555,0.998043,119,119,1,122,122,1,130,131,0.992366,139,139,1,,
+b8-rho0,ablation: hidden rules in the cheap rung,ablation_hidden_rules,0.427419,0.000319162,0,0.328767,89,119,0.747899,32,122,0.262295,38,131,0.290076,9,139,0.0647482,,
+b8-rho0,never_escalate,never_escalate,0,0.000341641,0,0,0,119,0,0,122,0,0,131,0,0,139,0,,
+b8-rho0,difference: selection oracle minus best public (any cost),oracle_selection_d16_privileged - always_d14,0,,,,,,,,,,,,,,,,-0.0445026,0.0441196
+b8-rho0,difference: selection oracle minus best public at its cost (criterion 1),oracle_selection_d16_privileged - random_p006_d14,0.596774,,,,,,,,,,,,,,,,0.553804,0.638524
+b8-rho0,difference: R4 oracle minus selection oracle (timing and context),oracle_escalation_privileged - oracle_selection_d16_privileged,0.344086,,,,,,,,,,,,,,,,0.303278,0.387436
+b8-rho0.7,"best public, highest quality at any cost",always_d16,0.693548,7.58204,24.315,0.565558,104,119,0.87395,71,122,0.581967,83,131,0.633588,31,139,0.223022,,
+b8-rho0.7,best public at cost <= selection oracle's,random_p006_d14,0.0591398,0.452242,1.54,0.0450098,12,119,0.10084,5,122,0.0409836,5,131,0.0381679,1,139,0.00719424,,
+b8-rho0.7,"best contradiction_escalation, any cost",contra_d14_p00,0.677419,7.47781,24.265,0.545988,104,119,0.87395,67,122,0.54918,81,131,0.618321,27,139,0.194245,,
+b8-rho0.7,selection oracle (tuned delay),oracle_selection_d16_privileged,0.693548,0.664491,2.1,0.565558,104,119,0.87395,71,122,0.581967,83,131,0.633588,31,139,0.223022,,
+b8-rho0.7,R4 oracle (selection + timing + context),oracle_escalation_privileged,1,0.320517,2.555,1,119,119,1,122,122,1,131,131,1,139,139,1,,
+b8-rho0.7,ablation: hidden rules in the cheap rung,ablation_hidden_rules,0.427419,0.000319162,0,0.328767,89,119,0.747899,32,122,0.262295,38,131,0.290076,9,139,0.0647482,,
+b8-rho0.7,never_escalate,never_escalate,0,0.000341641,0,0,0,119,0,0,122,0,0,131,0,0,139,0,,
+b8-rho0.7,difference: selection oracle minus best public (any cost),oracle_selection_d16_privileged - always_d16,0,,,,,,,,,,,,,,,,0,0
+b8-rho0.7,difference: selection oracle minus best public at its cost (criterion 1),oracle_selection_d16_privileged - random_p006_d14,0.634409,,,,,,,,,,,,,,,,0.592284,0.674096
+b8-rho0.7,difference: R4 oracle minus selection oracle (timing and context),oracle_escalation_privileged - oracle_selection_d16_privileged,0.306452,,,,,,,,,,,,,,,,0.26649,0.346838

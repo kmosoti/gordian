@@ -1,0 +1,26 @@
+arm,family,calls_about_hard,before_evidence,complete,lacking,missing_obs,obs_service_not_attached,obs_outside_window,obs_context_cap,obs_other,calls_with_service_not_attached,calls_with_outside_window,calls_with_context_cap,calls_with_other
+always_d06,cascade,54,21,5,28,53,52,1,0,0,28,1,0,0
+always_d06,compound,60,22,34,4,10,10,0,0,0,4,0,0,0
+always_d06,slow_leak,25,0,10,15,43,0,43,0,0,0,15,0,0
+always_d06,split_brain,57,12,7,38,97,67,30,0,0,30,13,0,0
+always_d14,cascade,49,1,1,47,128,118,10,0,0,47,5,0,0
+always_d14,compound,57,0,55,2,12,12,0,0,0,2,0,0,0
+always_d14,slow_leak,25,0,10,15,43,0,43,0,0,0,15,0,0
+always_d14,split_brain,50,0,1,49,166,109,57,0,0,34,20,0,0
+contra_d18_p02,cascade,49,0,0,49,145,133,12,0,0,49,7,0,0
+contra_d18_p02,compound,56,0,54,2,12,12,0,0,0,2,0,0,0
+contra_d18_p02,slow_leak,25,0,10,15,43,0,43,0,0,0,15,0,0
+contra_d18_p02,split_brain,46,0,0,46,151,100,51,0,0,31,19,0,0
+oracle_selection_d16_privileged,cascade,49,0,0,49,145,133,12,0,0,49,7,0,0
+oracle_selection_d16_privileged,compound,56,0,54,2,12,12,0,0,0,2,0,0,0
+oracle_selection_d16_privileged,slow_leak,25,0,10,15,43,0,43,0,0,0,15,0,0
+oracle_selection_d16_privileged,split_brain,50,0,0,50,168,109,59,0,0,34,21,0,0
+always_d06,ALL,196,55,56,85,203,129,74,0,0,62,29,0,0
+always_d14,ALL,181,1,67,113,349,239,110,0,0,83,40,0,0
+contra_d18_p02,ALL,176,0,64,112,351,245,106,0,0,82,41,0,0
+oracle_selection_d16_privileged,ALL,180,0,64,116,368,254,114,0,0,85,43,0,0
+ALL ARMS,compound,229,22,197,10,46,46,0,0,0,10,0,0,0
+ALL ARMS,cascade,201,22,6,173,471,436,35,0,0,173,20,0,0
+ALL ARMS,split_brain,203,12,8,183,582,385,197,0,0,129,73,0,0
+ALL ARMS,slow_leak,100,0,40,60,172,0,172,0,0,0,60,0,0
+ALL ARMS,ALL,733,56,251,426,1271,867,404,0,0,312,153,0,0
