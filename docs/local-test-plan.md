@@ -976,6 +976,168 @@ favourable point estimate, it says so in writing before the main run.
 - At most 4 hours of inference.
 - The worker checks free disk (at least 4 GB) before the download.
 
+### R9 Grounding the distractor penalty in the world (before EXP-102 is preregistered)
+
+R7 showed that R6's conclusion depends on δ, the loss of informed probability per 100 references
+that are not evidence. R8 could not measure δ on a real model. R8 did show something else: in this
+world, references that are not evidence include look-alikes. The hard kinds' decisive messages
+draw their ids from the 48-id pool that 70% of background free-form messages also use
+(`HIDDEN-DESIGN.md`, sections 7 and 9). A program that applies the hard families' rules fell from
+0.93 to 0.36 as distractors rose from 0 to 400. The simulated reasoner at δ = 0 counts `q` from
+hidden labels, so it is a reader that always knows which references are evidence. No reader
+without the labels has that ability.
+
+R9 replaces the free δ with a measurement: the loss suffered by the strongest reader that has the
+reasoner's knowledge (the hidden rules) and nothing the reasoner would not have (no labels). It
+then reruns R7's comparison at that δ. It does not change the reasoner's law.
+
+**The reader.** A deterministic program, in `experiments/exploration/scripts/r9_reader.py`,
+evaluator-side like `r8_rules.py`. It is not an arm, not a baseline, and never enters a policy.
+
+- **It may use:** the context's observations at full time resolution, the public graph, the first
+  world's public physics, and the hard families' rules (`HIDDEN-DESIGN.md` sections 4 and 4.2),
+  including timing structure (the partner's alarms 20–230 ms after the first; phase-2 evidence in
+  `[6 s, 16 s)`; `MixedSignals` at two services; the leak's ramp), counters, probe results in the
+  context, and repetition of ids within the context.
+- **It may not use:** hidden labels, tiers, the pool's per-stream vocabulary assignment, or any
+  stream state outside the context. It answers from the context alone, as the reasoner does.
+- **Development and evaluation are separate.** The reader is built and tuned on questions from
+  seeds 29000–29999 only. Its evaluation questions come from seeds 30000 upward. Once the first
+  evaluation number is computed, the reader is frozen; a later change starts a new evaluation on
+  seeds 32000 upward and both are reported.
+- The worker builds the strongest reader it can in bounded effort, states what it tried, and
+  records that a stronger reader would give a smaller δ.
+
+**Questions.** From R8's dumper (`crates/gordian-stream/examples/questions.rs`), regimes off, with
+one change: the pool holds every other observation within ±40 s of the focus except the decisive
+ones, **including the focus incident's own non-decisive observations**, because the simulator's
+`m` counts those and a window builder carries them. Add this as a dumper option, keep the old
+behaviour as the default, and test both.
+
+- Hard incidents, slow leak excluded, at least 200 questions, each from a distinct stream segment
+  where possible; cluster by stream.
+- Plain incidents, 100 questions, as a secondary set.
+- Levels m ∈ {0, 50, 100, 200, 400}, nested as in R8 (one seeded permutation per question).
+- Control: q = 0 at m = 50.
+
+**Estimate.** As R8: A(m) per level with 90% cluster bootstrap over streams; δ* fitted by least
+squares to `A(m) = p0 + (A(0) − p0)·exp(−δ·m/100)` with `p0` the control's estimate; 90% cluster
+bootstrap of δ* (10,000 resamples, seed 9900). The misfit of the exponential is reported: the
+largest absolute residual over the five levels.
+
+**Rerun.** R7's comparison at δ ∈ {δ*_lo, δ*, δ*_hi} (the interval's bounds and the point
+estimate), at the primary setting (b = 5, ρ = 0.7), using R7's manifest writer, tuning and
+held-out streams, selection rule and statistics unchanged. If a value coincides with R7's grid
+to within 0.005, R7's run is reused and named. Three tuning and three held-out runs.
+
+**Criterion, fixed by the coordinator before any R9 code or run (2026-10-06).**
+
+- **Reader precondition:** on hard evaluation questions, A(0) ≥ 0.80 with its 90% lower bound
+  above 0.70. If it fails, the outcome is **reader too weak**, δ* is reported as labelled, and the
+  rerun still happens but decides nothing.
+- **R6 regime:** at δ*_hi, the 90% upper bound of G is below 0.10 (G as R7 defines it: the
+  context-only ceiling minus the tuning-selected builder).
+- **R7 regime:** at δ*_lo, G ≥ 0.10 with its 90% lower bound above 0.05.
+- **Unresolved:** anything else.
+
+Feasibility: R7 measured G(0.05) = 0.097 [0.066, 0.129] and G(0.1) = 0.137 [0.104, 0.170], and G
+rises with δ, so the R6 regime needs roughly δ*_hi < 0.05 and the R7 regime roughly δ*_lo > 0.1.
+R8's crude reader gave δ̂ ≈ 0.44–0.85; a strong reader may land anywhere below that. Every
+outcome is reachable, and one privilege separates ceiling and comparator in the rerun.
+
+**Reported beside the criterion, never folded in:**
+
+- **The direct check on real contexts.** R6's diagnostic run (`artifacts/runs/r6/r6-diag-b5-rho0.7`,
+  every ledger kept) has 199 calls about hard incidents for each of seven arms, with the full
+  context of each call. `r6_trace.py` already reconstructs those contexts. Run the reader on each
+  call's context and report its accuracy per arm, against the accuracy predicted from the fitted
+  curve at that arm's mean references per call. This tests whether a count-based δ transfers from
+  randomly drawn distractors to the contexts the builders actually produce.
+- A(m) on plain incidents, and δ* on them as a labelled proxy.
+- The reader's accuracy by family and by mode (mimic, contradict) at each level.
+- Which distractors the reader is fooled by: the share of wrong answers at m = 400 that a
+  look-alike free-form message explains, from the reader's own trace.
+- Critical misses and plain accuracy for every row of the rerun.
+
+**Resource envelope.** The reader is Python on the dumped questions and runs on cores 0-2 under
+`scripts/cgroup-run.sh`. The reruns go through the driver: about 15 minutes. Another worker (R10)
+shares cores 0-2; see "Sharing cores" below.
+
+### R10 Salience ceiling: what noticing is worth (before EXP-101 is preregistered)
+
+R6's review found that the selection-oracle arms call only about anomalies the shared rung
+noticed, and the rung never notices 34 of 372 hard non-leak incidents at the primary setting
+(0.091 of hard-incident quality if every one were answered). The slow leak is worse: the rung
+notices it only after the threshold crossing, and the context-only ceiling scores 0.28 on it
+against R4's oracle's 0.91. EXP-101 is about escalation control, which starts with noticing. R10
+measures what perfect noticing is worth, as one privilege.
+
+**The arm.** `oracle_notice_privileged`, built by `OracleFactory` in `stream/oracle.rs` beside the
+other privileged arms, private rule, truth through the plan only.
+
+- It is `oracle_selection` plus one privilege: for every hard incident it injects a noticed
+  anomaly anchored at the incident's first observation, at the step that observation is delivered,
+  with the site that observation names. `PlanIncident::first` already carries it.
+- Everything else is the selection oracle's: escalate exactly the hard incidents, once each,
+  `delay_ns` after notice, with the context the rung's configured builder makes; the default hold
+  on declaration; the rung's own later notice of the same incident is ignored for escalation.
+- No other privilege: it does not read decisive labels, does not choose the instant beyond
+  notice + delay, and builds no context of its own.
+- The comparison arm is `oracle_selection_privileged` with the same builder and delay. The
+  difference is noticing alone: the incidents the rung never noticed, and the earlier anchor for
+  those it noticed late.
+- R4's oracle is a reference row.
+
+**Pairings.** Context held fixed at the rung's own context (primary: EXP-101's rung), and at
+`window` 40 s, N 256 (secondary: R6's held-out best at δ = 0). Delay as R5 tuned it (16 s at the
+primary setting; R5's per-setting values elsewhere). δ = 0 (the current reasoner default).
+
+**Criterion, fixed by the coordinator before any R10 code or run (2026-10-06).** Two separate
+results, each named, neither an "either":
+
+1. **Salience headroom on hard incidents, slow leak excluded:** at the primary setting (b = 5,
+   ρ = 0.7), with the rung's context, `oracle_notice` minus `oracle_selection` in hard-incident
+   quality is at least 0.03, with the 90% paired cluster-bootstrap lower bound above 0.01.
+2. **Salience headroom on the slow leak:** the same difference on slow-leak incidents alone is at
+   least 0.20, with the lower bound above 0.10.
+
+Feasibility: result 1 is bounded above by about 0.09 (the never-noticed share) plus whatever
+earlier anchors add, and the selection oracle with the rung's context answers about half of what
+it is asked, so a gain near 0.045 is plausible and the margin can go either way. Result 2 is
+bounded above by about 0.6 (0.91 − 0.28) and the context-only ceiling shows the leak is
+answerable once asked. One privilege separates ceiling and comparator. Sensitivity at b = 2.5 and
+b = 8, ρ = 0.7, reported.
+
+**Reported beside the criterion, never folded in:**
+
+- The decomposition of result 1 by whether the rung ever noticed the incident (from the ledgers of
+  a diagnostic run with ledgers kept, 100 streams): gain on never-noticed incidents against gain
+  on late-noticed ones, with counts.
+- The rung's notice latency (notice instant minus first observation) per family and mode, and the
+  list of never-noticed incidents by family and mode.
+- Critical misses, plain accuracy, calls and cost per stream for every row.
+- **A public threshold sweep.** The rung's notice threshold (`RungConfig`) at three values below
+  the default, one run each, with `oracle_selection` and the rung's context: for each, the share of
+  hard incidents noticed, false notices per stream (anomalies anchored on background or plain
+  observations, from the ledgers), hard-incident quality, calls and cost. This says whether the
+  gap is a tuning matter or needs a mechanism.
+
+**Resource envelope.** About eight held-out runs of a few arms each (two pairings at three
+settings, plus the sweep) and one diagnostic run: under 30 minutes through the driver. Shares
+cores 0-2 with R9; see below.
+
+### Sharing cores 0-2 between concurrent workers
+
+Two workers may hold worktrees at once. The driver refuses to start a run while a `cargo` or
+`rustc` process exists, but nothing stops a build from starting during another worker's run. So:
+
+- Before any `cargo build`, `cargo test` or `cargo clippy`, a worker checks for a running
+  `gordian-run` process (`pgrep -f target/release/gordian-run`). If one exists it waits, polling
+  every 30 s, until none does, then builds. It records in its report every time it waited.
+- A worker never kills another worker's process.
+- Python analysis that takes more than a minute runs under `scripts/cgroup-run.sh` on cores 0-2,
+  like a measurement, and is subject to the same check.
+
 ## 6. Stage B: exploration runs
 
 Development runs. No hypothesis is tested; nothing here may later be cited as confirmation.
