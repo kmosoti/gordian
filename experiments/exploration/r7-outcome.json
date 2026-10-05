@@ -1,0 +1,16 @@
+{
+  "outcome": "Fragile",
+  "robust_condition": false,
+  "fragile_at": {
+    "0.05": false,
+    "0.1": true,
+    "0.2": true,
+    "0.4": true
+  },
+  "upper_below_0.10_at": {
+    "0.05": false,
+    "0.1": false,
+    "0.2": false,
+    "0.4": false
+  }
+}

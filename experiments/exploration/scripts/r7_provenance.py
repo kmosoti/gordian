@@ -69,6 +69,9 @@ def main():
     pd.DataFrame(shas).to_csv(C.OUT / "r7-results-sha256.csv", index=False)
     pd.DataFrame(status, columns=["run_id", "driver_exit", "wall_s"]).to_csv(C.OUT / "r7-driver-log.csv", index=False)
 
+    stale = sorted(p.name for p in C.MANIFESTS.iterdir() if ".unrun-" in p.name)
+    pd.DataFrame({"manifest_set_aside_unrun": stale}).to_csv(C.OUT / "r7-stale-manifests.csv", index=False)
+
     grid = ix[ix.run_id.str.startswith(("r7-tune-", "r7-heldout-"))]
     tune = grid[grid.run_id.str.startswith("r7-tune-")]
     held = grid[grid.run_id.str.startswith("r7-heldout-")]

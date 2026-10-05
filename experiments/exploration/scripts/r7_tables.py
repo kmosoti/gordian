@@ -129,8 +129,10 @@ def points(run):
     p = p.assign(o=p["role"].map(order)).sort_values(["o", "kind", "refs_per_call"])
     rows = []
     for _, r in p.iterrows():
-        label = {"context-only ceiling": "context-only ceiling", "R4 oracle (reference)": "R4 oracle (reference)"}.get(
-            r.role, cfg(r.builder) + (" (selected)" if r.role == "selected builder" else ""))
+        if r.role in ("context-only ceiling", "R4 oracle (reference)"):
+            label = r.role
+        else:
+            label = cfg(r.builder) + (" (selected)" if r.role == "selected builder" else "")
         rows.append({
             "arm": label, "hard quality (excl. leak)": f(r.quality),
             "refs per call": f(r.refs_per_call, 1), "cost s / stream": f(r.cost_s, 2),
@@ -223,7 +225,9 @@ def reprice_validity():
             "rows with no call refused": int((g["calls_refused"] == 0).sum()),
             "rows within the token limit in every stream": int(g["within_limit_every_stream"].sum()),
             "valid rows": int(g["valid"].sum()),
-            "invalid rows": ", ".join(sorted({f"{r.setting} d{r.delta:g} {arm_cfg(r.arm)}" for r in g[~g["valid"]].itertuples()})) or "none",
+            "invalid rows by run": "; ".join(
+                f"{s} delta {d:g}: {n}" for (s, d), n in g[~g["valid"]].groupby(["setting", "delta"], sort=False).size().items()
+            ) or "none",
         })
     chk = p[p["tokens_per_ref"] == 20]["check_reproduces_recorded_cost_max_abs_ns"].max()
     return md(pd.DataFrame(rows)) + f"\n\nRe-pricing at 20 tokens per reference reproduces every recorded total cost: largest absolute difference {chk:g} ns per stream."
