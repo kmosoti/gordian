@@ -1,0 +1,518 @@
+{
+  "b2.5-rho0": {
+    "selection_delay_s": 14,
+    "sel_configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w05_n128",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n128",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00500_n256",
+      "coc_d01000_n064",
+      "coc_d01000_n256",
+      "coc_d08000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n064",
+      "nbh_k1_n128",
+      "nbh_k2_n128",
+      "nbh_k3_n128",
+      "nbh_k3_n256",
+      "nbh_k4_n256"
+    ],
+    "always_configs": {
+      "rung": 14,
+      "win_w05_n008": 12,
+      "win_w05_n016": 14,
+      "win_w05_n032": 8,
+      "win_w05_n064": 12,
+      "win_w05_n128": 12,
+      "win_w10_n064": 12,
+      "win_w10_n128": 12,
+      "win_w20_n128": 12,
+      "win_w20_n256": 16,
+      "win_w40_n128": 12,
+      "coc_d00250_n064": 16,
+      "coc_d00250_n128": 18,
+      "coc_d00500_n256": 18,
+      "coc_d01000_n064": 14,
+      "coc_d01000_n256": 20,
+      "coc_d08000_n256": 14,
+      "nbh_k0_n064": 18,
+      "nbh_k0_n128": 18,
+      "nbh_k1_n064": 14,
+      "nbh_k1_n128": 20,
+      "nbh_k2_n128": 14,
+      "nbh_k3_n128": 14,
+      "nbh_k3_n256": 14,
+      "nbh_k4_n256": 14
+    },
+    "diag_sel_configs": [
+      "rung",
+      "win_w20_n256",
+      "coc_d08000_n256",
+      "nbh_k4_n256",
+      "nbh_k3_n256"
+    ],
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w20_n256",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d08000_n256",
+        "knee": "coc_d08000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k4_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b2.5-rho0.7": {
+    "selection_delay_s": 16,
+    "sel_configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n064",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n128",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00500_n064",
+      "coc_d00500_n256",
+      "coc_d01000_n128",
+      "coc_d02000_n256",
+      "coc_d04000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "always_configs": {
+      "rung": 16,
+      "win_w05_n008": 8,
+      "win_w05_n016": 8,
+      "win_w05_n032": 8,
+      "win_w05_n064": 12,
+      "win_w10_n064": 14,
+      "win_w10_n128": 12,
+      "win_w20_n064": 14,
+      "win_w20_n128": 14,
+      "win_w20_n256": 16,
+      "win_w40_n128": 14,
+      "win_w40_n512": 30,
+      "coc_d00250_n064": 16,
+      "coc_d00250_n128": 20,
+      "coc_d00500_n064": 16,
+      "coc_d00500_n256": 20,
+      "coc_d01000_n128": 20,
+      "coc_d02000_n256": 20,
+      "coc_d04000_n256": 16,
+      "coc_d16000_n256": 14,
+      "nbh_k0_n064": 18,
+      "nbh_k1_n128": 20,
+      "nbh_k1_n256": 16,
+      "nbh_k2_n256": 16,
+      "nbh_k3_n256": 14
+    },
+    "diag_sel_configs": [
+      "rung",
+      "win_w40_n512",
+      "win_w20_n256",
+      "coc_d16000_n256",
+      "coc_d04000_n256",
+      "nbh_k3_n256"
+    ],
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d04000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b5-rho0": {
+    "selection_delay_s": 16,
+    "sel_configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n064",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n128",
+      "win_w40_n256",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00500_n064",
+      "coc_d00500_n128",
+      "coc_d00500_n256",
+      "coc_d01000_n256",
+      "coc_d02000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "always_configs": {
+      "rung": 16,
+      "win_w05_n008": 8,
+      "win_w05_n016": 14,
+      "win_w05_n032": 8,
+      "win_w05_n064": 10,
+      "win_w10_n064": 12,
+      "win_w10_n128": 12,
+      "win_w20_n064": 12,
+      "win_w20_n128": 14,
+      "win_w20_n256": 16,
+      "win_w40_n128": 14,
+      "win_w40_n256": 16,
+      "win_w40_n512": 16,
+      "coc_d00250_n064": 14,
+      "coc_d00250_n128": 16,
+      "coc_d00500_n064": 16,
+      "coc_d00500_n128": 16,
+      "coc_d00500_n256": 16,
+      "coc_d01000_n256": 16,
+      "coc_d02000_n256": 16,
+      "coc_d04000_n256": 14,
+      "coc_d08000_n256": 16,
+      "coc_d16000_n256": 16,
+      "nbh_k0_n064": 20,
+      "nbh_k0_n128": 16,
+      "nbh_k1_n128": 16,
+      "nbh_k1_n256": 16,
+      "nbh_k2_n256": 16,
+      "nbh_k3_n256": 16
+    },
+    "diag_sel_configs": [
+      "rung",
+      "win_w40_n512",
+      "win_w40_n256",
+      "coc_d16000_n256",
+      "coc_d08000_n256",
+      "nbh_k3_n256"
+    ],
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w40_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d08000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b5-rho0.7": {
+    "selection_delay_s": 16,
+    "sel_configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w80_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00250_n256",
+      "coc_d00500_n256",
+      "coc_d01000_n128",
+      "coc_d01000_n256",
+      "coc_d02000_n128",
+      "coc_d02000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n128",
+      "nbh_k3_n256",
+      "nbh_k4_n256"
+    ],
+    "always_configs": {
+      "rung": 16,
+      "win_w05_n008": 8,
+      "win_w05_n016": 8,
+      "win_w05_n032": 8,
+      "win_w05_n064": 12,
+      "win_w10_n064": 12,
+      "win_w10_n128": 12,
+      "win_w20_n128": 16,
+      "win_w20_n256": 18,
+      "win_w40_n256": 16,
+      "win_w80_n512": 16,
+      "coc_d00250_n064": 16,
+      "coc_d00250_n128": 14,
+      "coc_d00250_n256": 14,
+      "coc_d00500_n256": 18,
+      "coc_d01000_n128": 16,
+      "coc_d01000_n256": 16,
+      "coc_d02000_n128": 16,
+      "coc_d02000_n256": 16,
+      "coc_d04000_n256": 16,
+      "coc_d08000_n256": 14,
+      "coc_d16000_n256": 14,
+      "nbh_k0_n064": 20,
+      "nbh_k1_n128": 18,
+      "nbh_k1_n256": 18,
+      "nbh_k2_n256": 16,
+      "nbh_k3_n128": 14,
+      "nbh_k3_n256": 16,
+      "nbh_k4_n256": 16
+    },
+    "diag_sel_configs": [
+      "rung",
+      "win_w80_n512",
+      "win_w40_n256",
+      "coc_d16000_n256",
+      "coc_d08000_n256",
+      "nbh_k4_n256",
+      "nbh_k3_n256"
+    ],
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w80_n512",
+        "knee": "win_w40_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d08000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k4_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b8-rho0": {
+    "selection_delay_s": 16,
+    "sel_configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n032",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00250_n256",
+      "coc_d00500_n256",
+      "coc_d01000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n128",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "always_configs": {
+      "rung": 16,
+      "win_w05_n008": 8,
+      "win_w05_n016": 8,
+      "win_w05_n032": 8,
+      "win_w05_n064": 8,
+      "win_w10_n032": 8,
+      "win_w10_n064": 10,
+      "win_w10_n128": 12,
+      "win_w20_n128": 14,
+      "win_w20_n256": 16,
+      "win_w40_n256": 14,
+      "win_w40_n512": 16,
+      "coc_d00250_n064": 16,
+      "coc_d00250_n128": 16,
+      "coc_d00250_n256": 16,
+      "coc_d00500_n256": 16,
+      "coc_d01000_n256": 16,
+      "coc_d04000_n256": 14,
+      "coc_d08000_n256": 12,
+      "coc_d16000_n256": 12,
+      "nbh_k0_n064": 14,
+      "nbh_k0_n128": 14,
+      "nbh_k1_n128": 16,
+      "nbh_k2_n256": 14,
+      "nbh_k3_n256": 12
+    },
+    "diag_sel_configs": [
+      "rung",
+      "win_w40_n512",
+      "win_w20_n256",
+      "coc_d16000_n256",
+      "coc_d04000_n256",
+      "nbh_k3_n256"
+    ],
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d04000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  },
+  "b8-rho0.7": {
+    "selection_delay_s": 16,
+    "sel_configs": [
+      "rung",
+      "win_w05_n008",
+      "win_w05_n016",
+      "win_w05_n032",
+      "win_w05_n064",
+      "win_w10_n032",
+      "win_w10_n064",
+      "win_w10_n128",
+      "win_w20_n128",
+      "win_w20_n256",
+      "win_w40_n256",
+      "win_w40_n512",
+      "coc_d00250_n064",
+      "coc_d00250_n128",
+      "coc_d00250_n256",
+      "coc_d00500_n256",
+      "coc_d01000_n256",
+      "coc_d04000_n256",
+      "coc_d08000_n256",
+      "coc_d16000_n256",
+      "nbh_k0_n064",
+      "nbh_k0_n128",
+      "nbh_k1_n128",
+      "nbh_k1_n256",
+      "nbh_k2_n256",
+      "nbh_k3_n256"
+    ],
+    "always_configs": {
+      "rung": 16,
+      "win_w05_n008": 8,
+      "win_w05_n016": 8,
+      "win_w05_n032": 8,
+      "win_w05_n064": 10,
+      "win_w10_n032": 8,
+      "win_w10_n064": 12,
+      "win_w10_n128": 12,
+      "win_w20_n128": 14,
+      "win_w20_n256": 16,
+      "win_w40_n256": 16,
+      "win_w40_n512": 16,
+      "coc_d00250_n064": 14,
+      "coc_d00250_n128": 16,
+      "coc_d00250_n256": 16,
+      "coc_d00500_n256": 16,
+      "coc_d01000_n256": 16,
+      "coc_d04000_n256": 12,
+      "coc_d08000_n256": 12,
+      "coc_d16000_n256": 12,
+      "nbh_k0_n064": 14,
+      "nbh_k0_n128": 14,
+      "nbh_k1_n128": 16,
+      "nbh_k1_n256": 16,
+      "nbh_k2_n256": 12,
+      "nbh_k3_n256": 12
+    },
+    "diag_sel_configs": [
+      "rung",
+      "win_w40_n512",
+      "win_w20_n256",
+      "coc_d16000_n256",
+      "coc_d04000_n256",
+      "nbh_k3_n256"
+    ],
+    "best": {
+      "rung": {
+        "best": "rung",
+        "knee": "rung"
+      },
+      "window": {
+        "best": "win_w40_n512",
+        "knee": "win_w20_n256"
+      },
+      "cooccur": {
+        "best": "coc_d16000_n256",
+        "knee": "coc_d04000_n256"
+      },
+      "neighbourhood": {
+        "best": "nbh_k3_n256",
+        "knee": "nbh_k3_n256"
+      }
+    }
+  }
+}
