@@ -1,0 +1,13 @@
+setting,arm,results_identical_modulo_run_id,incidents_identical_modulo_run_id
+b5-rho0.7,sel_rung_privileged,True,True
+b5-rho0.7,sel_win_w40_n256_privileged,True,True
+b5-rho0.7,oracle_escalation_privileged,True,True
+b5-rho0.7,never_escalate,True,True
+b2.5-rho0.7,sel_rung_privileged,True,True
+b2.5-rho0.7,sel_win_w40_n256_privileged,,
+b2.5-rho0.7,oracle_escalation_privileged,True,True
+b2.5-rho0.7,never_escalate,True,True
+b8-rho0.7,sel_rung_privileged,True,True
+b8-rho0.7,sel_win_w40_n256_privileged,True,True
+b8-rho0.7,oracle_escalation_privileged,True,True
+b8-rho0.7,never_escalate,True,True

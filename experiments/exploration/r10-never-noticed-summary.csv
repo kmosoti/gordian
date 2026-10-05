@@ -1,0 +1,15 @@
+source,family,mode,never_noticed
+diag,cascade,contradicts_early,3
+diag,cascade,mimics_plain,4
+diag,compound,contradicts_early,2
+diag,compound,mimics_plain,1
+diag,slow_leak,unknown,40
+diag,split_brain,contradicts_early,2
+diag,split_brain,mimics_plain,8
+heldout,cascade,contradicts_early,6
+heldout,cascade,mimics_plain,7
+heldout,compound,contradicts_early,6
+heldout,compound,mimics_plain,3
+heldout,slow_leak,unknown,75
+heldout,split_brain,contradicts_early,4
+heldout,split_brain,mimics_plain,5

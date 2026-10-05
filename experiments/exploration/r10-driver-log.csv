@@ -1,0 +1,14 @@
+run_id,driver_exit,wall_s,waits
+xcheck-r6-heldout-b5-rho0.7,0,186,0
+r10-heldout-b5-rho0.7,0,17,0
+r10-heldout-b2.5-rho0.7,0,18,0
+r10-heldout-b8-rho0.7,0,18,0
+r10-sweep-z2-b5-rho0.7,0,5,0
+r10-sweep-z1-b5-rho0.7,0,5,0
+r10-sweep-z0.5-b5-rho0.7,0,5,0
+r10-diag-b5-rho0.7,0,18,0
+r10-notices-diag,0,2,0
+r10-notices-heldout-z3,0,3,0
+r10-notices-sweep-z2,0,4,0
+r10-notices-sweep-z1,0,5,0
+r10-notices-sweep-z0.5,0,5,0

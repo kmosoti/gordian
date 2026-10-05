@@ -13,9 +13,10 @@
 //! {"policy": "contradiction_escalation", "delay_ns": 8000000000, "persist_ns": 2000000000}
 //! {"policy": "oracle_selection", "delay_ns": 8000000000}
 //! {"policy": "oracle_selection_context", "delay_ns": 8000000000}
+//! {"policy": "oracle_notice", "delay_ns": 8000000000}
 //! ```
 //!
-//! `delay_ns` (`always_escalate`, `random_escalation`, `contradiction_escalation` and
+//! `delay_ns` (`always_escalate`, `random_escalation`, `contradiction_escalation`, `oracle_notice` and
 //! `oracle_selection`) is how long after an anomaly is noticed the arm escalates it. Its default is 0, the arm as R3 built it; a delay of 0 is not written
 //! (`always_escalate` is then its bare id, and `random_escalation` has no `delay_ns`), so a
 //! manifest written before the parameter existed is the same text as one written now.
@@ -31,7 +32,7 @@
 //!
 //! # Roles
 //!
-//! Six arms are not comparison arms. `oracle_escalation`, `oracle_selection`,
+//! Seven arms are not comparison arms. `oracle_escalation`, `oracle_selection`, `oracle_notice` (R10),
 //! `oracle_selection_context` (R6's supplementary ceiling) and `oracle_decoy` are privileged (they are built from the stream's truth) and `ablation_hidden_rules` encodes
 //! the hidden rules of the stream's hard incidents. [`StreamManifest::validate`](super::manifest::StreamManifest::validate) rejects a
 //! privileged arm whose name lacks `privileged` and an ablation arm whose name lacks `ablation`,
@@ -66,6 +67,7 @@ pub const KNOWN: &[&str] = &[
     privileged::SELECTION_ID,
     privileged::DECOY_ID,
     privileged::SELECTION_CONTEXT_ID,
+    privileged::NOTICE_ID,
     ablation::ID,
 ];
 
@@ -120,6 +122,12 @@ pub enum StreamPolicySpec {
     /// anomalies with the decisive evidence delivered so far as the context.
     OracleSelectionContext {
         /// Nanoseconds after notice before a hard anomaly is escalated.
+        delay_ns: u64,
+    },
+    /// `oracle_notice` (R10): privileged; `oracle_selection` plus a notice injected at the step
+    /// each hard incident's first observation is delivered.
+    OracleNotice {
+        /// Nanoseconds after the injected notice before a hard incident is escalated.
         delay_ns: u64,
     },
     /// `ablation_hidden_rules`: encodes the stream's hidden rules.
@@ -193,6 +201,12 @@ impl StreamPolicySpec {
                     delay_ns: delay_ns.unwrap_or(0),
                 }
             }
+            privileged::NOTICE_ID => {
+                only(&["delay_ns"])?;
+                Self::OracleNotice {
+                    delay_ns: delay_ns.unwrap_or(0),
+                }
+            }
             contradiction::ID => {
                 only(&["delay_ns", "persist_ns"])?;
                 Self::Contradiction {
@@ -259,6 +273,7 @@ impl StreamPolicySpec {
             Self::OracleSelection { .. } => privileged::SELECTION_ID,
             Self::OracleDecoy => privileged::DECOY_ID,
             Self::OracleSelectionContext { .. } => privileged::SELECTION_CONTEXT_ID,
+            Self::OracleNotice { .. } => privileged::NOTICE_ID,
             Self::Ablation => ablation::ID,
         }
     }
@@ -274,6 +289,7 @@ impl StreamPolicySpec {
             Self::Oracle
             | Self::OracleSelection { .. }
             | Self::OracleSelectionContext { .. }
+            | Self::OracleNotice { .. }
             | Self::OracleDecoy => ArmRole::Privileged,
             Self::Ablation => ArmRole::Ablation,
             _ => ArmRole::Comparison,
@@ -339,7 +355,9 @@ impl Serialize for StreamPolicySpec {
                 tagged(None, None, None, None, delay(*delay_ns), delay(*persist_ns))
                     .serialize(serializer)
             }
-            Self::OracleSelection { delay_ns } | Self::OracleSelectionContext { delay_ns }
+            Self::OracleSelection { delay_ns }
+            | Self::OracleSelectionContext { delay_ns }
+            | Self::OracleNotice { delay_ns }
                 if *delay_ns != 0 =>
             {
                 tagged(None, None, None, None, Some(*delay_ns), None).serialize(serializer)
@@ -381,6 +399,9 @@ pub fn privileged_factory(
         StreamPolicySpec::OracleSelectionContext { delay_ns } => Some(
             privileged::OracleFactory::selection_context(rung.clone(), *delay_ns),
         ),
+        StreamPolicySpec::OracleNotice { delay_ns } => {
+            Some(privileged::OracleFactory::notice(rung.clone(), *delay_ns))
+        }
         StreamPolicySpec::OracleDecoy => Some(privileged::OracleFactory::decoy(rung.clone())),
         _ => None,
     }
@@ -435,6 +456,7 @@ pub fn build_public(
         StreamPolicySpec::Oracle
         | StreamPolicySpec::OracleSelection { .. }
         | StreamPolicySpec::OracleSelectionContext { .. }
+        | StreamPolicySpec::OracleNotice { .. }
         | StreamPolicySpec::OracleDecoy => return None,
     })
 }

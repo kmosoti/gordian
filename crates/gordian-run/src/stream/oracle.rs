@@ -63,6 +63,39 @@
 //! public instant; the difference between `oracle_escalation` and it is what firing at the
 //! instant the evidence has all arrived is worth.
 //!
+//! # Work item R10: `oracle_notice`
+//!
+//! `oracle_notice` is `oracle_selection` plus one privilege, noticing. The selection oracle asks
+//! only about anomalies the shared rung noticed, so it makes no call on an incident the rung
+//! never noticed, and for one the rung notices late (the slow leak is noticed only once its
+//! counter crosses the alarm level) its delay runs from the late notice. The notice oracle is
+//! told, from the plan, which observation begins each hard incident
+//! ([`PlanIncident::first`]) and treats it as noticed at the step that observation is delivered:
+//!
+//! - **Injected notice.** For every hard incident, at the first step at which its first
+//!   observation has been delivered, the arm records a notice anchored at that observation, whose
+//!   site is the service the observation names. The notice is the arm's own record; it is not an
+//!   anomaly of the shared rung, so it changes nothing the rung notices, reviews or probes. The
+//!   only trace in the rung is the one a call leaves for every arm: a reasoner's answer about an
+//!   observation is credited to the rung anomaly that owns it, if there is one, which then no
+//!   longer declares on its own.
+//! - **The rung's later notice is ignored for escalation.** The arm escalates nothing through
+//!   [`EscalationRule::targets`]: an anomaly the rung notices, whether of the same incident or
+//!   another, causes no call. Each injected notice causes exactly one, `delay_ns` after it, so a
+//!   hard incident is asked about once whatever the rung does.
+//! - **Context.** The context is the one the rung's configured builder makes for that anchor and
+//!   site at the instant of the call ([`super::arms::rung::Rung::context_at`], reached through
+//!   [`DirectCtx::contexts`]), the function [`super::arms::rung::Rung::context`] applies to a noticed
+//!   anomaly. The arm builds no context of its own and reads no decisive label.
+//! - **Hold.** The default: [`EscalationRule::holds`] is not overridden, so the shared rung's
+//!   declarations are held back exactly where they are held for the selection oracle, while a call
+//!   about a noticed anomaly is in flight. A direct call is not about a noticed anomaly, so it
+//!   holds nothing; the rung declares for its own anomalies as it does for every arm, and a
+//!   reasoner's answer is declared when it arrives.
+//!
+//! What the plan gives it: the hard flag and the first observation of each incident, and nothing
+//! else (a test builds plans that differ in every other field and checks the arm does not move).
+//!
 //! # How the truth reaches it, and only it
 //!
 //! [`StreamPolicy`] and [`EscalationRule`] have no place for a truth. [`OracleFactory::build`]
@@ -103,6 +136,11 @@ pub const DECOY_ID: &str = "oracle_decoy";
 /// The id of `oracle_selection_context` (R6, supplementary): `oracle_selection`'s choice of
 /// anomalies and delay, with the decisive evidence delivered so far as the context.
 pub const SELECTION_CONTEXT_ID: &str = "oracle_selection_context";
+
+/// The id of `oracle_notice` (R10): `oracle_selection` plus one privilege, noticing. It escalates
+/// each hard incident once, `delay_ns` after a notice injected at the step the incident's first
+/// observation is delivered, with the context the rung's builder makes.
+pub const NOTICE_ID: &str = "oracle_notice";
 
 /// What the privileged arm is told about one incident of the segment: facts the harness read from
 /// the truth it holds aside.
@@ -162,6 +200,8 @@ enum Mode {
     Decoy,
     /// `oracle_selection_context`, with its delay after notice.
     SelectionContext { delay_ns: u64 },
+    /// `oracle_notice`, with its delay after the injected notice.
+    Notice { delay_ns: u64 },
 }
 
 impl OracleFactory {
@@ -189,6 +229,17 @@ impl OracleFactory {
         Self {
             rung,
             mode: Mode::SelectionContext { delay_ns },
+        }
+    }
+
+    /// A factory of `oracle_notice` (R10): the selection oracle with one more privilege, a notice
+    /// injected at the step each hard incident's first observation is delivered. It escalates
+    /// each hard incident `delay_ns` after that step, with the context of the shared cheap rung
+    /// `rung`.
+    pub fn notice(rung: RungConfig, delay_ns: u64) -> Self {
+        Self {
+            rung,
+            mode: Mode::Notice { delay_ns },
         }
     }
 
@@ -255,6 +306,11 @@ impl OracleFactory {
                     delay_ns,
                     asked: BTreeSet::new(),
                 },
+                public,
+                self.rung.clone(),
+            )),
+            Mode::Notice { delay_ns } => Box::new(StreamArm::with(
+                NoticeOracle::from_plan(plan, delay_ns),
                 public,
                 self.rung.clone(),
             )),
@@ -373,6 +429,92 @@ impl EscalationRule for SelectionOracle {
             })
             .map(|v| v.id)
             .collect()
+    }
+}
+
+/// One injected notice: the anchor of a hard incident's first observation, and what became of it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InjectedNotice {
+    /// The incident's first observation: the anchor, and the question's focus.
+    anchor: ObsId,
+    /// The instant of the step at which the anchor was first seen delivered, once it has been.
+    noticed_at: Option<Instant>,
+    /// Whether the call about it has been made.
+    asked: bool,
+}
+
+/// The privileged notice rule (R10). Has no public constructor.
+///
+/// Holds one [`InjectedNotice`] per hard incident that has a first observation, and nothing from
+/// the plan but that.
+struct NoticeOracle {
+    delay_ns: u64,
+    /// In stream order of the anchors.
+    notices: Vec<InjectedNotice>,
+}
+
+impl NoticeOracle {
+    /// From the plan's hard incidents and their first observations; no other field is read.
+    fn from_plan(plan: &OraclePlan, delay_ns: u64) -> Self {
+        let mut anchors: Vec<ObsId> = plan
+            .incidents
+            .iter()
+            .filter(|i| i.hard)
+            .filter_map(|i| i.first)
+            .collect();
+        anchors.sort_unstable();
+        anchors.dedup();
+        Self {
+            delay_ns,
+            notices: anchors
+                .into_iter()
+                .map(|anchor| InjectedNotice {
+                    anchor,
+                    noticed_at: None,
+                    asked: false,
+                })
+                .collect(),
+        }
+    }
+}
+
+impl EscalationRule for NoticeOracle {
+    fn id(&self) -> PolicyId {
+        PolicyId::new(NOTICE_ID)
+    }
+
+    fn role(&self) -> ArmRole {
+        ArmRole::Privileged
+    }
+
+    /// The rung's own notices cause no escalation: every call of this arm is about an injected
+    /// notice and goes through [`EscalationRule::direct`].
+    fn targets(&mut self, _now: Instant, _views: &[AnomalyView]) -> Vec<u32> {
+        Vec::new()
+    }
+
+    /// Notices each hard incident at the first step that finds its first observation delivered,
+    /// and asks about it, once, `delay_ns` after that step, with the context the rung's builder
+    /// makes for that anchor now.
+    fn direct(&mut self, ctx: &DirectCtx<'_>) -> Vec<DirectRequest> {
+        let mut out = Vec::new();
+        for notice in &mut self.notices {
+            if notice.noticed_at.is_none() && notice.anchor.0 < ctx.delivered {
+                notice.noticed_at = Some(ctx.now);
+            }
+            let Some(noticed_at) = notice.noticed_at else {
+                continue;
+            };
+            if notice.asked || ctx.now.0 < noticed_at.0.saturating_add(self.delay_ns) {
+                continue;
+            }
+            notice.asked = true;
+            out.push(DirectRequest {
+                focus: notice.anchor,
+                context: ctx.contexts.at(notice.anchor),
+            });
+        }
+        out
     }
 }
 

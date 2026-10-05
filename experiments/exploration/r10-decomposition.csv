@@ -1,0 +1,11 @@
+incidents,group,n_incidents,of_total,selection_correct,notice_correct,gain_incidents,gain_in_quality,lo,hi,oracle_correct,rate_selection,rate_notice,resamples,seed,streams
+"hard incidents, slow leak excluded",all,190,190,82,96,14,0.0736842,0.0209424,0.127273,170,0.431579,0.505263,10000,9950,100
+"hard incidents, slow leak excluded",never_noticed,20,190,0,6,6,0.0315789,0.0119048,0.0523256,19,0,0.3,10000,9950,100
+"hard incidents, slow leak excluded",noticed_called,168,190,82,89,7,0.0368421,-0.0107527,0.0851064,149,0.488095,0.529762,10000,9950,100
+"hard incidents, slow leak excluded",noticed_uncalled,2,190,0,1,1,0.00526316,0,0.015,2,0,0.5,10000,9950,100
+"hard incidents, slow leak excluded",noticed,170,190,82,90,8,0.0421053,-0.00555556,0.0904523,151,0.482353,0.529412,10000,9950,100
+slow leak,all,80,80,13,76,63,0.7875,0.691176,0.871795,73,0.1625,0.95,10000,9950,100
+slow leak,never_noticed,40,80,0,38,38,0.475,0.386139,0.55814,38,0,0.95,10000,9950,100
+slow leak,noticed_called,38,80,13,36,23,0.2875,0.205479,0.373626,34,0.342105,0.947368,10000,9950,100
+slow leak,noticed_uncalled,2,80,0,2,2,0.025,0,0.056338,1,0,1,10000,9950,100
+slow leak,noticed,40,80,13,38,25,0.3125,0.232558,0.395604,35,0.325,0.95,10000,9950,100

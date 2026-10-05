@@ -357,18 +357,27 @@ struct Anomaly {
     contradicted_since: Option<Instant>,
 }
 
-impl Anomaly {
-    /// Whether a (benign or abnormal) observation about `service` at `at` belongs in a context
-    /// built for this anomaly: anything at its site, and at a dependent of the site only within
-    /// the burst window after the anchor. Propagation is immediate (public rule 1: a dependent's
-    /// symptom is permitted only after an `ErrorRate` at the site), so a dependent's observation
-    /// long after the burst is more plausibly another incident's or background than this one's.
-    fn admits(&self, service: ServiceId, at: Instant, burst_ns: u64) -> bool {
-        service == self.site
-            || (self.region.get(service.index()).copied().unwrap_or(false)
-                && at.0 <= self.anchor_at.0.saturating_add(burst_ns))
-    }
+/// Whether a (benign or abnormal) observation about `service` at `at` belongs in the rung's own
+/// context for an anomaly at `site` (with `region` its dependents) anchored at `anchor_at`:
+/// anything at the site, and at a dependent only within `burst_ns` after the anchor. Propagation
+/// is immediate (public rule 1: a dependent's symptom is permitted only after an `ErrorRate` at
+/// the site), so a dependent's observation long after the burst is more plausibly another
+/// incident's or background than this one's. The one definition, used for a noticed anomaly
+/// ([`Rung::context`]) and for an anchor the rung was not tracking ([`Rung::context_at`]).
+fn admits_around(
+    site: ServiceId,
+    region: &[bool],
+    anchor_at: Instant,
+    service: ServiceId,
+    at: Instant,
+    burst_ns: u64,
+) -> bool {
+    service == site
+        || (region.get(service.index()).copied().unwrap_or(false)
+            && at.0 <= anchor_at.0.saturating_add(burst_ns))
+}
 
+impl Anomaly {
     fn rel(&self, at: Instant) -> Instant {
         Instant(at.0.saturating_sub(self.anchor_at.0))
     }
@@ -893,13 +902,35 @@ impl Rung {
             return Vec::new();
         };
         let a = &self.anomalies[i];
+        self.context_around(a.site, a.anchor_at, &a.region)
+    }
+
+    /// The context the configured builder makes for a question about the held observation
+    /// `anchor`, as if an anomaly were anchored there: the site is the service the observation
+    /// names, the anchor instant is its own, and the builder is [`RungConfig::context`]. The same
+    /// function of the same public view as [`Rung::context`] for a noticed anomaly with that
+    /// anchor and site. Empty when the observation is not held (older than `retain_ns`, not yet
+    /// delivered) or names no service. For an arm that is given an anchor it did not notice
+    /// ([`super::DirectCtx::contexts`]); the privileged notice arm is the only one.
+    pub fn context_at(&self, anchor: ObsId) -> Vec<ObsRef> {
+        let Some(held) = self.store.iter().find(|h| h.id == anchor) else {
+            return Vec::new();
+        };
+        let Some(site) = service_of(&held.obs) else {
+            return Vec::new();
+        };
+        let region = dependents_mask(&self.public.services, site);
+        self.context_around(site, held.at, &region)
+    }
+
+    fn context_around(&self, site: ServiceId, anchor_at: Instant, region: &[bool]) -> Vec<ObsRef> {
         if !self.cfg.context.is_rung() {
             let view = PublicView {
                 store: &self.store,
                 services: &self.public.services,
                 now: self.now,
-                anchor_at: a.anchor_at,
-                site: a.site,
+                anchor_at,
+                site,
                 burst_gap_ns: self.cfg.burst_gap_ns,
                 lookback_ns: self.cfg.context_lookback_ns,
             };
@@ -907,13 +938,15 @@ impl Rung {
                 return refs;
             }
         }
-        let from = a.anchor_at.0.saturating_sub(self.cfg.context_lookback_ns);
+        let from = anchor_at.0.saturating_sub(self.cfg.context_lookback_ns);
         let mut refs: Vec<ObsRef> = self
             .store
             .iter()
             .filter(|h| {
                 h.at.0 >= from
-                    && service_of(&h.obs).is_some_and(|s| a.admits(s, h.at, self.cfg.burst_ns))
+                    && service_of(&h.obs).is_some_and(|s| {
+                        admits_around(site, region, anchor_at, s, h.at, self.cfg.burst_ns)
+                    })
             })
             .map(|h| ObsRef::Passive(h.id))
             .collect();

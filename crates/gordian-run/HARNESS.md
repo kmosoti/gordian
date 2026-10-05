@@ -726,3 +726,19 @@ was); it is in `measured_sched_ns`. `oracle_selection` takes any builder through
 change of its own. `oracle_selection_context` is a supplementary privileged arm for R6's report:
 `oracle_selection`'s choice of anomalies and delay with the decisive evidence delivered so far as
 the context, separating context from timing in `oracle_escalation`'s ceiling.
+
+**The notice oracle (R10).** `oracle_notice` is `oracle_selection` plus one privilege, noticing
+(`src/stream/oracle.rs`, documented there). The plan gives it each hard incident's first
+observation (`PlanIncident::first`) and the hard flag, and nothing else. At the first step that
+finds the first observation delivered it records a notice anchored there, and `delay_ns` later it
+asks the reasoner once about that observation, with the context the rung's configured builder
+makes for that anchor and site at the instant of the call (`Rung::context_at`, which applies the
+same function as `Rung::context` to an observation the rung did not notice). The notice is the
+arm's own record, not an anomaly of the rung, so nothing the rung notices, reviews or probes
+changes; the rung's own notices cause no call (`targets` is empty), so a hard incident is asked
+about once whatever the rung does. A call that is not about a noticed anomaly holds no declaration
+(the default `holds` reads `pending`, which only a call about a noticed anomaly sets). The step at
+which a notice is made is the first step at which the arm's `direct` hook runs after the
+observation was delivered; a step on which the bill refuses the arm's declared bookkeeping runs no
+hook, so a notice can only be made late, never early. `tests/stream_r10.rs` pins the above and
+that, with no hard incident, the arm's row equals `never_escalate`'s.
