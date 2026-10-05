@@ -4,6 +4,27 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A6b final declaration — merged
+
+**Re-verified.** All gates on exit codes; the `all_components` row at 60 µs reproduced exactly
+(202 final declarations, 18 terminal, 38 successes, 40 critical misses).
+
+**What it showed.** Under a binding budget, component-running arms exhaust their compute at
+0.3–0.6 s of logical time, before any symptom has arrived, by re-running components on windows with
+nothing new in them. At the final call they declare "no fault", which is right only on `NoFault`.
+Nearly all of the success gained by the fix is `NoFault`; on faulted classes the failures are now
+visible as wrong declarations and critical misses instead of undecided rows.
+
+**Carried forward to C1 (EXP-001 preregistration).**
+
+- An arm that does nothing and declares "no fault" scores `NoFault` for free. The primary outcome
+  must be read per class with the critical-miss rate, or exclude `NoFault` from the success
+  average and score it through false alarms; the preregistration chooses and states which.
+- Whether the shared rule at its deadline should declare "no fault" on a window with no symptom,
+  or abstain, is a rule choice that changes faulted-class scores. It is fixed before freezing and
+  applies to every arm.
+- The final call's declared cost is derived, not separately calibrated.
+
 ## A6 baselines — merged; headroom probe
 
 **Re-verified.** fmt, clippy with `--locked`, the workspace tests, the oracle guard and the
