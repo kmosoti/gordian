@@ -3,6 +3,7 @@
 Usage:
   r4_manifests.py pilot                      one setting (b=5, rho=0.7), 10 tuning streams, every arm
   r4_manifests.py tune                       every setting, the 100 tuning streams, every arm
+  r4_manifests.py mech2                      30 streams (seeds 930-959), ledgers kept, 3 arms
   r4_manifests.py heldout SELECTED.json      every setting, the 200 held-out streams, the arms
                                              SELECTED.json lists per setting (see r4_select.py)
 
@@ -64,6 +65,12 @@ def main():
                 continue  # already written (and perhaps run) at an earlier revision
             write("tune", b, rho, C.TUNING_SEEDS, C.baseline_arms() + C.reference_arms(), 0.0,
                   4100 + i, "exploration-r4-tuning")
+    elif stage == "mech2":
+        # Mechanism check at long delays: 30 streams outside the tuning and held-out seeds, every
+        # ledger kept, the oracle (for each incident's decisive set) and two delayed always arms.
+        b, rho = 5.0, 0.7
+        arms = [(n, C.policy_for(n)) for n in (C.always_name(6), C.always_name(14), C.ORACLE)]
+        write("mech2", b, rho, (930, 30), arms, 1.0, 4300, "exploration-r4-mechanism")
     elif stage == "heldout":
         selected = C.load_json(sys.argv[2])
         for i, (b, rho) in enumerate(C.SETTINGS):
