@@ -77,15 +77,22 @@ Synchronous update, one tick:
 
 Within-tick order is total and documented, so replay is exact.
 
-## 4b. Rhythms: ticks as nested waves (added 2026-10-06, user direction)
+## 4b. The oscillome: ticks and rhythms as nested oscillations (added 2026-10-06, user direction)
+
+**Naming.** The set of nested oscillations the medium keeps is its **oscillome**; the base tick
+is the oscillome's fastest oscillation, and "tick" remains the word for one step of it. The
+component that computes phases, applies phase gates and fires the schedules below is the
+**Oscillome Engine**. Per AGENTS.md ("Language"), the name is a label for a mechanism, not a
+claim about what it achieves; the experiments establish that. In code: module `oscillome`, types
+`Oscillome` (the spec of oscillations) and `OscillomeEngine`.
 
 W1 found three timescales in the world that one tick cannot serve: burst order at 20–150 ms,
-the incident horizon at 6–16 s, retention and regime change at 100–200 s. The medium therefore
-keeps **nested rhythms** beside the base tick, in the spirit of brain oscillations, with the
-analogy's limits stated at the end of this section.
+the incident horizon at 6–16 s, retention and regime change at 100–200 s. The oscillome
+therefore holds **nested oscillations** beside the base tick, in the spirit of brain
+oscillations, with the analogy's limits stated at the end of this section.
 
-- **Global rhythms** are periods in seconds in the `MediumSpec` (first set: 0.1 s, 10 s, 100 s;
-  the fastest is the base tick). Each rhythm's **phase** in `[0, 1)` is a pure function of the
+- **Global oscillations** (rhythms) are periods in seconds in the `MediumSpec`'s `Oscillome`
+  (first set: 0.1 s, 10 s, 100 s; the fastest is the base tick). Each rhythm's **phase** in `[0, 1)` is a pure function of the
   tick index and the tick length, and all phases are broadcast in the field every tick (the
   `Field` gains `phases: [f32; R]`, `R` = 3 first). A rhythm boundary is the tick where its
   phase wraps.
