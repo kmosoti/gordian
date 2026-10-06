@@ -107,6 +107,29 @@ def slope(arm, kind, seeds, resamples=C.N_RESAMPLES, seed=C.BOOT_SEED):
 # ---- the slope of W1's curve (clause 2, reading R3) -----------------------------------------------
 
 
+def _slopes_of(inc, cor, w):
+    """Least-squares slopes of the weighted cumulative efficiency curve against the stream number,
+    one per row of the weights `w` (rows are resamples; one row of ones is the point estimate).
+    Points with no incident seen yet are left out."""
+    k = len(inc)
+    x = np.arange(1, k + 1, dtype=float)
+    cd = np.cumsum(w * inc, axis=1)
+    cc = np.cumsum(w * cor, axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        eff = np.where(cd > 0, cc / cd, np.nan)
+    ok = ~np.isnan(eff)
+    n = ok.sum(axis=1)
+    sx = (ok * x).sum(axis=1)
+    sxx = (ok * x * x).sum(axis=1)
+    e = np.where(ok, eff, 0.0)
+    sy = e.sum(axis=1)
+    sxy = (e * x).sum(axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        var = sxx - sx * sx / n
+        cov = sxy - sx * sy / n
+        return np.where((n > 1) & (var > 0), cov / var, np.nan)
+
+
 def curve_slope(measures, arm, which, k, resamples=C.N_RESAMPLES, seed=C.BOOT_SEED):
     """(point, lower, higher) of the least-squares slope of the cumulative efficiency curve against
     the number of streams over the first `k` streams, in efficiency per 100 streams. The curve is
@@ -116,29 +139,28 @@ def curve_slope(measures, arm, which, k, resamples=C.N_RESAMPLES, seed=C.BOOT_SE
     f = per_stream_frame(measures, arm, which).iloc[:k]
     inc = f["incidents_hard"].to_numpy(float)
     cor = f["correct_hard"].to_numpy(float)
-    x = np.arange(1, k + 1, dtype=float)
-
-    def slopes(w):
-        cd = np.cumsum(w * inc, axis=1)
-        cc = np.cumsum(w * cor, axis=1)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            eff = np.where(cd > 0, cc / cd, np.nan)
-        ok = ~np.isnan(eff)
-        n = ok.sum(axis=1)
-        sx = (ok * x).sum(axis=1)
-        sxx = (ok * x * x).sum(axis=1)
-        e = np.where(ok, eff, 0.0)
-        sy = e.sum(axis=1)
-        sxy = (e * x).sum(axis=1)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            var = sxx - sx * sx / n
-            cov = sxy - sx * sy / n
-            return np.where((n > 1) & (var > 0), cov / var, np.nan)
-
-    point = slopes(np.ones((1, k)))[0]
-    # W1's own curve gives the same point (checked by the caller's test of `curve`)
+    point = _slopes_of(inc, cor, np.ones((1, k)))[0]
+    # W1's own curve gives the same point (the analysis asserts it)
     rng = np.random.default_rng(seed)
-    lo, hi = interval(slopes(counts(rng, k, resamples)))
+    lo, hi = interval(_slopes_of(inc, cor, counts(rng, k, resamples)))
+    return point * 100, lo * 100, hi * 100
+
+
+def curve_slope_diff(measures, a, b, which, k, resamples=C.N_RESAMPLES, seed=C.BOOT_SEED):
+    """(point, lower, higher) of slope(a) - slope(b) of the cumulative curves over the first `k`
+    streams, in efficiency per 100 streams, with the same resampled streams for both arms (paired).
+    Beside the clauses: the slope of a curve that rises for a reason other than learning (a
+    cumulative ratio of an arm that does not learn also rises while early noise dilutes) is
+    separated from it by differencing against an arm that does not learn."""
+    fa = per_stream_frame(measures, a, which).iloc[:k]
+    fb = per_stream_frame(measures, b, which).iloc[:k]
+    ia, ca = fa["incidents_hard"].to_numpy(float), fa["correct_hard"].to_numpy(float)
+    ib, cb = fb["incidents_hard"].to_numpy(float), fb["correct_hard"].to_numpy(float)
+    one = np.ones((1, k))
+    point = _slopes_of(ia, ca, one)[0] - _slopes_of(ib, cb, one)[0]
+    rng = np.random.default_rng(seed)
+    w = counts(rng, k, resamples)
+    lo, hi = interval(_slopes_of(ia, ca, w) - _slopes_of(ib, cb, w))
     return point * 100, lo * 100, hi * 100
 
 

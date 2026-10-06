@@ -9,6 +9,11 @@ writes experiments/exploration/l1-*.csv (l1-dev-*.csv for the dev stage):
   criterion  the three clauses with their intervals and verdicts, and the conjunction
   slopes     the slope of the anchor-correct outcome (and of the leak-noticed one) over the first
              50, 100 and 200 streams, share per 100 incidents seen, with intervals
+  paired     beside the clauses: the learned arm minus each control, paired over streams: the end-state
+             (last 100) differences of anchor-correct and leak-noticed shares and of the notices on
+             background, and the differences of the curve slopes over the first 50, 100 and 200
+             streams (a curve that rises while early noise dilutes rises for an arm that does not
+             learn too; the difference against a control that does not learn is what the learner adds)
   curves     W1's sample-efficiency curves read at 5, 10, 20, 25, 50, 100, 150 and 200 streams
   curves-full  every arm's whole curve
 
@@ -124,6 +129,28 @@ def main():
                            "slope": p, "lower": lo, "higher": hi, "incidents": cnt})
     pd.DataFrame(sl).to_csv(C.OUT / f"{PREFIX}-slopes.csv", index=False)
 
+    # ---- paired differences of the learned arm against every other arm (beside the clauses)
+    pr = []
+    others = [x for x in ("learned_off", "frozen", "reanchor", C.RAMP_SPLIT)]
+    for other in others:
+        b = A(other)
+        for wname, w in (("last100", last), ("all", wins["all"])):
+            for name, num, den in (("hard_anchor_correct_share", "hard_correct", "hard_n"),
+                                   ("leak_noticed_share", "leak_noticed", "leak_n"),
+                                   ("leak_anchor_correct_share", "leak_correct", "leak_n"),
+                                   ("strict_precision", "notices_both", "notices"),
+                                   ("notices_on_background_per_stream", "notices_background", "one")):
+                d, lo, hi = w.paired(num, den, learned, b)
+                pr.append({"learned_minus": other, "measure": name, "window": wname, "difference": d,
+                           "lower": lo, "higher": hi})
+        for kind in ("anchor", "leak"):
+            for k in C.SLOPE_WINDOWS:
+                if k <= n:
+                    d, lo, hi = L.curve_slope_diff(m, learned, b, kind, k)
+                    pr.append({"learned_minus": other, "measure": f"curve_slope_{kind}_per_100_streams",
+                               "window": f"first{k}", "difference": d, "lower": lo, "higher": hi})
+    pd.DataFrame(pr).to_csv(C.OUT / f"{PREFIX}-paired.csv", index=False)
+
     # ---- curves
     cr, full = [], []
     for arm in arms:
@@ -149,6 +176,7 @@ def main():
         print(table[table.window != "first100"][show].to_string(index=False, float_format=lambda x: f"{x:.3f}"))
         print(crit.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
         print("conjunction:", conj)
+        print(pd.DataFrame(pr).to_string(index=False, float_format=lambda x: f"{x:.4f}"))
         sls = pd.DataFrame(sl)
         print(sls[sls.outcome == "anchor"].to_string(index=False, float_format=lambda x: f"{x:.3f}"))
         # the point of the weighted curve slope is W1's curve's own slope

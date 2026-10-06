@@ -11,6 +11,9 @@ Run directories live in artifacts/runs/ of this worktree (git-ignored); manifest
 artifacts/runs/_manifests/.
 """
 
+import json
+
+import b3_common as B3
 import m2_common as M
 
 ROOT = M.ROOT
@@ -65,15 +68,31 @@ def learned(key, **over):
 # The four arms of the criterion (names are the manifest's; the arm directory is sel_<name>_privileged)
 CRITERION_ARMS = ("learned", "learned_off", "frozen", "reanchor")
 
+# B3 changed the public comparator after the brief was written (docs/review-log.md, entry B3): the
+# best public noticer is the ramp noticer and the splitting noticer over the re-anchor, as B3 tuned
+# them on seeds 10000-10099 and recorded in experiments/exploration/b3-selected.json. It is a fifth
+# control row, `ramp_split_over_re2` (B3's own arm name), not part of the criterion, which names the
+# frozen graph; nothing about it is tuned here.
+RAMP_SPLIT = "ramp_split_over_re2"
+
+
+def ramp_split_over_re2():
+    """B3's `sel_ramp_split_over_re2_privileged` noticer, from the recorded selection."""
+    sel = json.load(open(OUT / "b3-selected.json"))
+    return B3.composed("re2", ramp=sel["ramp"]["chosen"]["params"],
+                       split=sel["split_re2"]["chosen"]["params"])
+
 
 def arms():
-    """(name, noticer) of every arm of a run: the four criterion arms first, then the labelled
-    sensitivity arms (nothing is chosen from them)."""
+    """(name, noticer) of every arm of a run: the four criterion arms and the fifth control (B3's
+    ramp + split over the re-anchor) first, then the labelled sensitivity arms (nothing is chosen
+    from them)."""
     return [
         ("learned", learned(1001)),
         ("learned_off", learned(1002, learning=False, carry=False)),
         ("frozen", medium_frozen()),
         ("reanchor", dict(REANCHOR)),
+        (RAMP_SPLIT, ramp_split_over_re2()),
         # sensitivity, labelled:
         ("learned_nocarry", learned(1003, carry=False)),
         ("learned_p080", learned(1004, min_precision=0.8)),
