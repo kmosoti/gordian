@@ -691,16 +691,7 @@ impl Medium {
         self.validate_inputs(tick, tick_len_ns, &field, &events)?;
         sorted_events(&mut events);
         self.last_tick = Some(tick);
-        // The oscillome's phases, a pure function of the tick (section 4b).
-        field.phases = if self.engine.rhythms() == 0 {
-            [0.0; R]
-        } else {
-            self.engine.phases(tick)
-        };
-        let traced = match self.oscillome.trace_rhythm {
-            None => ports.trace.wants(tick),
-            Some(r) => self.engine.is_boundary(usize::from(r), tick) && ports.trace.wants(tick),
-        };
+        let traced = self.begin_rhythms(ports, tick, &mut field);
 
         let mut run = TickRun {
             tick,
@@ -809,17 +800,8 @@ impl Medium {
         };
         self.totals.accumulate(&run.counts);
 
-        // 7. Cycles, then plasticity: every tick, or at the boundaries of the plasticity rhythm
-        // with that rhythm's completed cycle.
-        summary.completed = self.engine.record(tick, &summary);
-        match self.oscillome.plasticity_rhythm {
-            None => ports.plasticity.end_of_tick(self, &summary),
-            Some(r) => {
-                if let Some(cycle) = summary.completed.iter().find(|c| c.rhythm == r) {
-                    ports.plasticity.end_of_cycle(self, cycle);
-                }
-            }
-        }
+        // 7. Cycles, then plasticity.
+        self.end_rhythms(ports, &mut summary);
 
         // 8. Ledger and trace.
         ports
@@ -829,6 +811,39 @@ impl Medium {
             ports.trace.record(TickTrace { tick, items });
         }
         Ok(summary)
+    }
+
+    /// Step 1's oscillome part: write the phases of `tick` into `field` (a pure function of the
+    /// tick, section 4b), and say whether the tick is traced (only on the trace rhythm's boundary
+    /// ticks when the oscillome names one). Kept out of `step` (not inlined) so that the M1 path
+    /// through `step` keeps its shape; see DESIGN.md, the M1b benchmark.
+    #[inline(never)]
+    fn begin_rhythms(&self, ports: &mut Ports<'_>, tick: u64, field: &mut Field) -> bool {
+        field.phases = if self.engine.rhythms() == 0 {
+            [0.0; R]
+        } else {
+            self.engine.phases(tick)
+        };
+        match self.oscillome.trace_rhythm {
+            None => ports.trace.wants(tick),
+            Some(r) => self.engine.is_boundary(usize::from(r), tick) && ports.trace.wants(tick),
+        }
+    }
+
+    /// Step 7: add the tick to every rhythm's cycle, then run plasticity, every tick or at the
+    /// boundaries of the plasticity rhythm with that rhythm's completed cycle. Not inlined, as
+    /// `begin_rhythms`.
+    #[inline(never)]
+    fn end_rhythms(&mut self, ports: &mut Ports<'_>, summary: &mut TickSummary) {
+        summary.completed = self.engine.record(summary.tick, summary);
+        match self.oscillome.plasticity_rhythm {
+            None => ports.plasticity.end_of_tick(self, summary),
+            Some(r) => {
+                if let Some(cycle) = summary.completed.iter().find(|c| c.rhythm == r) {
+                    ports.plasticity.end_of_cycle(self, cycle);
+                }
+            }
+        }
     }
 
     /// Step 4: run every cell of `cells` (ascending) once. Returns the cells whose activation is

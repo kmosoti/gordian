@@ -1236,6 +1236,34 @@ fn oscillome_bytes_reject_corruption_without_panicking() {
     assert!(Medium::from_bytes(&b).is_err());
 }
 
+/// Decision 8 moves the default prices; a spec that takes the default differs from the same spec
+/// at M1's prices in the 40 bytes of prices of every persisted state (bytes 28 to 67) and nowhere
+/// else: prices change no behaviour.
+#[test]
+fn the_new_default_prices_change_only_the_price_bytes() {
+    let events = common::random_events(21, 1_000, 80, 8);
+    let run = |prices: Prices| -> Vec<Vec<u8>> {
+        let mut spec = rich_spec(Limits::default());
+        spec.prices = prices;
+        let mut m = Medium::from_spec(&spec).unwrap();
+        let mut rig = Rig::new(1_000, events.clone());
+        rig.field.0 = common::open_field();
+        (0..80)
+            .map(|_| {
+                rig.step(&mut m).unwrap();
+                m.to_bytes()
+            })
+            .collect()
+    };
+    let (old, new) = (run(Prices::FIRST_GUESS), run(Prices::DECLARED));
+    for (a, b) in old.iter().zip(&new) {
+        assert_eq!(a.len(), b.len());
+        let differ: Vec<usize> = (0..a.len()).filter(|&i| a[i] != b[i]).collect();
+        assert!(!differ.is_empty() && differ.iter().all(|&i| (28..68).contains(&i)));
+        assert_eq!(a[68..], b[68..]);
+    }
+}
+
 #[test]
 fn prices_in_specs_are_the_declared_ones_unless_stated() {
     assert_eq!(MediumBuilder::new().into_spec().prices, Prices::DECLARED);
