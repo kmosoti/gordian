@@ -617,9 +617,27 @@ impl Medium {
             prices,
             oscillome,
         };
-        spec.validate().map_err(DecodeError::Spec)?;
+        let (resolved, _) = spec.resolved().map_err(DecodeError::Spec)?;
         if spec.uses_oscillome() != (version == VERSION_OSCILLOME) {
             return Err(DecodeError::Inconsistent("encoding version"));
+        }
+        // A medium stores the converted values of its quantities in time; bytes whose stored
+        // value differs from the conversion are refused, not repaired (compared by bits).
+        let same_params = spec.cells.iter().zip(&resolved.cells).all(|(a, b)| {
+            a.params
+                .iter()
+                .zip(&b.params)
+                .all(|(x, y)| x.to_bits() == y.to_bits())
+        });
+        let same_delays = spec
+            .synapses
+            .iter()
+            .zip(&resolved.synapses)
+            .all(|(a, b)| a.delay_ticks == b.delay_ticks);
+        if !(same_params && same_delays) {
+            return Err(DecodeError::Inconsistent(
+                "a stored value differs from its conversion",
+            ));
         }
         Medium::from_parts(
             &spec, dynamic, pending, wake_next, last_tick, totals, summaries,

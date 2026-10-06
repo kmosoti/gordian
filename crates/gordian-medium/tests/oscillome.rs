@@ -1146,6 +1146,52 @@ proptest! {
     }
 }
 
+/// The version-2 bytes refuse corruption without panicking, and a stored conversion that no
+/// longer matches its quantity in time is refused, not repaired.
+#[test]
+fn oscillome_bytes_reject_corruption_without_panicking() {
+    let len = 500 * MS;
+    let spec = oscillome_spec(Limits::default(), len);
+    let mut m = Medium::from_spec(&spec).unwrap();
+    let mut rig = Rig::with_tick(0, len, random_events_in(9, 0, 50, 6, len));
+    for _ in 0..50 {
+        rig.step(&mut m).unwrap();
+    }
+    let bytes = m.to_bytes();
+    assert_eq!(Medium::from_bytes(&bytes).unwrap().to_bytes(), bytes);
+    for i in 0..bytes.len() {
+        let mut b = bytes.clone();
+        b[i] ^= 0xA5;
+        if let Ok(decoded) = Medium::from_bytes(&b) {
+            // Whatever decodes re-encodes to exactly the bytes it came from.
+            assert_eq!(decoded.to_bytes(), b, "byte {i}");
+        }
+    }
+    // The oscillator's period is given as 6 s (12 ticks). Claim 7 s instead: the stored delay of
+    // 12 ticks is no longer the conversion (14), and the bytes are refused.
+    let six = secs(6.0).to_le_bytes();
+    let at = bytes
+        .windows(8)
+        .rposition(|w| w == six)
+        .expect("the 6 s entry is in the oscillome section");
+    let mut b = bytes.clone();
+    b[at..at + 8].copy_from_slice(&secs(7.0).to_le_bytes());
+    assert!(matches!(
+        Medium::from_bytes(&b),
+        Err(gordian_medium::DecodeError::Inconsistent(
+            "a stored value differs from its conversion"
+        ))
+    ));
+    // Version 1 with an oscillome section, or version 2 without one, is refused.
+    let mut b = bytes.clone();
+    b[4] = 1;
+    assert!(Medium::from_bytes(&b).is_err());
+    let m1 = Medium::from_spec(&rich_spec(Limits::default())).unwrap();
+    let mut b = m1.to_bytes();
+    b[4] = 2;
+    assert!(Medium::from_bytes(&b).is_err());
+}
+
 #[test]
 fn prices_in_specs_are_the_declared_ones_unless_stated() {
     assert_eq!(MediumBuilder::new().into_spec().prices, Prices::DECLARED);
