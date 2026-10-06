@@ -1,0 +1,34 @@
+{
+  "budget_notices_on_background_per_stream": 6.82,
+  "tuning_seeds": [
+    10000,
+    10099
+  ],
+  "ramp": {
+    "chosen": {
+      "name": "ramp_g1600_s10_d4_n5_r15_over_r3",
+      "params": {
+        "gap_ms": 1600,
+        "max_step": 10,
+        "max_drop": 4,
+        "min_readings": 5,
+        "min_rise": 15
+      },
+      "leak_noticed_share_tuning": 1.0,
+      "leak_anchor_correct_share_tuning": 1.0,
+      "notices_on_background_per_stream_tuning": 3.7,
+      "hard_anchor_correct_share_tuning": 0.8542713567839196
+    },
+    "rung_z3_tuning": {
+      "leak_noticed_share": 0.4090909090909091,
+      "leak_anchor_correct_share": 0.0,
+      "hard_anchor_correct_share": 0.8542713567839196,
+      "notices_on_background_per_stream": 3.99
+    },
+    "feasible": 213,
+    "of": 216,
+    "tied_at_the_best": 175,
+    "within_budget": true,
+    "rule": "highest leak noticed share within the background budget; then highest leak anchor-correct, fewest notices on background, larger min_readings, larger min_rise, smaller max_step, smaller max_drop, smaller gap (b3_common.py)"
+  }
+}
