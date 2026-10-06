@@ -623,7 +623,15 @@ fn the_notice_files_have_their_columns_and_add_up() {
     let inc_all = read(&dir, "incidents.csv");
     assert_eq!(
         notices.lines().next().unwrap(),
-        "run_id,arm_role,seed,noticer,notices,notices_on_background,notices_on_plain,notices_on_hard,notices_on_decoy,retirements,noticed_plain,noticed_hard,noticed_decoy,anchor_correct_plain,anchor_correct_hard,anchor_correct_decoy"
+        "run_id,arm_role,seed,noticer,notices,notices_on_background,notices_on_plain,notices_on_hard,notices_on_decoy,retirements,noticed_plain,noticed_hard,noticed_decoy,anchor_correct_plain,anchor_correct_hard,anchor_correct_decoy,notices_site_correct,notices_anchor_site_correct,site_correct_plain,site_correct_hard,site_correct_decoy,anchor_site_correct_plain,anchor_site_correct_hard,anchor_site_correct_decoy"
+    );
+    assert_eq!(
+        incidents.lines().next().unwrap(),
+        "run_id,arm_role,seed,incident,tier,family,first_observation_at_ns,notices,noticed,first_notice_at_ns,notice_latency_ns,anchor_correct,site_correct,anchor_site_correct"
+    );
+    assert_eq!(
+        events.lines().next().unwrap(),
+        "run_id,arm_role,seed,noticer,event,anomaly,anchor,site,anchor_at_ns,at_ns,incident,anchor_offset_ns,anchor_correct,site_correct,anchor_site_correct"
     );
     assert_eq!(notices.lines().count(), 1 + 3, "one row per stream");
     // One row per incident, keyed as incidents.csv is.
@@ -695,14 +703,65 @@ fn the_notice_files_have_their_columns_and_add_up() {
         match cell(&events, e, "event").as_str() {
             "notice" if incident.is_empty() => {
                 assert_eq!(correct, "false");
+                assert_eq!(cell(&events, e, "site_correct"), "false");
+                assert_eq!(cell(&events, e, "anchor_site_correct"), "false");
                 assert!(cell(&events, e, "anchor_offset_ns").is_empty());
             }
             "notice" => {
                 with_incident += 1;
                 assert!(!cell(&events, e, "anchor_offset_ns").is_empty());
                 assert!(correct == "true" || correct == "false");
+                // N15: anchor-and-site-correct is the conjunction, read from the same row.
+                let site = cell(&events, e, "site_correct");
+                assert!(site == "true" || site == "false");
+                assert_eq!(
+                    cell(&events, e, "anchor_site_correct") == "true",
+                    correct == "true" && site == "true"
+                );
             }
-            _ => assert!(incident.is_empty() && correct.is_empty()),
+            _ => assert!(
+                incident.is_empty()
+                    && correct.is_empty()
+                    && cell(&events, e, "site_correct").is_empty()
+                    && cell(&events, e, "anchor_site_correct").is_empty()
+            ),
+        }
+    }
+    // The stream rows count the event rows (N14, N15).
+    for s in 0..3 {
+        let seed = cell(&notices, s, "seed");
+        let count = |col: &str| -> u32 {
+            (0..events.lines().count() - 1)
+                .filter(|e| cell(&events, *e, "seed") == seed && cell(&events, *e, col) == "true")
+                .count() as u32
+        };
+        assert_eq!(
+            count("site_correct").to_string(),
+            cell(&notices, s, "notices_site_correct")
+        );
+        assert_eq!(
+            count("anchor_site_correct").to_string(),
+            cell(&notices, s, "notices_anchor_site_correct")
+        );
+        // Incidents with such a notice, by tier, read from the incident rows.
+        for (col, prefix) in [
+            ("site_correct", "site_correct"),
+            ("anchor_site_correct", "anchor_site_correct"),
+        ] {
+            for tier in ["plain", "hard", "decoy"] {
+                let n = (0..incidents.lines().count() - 1)
+                    .filter(|i| {
+                        cell(&incidents, *i, "seed") == seed
+                            && cell(&incidents, *i, "tier") == tier
+                            && cell(&incidents, *i, col) == "true"
+                    })
+                    .count();
+                assert_eq!(
+                    n.to_string(),
+                    cell(&notices, s, &format!("{prefix}_{tier}")),
+                    "{col} {tier}"
+                );
+            }
         }
     }
     assert!(

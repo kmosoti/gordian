@@ -8,6 +8,7 @@ use gordian_stream::oracle::{
     EvidenceRole, IncidentTruth, NoiseKind, ObsLabel, ShapeTruth, StreamTruth,
 };
 use gordian_stream::{ObsId, StreamHypothesis, Tier};
+use gordian_world::ServiceId;
 use serde::Deserialize;
 
 /// The fixture form of an incident: only the fields the evaluator reads. Everything else in an
@@ -23,6 +24,9 @@ pub struct CompactIncident {
     pub onset_ns: u64,
     pub deadline_ns: Option<u64>,
     pub truth: Option<StreamHypothesis>,
+    /// The services the incident occupies, site first (the notice fixtures' N13); empty by default.
+    #[serde(default)]
+    pub occupies: Vec<u32>,
 }
 
 /// The fixture form of a truth: duration, incidents, and one label per observation (`null` for
@@ -61,7 +65,7 @@ pub fn hand_truth(
             live_end_ns: c.deadline_ns.unwrap_or(c.onset_ns),
             busy_until_ns: c.deadline_ns.unwrap_or(c.onset_ns),
             recurrence_of: None,
-            occupies: Vec::new(),
+            occupies: c.occupies.iter().map(|s| ServiceId(*s)).collect(),
             shape: ShapeTruth {
                 known_kind: None,
                 duo: false,

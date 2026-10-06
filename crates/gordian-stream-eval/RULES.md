@@ -166,7 +166,7 @@ incident; read them with the counts (S23, S24) and the cost (S26).
 | Totals: "total reasoner cost in its own units (calls, references, tokens)" | adds `modelled_ns` | It is the quantity the stream's hard budget limits, and the charter's exchange rate (section 4) is applied to it by the harness. |
 | Decoys: silence is "neither" | `decoys_silent` counts it | A count of the neutral case lets a consumer check that the three decoy outcomes cover every decoy. |
 
-## Notices (work item B1)
+## Notices (work items B1 and B2)
 
 `score_notices(truth, obs_at, trace)` scores what a noticer noticed, not a trajectory. It is a
 separate pure function with its own inputs: the truth, `obs_at` (the instant each passive
@@ -191,6 +191,13 @@ pinned by no case or a case names a rule that is not here.
 | N10 | **Retirements.** `retirements` is the number recorded. A retirement is not about an incident: it is the noticer's record of an anomaly it is finished with. |
 | N11 | **Errors, not verdicts.** The record is refused, with no verdict, in this order: `obs_at` does not have one instant per label; an incident's id is not its position; a label names an unknown incident; then for each notice in order, the anchor is not an observation, the notice is earlier than its anchor's instant, the notice is earlier than the notice before it, the anomaly was noticed already; then for each retirement in order, it is earlier than the retirement before it, its anomaly is not live (never noticed, or retired already), it is earlier than its notice. |
 | N12 | **Purity.** The verdict is a function of the three inputs; it reads no clock, no randomness, nothing else. Notices and retirements are not trajectory steps, are never charged and do not move any score of `score_stream`. |
+| N13 | **The incident's site** (work item B2) is the first service the incident occupies (`IncidentTruth::occupies`, site first), whatever its tier: a decoy has no diagnosis and so no diagnosed site, but it occupies one. An incident that occupies nothing has no site (only a hand-built truth does). For a plain or hard incident the first occupied service is the site of its true diagnosis; `tests/generated.rs` checks it on generated streams. A **notice's site** is the service the record says it is about (`NoticeEntry::site`, the index of the `ServiceId`); a hand-written record may leave it out. |
+| N14 | **Site-correct.** A notice is site-correct when it is about an incident (N1), the record gives it a site, the incident has a site (N13), and the two are equal. A notice anchored on background, a notice with no site, and a notice about an incident with no site are not site-correct. The site is compared with the site of the incident the *anchor* belongs to, not with any incident's. An incident is site-correct when at least one notice about it is. Like N5 it is a property of one field of the notice: it does not say the notice was anchored on the right observation. |
+| N15 | **Anchor-and-site-correct.** A notice is anchor-and-site-correct when it is anchor-correct (N5) and site-correct (N14). An incident is anchor-and-site-correct when at least one *single* notice about it is both; a notice that is anchor-correct and another that is site-correct do not make it so. `notices_site_correct` and `notices_anchor_site_correct` count notices of every tier; `site_correct` and `anchor_site_correct` count incidents by tier, as N9's counts do. |
+| N16 | **Notice precision.** The counts of N8 and N15 give three ratios over a stream's notices, pooled across streams by the analysis from the counts (N9), never averaged per stream: *precision* is the notices anchored on an incident of any tier (`on_plain + on_hard + on_decoy`) over all notices; *precision in a tier* is the notices anchored on incidents of that tier over all notices (so the tiers' precisions add to the precision); *strict precision* is the anchor-and-site-correct notices (N15) over all notices. Each is undefined (`None`) for a stream with no notice. `NoticeTotals::precision`, `precision_in` and `strict_precision` compute them for one stream. |
+
+Rules N13 to N16 are work item B2's. They add inputs and counts and change none of N1 to N12:
+the fixtures of N1 to N12 are unchanged and still pass (a record without a site is allowed, N14).
 
 ### Where the notice rules are a judgement
 
@@ -207,3 +214,13 @@ pinned by no case or a case names a rule that is not here.
    with notices on background per stream and notices per incident beside it, never alone.
 4. **The 1 s window is applied to the anchor's emission instant**, not to the instant of the
    notice (N5): a noticer may notice late and still be anchor-correct, which latency (N4) shows.
+5. **The incident's site is the first occupied service (N13).** The truth gives a diagnosed site only
+   to plain and hard incidents; reading `occupies[0]` gives every tier one. If a family of incident
+   were generated whose true site is not the first occupied service, N14 would call a correct notice
+   wrong; the generated-stream test pins the agreement for plain and hard incidents and would fail.
+6. **Site-correct is gameable in the other direction (N14).** A noticer that is about every service
+   is site-correct for every incident it also anchors on. It is a check on one field, and is read with
+   anchor-correct (N5), the single-notice conjunction (N15) and precision (N16), never alone.
+7. **Precision counts notices, not incidents (N16).** A noticer that notices an incident ten times
+   has ten notices on it. Precision is therefore the measure that a flood lowers, and it is also
+   lowered by a noticer that re-notices a long incident; notices per incident (analysis) says which.

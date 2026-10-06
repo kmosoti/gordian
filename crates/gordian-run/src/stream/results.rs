@@ -103,6 +103,14 @@
 //!   (`incident` the anchor belongs to, `anchor_offset_ns`, `anchor_correct`); empty for a
 //!   retirement, and `incident` and `anchor_offset_ns` empty for a notice on background.
 //!
+//! Work item B2 adds columns at the end of each (the site check and the correct notices of
+//! the evaluator's N13 to N16), so that a loader written for the B1 files fails its schema guard
+//! rather than reading them silently: `notices.csv` gains `notices_site_correct` and
+//! `notices_anchor_site_correct` (counts of notices), and `site_correct_*` and
+//! `anchor_site_correct_*` by tier (counts of incidents); `notice_incidents.csv` gains
+//! `site_correct` and `anchor_site_correct`; `notice_events.csv` gains the same two for each notice
+//! (empty for a retirement, `false` for a notice anchored on background).
+//!
 //! `tier`, `family` and the evaluator's readings are hidden-side facts, as in `incidents.csv`:
 //! evaluator output for the analysis, never a policy input. All three files are deterministic.
 
@@ -253,19 +261,19 @@ pub fn incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
 }
 
 /// The header of `notices.csv`.
-pub const NOTICES_HEADER: &str = "run_id,arm_role,seed,noticer,notices,notices_on_background,notices_on_plain,notices_on_hard,notices_on_decoy,retirements,noticed_plain,noticed_hard,noticed_decoy,anchor_correct_plain,anchor_correct_hard,anchor_correct_decoy";
+pub const NOTICES_HEADER: &str = "run_id,arm_role,seed,noticer,notices,notices_on_background,notices_on_plain,notices_on_hard,notices_on_decoy,retirements,noticed_plain,noticed_hard,noticed_decoy,anchor_correct_plain,anchor_correct_hard,anchor_correct_decoy,notices_site_correct,notices_anchor_site_correct,site_correct_plain,site_correct_hard,site_correct_decoy,anchor_site_correct_plain,anchor_site_correct_hard,anchor_site_correct_decoy";
 
 /// The header of `notice_incidents.csv`.
-pub const NOTICE_INCIDENTS_HEADER: &str = "run_id,arm_role,seed,incident,tier,family,first_observation_at_ns,notices,noticed,first_notice_at_ns,notice_latency_ns,anchor_correct";
+pub const NOTICE_INCIDENTS_HEADER: &str = "run_id,arm_role,seed,incident,tier,family,first_observation_at_ns,notices,noticed,first_notice_at_ns,notice_latency_ns,anchor_correct,site_correct,anchor_site_correct";
 
 /// The header of `notice_events.csv`.
-pub const NOTICE_EVENTS_HEADER: &str = "run_id,arm_role,seed,noticer,event,anomaly,anchor,site,anchor_at_ns,at_ns,incident,anchor_offset_ns,anchor_correct";
+pub const NOTICE_EVENTS_HEADER: &str = "run_id,arm_role,seed,noticer,event,anomaly,anchor,site,anchor_at_ns,at_ns,incident,anchor_offset_ns,anchor_correct,site_correct,anchor_site_correct";
 
 /// One line of `notices.csv` for `record`, without a trailing newline.
 pub fn notices_row(run_id: &str, record: &SegmentRecord) -> String {
     let t = &record.notices.totals;
     format!(
-        "{run_id},{role},{seed},{noticer},{notices},{bg},{plain},{hard},{decoy},{retired},{n_plain},{n_hard},{n_decoy},{a_plain},{a_hard},{a_decoy}",
+        "{run_id},{role},{seed},{noticer},{notices},{bg},{plain},{hard},{decoy},{retired},{n_plain},{n_hard},{n_decoy},{a_plain},{a_hard},{a_decoy},{s_notices},{c_notices},{s_plain},{s_hard},{s_decoy},{c_plain},{c_hard},{c_decoy}",
         role = record.role.as_str(),
         seed = record.seed,
         noticer = record.noticer,
@@ -281,6 +289,14 @@ pub fn notices_row(run_id: &str, record: &SegmentRecord) -> String {
         a_plain = t.anchor_correct.plain,
         a_hard = t.anchor_correct.hard,
         a_decoy = t.anchor_correct.decoy,
+        s_notices = t.notices_site_correct,
+        c_notices = t.notices_anchor_site_correct,
+        s_plain = t.site_correct.plain,
+        s_hard = t.site_correct.hard,
+        s_decoy = t.site_correct.decoy,
+        c_plain = t.anchor_site_correct.plain,
+        c_hard = t.anchor_site_correct.hard,
+        c_decoy = t.anchor_site_correct.decoy,
     )
 }
 
@@ -299,7 +315,7 @@ pub fn notice_incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String>
         .zip(&record.incident_families)
         .map(|(v, family)| {
             format!(
-                "{run_id},{role},{seed},{id},{tier},{family},{first},{notices},{noticed},{at},{latency},{correct}",
+                "{run_id},{role},{seed},{id},{tier},{family},{first},{notices},{noticed},{at},{latency},{correct},{site_correct},{both}",
                 role = record.role.as_str(),
                 seed = record.seed,
                 id = v.id,
@@ -310,6 +326,8 @@ pub fn notice_incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String>
                 at = opt(v.first_notice_at.map(|t| t.0)),
                 latency = opt(v.notice_latency_ns),
                 correct = v.anchor_correct,
+                site_correct = v.site_correct,
+                both = v.anchor_site_correct,
             )
         })
         .collect()
@@ -317,16 +335,16 @@ pub fn notice_incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String>
 
 /// The lines of `notice_events.csv` for `record`: every notice and retirement the noticer
 /// recorded, in order, each without a trailing newline. The public fields (`anchor`, `site`, the
-/// instants) are what the noticer recorded; `incident`, `anchor_offset_ns` and `anchor_correct`
-/// are the evaluator's reading of a notice (empty for a retirement and, but for `anchor_correct`,
-/// for a notice anchored on background).
+/// instants) are what the noticer recorded; `incident`, `anchor_offset_ns`, `anchor_correct`,
+/// `site_correct` and `anchor_site_correct` are the evaluator's reading of a notice (empty for a
+/// retirement and, but for the three flags, for a notice anchored on background).
 pub fn notice_event_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
     let mut scores = record.notices.per_notice.iter();
     record
         .notice_log
         .iter()
         .map(|e| {
-            let (incident, offset, correct) = match e.kind {
+            let (incident, offset, correct, site_correct, both) = match e.kind {
                 NoticeKind::Notice => {
                     let s = scores
                         .next()
@@ -336,12 +354,20 @@ pub fn notice_event_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
                         s.anchor_offset_ns
                             .map_or_else(String::new, |n| n.to_string()),
                         s.anchor_correct.to_string(),
+                        s.site_correct.to_string(),
+                        s.anchor_site_correct.to_string(),
                     )
                 }
-                NoticeKind::Retire => (String::new(), String::new(), String::new()),
+                NoticeKind::Retire => (
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                ),
             };
             format!(
-                "{run_id},{role},{seed},{noticer},{event},{anomaly},{anchor},{site},{anchor_at},{at},{incident},{offset},{correct}",
+                "{run_id},{role},{seed},{noticer},{event},{anomaly},{anchor},{site},{anchor_at},{at},{incident},{offset},{correct},{site_correct},{both}",
                 role = record.role.as_str(),
                 seed = record.seed,
                 noticer = e.noticer,
