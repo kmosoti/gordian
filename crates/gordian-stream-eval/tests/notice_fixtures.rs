@@ -122,7 +122,9 @@ fn every_error_variant_is_exercised() {
     for case in cases() {
         if let Expected::Error(e) = &case.expected {
             seen.insert(match e {
-                NoticeEvalError::ObservationInstantsMismatch { .. } => "ObservationInstantsMismatch",
+                NoticeEvalError::ObservationInstantsMismatch { .. } => {
+                    "ObservationInstantsMismatch"
+                }
                 NoticeEvalError::IncidentIdMismatch { .. } => "IncidentIdMismatch",
                 NoticeEvalError::LabelOfUnknownIncident { .. } => "LabelOfUnknownIncident",
                 NoticeEvalError::UnknownAnchor { .. } => "UnknownAnchor",

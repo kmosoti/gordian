@@ -84,6 +84,7 @@
 //! `internal_external_ratio` unchanged. `measured_sched_ns` is the rule's calls plus the arm's own
 //! bookkeeping (the tracker, scores, the context builder).
 
+use super::arms::noticer::NoticeKind;
 use super::harness::SegmentRecord;
 use gordian_core::Resource;
 use gordian_stream::Tier;
@@ -224,6 +225,110 @@ pub fn incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
                 esc = v.escalations,
                 informed = v.informed_escalations,
                 correct = v.correct_escalations,
+            )
+        })
+        .collect()
+}
+
+/// The header of `notices.csv`.
+pub const NOTICES_HEADER: &str = "run_id,arm_role,seed,noticer,notices,notices_on_background,notices_on_plain,notices_on_hard,notices_on_decoy,retirements,noticed_plain,noticed_hard,noticed_decoy,anchor_correct_plain,anchor_correct_hard,anchor_correct_decoy";
+
+/// The header of `notice_incidents.csv`.
+pub const NOTICE_INCIDENTS_HEADER: &str = "run_id,arm_role,seed,incident,tier,family,first_observation_at_ns,notices,noticed,first_notice_at_ns,notice_latency_ns,anchor_correct";
+
+/// The header of `notice_events.csv`.
+pub const NOTICE_EVENTS_HEADER: &str = "run_id,arm_role,seed,noticer,event,anomaly,anchor,site,anchor_at_ns,at_ns,incident,anchor_offset_ns,anchor_correct";
+
+/// One line of `notices.csv` for `record`, without a trailing newline.
+pub fn notices_row(run_id: &str, record: &SegmentRecord) -> String {
+    let t = &record.notices.totals;
+    format!(
+        "{run_id},{role},{seed},{noticer},{notices},{bg},{plain},{hard},{decoy},{retired},{n_plain},{n_hard},{n_decoy},{a_plain},{a_hard},{a_decoy}",
+        role = record.role.as_str(),
+        seed = record.seed,
+        noticer = record.noticer,
+        notices = t.notices,
+        bg = t.on_background,
+        plain = t.on_plain,
+        hard = t.on_hard,
+        decoy = t.on_decoy,
+        retired = t.retirements,
+        n_plain = t.noticed.plain,
+        n_hard = t.noticed.hard,
+        n_decoy = t.noticed.decoy,
+        a_plain = t.anchor_correct.plain,
+        a_hard = t.anchor_correct.hard,
+        a_decoy = t.anchor_correct.decoy,
+    )
+}
+
+/// The lines of `notice_incidents.csv` for `record`: one per incident, in id order, each without
+/// a trailing newline.
+pub fn notice_incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
+    debug_assert_eq!(
+        record.notices.per_incident.len(),
+        record.incident_families.len()
+    );
+    let opt = |x: Option<u64>| x.map_or_else(String::new, |n| n.to_string());
+    record
+        .notices
+        .per_incident
+        .iter()
+        .zip(&record.incident_families)
+        .map(|(v, family)| {
+            format!(
+                "{run_id},{role},{seed},{id},{tier},{family},{first},{notices},{noticed},{at},{latency},{correct}",
+                role = record.role.as_str(),
+                seed = record.seed,
+                id = v.id,
+                tier = tier_name(v.tier),
+                first = opt(v.first_observation_at.map(|t| t.0)),
+                notices = v.notices,
+                noticed = v.noticed,
+                at = opt(v.first_notice_at.map(|t| t.0)),
+                latency = opt(v.notice_latency_ns),
+                correct = v.anchor_correct,
+            )
+        })
+        .collect()
+}
+
+/// The lines of `notice_events.csv` for `record`: every notice and retirement the noticer
+/// recorded, in order, each without a trailing newline. The public fields (`anchor`, `site`, the
+/// instants) are what the noticer recorded; `incident`, `anchor_offset_ns` and `anchor_correct`
+/// are the evaluator's reading of a notice (empty for a retirement and, but for `anchor_correct`,
+/// for a notice anchored on background).
+pub fn notice_event_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
+    let mut scores = record.notices.per_notice.iter();
+    record
+        .notice_log
+        .iter()
+        .map(|e| {
+            let (incident, offset, correct) = match e.kind {
+                NoticeKind::Notice => {
+                    let s = scores
+                        .next()
+                        .expect("the evaluator scores every notice of the log");
+                    (
+                        s.incident.map_or_else(String::new, |i| i.to_string()),
+                        s.anchor_offset_ns
+                            .map_or_else(String::new, |n| n.to_string()),
+                        s.anchor_correct.to_string(),
+                    )
+                }
+                NoticeKind::Retire => (String::new(), String::new(), String::new()),
+            };
+            format!(
+                "{run_id},{role},{seed},{noticer},{event},{anomaly},{anchor},{site},{anchor_at},{at},{incident},{offset},{correct}",
+                role = record.role.as_str(),
+                seed = record.seed,
+                noticer = e.noticer,
+                event = e.kind.as_str(),
+                anomaly = e.anomaly,
+                anchor = e.anchor.0,
+                site = e.site.0,
+                anchor_at = e.anchor_at.0,
+                at = e.at.0,
             )
         })
         .collect()

@@ -207,7 +207,11 @@ impl fmt::Display for NoticeEvalError {
                 write!(f, "observation {} names unknown incident {incident}", obs.0)
             }
             Self::UnknownAnchor { index, anchor } => {
-                write!(f, "notice {index}: anchor {} is not an observation", anchor.0)
+                write!(
+                    f,
+                    "notice {index}: anchor {} is not an observation",
+                    anchor.0
+                )
             }
             Self::NoticeBeforeAnchor { index } => {
                 write!(f, "notice {index} is earlier than its anchor")
@@ -219,7 +223,10 @@ impl fmt::Display for NoticeEvalError {
                 write!(f, "notice {index}: anomaly {anomaly} was noticed already")
             }
             Self::RetirementTimeWentBackwards { index } => {
-                write!(f, "retirement {index} is earlier than the retirement before it")
+                write!(
+                    f,
+                    "retirement {index} is earlier than the retirement before it"
+                )
             }
             Self::RetirementWithoutNotice { index, anomaly } => {
                 write!(f, "retirement {index}: anomaly {anomaly} is not live")

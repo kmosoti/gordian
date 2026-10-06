@@ -53,11 +53,15 @@
 //! The family of each hard incident, for `incidents.csv`, is read here too
 //! ([`SegmentRecord::incident_families`]).
 
+use super::arms::noticer::{NoticeKind, NoticeLogEntry};
 use super::arms::{Applied, Proposed, Source, StepInput, StreamPolicy};
 use super::manifest::{Exchange, StreamLimits};
 use super::meter::{Meter, Totals};
 use super::privileged::{OracleFactory, OraclePlan, PlanIncident};
-use super::score::{StreamEvalError, StreamStep, StreamVerdict, TrajectoryCounts, family_name};
+use super::score::{
+    NoticeEntry, NoticeEvalError, NoticeTrace, NoticeVerdict, RetireEntry, StreamEvalError,
+    StreamStep, StreamVerdict, TrajectoryCounts, family_name,
+};
 use crate::harness::{
     Charged, EpisodeOps, HarnessError, Measured, affordable, append, charge, elapsed_ns, payload,
     record_timing, timed,
@@ -68,7 +72,7 @@ use gordian_stream::{
     ObsId, ObsRef, Question, StreamAction, StreamEvent, StreamOutcome, StreamParams, StreamPublic,
     StreamSimulator, Tier, generate,
 };
-use gordian_stream_eval::{calls_from_sim, score_stream, truth_from_stream};
+use gordian_stream_eval::{calls_from_sim, score_notices, score_stream, truth_from_stream};
 use gordian_world::Observation;
 use gordian_world::physics::probe_cost;
 use gordian_world::step::CostSummary;
@@ -106,6 +110,9 @@ pub enum StreamHarnessError {
     /// The evaluator refused the trajectory or the call records: a defect in the harness, never a
     /// result (`RULES.md` of the evaluator, S27 to S37).
     Eval(StreamEvalError),
+    /// The evaluator refused the record of notices (`RULES.md` of the evaluator, N11): a defect in
+    /// the harness or in a noticer's record, never a result.
+    NoticeEval(NoticeEvalError),
     /// The truth contradicts itself in a way the evaluator does not check (a hard incident with
     /// no hard kind).
     Truth(String),
@@ -122,6 +129,9 @@ impl fmt::Display for StreamHarnessError {
         match self {
             StreamHarnessError::Harness(e) => write!(f, "{e}"),
             StreamHarnessError::Eval(e) => write!(f, "evaluator refused the trajectory: {e}"),
+            StreamHarnessError::NoticeEval(e) => {
+                write!(f, "evaluator refused the record of notices: {e}")
+            }
             StreamHarnessError::Truth(why) => write!(f, "inconsistent stream truth: {why}"),
             StreamHarnessError::InvalidLimits(why) => write!(f, "invalid limits: {why}"),
             StreamHarnessError::BudgetMismatch(why) => {
@@ -145,6 +155,12 @@ impl From<HarnessError> for StreamHarnessError {
 impl From<StreamEvalError> for StreamHarnessError {
     fn from(e: StreamEvalError) -> Self {
         StreamHarnessError::Eval(e)
+    }
+}
+
+impl From<NoticeEvalError> for StreamHarnessError {
+    fn from(e: NoticeEvalError) -> Self {
+        StreamHarnessError::NoticeEval(e)
     }
 }
 
@@ -182,6 +198,14 @@ pub struct SegmentRecord {
     /// family's name for a hard incident, empty for any other. Hidden state, kept for
     /// `incidents.csv` only (`HARNESS.md`, section 11).
     pub incident_families: Vec<&'static str>,
+    /// The id of the noticer the arm's cheap rung used (work item B1).
+    pub noticer: &'static str,
+    /// Every notice and retirement the arm's noticer recorded, in order: public information only.
+    pub notice_log: Vec<NoticeLogEntry>,
+    /// The evaluator's score of `notice_log`: per incident, per notice, and the totals. Hidden-side
+    /// facts (the tiers, which anchors belong to incidents) are in it; evaluator output, never an
+    /// input to an arm.
+    pub notices: NoticeVerdict,
     /// The live bill at the end of the segment.
     pub bill: Bill,
     /// The ledger: observations, answers, accounting, decisions, outcomes, timings.
@@ -841,6 +865,32 @@ fn play(
     // the harness and stops the run; it never becomes a row.
     let calls = calls_from_sim(&st.sim);
     let verdict = score_stream(&truth, &st.trajectory, &calls)?;
+    // The record of notices and retirements the arm's noticer kept, scored against the truth with
+    // the instants of the stream's public observations (work item B1). It is a record, not a
+    // trajectory: it moves no score above.
+    let noticer = policy.noticer_id();
+    let notice_log = policy.notice_log().to_vec();
+    let obs_at: Vec<Instant> = public_stream.iter().map(|(at, _)| *at).collect();
+    let trace = NoticeTrace {
+        notices: notice_log
+            .iter()
+            .filter(|e| e.kind == NoticeKind::Notice)
+            .map(|e| NoticeEntry {
+                anomaly: e.anomaly,
+                anchor: e.anchor,
+                at: e.at,
+            })
+            .collect(),
+        retirements: notice_log
+            .iter()
+            .filter(|e| e.kind == NoticeKind::Retire)
+            .map(|e| RetireEntry {
+                anomaly: e.anomaly,
+                at: e.at,
+            })
+            .collect(),
+    };
+    let notices = score_notices(&truth, &obs_at, &trace)?;
     let trajectory_counts = TrajectoryCounts::of(&st.trajectory);
     let mut incident_families = Vec::with_capacity(truth.incidents.len());
     for inc in &truth.incidents {
@@ -887,6 +937,9 @@ fn play(
         verdict,
         trajectory_counts,
         incident_families,
+        noticer,
+        notice_log,
+        notices,
         bill,
         ledger,
         trajectory,
