@@ -184,4 +184,23 @@ def stage(name):
                         ramp_penalty=pen, ramp_tau_ns=4 * S, ramp_threshold=th,
                         ramp_lookback_ns=10 * S, refractory_ns=1 * S)))
         return arms, seeds, 12_500, "exploration-m2-tuning"
+    if name == "tune-f":
+        # tune-e: at 2 s no burst configuration is within the background budget with the ramp, and
+        # the ramp needs no jump penalty (a 2 s tick sums two readings) and a threshold below
+        # 1 / (1 - exp(-2 s / 4 s)) = 2.54, the most a reading every tick can reach. Here, at 2 s
+        # only: three kinds without confirmation, or two confirmed by dependents in the burst's
+        # tick; the density-only ramp at thresholds between 2 and 2.54.
+        tick = 2000
+        bursts = {
+            "b3w30": dict(burst_n=3, burst_window_ns=30 * MS),
+            "b3w50": dict(burst_n=3, burst_window_ns=50 * MS),
+            "depd1": dict(burst_confirm="dependents", confirm_delay_ticks=1,
+                          confirm_hold_ns=tick * MS, burst3_window_ns=30 * MS),
+        }
+        for bname, bover in bursts.items():
+            for th in (2.2, 2.35, 2.45):
+                over = dict(RAMP, tick_ns=tick * MS, onset=False, burst=True, coincidence="ordered",
+                            refractory_ns=1 * S, ramp_penalty=0.0, ramp_threshold=th, **bover)
+                arms.append((f"{bname}_rampth{th:g}_t{tick}", medium(**over)))
+        return arms, seeds, 12_600, "exploration-m2-tuning"
     raise SystemExit(f"unknown stage {name!r}")
