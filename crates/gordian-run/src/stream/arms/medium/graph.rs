@@ -15,6 +15,8 @@
 //! | `kind[n, k]` (`burst`) | `Sense`, count | abnormal observations about `n` of kind `k`: error rate, latency, a message | one input per kind |
 //! | `other[n]` (`burst`) | `Integrator`, no memory, threshold 1/2, lookback 0 | `Sense` cells of the other kinds (saturation, authentication failures, restarts, a snapshot) | the fourth kind, relayed |
 //! | `burst[n]` (`burst`) | `Coincidence` (form `coincidence`), n = `burst_n`, consumed, window `burst_window_ns`, lookback `burst_lookback_ns` | `kind[n, *]`, `other[n]` | abnormal observations of `burst_n` distinct kinds at `n` within the window: in the ordered form, by their time inside the tick (`offset_ns`) |
+//! | `confirm[n]`, `relay[n]` (`burst_confirm`) | `Latch`, hold `confirm_hold_ns`; `Integrator`, no memory | `abn[d]` of the confirming services (dependents, or all others); `burst[n]` two ticks late | the burst reaches `notice[n]` only through `relay[n]`, gated by `confirm[n]`: a burst of two kinds counts when another service alarmed around it; a gate carries no references, so the anchor stays at `n` |
+//! | `three[n]` (`burst3_window_ns`) | `Coincidence`, n = 3, window `burst3_window_ns` | `kind[n, *]`, `other[n]` | three kinds at `n`: a burst without confirmation |
 //! | `dep[n]`, `prop[n]` (`propagation`) | relay; `Coincidence` (form `coincidence`), n = 2, lead, window `coincidence_window_ns` | `abn[n]` (slot 0), `abn[d]` of the dependents | an alarm at `n` and then one at a dependent (public rule 1) |
 //! | `arrived[n, c]`, `value[n, c]` (`ramp`) | `Sense`, presence and sum | counter `c` at `n`, benign or not | that a reading came, and the reading itself (five counters) |
 //! | `jump[n, c]` (`ramp`) | `Novelty`, rate 1 (its estimate is the last reading), band `ramp_jump`, one reading of warm-up | `value[n, c]` | the reading jumped from the last one by more than `ramp_jump` |
@@ -68,6 +70,18 @@ pub enum CoincidenceForm {
     Ordered,
 }
 
+/// Which services' alarms confirm a burst of two kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Confirm {
+    /// No confirmation: the burst reaches the emitter directly.
+    None,
+    /// An alarm at a dependent of the service (the dependents `direct_dependents` names).
+    Dependents,
+    /// An alarm at any other service.
+    All,
+}
+
 /// The medium noticer's parameters: the tick length, the graph's numbers, and the switches the
 /// ablations turn. Written into a manifest as the `medium` noticer's fields.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -113,6 +127,15 @@ pub struct MediumParams {
     /// The burst path's anchor lookback, nanoseconds.
     #[serde(default)]
     pub burst_lookback_ns: u64,
+    /// Which services' alarms must confirm a burst (gating it, two ticks late).
+    #[serde(default = "no_confirm")]
+    pub burst_confirm: Confirm,
+    /// How long a confirming alarm keeps the gate open, nanoseconds.
+    #[serde(default)]
+    pub confirm_hold_ns: u64,
+    /// With a confirmation: the window of an unconfirmed burst of three kinds (0: none).
+    #[serde(default)]
+    pub burst3_window_ns: u64,
     /// Whether the propagation cells exist.
     #[serde(default)]
     pub propagation: bool,
@@ -144,6 +167,10 @@ fn two() -> u8 {
     2
 }
 
+fn no_confirm() -> Confirm {
+    Confirm::None
+}
+
 impl Default for MediumParams {
     /// A starting point, not a tuned value: 100 ms ticks; an onset of three alarms within about
     /// 300 ms; the ramp path on; no burst or propagation cells.
@@ -164,6 +191,9 @@ impl Default for MediumParams {
             burst_n: 2,
             burst_window_ns: 25_000_000,
             burst_lookback_ns: 0,
+            burst_confirm: Confirm::None,
+            confirm_hold_ns: 300_000_000,
+            burst3_window_ns: 0,
             propagation: false,
             ramp: true,
             ramp_jump: 8.0,
@@ -258,6 +288,15 @@ impl Layout {
     }
 }
 
+/// The services whose alarms confirm a burst at service `i`, if a confirmation is asked for.
+fn confirmers(confirm: Confirm, i: usize, dependents: &[Vec<usize>]) -> Option<Vec<usize>> {
+    match confirm {
+        Confirm::None => None,
+        Confirm::Dependents => Some(dependents[i].clone()),
+        Confirm::All => Some((0..dependents.len()).filter(|j| *j != i).collect()),
+    }
+}
+
 /// Set parameter `index` of `cell` in time.
 fn timed(b: &mut MediumBuilder, cell: CellId, index: u8, ns: u64) {
     b.timed(TimeTarget::Param { cell, index }, ns);
@@ -330,11 +369,18 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
     for i in 0..n {
         // The emitter: fires whenever a cell feeding it fires (their activations are positive).
         let notice = b.emit(f32::MIN_POSITIVE, KIND_NOTICE, 0, 0);
+        let confirm_ticks = if params.burst_confirm == Confirm::None {
+            0
+        } else {
+            2 * params.tick_ns
+        };
         timed(
             &mut b,
             notice,
             2,
-            params.lookback_ns.max(params.burst_lookback_ns),
+            params
+                .lookback_ns
+                .max(params.burst_lookback_ns + confirm_ticks),
         );
         timed(&mut b, notice, 3, params.refractory_ns);
         layout.notice.push(notice);
@@ -366,6 +412,8 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                 let s = b.sense(at(i, None, Tag(ABNORMAL_KIND + k)), SenseMode::Count);
                 b.synapse(s, other, 1.0, 0);
             }
+            let mut slots = kinds;
+            slots.push(other);
             let burst = coincidence(
                 &mut b,
                 params,
@@ -374,11 +422,56 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                 params.burst_lookback_ns,
                 false,
             );
-            for s in kinds {
-                b.synapse(s, burst, 1.0, 0);
+            for s in &slots {
+                b.synapse(*s, burst, 1.0, 0);
             }
-            b.synapse(other, burst, 1.0, 0);
-            b.synapse(burst, notice, 1.0, 0);
+            match confirmers(params.burst_confirm, i, &dependents) {
+                None => {
+                    b.synapse(burst, notice, 1.0, 0);
+                }
+                Some(from) => {
+                    // The burst reaches the emitter two ticks later, through a relay, and only
+                    // while a latch says a confirming service alarmed within `confirm_hold_ns`
+                    // (two ticks, so that alarms in the burst's tick and the next have reached
+                    // the latch; the latch is a gate, so its events are not cited).
+                    let confirm = b.latch(f32::MIN_POSITIVE, 0);
+                    timed(&mut b, confirm, 1, params.confirm_hold_ns);
+                    for d in from {
+                        b.synapse(abn[d], confirm, 1.0, 0);
+                    }
+                    let relay = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+                    timed(
+                        &mut b,
+                        relay,
+                        3,
+                        params.burst_lookback_ns + 2 * params.tick_ns,
+                    );
+                    b.synapse(burst, relay, 1.0, 2);
+                    b.synapse_with(SynapseSpec {
+                        from: relay,
+                        to: notice,
+                        weight: 1.0,
+                        delay_ticks: 0,
+                        gate: Gate::Cell(confirm),
+                        plastic: false,
+                    });
+                    if params.burst3_window_ns > 0 {
+                        // Three kinds at the service need no confirmation.
+                        let three = coincidence(
+                            &mut b,
+                            params,
+                            3,
+                            params.burst3_window_ns,
+                            params.burst_lookback_ns,
+                            false,
+                        );
+                        for s in &slots {
+                            b.synapse(*s, three, 1.0, 0);
+                        }
+                        b.synapse(three, notice, 1.0, 0);
+                    }
+                }
+            }
         }
 
         // Propagation: an alarm at the service, then one at a dependent (public rule 1).

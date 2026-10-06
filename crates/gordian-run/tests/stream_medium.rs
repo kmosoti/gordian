@@ -13,7 +13,7 @@ use gordian_run::stream::arms::medium::adapters::{
     TickClock, abnormal_kind_tag, counter_tag, encode, message_tag, severity_tag,
 };
 use gordian_run::stream::arms::medium::{
-    CoincidenceForm, MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumParams,
+    CoincidenceForm, Confirm, MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumParams,
 };
 use gordian_run::stream::arms::noticer::{Notice, NoticeKind, Noticer, NoticerSpec};
 use gordian_run::stream::arms::rung::{Held, RungConfig, Store, is_abnormal};
@@ -501,6 +501,48 @@ fn a_burst_is_two_kinds_within_the_window_read_from_the_offsets() {
     let mut d = Drive::new(burst_only(500, CoincidenceForm::Sliding), &p);
     d.play(&loose, 6_000, &p);
     assert_eq!(d.notices.len(), 1);
+}
+
+#[test]
+fn a_burst_of_two_kinds_needs_a_confirming_alarm_and_keeps_its_anchor_at_the_service() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let params = MediumParams {
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_confirm: Confirm::Dependents,
+        confirm_hold_ns: 300 * MS,
+        burst3_window_ns: 25 * MS,
+        ..MediumParams::default()
+    };
+    params.validate().unwrap();
+    let two = vec![
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    // Alone: no notice.
+    let mut d = Drive::new(params, &p);
+    d.play(&two, 6_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    // With a dependent's alarm 40 ms later (the next tick): a notice, anchored at the site, the
+    // dependent's alarm not cited.
+    let mut confirmed = two.clone();
+    confirmed.push((2_362, counter(dep, CounterName::ErrorRate, 80)));
+    let mut d = Drive::new(params, &p);
+    d.play(&confirmed, 6_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(0));
+    assert_eq!(d.notices[0].1.site, ServiceId(site));
+    // Three kinds at the site need no confirmation.
+    let mut three = two.clone();
+    three.push((2_330, counter(site, CounterName::Latency, 80)));
+    let mut d = Drive::new(params, &p);
+    d.play(&three, 6_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(0));
 }
 
 // ---- the manifest

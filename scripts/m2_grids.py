@@ -34,6 +34,9 @@ BASE = {
     "burst_window_ns": 25 * MS,
     "burst_lookback_ns": 0,
     "propagation": False,
+    "burst_confirm": "none",
+    "confirm_hold_ns": 300 * MS,
+    "burst3_window_ns": 0,
 }
 
 # The ramp path as tune-b left it (leak noticed 1.000 at 0.12 background notices per stream).
@@ -125,4 +128,23 @@ def stage(name):
                         burst_window_ns=25 * MS, refractory_ns=1 * S, onset=False)
             arms.append((f"b2_sliding_off_t{tick}", medium(**over)))
         return arms, seeds, 12_300, "exploration-m2-tuning"
+    if name == "tune-d":
+        # tune-c: two kinds within 20 ms at one service notices 0.995 of the hard non-leak
+        # incidents anchor-correct at 100 ms, but at 14 background notices per stream; on the
+        # tuning streams' public observations, what separates an onset from a background pair is
+        # other abnormal activity around it. So: the two-kind burst gated by a confirming alarm
+        # (at a dependent, or anywhere else) held for a while, and three kinds without one.
+        for tick in (100, 500, 2000):
+            holds = (200, 300, 500) if tick == 100 else (2 * tick, 3 * tick)
+            for win in ((20, 30) if tick == 100 else (20,)):
+                for confirm in ("dependents", "all"):
+                    for hold in holds:
+                        for b3 in ((0, 20, 30) if tick == 100 else (0, 20)):
+                            over = dict(RAMP, tick_ns=tick * MS, onset=False, burst=True,
+                                        coincidence="ordered", burst_window_ns=win * MS,
+                                        burst_confirm=confirm, confirm_hold_ns=hold * MS,
+                                        burst3_window_ns=b3 * MS, refractory_ns=1 * S)
+                            arms.append((f"b2_w{win}_{confirm[:3]}_h{hold}_b3w{b3}_t{tick}",
+                                         medium(**over)))
+        return arms, seeds, 12_400, "exploration-m2-tuning"
     raise SystemExit(f"unknown stage {name!r}")
