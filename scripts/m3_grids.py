@@ -102,4 +102,47 @@ def stage(name):
                             label = f"{bname}_m{merge}_{rname}{rr or 0}_{t}"
                             arms.append((label, arm))
         return arms, seeds, 13_200, "exploration-m3-tuning"
+    if name == "tune-c":
+        # tune-b: the confirmation in event time brings 2 s to 0.980 anchor-correct (from 0.905)
+        # with background 2.4 to 5.6, but strict precision stays at 0.35 to 0.43: most notices
+        # that are not strictly correct at 2 s are the ramp path's, anchored on error-rate
+        # readings, repeating a plain incident some 12 s after its first notice. At 100 and
+        # 500 ms the best anchoring (0.985, 0.980) sits at strict precision 0.51 to 0.70, and the
+        # cluster merge at 50 to 100 ms lifts strict precision past 0.70 for one or two incidents
+        # of anchoring. Here, at each tick length, the four best confirmations of tune-b with:
+        # the ramp silenced while an anomaly is open at its service (`ramp_inhibit`) or not; the
+        # cluster merge at 0, 20 or 50 ms (2 s: 0, 50, 100); the ramp emitter's refractory period
+        # M2's or 30 s; the hold that keeps an anomaly open 6 s or 15 s.
+        confirms = {
+            100: {"latch": None, "all50L": ("all", 50), "dep50L": ("dependents", 50),
+                  "all100L": ("all", 100)},
+            500: {"dep50L": ("dependents", 50), "dep100L": ("dependents", 100),
+                  "all50L": ("all", 50), "all100L": ("all", 100)},
+            2000: {"dep50L": ("dependents", 50), "dep100L": ("dependents", 100),
+                   "all50L": ("all", 50), "all100L": ("all", 100)},
+        }
+        for tick in C.TICKS_MS:
+            base = dict(m2_frozen(tick), burst_subtick_ns=window_ns(m2_frozen(tick)),
+                        burst_every_event=True, burst_lookback_ns=tick * MS)
+            if tick == 2000:
+                base = dict(base, burst_n=2, burst_window_ns=25 * MS, burst_subtick_ns=25 * MS,
+                            burst3_window_ns=30 * MS)
+            t = f"t{tick}"
+            merges = (0, 50, 100) if tick == 2000 else (0, 20, 50)
+            for cname, c in confirms[tick].items():
+                b = dict(base)
+                if c is not None:
+                    b.update(burst_confirm=c[0], confirm_window_ns=c[1] * MS, confirm_lead=True)
+                for merge in merges:
+                    for inhibit in (False, True):
+                        for rr in (None, 30):
+                            for hold in (6, 15):
+                                arm = dict(b, merge_window_ns=merge * MS, ramp_inhibit=inhibit,
+                                           hold_ns=hold * S)
+                                if rr is not None:
+                                    arm["ramp_refractory_ns"] = rr * S
+                                label = (f"{cname}_m{merge}_i{int(inhibit)}_r{rr or 0}"
+                                         f"_h{hold}_{t}")
+                                arms.append((label, arm))
+        return arms, seeds, 13_300, "exploration-m3-tuning"
     raise SystemExit(f"unknown stage {name!r}")

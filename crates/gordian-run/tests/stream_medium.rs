@@ -359,6 +359,56 @@ fn a_noticed_anomaly_retires_when_its_service_has_been_quiet_for_the_hold() {
     assert!(*at >= 10_000 && *at <= 10_500, "retired at {at}");
 }
 
+/// M3: with `ramp_inhibit`, a ramp at a service where an anomaly is open is not noticed again
+/// while the anomaly's hold lasts; a ramp alone is noticed as before, anchored as before.
+#[test]
+fn an_open_anomaly_silences_the_ramp_at_its_service() {
+    let p = public();
+    let ramp: Vec<(u64, Observation)> = (0..8)
+        .map(|i| {
+            (
+                2_000 + 1_200 * i,
+                counter(3, CounterName::Saturation, 22 + 4 * i),
+            )
+        })
+        .collect();
+    let inhibit = MediumParams {
+        ramp_inhibit: true,
+        ..MediumParams::default()
+    };
+    inhibit.validate().unwrap();
+    // A ramp alone: the same notice with and without the inhibition.
+    let mut a = Drive::new(MediumParams::default(), &p);
+    a.play(&ramp, 14_000, &p);
+    let mut b = Drive::new(inhibit, &p);
+    b.play(&ramp, 14_000, &p);
+    assert!(!a.notices.is_empty());
+    assert_eq!(
+        a.notices.iter().map(|(_, n)| n.anchor).collect::<Vec<_>>(),
+        b.notices.iter().map(|(_, n)| n.anchor).collect::<Vec<_>>()
+    );
+    // A burst at the same service first (noticed at about 1.5 s, held for 6 s): without the
+    // inhibition the ramp is noticed a second time while the burst's anomaly is open; with it,
+    // not before the hold has expired.
+    let mut obs = burst(3, 1_000);
+    obs.extend(ramp.iter().cloned());
+    obs.sort_by_key(|(t, _)| *t);
+    let ramp_notices_before = |d: &Drive, ms: u64| {
+        d.notices
+            .iter()
+            .filter(|(at, n)| *at < ms && n.anchor.0 >= 4)
+            .count()
+    };
+    let mut a = Drive::new(MediumParams::default(), &p);
+    a.play(&obs, 14_000, &p);
+    assert_eq!(ramp_notices_before(&a, 7_000), 1, "{:?}", a.notices);
+    let mut b = Drive::new(inhibit, &p);
+    b.play(&obs, 14_000, &p);
+    assert_eq!(ramp_notices_before(&b, 7_000), 0, "{:?}", b.notices);
+    // The burst itself is noticed either way.
+    assert!(b.notices.iter().any(|(_, n)| n.anchor == ObsId(0)));
+}
+
 #[test]
 fn a_ramp_of_benign_readings_is_noticed_and_the_control_cannot_see_it() {
     let p = public();

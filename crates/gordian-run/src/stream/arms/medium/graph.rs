@@ -25,6 +25,7 @@
 //! | `jump[n, c]` (`ramp`) | `Novelty`, rate 1 (its estimate is the last reading), band `ramp_jump`, one reading of warm-up | `value[n, c]` | the reading jumped from the last one by more than `ramp_jump` |
 //! | `smooth[n, c]` (`ramp`) | `Integrator`, leak from `ramp_tau_ns`, threshold `ramp_threshold`, reset, lookback `ramp_lookback_ns` | `arrived[n, c]` (+1), `jump[n, c]` (minus `ramp_penalty` per `ramp_jump` of jump) | readings of one counter that come often and move little: a ramp, which noise (readings far apart, each drawn afresh) is not |
 //! | `rampnotice[n]` (`ramp`) | `Emit`, kind notice, lookback `ramp_lookback_ns`, refractory `refractory_ns` | `smooth[n, c]` | the notice of a ramp |
+//! | `rgate[n]`, `inh1[n]`, `inh2[n]` (`ramp_inhibit`, M3) | relays | the ramp integrators; `hold[n]`, one tick late, at weight -1e9 | the ramp reaches `rampnotice[n]` only while no anomaly is open at `n`: one notice per episode at a service, not a ramp notice repeating a burst's |
 //! | `hold[n]` | `Latch`, retiring, hold `hold_ns` | `notice[n]`, `rampnotice[n]`, and `abn[n]` while it holds | an open anomaly at `n`; it proposes `retire` when `n` has been quiet for the hold |
 //!
 //! Times are given in nanoseconds and converted by the medium at build time for the tick length
@@ -156,6 +157,9 @@ pub struct MediumParams {
     /// With the confirmation in event time: the burst must come first (the coincidence's lead).
     #[serde(default)]
     pub confirm_lead: bool,
+    /// Silence the ramp at a service while an anomaly is open there (M3): its hold latch holds.
+    #[serde(default)]
+    pub ramp_inhibit: bool,
     /// The ramp emitter's refractory period (M3), nanoseconds; `None` for `refractory_ns`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ramp_refractory_ns: Option<u64>,
@@ -232,6 +236,7 @@ impl Default for MediumParams {
             merge_window_ns: 0,
             confirm_window_ns: 0,
             confirm_lead: false,
+            ramp_inhibit: false,
             ramp_refractory_ns: None,
             burst_confirm: Confirm::None,
             confirm_hold_ns: 300_000_000,
@@ -453,7 +458,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
             // The confirmation in event time adds one stage.
             max_passes: if params.merge_window_ns > 0 {
                 5
-            } else if params.confirm_window_ns > 0 {
+            } else if params.confirm_window_ns > 0 || params.ramp_inhibit {
                 4
             } else {
                 3
@@ -672,6 +677,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
         // The ramp path: per counter, a reading arrived (+1) and it jumped from the last one
         // (minus `ramp_penalty` per `ramp_jump` of jump), leaking with `ramp_tau_ns`.
         let mut ramp_notice = None;
+        let mut ramp_gate = None;
         if params.ramp {
             let rn = b.emit(f32::MIN_POSITIVE, KIND_NOTICE, 0, 0);
             timed(&mut b, rn, 2, params.ramp_lookback_ns);
@@ -681,6 +687,17 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                 3,
                 params.ramp_refractory_ns.unwrap_or(params.refractory_ns),
             );
+            // With `ramp_inhibit`, the ramp reaches its emitter through `rgate`, which an open
+            // anomaly at the service silences (wired below, once the hold latch exists).
+            let into = if params.ramp_inhibit {
+                let g = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+                timed(&mut b, g, 3, params.ramp_lookback_ns);
+                b.synapse(g, rn, 1.0, 0);
+                ramp_gate = Some(g);
+                g
+            } else {
+                rn
+            };
             for name in CounterName::ALL {
                 let pattern = at(i, Some(CH_COUNTER), counter_tag(name));
                 let arrived = b.sense(pattern, SenseMode::Presence);
@@ -695,7 +712,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                 b.synapse(arrived, smooth, 1.0, 0);
                 let penalty = -params.ramp_penalty / params.ramp_jump.max(1.0);
                 b.synapse(jump, smooth, penalty, 0);
-                b.synapse(smooth, rn, 1.0, 0);
+                b.synapse(smooth, into, 1.0, 0);
             }
             layout.ramp_notice.push(rn);
             ramp_notice = Some(rn);
@@ -717,6 +734,19 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
             gate: Gate::Cell(hold),
             plastic: false,
         });
+        if let Some(g) = ramp_gate {
+            // M3: while the hold latch holds (an anomaly is open at the service), the ramp is
+            // silenced: the held value reaches `rgate` one tick later through two relays, in the
+            // same pass as the ramp integrators' messages (the latch wakes in pass 1; the ramp
+            // fires in pass 2), with a weight that no ramp outweighs. The relays' tick lookback
+            // is 0 and the first synapse has a delay of one tick, so they cite nothing and the
+            // ramp notice's anchor is the ramp's alone.
+            let inh1 = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+            let inh2 = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+            b.synapse(hold, inh1, 1.0e9, 1);
+            b.synapse(inh1, inh2, 1.0, 0);
+            b.synapse(inh2, g, -1.0e9, 0);
+        }
         layout
             .latches
             .insert(hold, u32::try_from(i).unwrap_or(u32::MAX));
