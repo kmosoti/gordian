@@ -557,6 +557,78 @@ fn with_a_sub_tick_lookback_a_stray_in_the_bursts_tick_is_not_the_anchor() {
     assert!(sliding.validate().is_err());
 }
 
+/// M3: the confirmation read in event time works inside a 2 s tick, where a latch's hold cannot
+/// be shorter than the tick.
+#[test]
+fn a_burst_is_confirmed_by_an_alarm_within_a_window_in_event_time() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let params = |lead: bool| MediumParams {
+        tick_ns: 2_000 * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_subtick_ns: 25 * MS,
+        burst_every_event: true,
+        burst_confirm: Confirm::Dependents,
+        confirm_window_ns: 100 * MS,
+        confirm_lead: lead,
+        ..MediumParams::default()
+    };
+    params(true).validate().unwrap();
+    let two = vec![
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    let with = |extra: (u64, Observation)| {
+        let mut v = two.clone();
+        v.push(extra);
+        v.sort_by_key(|(t, _)| *t);
+        v
+    };
+    // Alone: nothing.
+    let mut d = Drive::new(params(true), &p);
+    d.play(&two, 8_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    // A dependent's alarm 40 ms after: one notice, anchored on the burst at the site.
+    let mut d = Drive::new(params(true), &p);
+    d.play(
+        &with((2_362, counter(dep, CounterName::ErrorRate, 80))),
+        8_000,
+        &p,
+    );
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(0));
+    assert_eq!(d.notices[0].1.site, ServiceId(site));
+    // 300 ms after: outside the window, nothing (a latch would hold for the whole 2 s tick).
+    let mut d = Drive::new(params(true), &p);
+    d.play(
+        &with((2_622, counter(dep, CounterName::ErrorRate, 80))),
+        8_000,
+        &p,
+    );
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    // 30 ms before the burst: with the lead, the burst must come first, nothing; without it, the
+    // notice cites the earlier alarm, which becomes the anchor (why the lead exists).
+    let before = with((2_280, counter(dep, CounterName::ErrorRate, 80)));
+    let mut d = Drive::new(params(true), &p);
+    d.play(&before, 8_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    let mut d = Drive::new(params(false), &p);
+    d.play(&before, 8_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(0));
+    assert_eq!(d.notices[0].1.site, ServiceId(dep));
+    // It needs a confirmation to read.
+    let bad = MediumParams {
+        burst_confirm: Confirm::None,
+        ..params(true)
+    };
+    assert!(bad.validate().is_err());
+}
+
 /// M3: with the cluster merge, a burst at a dependent just after the site's burst repeats the
 /// site's anchor, so one anomaly is noticed, not two; a merge window shorter than the gap does
 /// not merge; and it works across a tick edge.

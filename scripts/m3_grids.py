@@ -56,4 +56,50 @@ def stage(name):
                     arms.append((f"subw_e1_lb1_m{merge}_r{refr}_{t}",
                                  dict(cut, merge_window_ns=merge * MS, refractory_ns=refr * S)))
         return arms, seeds, 13_100, "exploration-m3-tuning"
+    if name == "tune-b":
+        # tune-a: the sub-tick lookback with arrivals at event resolution recovers 5 incidents at
+        # 500 ms (0.955 -> 0.980) and 7 at 2 s (0.869 -> 0.905); the cluster merge brings strict
+        # precision from ~0.50 to ~0.70 at 100 and 500 ms for about one or two incidents of
+        # anchoring; a long emitter refractory period costs anchoring (a stray's notice blocks
+        # the incident's). At 2 s every remaining miss is a compound incident whose onset is two
+        # kinds (an error rate and a message) at its site, which M2's 2 s graph (three kinds, no
+        # confirmation: a latch cannot hold for less than a 2 s tick) cannot see, and most notices
+        # that are not strictly correct come from the ramp path, anchored on error-rate readings,
+        # repeating. Here: the confirmation read in event time (an alarm at a confirming service
+        # within 50, 100 or 200 ms of the burst, the burst first or not; any other service or
+        # dependents) beside M2's latch; the cluster merge at 0, 50, 100 ms; the ramp emitter's
+        # refractory period M2's or 30 s; at 2 s, two kinds confirmed in event time (and three
+        # unconfirmed) beside M2's three kinds, and a slower ramp integrator (16 s, threshold 7:
+        # about ten ticks of readings in a row) beside M2's.
+        for tick in C.TICKS_MS:
+            base = dict(m2_frozen(tick), burst_subtick_ns=window_ns(m2_frozen(tick)),
+                        burst_every_event=True, burst_lookback_ns=tick * MS)
+            t = f"t{tick}"
+            bursts = {}
+            if tick == 2000:
+                bursts["k3"] = base
+                two = dict(base, burst_n=2, burst_window_ns=25 * MS, burst_subtick_ns=25 * MS,
+                           burst3_window_ns=30 * MS)
+            else:
+                bursts["latch"] = base
+                two = base
+            for conf in ("all", "dependents"):
+                for cw in (50, 100, 200):
+                    for lead in (True, False):
+                        bursts[f"{conf[:3]}{cw}{'L' if lead else ''}"] = dict(
+                            two, burst_confirm=conf, confirm_window_ns=cw * MS, confirm_lead=lead)
+            merges = (0, 100) if tick == 2000 else (0, 50, 100)
+            ramps = {"r": {}}
+            if tick == 2000:
+                ramps["s"] = {"ramp_tau_ns": 16 * S, "ramp_threshold": 7.0}
+            for bname, b in bursts.items():
+                for merge in merges:
+                    for rname, rover in ramps.items():
+                        for rr in (None, 30):
+                            arm = dict(b, merge_window_ns=merge * MS, **rover)
+                            if rr is not None:
+                                arm["ramp_refractory_ns"] = rr * S
+                            label = f"{bname}_m{merge}_{rname}{rr or 0}_{t}"
+                            arms.append((label, arm))
+        return arms, seeds, 13_200, "exploration-m3-tuning"
     raise SystemExit(f"unknown stage {name!r}")
