@@ -4,6 +4,92 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## B3 the public leak noticer and splitting noticer — merged (Lab 2); the status quo closes the leak too
+
+**Provenance.** The unit was interrupted by the container restart after tuning and before the
+held-out run; a fresh PI resumed in place, verified the inherited state, replayed the held-out
+run from scratch at the tuning-stage commit, and reran the byte-identity gate with the final
+binary (62 of 62, chief's hashes). The predecessor's last commit failed `cargo fmt --check` (one
+hunk, fixed). cargo-mutants on both noticers: 134 of 150 caught after four added tests, 12
+unviable, 3 missed by argument, 1 timeout. Gates under the cgroup runner on the merged tree:
+fmt, clippy `--locked`, 774 Rust tests, the oracle guard, 402 analysis tests; peak build memory
+under 3 GB, no OOM kills. Outputs in `artifacts/runs/b3/` (ignored).
+
+**Re-verified from the per-incident notice files** (chief's own cluster bootstrap). B3's
+comparator arms equal M2's modulo the run id (three arms, three files each), so M2 and B3 are
+one table on the same 200 streams.
+
+| Row | Anchor-correct | Leak noticed | Leak anchor-correct | Background / stream | Strict precision |
+|---|---|---|---|---|---|
+| Re-anchor (M2's comparator) | 0.952 | 0.460 | 0.000 | 6.82 | 0.672 |
+| Ramp + split over re-anchor | 0.973 | 0.986 | 0.971 | 6.24 | 0.693 |
+| Medium, 100 ms (M2) | 0.992 | 0.993 | 0.554 | 5.44 | 0.501 |
+
+Medium minus ramp + split, paired: anchor-correct +0.019 [+0.005, +0.034]; leak noticed +0.007
+[−0.014, +0.029]; leak anchor-correct −0.417 [−0.492, −0.343]; background −0.80; strict
+precision −0.19. All match the lab's report.
+
+**Verdict.** The acceptance clause triggers for the leak (0.986 ≥ 0.660 within the budget); M2's
+runs had started, so this is the labelled supplementary comparison the clause names, recorded
+in both reports.
+
+**What it means (objective, failure, meta).**
+
+- **A public rule that reads counter values notices the leak and anchors it at its start.** A
+  chain of at least five readings rising by 15 above its first, with a tolerated step and drop,
+  notices 137 of 139 leaks, 135 of them at offset exactly zero from the first observation, with
+  a 5.5 s median latency. The objective saturated on tuning (175 configurations tie), so the
+  constants are tie-rule choices, not an optimum. The two misses are chains that began on a
+  background reading of the same counter a fraction of a second earlier: the mis-anchoring
+  mechanism again, on the leak.
+- **Splitting recovers 2 of the 8 never-noticed incidents** (both cascades), gains 8
+  anchor-correct and loses none. Three split-brain incidents are noticed by no row.
+- **The medium's standing after B2 and B3.** On every measure the medium was asked about, a
+  public rule now reaches or beats it, except hard-incident anchoring (+0.019, interval above
+  zero, at a 100 ms tick only) and background notices (0.8 fewer). It loses on leak anchoring by
+  0.42 and on strict precision by 0.19, and costs more (1.85 s against 0.80 s per stream, partly
+  because its own operations are billed and the public noticers' are not, mostly because it
+  opens more anomalies). This is the third time the status quo, given a fair chance, has
+  captured most of a lever (Stage B, B2, B3).
+- **The ramp's shape is the decoys' shape.** It notices 0.948 of decoys (the re-anchor: 0.756),
+  and the selection oracle never asks about decoys, so neither quality nor cost shows it. Of the
+  510 notices the ramp adds per 200 streams, 137 are leaks, 154 decoys, 192 late plain, 11 hard,
+  16 background. **The background budget counts only background-anchored notices, so it is
+  blind to this.** The same blindness applies to the medium's rows. An honest cost column needs
+  a non-privileged selector, so that decoy and late-plain notices are charged as calls.
+- **Meta: what every noticing unit shares.** B2's gap, B3's chain constants and M2's graph were
+  all tuned against evaluator measures on the tuning streams; each PI said so. None encodes a
+  family or a hidden rule, and the guard passes, but all three are fitted to this world's burst
+  spacing and ramp rate. Nothing yet shows that any of them transfers. That is the same for the
+  medium and the public rules, so it does not favour either; it does mean EXP-101 on this world
+  alone cannot speak to generality.
+
+**Coordinator conclusion (sixth entry of its kind, not an error this time).** EXP-101 as
+"noticing headroom" is closed on this world: anchoring is at 0.973 publicly with 0.027 of
+headroom left, and the leak at 0.986. A preregistered noticing experiment here would be
+saturated before it froze. What remains open, and what the charter's aim actually asks, is
+(a) cost and precision at equal noticing, charged honestly, and (b) improvement per experience.
+EXP-101 is therefore reframed before registration, below.
+
+**Decided.**
+
+1. **M3's criterion is not re-fixed** (result 1's +0.03 over 0.973 would be unreachable; M3 asks
+   whether sub-tick pruning recovers the long ticks, against the re-anchor as fixed). The B3
+   rows are reported beside with paired differences; Lab 1 was told.
+2. **EXP-101 is reframed:** escalation control at matched noticing. Primary measures: critical
+   misses and verified decisions per unit cost with a **non-privileged selector** (a public
+   threshold or cascade over the noticer's anomalies, so every notice the noticer makes is
+   charged), under the δ sweep, with both aim proxies; arms: the medium and the public
+   ramp + split over the re-anchor, each with the same selector; the rung as the floor; the
+   notice oracle as the ceiling. Noticing shares are bounded (no arm may fall below the public
+   row's anchor-correct minus 0.02) but are not the claim. The draft comes to the user before
+   the freeze.
+3. **B4 (Lab 2):** the non-privileged selector (public threshold and change-triggered rules
+   over any noticer's anomalies, tuned under cost), a decoy-notice column in the evaluator, and
+   leak-versus-decoy separation from readings after the first five, so that a noticer's decoy
+   cost is measured. This is the instrument EXP-101 needs.
+4. **L1 stands as queued:** whether the medium learns is now the medium's main claim.
+
 ## M2 the medium as a noticer — merged (Lab 1); both results hold at 100 ms, not at 500 ms or 2 s
 
 **Provenance.** The graph was frozen at `c5bcb11` before any held-out run; the comparator

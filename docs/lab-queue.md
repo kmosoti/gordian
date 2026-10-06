@@ -30,9 +30,10 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
 | M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | merged |
 | B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | merged |
-| B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | running |
-| M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | queued |
-| L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | queued |
+| B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | merged |
+| B4 | 2 | A non-privileged selector; decoy-notice accounting; leak-versus-decoy separation | B3 | running |
+| M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | running |
+| L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | running |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 
 ## M1 The medium crate (Lab 1)
@@ -262,6 +263,34 @@ clauses are conjunctive; each is reported. Feasibility: the frozen graph is at 0
 priors can be set anywhere below it, so a slope is measurable; the first clause asks the
 learner to reach the hand design, not beat it. A learner that matches the hand design from
 weaker priors within 100 streams is the claim; one that does not is a result.
+
+## B4 A non-privileged selector, decoy accounting, leak-versus-decoy (Lab 2, after B3)
+
+B3 showed that the background budget is blind to notices anchored on decoys and late plain
+incidents (of the 510 notices the ramp adds per 200 streams, 154 are decoys and 192 late
+plain), and that the selection oracle hides their cost because it never asks about them. The
+reframed EXP-101 charges every notice through a public selector. B4 builds that instrument.
+
+1. **Non-privileged selectors** as `EscalationRule`s over any noticer's anomalies: a public
+   threshold rule (escalate when the rung's conclusion is contradictory or silent for `t`
+   seconds after notice) and a change-triggered rule (escalate once per anomaly when its
+   attached evidence grows by `k` observations after notice), each tuned on seeds 10000–10099
+   for hard-incident quality per unit cost, with the rung's context and R5's delay. The
+   selection oracle stays as the labelled ceiling.
+2. **Evaluator columns**: notices on decoys per stream and per decoy, escalations on decoys and
+   on plain incidents per stream, and their cost share; fixtures and mutation checks as before.
+3. **Leak versus decoy**: a public follow-up rule on a ramp-noticed anomaly, from readings
+   after the first five (a decoy's readings turn benign; a leak's keep rising), that retires
+   the anomaly or keeps it; tuned under the same budget; reported as decoy notices retired
+   before escalation and leaks wrongly retired.
+4. **Table**: every B3 row and M2's medium at 100 ms (read from `artifacts/runs/m2`) under each
+   public selector: hard-incident quality, critical misses, plain accuracy, calls per stream,
+   cost per stream, escalations on decoys and plain, with 90% cluster-bootstrap intervals and
+   paired differences against ramp + split over the re-anchor.
+
+**Acceptance (fixed 2026-10-06).** Byte identity on R6's held-out run; fixtures and mutation
+checks; the table above; no claim about which arm is better. This table is EXP-101's
+feasibility check: its numbers set EXP-101's margins before the freeze.
 
 ## M2 The medium as a noticer (Lab 1, after M1 and B1)
 

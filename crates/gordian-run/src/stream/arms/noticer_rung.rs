@@ -87,6 +87,37 @@ impl RungNoticer {
         &mut self.anomalies
     }
 
+    /// The next anomaly id, taken: for a noticer that opens anomalies of its own in this one's set
+    /// (work item B3), so that ids stay dense and unique within the segment.
+    pub(super) fn take_id(&mut self) -> u32 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    /// Add an anomaly a noticer built on this one opened (work item B3). It joins the set the
+    /// attach rule, the score, the retirement and the forgetting work over, as one of this
+    /// noticer's own.
+    pub(super) fn push(&mut self, tracked: Tracked) {
+        self.anomalies.push(tracked);
+    }
+
+    /// The tracked anomalies, mutably and growable, for a noticer that splits one in two (work
+    /// item B3).
+    pub(super) fn anomalies_vec_mut(&mut self) -> &mut Vec<Tracked> {
+        &mut self.anomalies
+    }
+
+    /// The public graph.
+    pub(super) fn services(&self) -> &[Service] {
+        &self.services
+    }
+
+    /// The configuration.
+    pub(super) fn config(&self) -> &RungConfig {
+        &self.cfg
+    }
+
     pub(super) fn notice_of(a: &Tracked) -> Notice {
         Notice {
             id: a.id,
@@ -169,6 +200,26 @@ impl Noticer for RungNoticer {
 
     fn retire(&mut self, id: u32) {
         self.anomalies.retain(|a| a.id != id);
+    }
+}
+
+/// A noticer that works over a [`RungNoticer`]'s set of anomalies and can be wrapped by one that adds
+/// notices of its own to that set (work item B3): the rung's own noticer, and the later re-anchor
+/// noticer, which holds one.
+pub trait RungBased: Noticer {
+    /// The rung's noticer underneath.
+    fn rung(&self) -> &RungNoticer;
+    /// The rung's noticer underneath, mutably.
+    fn rung_mut(&mut self) -> &mut RungNoticer;
+}
+
+impl RungBased for RungNoticer {
+    fn rung(&self) -> &RungNoticer {
+        self
+    }
+
+    fn rung_mut(&mut self) -> &mut RungNoticer {
+        self
     }
 }
 
