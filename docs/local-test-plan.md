@@ -1134,6 +1134,12 @@ Two workers may hold worktrees at once. The driver refuses to start a run while 
 - Before any `cargo build`, `cargo test` or `cargo clippy`, a worker checks for a running
   `gordian-run` process (`pgrep -f target/release/gordian-run`). If one exists it waits, polling
   every 30 s, until none does, then builds. It records in its report every time it waited.
+- **Every build and test runs under the runner too** (user direction, 2026-10-06, after a
+  container restart under three concurrent unboxed builds): `scripts/cgroup-run.sh --name
+  <lab>-build --cpus 0-2 --memory 3G -- cargo <build|test|clippy|bench> ...`. cgroup v1 is
+  writable on this machine and the runner reports the mode, peak memory and OOM kills; a build
+  that exceeds 3 GB is killed inside its group and recorded, instead of taking the container
+  down. The chief's merge gates use the same wrapper. `--allow-unisolated` is never passed.
 - A worker never kills another worker's process.
 - A worker keeps its scratch files in its own subdirectory of the session scratchpad, named by
   its worktree, and never writes to another's (a PI's helper was overwritten by another lab).
