@@ -159,12 +159,15 @@ impl Conversion {
 
 /// The kind of conversion a parameter takes, or `None` if the parameter is not a time. For the
 /// coincidence window it depends on the mode (parameter 4): ticks in the sliding window, none in
-/// the binned mode (its window counts bins), microseconds in the ordered mode.
+/// the binned mode (its window counts bins), microseconds in the ordered mode. A novelty cell's
+/// rate is a time only when it counts silent ticks as zeros (parameter 4): otherwise it updates
+/// per run, not per tick.
 pub fn time_kind(archetype: Archetype, index: usize, params: &[f32; P]) -> Option<TimeKind> {
     match (archetype, index) {
         (Archetype::Integrator, 0) => Some(TimeKind::Decay),
         (Archetype::Integrator, 3) => Some(TimeKind::Span),
-        (Archetype::Novelty, 0) => Some(TimeKind::Rate),
+        // A rate per tick only means something when silent ticks count (gaps as zeros).
+        (Archetype::Novelty, 0) if params[4] == 1.0 => Some(TimeKind::Rate),
         (Archetype::Coincidence, 1) => match params[4] as u8 {
             0 => Some(TimeKind::Span),
             2 => Some(TimeKind::Micros),

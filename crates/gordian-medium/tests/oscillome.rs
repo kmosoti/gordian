@@ -425,6 +425,43 @@ fn a_reset_mid_cycle_restarts_the_phase_and_ends_the_old_chain() {
     );
 }
 
+/// A reset in the pass its own message arrives: the old phase is absorbed, and the new phase
+/// cites only the event that reset it, not the events of the old phase its message carried. The
+/// sense-to-oscillator synapse has a delay of one tick, so both arrive in pass 1. Period 3, one
+/// cycle. e0 (t0, 1.0) resets it at t1 (fires 1.0, below the emitter's 1.5); its message is due at
+/// t4, when e3 (t3, 2.0) arrives too: e3 resets it (fires 2.0, citing e3 only); cycle 1 at t7
+/// (2.0, still citing e3); stops at t10. The emitter, one tick behind, proposes at t5 and t8.
+/// (When the two arrive in different passes, the oscillator runs in both: the old cycle first,
+/// then the reset, and downstream sees both, as for any cell; DESIGN.md departure 44.)
+#[test]
+fn a_reset_with_its_own_message_cites_only_the_new_event() {
+    let mut b = MediumBuilder::new();
+    let s = b.sense(at(0, 0), SenseMode::Sum);
+    let (osc, _) = b.oscillator(1.0, 0.0, 1, 1.0, 3);
+    let e = b.emit(1.5, 4, 100, 0);
+    b.synapse(s, osc, 1.0, 1);
+    b.synapse(osc, e, 1.0, 1);
+    let mut m = b.build().unwrap();
+    let mut rig = Rig::new(0, vec![ev(0, 5, 0, 0, 1.0, 0), ev(3, 9, 0, 0, 2.0, 0)]);
+    for _ in 0..12 {
+        rig.step(&mut m).unwrap();
+    }
+    let got: Vec<(u64, EventRef, Vec<EventRef>)> = rig
+        .effector
+        .proposals
+        .iter()
+        .map(|(t, p)| (*t, p.anchor, p.refs.clone()))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            (5, r(3, 9, 0), vec![r(3, 9, 0)]),
+            (8, r(3, 9, 0), vec![r(3, 9, 0)])
+        ]
+    );
+    assert_eq!(m.cells()[osc.0 as usize].state[1], -1.0, "stopped");
+}
+
 // ---------------------------------------------------------------------------------------------
 // Decision 7: a latch whose hold expires proposes `retire`, citing its anchor.
 
@@ -1017,7 +1054,14 @@ fn time_kinds_follow_the_parameter_and_the_mode() {
         time_kind(Archetype::Coincidence, 1, &p),
         Some(TimeKind::Micros)
     );
-    assert_eq!(time_kind(Archetype::Novelty, 0, &p), Some(TimeKind::Rate));
+    assert_eq!(
+        time_kind(Archetype::Novelty, 0, &p),
+        None,
+        "gaps ignored: per run"
+    );
+    let mut g = [0.0f32; 8];
+    g[4] = 1.0;
+    assert_eq!(time_kind(Archetype::Novelty, 0, &g), Some(TimeKind::Rate));
     assert_eq!(time_kind(Archetype::Latch, 1, &p), Some(TimeKind::Span));
     assert_eq!(time_kind(Archetype::Oscillator, 1, &p), None);
     assert_eq!(time_kind(Archetype::Sense, 0, &p), None);
