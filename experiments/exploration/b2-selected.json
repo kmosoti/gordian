@@ -39,5 +39,42 @@
     "feasible": 2,
     "tied_at_the_best": 1,
     "rule": "the stage 1 choice at the threshold of the highest anchor-correct share within the background budget; ties: the larger threshold"
+  },
+  "stage3": {
+    "rung_z3": {
+      "delay_s": 16,
+      "quality_tuning": 0.5025125628140703,
+      "cost_s_per_stream_tuning": 0.6902931435,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "rung_z2": {
+      "delay_s": 16,
+      "quality_tuning": 0.5577889447236181,
+      "cost_s_per_stream_tuning": 0.7031220091100001,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "change_q128": {
+      "delay_s": 30,
+      "quality_tuning": 0.01507537688442211,
+      "cost_s_per_stream_tuning": 0.045706902560000005,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "earliest_l0.25": {
+      "delay_s": 16,
+      "quality_tuning": 0.5025125628140703,
+      "cost_s_per_stream_tuning": 0.6902930396900001,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "reanchor": {
+      "delay_s": 16,
+      "quality_tuning": 0.6030150753768844,
+      "cost_s_per_stream_tuning": 0.7668275868300001,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    }
   }
 }

@@ -12,7 +12,7 @@ Usage:
                              with `hold_until_asked` at every delay of R5's grid (needs stages 1 and 2
                              in b2-selected.json)
   b2_manifests.py heldout    the 200 held-out streams (20000-20199): every B1 configuration (the
-                             whole grid and the two extra thresholds), the `reanchor` grid and
+                             whole grid and the two extra thresholds), the `reanchor` grids (both) and
                              threshold ladder, all at R5's fixed delay with the rung's retirement; and
                              for the five table noticers, the selection oracle with `hold_until_asked`
                              at the delay stage 3 chose (needs b2-selected.json complete)
@@ -127,7 +127,7 @@ def tunedelay(sel):
 
 
 def heldout(sel):
-    configs = C.b1_grid() + C.stage1_grid()
+    configs = C.b1_grid() + C.stage1_grid() + C.stage1b_grid()
     s1 = sel["stage1"]["chosen"]
     seen = {n for n, _, _ in configs}
     for name, kind, p in stage2_configs(sel):
