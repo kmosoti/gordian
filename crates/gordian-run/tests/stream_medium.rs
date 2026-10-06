@@ -837,7 +837,7 @@ fn replay_medium_cost() {
                 for c in spec.conversions().unwrap() {
                     writeln!(
                         conv,
-                        "{label},{:?},{:?},{},{},{}",
+                        "{label},\"{:?}\",{:?},{},{},{}",
                         c.target, c.kind, c.ns, c.tick_len_ns, c.value
                     )
                     .unwrap();
