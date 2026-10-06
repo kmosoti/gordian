@@ -521,6 +521,17 @@ impl Rung {
         self.noticer.id()
     }
 
+    /// The noticer's own counted work since the last call, priced, for the arm to charge
+    /// ([`Noticer::take_cost`]; work item M2). `None` for B1's noticers.
+    pub fn take_noticer_cost(&mut self) -> Option<noticer::NoticerCost> {
+        self.noticer.take_cost()
+    }
+
+    /// The bill refused the noticer's cost ([`Noticer::refused`]).
+    pub fn noticer_refused(&mut self) {
+        self.noticer.refused();
+    }
+
     /// Every notice and retirement so far, in order: the record the harness writes.
     pub fn notice_log(&self) -> &[NoticeLogEntry] {
         &self.log

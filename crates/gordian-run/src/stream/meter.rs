@@ -17,11 +17,12 @@
 //! in `measured_sched_ns`, but which has no calibrated counted-operation weights and is therefore
 //! not part of the modelled cost (`stream/mod.rs`, "What is costed").
 
+use super::arms::noticer::NoticerCost;
 use crate::harness::HarnessError;
 use crate::harness::{Charged, append, busy_ns, charge, record_timing, timed};
 use crate::policy::decide::{Decider, Remaining, RuleOps};
 use gordian_components::{Component, ComponentOutput, Ops, WorkingState};
-use gordian_core::{Bill, ComponentId, Instant, Ledger, ManualClock, Phase};
+use gordian_core::{Bill, Charge, ComponentId, Instant, Ledger, ManualClock, Phase, Resource};
 use gordian_world::Action;
 
 /// The sums the meter keeps for one segment.
@@ -192,6 +193,37 @@ impl<'a> Meter<'a> {
             return None;
         }
         Some(output)
+    }
+
+    /// Charge a noticer's own counted work, done during this step, to the bill under
+    /// `Phase::Component(cost.component)`, recorded like every charge (work item M2: the medium's
+    /// operations at its declared prices plus a price per tick). On acceptance the clock advances
+    /// by the charge, as for a component's busy time. Returns whether the bill accepted it; a
+    /// refusal is recorded and the caller stops the noticer's counted work. The work is charged
+    /// after it is done because its size is known only then; the overrun is at most one step.
+    pub fn charge_noticer(&mut self, cost: NoticerCost) -> bool {
+        if self.error.is_some() {
+            return false;
+        }
+        let charges = [Charge::new(Resource::Compute, cost.compute_ns)];
+        match charge(
+            self.bill,
+            self.ledger,
+            self.clock.now(),
+            "noticer/medium",
+            Phase::Component(cost.component),
+            &charges,
+        ) {
+            Ok(Charged::Accepted(_)) => {
+                self.clock.advance(busy_ns(&charges));
+                true
+            }
+            Ok(Charged::Refused(_)) => false,
+            Err(e) => {
+                self.fail(e);
+                false
+            }
+        }
     }
 
     /// Call the shared rule on `outputs` (`decide`) or as its final call, charging its declared

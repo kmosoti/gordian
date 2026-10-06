@@ -38,6 +38,7 @@ pub mod always;
 pub mod change;
 pub mod context;
 pub mod contradiction;
+pub mod medium;
 pub mod never;
 pub mod noticer;
 pub mod noticer_change;
@@ -404,6 +405,13 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
             return out;
         }
         self.rung.notice(now);
+        // A noticer that does counted work (the medium, work item M2) is charged for it like a
+        // component call; B1's noticers report none and nothing here runs for them.
+        if let Some(cost) = self.rung.take_noticer_cost()
+            && !meter.charge_noticer(cost)
+        {
+            self.rung.noticer_refused();
+        }
 
         // Consistency checks, for a rule that reads them (`contradiction_escalation`; the list is
         // empty for every other arm): before the views, so the rule sees this step's verdicts.

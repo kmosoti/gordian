@@ -71,6 +71,10 @@ pub enum NoticerSpec {
         /// How far before the rung's anchor an abnormal observation at the site may be, nanoseconds.
         lookback_ns: u64,
     },
+    /// The medium as a noticer (work item M2, Lab 1): a hand-designed graph of cells on
+    /// `gordian-medium`, fed every delivered observation with its value
+    /// ([`super::medium`]).
+    Medium(super::medium::MediumParams),
 }
 
 impl Default for NoticerSpec {
@@ -91,6 +95,7 @@ impl NoticerSpec {
             Self::Rung { .. } => RUNG_ID,
             Self::ChangeTriggered { .. } => CHANGE_ID,
             Self::EarliestAnchor { .. } => EARLIEST_ID,
+            Self::Medium(_) => super::medium::MEDIUM_ID,
         }
     }
 
@@ -100,6 +105,7 @@ impl NoticerSpec {
             Self::Rung {
                 notice_z: Some(z), ..
             } if !z.is_finite() => Err("noticer rung: notice_z must be finite".to_owned()),
+            Self::Medium(params) => params.validate(),
             _ => Ok(()),
         }
     }
@@ -205,6 +211,28 @@ pub trait Noticer {
     fn tracked(&self, id: u32) -> Option<&Tracked> {
         self.anomalies().iter().find(|a| a.id == id)
     }
+
+    /// The noticer's own counted work since the last call, priced, for the arm to charge to its
+    /// bill (work item M2: the medium's operations at its declared prices plus a price per
+    /// tick). `None`, the default, for a noticer whose work is bookkeeping (B1's three), which is
+    /// what they were before the method existed.
+    fn take_cost(&mut self) -> Option<NoticerCost> {
+        None
+    }
+
+    /// The bill refused the cost [`Noticer::take_cost`] reported: the noticer stops doing
+    /// counted work for the rest of the segment. Nothing, by default.
+    fn refused(&mut self) {}
+}
+
+/// A noticer's own counted work, priced (work item M2), charged by the arm to its bill under
+/// `Phase::Component(component)` like a component call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoticerCost {
+    /// The id the charge is attributed to.
+    pub component: gordian_core::ComponentId,
+    /// Modelled compute, nanoseconds.
+    pub compute_ns: u64,
 }
 
 /// One tracked anomaly: its anchor, site and attached evidence, from public observations.
@@ -547,5 +575,6 @@ pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<
             RungNoticer::new(cfg.clone(), services),
             lookback_ns,
         )),
+        NoticerSpec::Medium(params) => super::medium::build(&params, cfg, services),
     }
 }
