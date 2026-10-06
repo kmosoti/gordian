@@ -73,8 +73,9 @@
 //! 2, 2.5, 3, 3.5, 4, 5 and 6, and counts each one's firings: the notices the ramp path would
 //! make at that threshold. It replays them again on the same arrival times with *surrogate*
 //! steps: the step to each reading is drawn from the distribution of steps between readings of
-//! one counter at one service at least 6 s apart (a stand-in for independent readings), by the
-//! quantile of the golden-ratio sequence, so that nothing random is used. The firings above what
+//! one counter at one service at least 6 s apart (a stand-in for independent readings), at the
+//! quantile given by a fixed hash of the series and the draw's index (pseudo-random, and a pure
+//! function of its inputs, so a replay draws the same; no clock or seed is read). The firings above what
 //! the surrogate gives are the dense, smooth readings. Lowering the threshold from one candidate
 //! to the next adds that band's firings; a band is chance-dominated as above (`p`, with at least
 //! 10 firings, observed plus surrogate, to say). The estimate `θ*` is the lowest candidate such
@@ -83,7 +84,12 @@
 //!
 //! (Amendment A1, after the first development run: the first form of this statistic counted
 //! excursions of the level by peak, not firings, and its estimate fell to the lowest candidate
-//! while the cells fired several times per excursion; the form above counts what the cells emit.)
+//! while the cells fired several times per excursion; the form above counts what the cells emit.
+//! Amendment A2, after the second development run: the surrogate steps were first drawn at the
+//! points of the golden-ratio sequence, whose consecutive draws are anti-correlated, so the
+//! surrogate never gave a run of small steps and its firings were nil above the lowest
+//! thresholds; the hash draws above replace it, and a step is the bin's whole number, as the
+//! counters are integers, not the bin's middle.)
 //!
 //! # Carry, and the controls
 //!

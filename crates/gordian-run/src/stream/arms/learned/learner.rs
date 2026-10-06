@@ -56,9 +56,8 @@ pub const MIN_RAMP_EVIDENCE: f64 = 50.0;
 pub const MIN_RAMP_BIN: f64 = 10.0;
 /// The floor of the replayed integrator's level.
 const LEVEL_FLOOR: f64 = -50.0;
-/// The golden ratio's fractional part, the step of the low-discrepancy sequence that draws the
-/// surrogate steps without a random number generator.
-const PHI: f64 = 0.618_033_988_749_894_9;
+/// A fixed odd constant that separates the surrogate draws of different series.
+const SERIES_SALT: u64 = 0x9E37_79B9_7F4A_7C15;
 
 /// The four kinds of abnormal observation the burst cell tells apart: error rate, latency, a
 /// message, and the rest.
@@ -328,11 +327,21 @@ impl Session {
             .collect();
     }
 
-    /// The `idx`th surrogate step: the step distribution's quantile at the golden-ratio sequence.
-    fn surrogate(&self, idx: u64) -> f64 {
-        let u = ((idx + 1) as f64 * PHI).fract();
-        let bin = self.cdf.partition_point(|c| *c < u).min(FAR_BINS - 1);
-        bin as f64 + 0.5
+    /// The `idx`th surrogate step of series `key`: the quantile of the step distribution at a
+    /// pseudo-random point, the splitmix64 hash of the series' key and the draw's index (a pure
+    /// function of the two, so a replay draws the same; the draws are independent enough to
+    /// stand for independent readings, which a low-discrepancy sequence is not: its consecutive
+    /// draws are anti-correlated, so it never gives the runs of small steps that make a ramp).
+    fn surrogate(&self, key: u64, idx: u64) -> f64 {
+        let mut z = key
+            .wrapping_mul(SERIES_SALT)
+            .wrapping_add(idx.wrapping_mul(0xBF58_476D_1CE4_E5B9))
+            .wrapping_add(SERIES_SALT);
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        let u = (z >> 11) as f64 / (1u64 << 53) as f64;
+        self.cdf.partition_point(|c| *c < u).min(FAR_BINS - 1) as f64
     }
 
     fn absorb(&mut self, st: &mut Learned, item: Item) {
@@ -359,7 +368,7 @@ impl Session {
             if dt >= FAR_GAP_S {
                 st.far[(dev as usize).min(FAR_BINS - 1)] += 1.0;
             }
-            let sdev = self.surrogate(s.s_idx);
+            let sdev = self.surrogate((node * 5 + c) as u64, s.s_idx);
             s.s_idx += 1;
             ((-dt / tau).exp(), dev, sdev)
         } else {
