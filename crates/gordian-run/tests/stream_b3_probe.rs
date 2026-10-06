@@ -261,7 +261,8 @@ fn ramp_operations() {
         min_readings: p[3] as u32,
         min_rise: p[4] as u32,
     };
-    let (mut readings, mut comparisons, mut observations, mut streams, mut peak) = (0u64, 0u64, 0u64, 0u64, 0usize);
+    let (mut readings, mut comparisons, mut observations, mut streams, mut peak) =
+        (0u64, 0u64, 0u64, 0u64, 0usize);
     for seed in a..=b {
         let stream = generate(&StreamParams::new(seed));
         let mut det = RampDetector::new(spec);
