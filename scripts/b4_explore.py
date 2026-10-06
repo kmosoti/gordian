@@ -3,10 +3,12 @@ other anomalies the ramp noticer opens, on the tuning streams (10000-10099) only
 
 Usage:
   b4_explore.py manifest     write the exploration manifest: the ramp + split noticer over the re-anchor
-                             (B3's chosen parameters) under `never_escalate`, on the tuning streams
-  b4_explore.py series DUMPS summarise, per class of the notice's anchor, the readings that follow the
-                             completing reading: reads the run's notice files and the public dump of each
-                             stream (DUMPS: a directory of `seed-<n>.jsonl`, written by the `dump` example)
+                             (B3's chosen parameters) under `never_escalate`, on the tuning streams (not
+                             used: the stage F run's `fol_none` arm, the same noticer, served instead)
+  b4_explore.py series DUMPS ARM  summarise, per class of the notice's anchor, the readings that follow the
+                             completing reading: reads the arm directory ARM's notice files and the public dump
+                             of each stream (DUMPS: a directory of `seed-<n>.jsonl`, written by the `dump`
+                             example)
 
 Exploration (nothing here tests a hypothesis). It reads the evaluator's labels for the tuning streams (the
 tier and family of the incident each notice's anchor belongs to) beside the public readings, the route
@@ -16,6 +18,8 @@ a rule: the follow-up rule's form is fixed in `noticer_follow.rs` and its grid i
 """
 
 import json
+import os
+import pathlib
 import sys
 
 import numpy as np
@@ -64,11 +68,9 @@ def anchor_key(dump_path):
     return out
 
 
-def series(dumps):
-    import pathlib
-
+def series(dumps, arm_dir):
     dumps = pathlib.Path(dumps)
-    arm = load_stream_arm(C3.RUNS / "b4-explore-b5-rho0.7" / "explore_ramp_split_re2_never")
+    arm = load_stream_arm(arm_dir)
     ev = arm.notice_events
     ev = ev[ev["event"] == "notice"].copy()
     inc = arm.incidents.set_index(["seed", "incident"])
@@ -92,7 +94,7 @@ def series(dumps):
                          "values": [v for _, _, v in seq[:16]],
                          "times_s": [round((t - t0) / NS, 1) for _, t, _ in seq[:16]]})
     df = pd.DataFrame(rows)
-    df.to_json(C3.OUT / "b4-explore-series.json", orient="records", indent=1)
+    df.to_json(pathlib.Path(os.environ.get("B4_SCRATCH", ".")) / "b4-explore-series.json", orient="records", indent=1)
     print(df["class"].value_counts().to_string())
     for cls in ("leak", "decoy", "plain", "hard", "background"):
         sub = df[df["class"] == cls]
@@ -106,7 +108,7 @@ def main():
     if stage == "manifest":
         manifest()
     elif stage == "series":
-        series(sys.argv[2])
+        series(sys.argv[2], sys.argv[3])
     else:
         sys.exit(__doc__)
 

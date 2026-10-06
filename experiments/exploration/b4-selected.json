@@ -1,0 +1,130 @@
+{
+  "follow": {
+    "chosen": {
+      "params": {
+        "readings": 6,
+        "horizon_s": 6,
+        "min_gain": 0,
+        "max_fall": null
+      },
+      "json": {
+        "readings": 6,
+        "horizon_ns": 6000000000,
+        "min_gain": 0,
+        "max_fall": 4294967295
+      },
+      "feasible": 2,
+      "tied_at_the_best": 1,
+      "quality": 0.5879396984924623,
+      "background_per_stream": 6.18,
+      "leak_retired": 0,
+      "decoy_retired_before": 40,
+      "collateral": 80,
+      "plain_retired": 72,
+      "hard_retired": 8,
+      "decoy_notices": 324,
+      "calls_decoy": 185,
+      "calls_plain": 2091
+    },
+    "tolerance": {
+      "1": {
+        "params": {
+          "readings": 6,
+          "horizon_s": 6,
+          "min_gain": 0,
+          "max_fall": null
+        },
+        "json": {
+          "readings": 6,
+          "horizon_ns": 6000000000,
+          "min_gain": 0,
+          "max_fall": 4294967295
+        },
+        "feasible": 7,
+        "tied_at_the_best": 1,
+        "quality": 0.5879396984924623,
+        "background_per_stream": 6.18,
+        "leak_retired": 0,
+        "decoy_retired_before": 40,
+        "collateral": 80,
+        "plain_retired": 72,
+        "hard_retired": 8,
+        "decoy_notices": 324,
+        "calls_decoy": 185,
+        "calls_plain": 2091
+      },
+      "2": {
+        "params": {
+          "readings": 6,
+          "horizon_s": 6,
+          "min_gain": 6,
+          "max_fall": null
+        },
+        "json": {
+          "readings": 6,
+          "horizon_ns": 6000000000,
+          "min_gain": 6,
+          "max_fall": 4294967295
+        },
+        "feasible": 12,
+        "tied_at_the_best": 1,
+        "quality": 0.5879396984924623,
+        "background_per_stream": 6.21,
+        "leak_retired": 2,
+        "decoy_retired_before": 41,
+        "collateral": 91,
+        "plain_retired": 82,
+        "hard_retired": 9,
+        "decoy_notices": 324,
+        "calls_decoy": 184,
+        "calls_plain": 2085
+      },
+      "4": {
+        "params": {
+          "readings": 6,
+          "horizon_s": 6,
+          "min_gain": 10,
+          "max_fall": null
+        },
+        "json": {
+          "readings": 6,
+          "horizon_ns": 6000000000,
+          "min_gain": 10,
+          "max_fall": 4294967295
+        },
+        "feasible": 43,
+        "tied_at_the_best": 1,
+        "quality": 0.5879396984924623,
+        "background_per_stream": 6.23,
+        "leak_retired": 3,
+        "decoy_retired_before": 44,
+        "collateral": 101,
+        "plain_retired": 92,
+        "hard_retired": 9,
+        "decoy_notices": 325,
+        "calls_decoy": 183,
+        "calls_plain": 2082
+      }
+    },
+    "control": {
+      "streams": 100,
+      "quality": 0.5879396984924623,
+      "quality_correct": 117,
+      "quality_incidents": 199,
+      "background_per_stream": 6.07,
+      "calls_per_stream": 27.01,
+      "cost_s_per_stream": 7.8449021845,
+      "leak_retired": 0,
+      "leak_lost": 0,
+      "decoy_retired": 0,
+      "decoy_retired_before": 0,
+      "plain_retired": 0,
+      "hard_retired": 0,
+      "background_retired": 0,
+      "decoy_notices": 323,
+      "calls_decoy": 191,
+      "calls_plain": 2114
+    },
+    "rule": "most decoy notices retired by the rule before escalation, within the background budget, leaks retired <= tolerance (0), hard quality loss <= 0.005; ties: fewest plain and hard notices retired, larger readings, min_gain, max_fall, horizon (b4_common.py)"
+  }
+}
