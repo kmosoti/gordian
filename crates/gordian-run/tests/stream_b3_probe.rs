@@ -260,6 +260,7 @@ fn ramp_operations() {
         max_drop: p[2] as u32,
         min_readings: p[3] as u32,
         min_rise: p[4] as u32,
+        follow: None,
     };
     let (mut readings, mut comparisons, mut observations, mut streams, mut peak) =
         (0u64, 0u64, 0u64, 0u64, 0usize);

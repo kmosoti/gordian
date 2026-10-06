@@ -53,14 +53,16 @@
 //! The family of each hard incident, for `incidents.csv`, is read here too
 //! ([`SegmentRecord::incident_families`]).
 
+use super::arms::noticer::RetireCause;
 use super::arms::noticer::{NoticeKind, NoticeLogEntry};
 use super::arms::{Applied, Proposed, Source, StepInput, StreamPolicy};
 use super::manifest::{Exchange, StreamLimits};
 use super::meter::{Meter, Totals};
 use super::privileged::{OracleFactory, OraclePlan, PlanIncident};
 use super::score::{
-    NoticeEntry, NoticeEvalError, NoticeTrace, NoticeVerdict, RetireEntry, StreamEvalError,
-    StreamStep, StreamVerdict, TrajectoryCounts, family_name,
+    EscalationEntry, NoticeEntry, NoticeEvalError, NoticeTrace, NoticeVerdict, RetireEntry,
+    SelectionError, SelectionRetire, SelectionTrace, SelectionVerdict, StreamEvalError, StreamStep,
+    StreamVerdict, TrajectoryCounts, family_name,
 };
 use crate::harness::{
     Charged, EpisodeOps, HarnessError, Measured, affordable, append, charge, elapsed_ns, payload,
@@ -72,7 +74,9 @@ use gordian_stream::{
     ObsId, ObsRef, Question, StreamAction, StreamEvent, StreamOutcome, StreamParams, StreamPublic,
     StreamSimulator, Tier, generate,
 };
-use gordian_stream_eval::{calls_from_sim, score_notices, score_stream, truth_from_stream};
+use gordian_stream_eval::{
+    calls_from_sim, score_notices, score_selection, score_stream, truth_from_stream,
+};
 use gordian_world::Observation;
 use gordian_world::physics::probe_cost;
 use gordian_world::step::CostSummary;
@@ -113,6 +117,9 @@ pub enum StreamHarnessError {
     /// The evaluator refused the record of notices (`RULES.md` of the evaluator, N11): a defect in
     /// the harness or in a noticer's record, never a result.
     NoticeEval(NoticeEvalError),
+    /// The evaluator refused the record of selection (`RULES.md` of the evaluator, E8): a defect
+    /// in the harness or in a noticer's record, never a result.
+    SelectionEval(SelectionError),
     /// The truth contradicts itself in a way the evaluator does not check (a hard incident with
     /// no hard kind).
     Truth(String),
@@ -131,6 +138,9 @@ impl fmt::Display for StreamHarnessError {
             StreamHarnessError::Eval(e) => write!(f, "evaluator refused the trajectory: {e}"),
             StreamHarnessError::NoticeEval(e) => {
                 write!(f, "evaluator refused the record of notices: {e}")
+            }
+            StreamHarnessError::SelectionEval(e) => {
+                write!(f, "evaluator refused the record of selection: {e}")
             }
             StreamHarnessError::Truth(why) => write!(f, "inconsistent stream truth: {why}"),
             StreamHarnessError::InvalidLimits(why) => write!(f, "invalid limits: {why}"),
@@ -161,6 +171,12 @@ impl From<StreamEvalError> for StreamHarnessError {
 impl From<NoticeEvalError> for StreamHarnessError {
     fn from(e: NoticeEvalError) -> Self {
         StreamHarnessError::NoticeEval(e)
+    }
+}
+
+impl From<SelectionError> for StreamHarnessError {
+    fn from(e: SelectionError) -> Self {
+        StreamHarnessError::SelectionEval(e)
     }
 }
 
@@ -206,6 +222,9 @@ pub struct SegmentRecord {
     /// facts (the tiers, which anchors belong to incidents) are in it; evaluator output, never an
     /// input to an arm.
     pub notices: NoticeVerdict,
+    /// The evaluator's accounting of what the arm escalated and what its follow-up rule retired,
+    /// notice by notice (work item B4, `RULES.md` E1 to E8). Hidden-side facts, as `notices`.
+    pub selection: SelectionVerdict,
     /// The live bill at the end of the segment.
     pub bill: Bill,
     /// The ledger: observations, answers, accounting, decisions, outcomes, timings.
@@ -311,6 +330,13 @@ struct State {
     counts: SegmentCounts,
     bookkeeping_ns: u64,
     duration: Instant,
+    /// The instant of the step being taken: what the arm's notice record is stamped with (its
+    /// `now`), which is earlier than the instant an action of the step is applied at when the
+    /// step's component runs advanced the clock first.
+    step_at: Instant,
+    /// For each accepted escalation, in order, the instant of the step that made the call: the
+    /// instant the selection accounting reads (`RULES.md`, E1).
+    escalation_steps: Vec<Instant>,
 }
 
 /// What a sense delivers: the events, and the probe results that are ready.
@@ -606,6 +632,7 @@ fn apply_one(
                     if ready_at > st.duration {
                         st.counts.calls_unanswered += 1;
                     }
+                    st.escalation_steps.push(st.step_at);
                     Ok(Applied {
                         tag,
                         accepted: true,
@@ -728,6 +755,8 @@ fn play(
         counts: SegmentCounts::default(),
         bookkeeping_ns: 0,
         duration,
+        step_at: Instant::ZERO,
+        escalation_steps: Vec::new(),
     };
 
     let mut applied: Vec<Applied> = Vec::new();
@@ -743,6 +772,7 @@ fn play(
             break;
         }
         steps += 1;
+        st.step_at = step_start;
 
         let (events, probe_results) = sense(&mut st, step_start)?;
         let input = StepInput {
@@ -819,6 +849,7 @@ fn play(
         if let Some(rest) = duration.since(st.clock.now()) {
             st.clock.advance(rest);
         }
+        st.step_at = duration;
         let (events, probe_results) = sense(&mut st, duration)?;
         let input = StepInput {
             now: duration,
@@ -892,6 +923,50 @@ fn play(
             .collect(),
     };
     let notices = score_notices(&truth, &obs_at, &trace)?;
+    // The record of selection (work item B4): the notices, the retirements with their cause, and
+    // every accepted escalation with the instant of the step that made it and the cost declared.
+    let accepted_escalations =
+        st.trajectory
+            .iter()
+            .filter_map(|step| match (&step.action, &step.outcome) {
+                (
+                    StreamAction::Escalate { question, .. },
+                    StreamOutcome::Escalated { cost, .. },
+                ) => {
+                    let Question::Diagnose { focus } = question;
+                    Some((*focus, cost.tokens, cost.modelled_ns))
+                }
+                _ => None,
+            });
+    let selection_trace = SelectionTrace {
+        notices: trace.notices.clone(),
+        retirements: notice_log
+            .iter()
+            .filter(|e| e.kind == NoticeKind::Retire)
+            .map(|e| SelectionRetire {
+                anomaly: e.anomaly,
+                at: e.at,
+                followup: e.cause == Some(RetireCause::Followup),
+            })
+            .collect(),
+        escalations: accepted_escalations
+            .zip(st.escalation_steps.iter())
+            .map(|((focus, tokens, modelled_ns), at)| EscalationEntry {
+                at: *at,
+                focus,
+                tokens,
+                modelled_ns,
+            })
+            .collect(),
+    };
+    if selection_trace.escalations.len() != verdict.totals.reasoner.calls as usize {
+        return Err(StreamHarnessError::BillDisagreement(format!(
+            "{} accepted escalations in the trajectory but {} steps recorded for them",
+            verdict.totals.reasoner.calls,
+            selection_trace.escalations.len()
+        )));
+    }
+    let selection = score_selection(&truth, &selection_trace)?;
     let trajectory_counts = TrajectoryCounts::of(&st.trajectory);
     let mut incident_families = Vec::with_capacity(truth.incidents.len());
     for inc in &truth.incidents {
@@ -941,6 +1016,7 @@ fn play(
         noticer,
         notice_log,
         notices,
+        selection,
         bill,
         ledger,
         trajectory,

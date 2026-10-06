@@ -482,6 +482,30 @@ STREAM_NOTICES_COUNT_COLUMNS = [
 STREAM_NOTICE_EVENT_KINDS = ("notice", "retire")
 STREAM_NOTICE_FILES = ("notices.csv", "notice_incidents.csv", "notice_events.csv")
 
+# The selection files of work item B4 (crates/gordian-run/src/stream/results.rs: SELECTION_HEADER,
+# SELECTION_NOTICES_HEADER): what each class of notice was asked about and what it cost, and what
+# became of every notice (the evaluator's RULES.md, E1 to E8). Both are present or neither is, and
+# they come with the notice files (a run made before work item B4 has neither).
+STREAM_SELECTION_CLASSES = ("background", "plain", "hard", "leak", "decoy")
+STREAM_SELECTION_FIELDS = (
+    "calls", "tokens", "modelled_ns", "notices", "escalated", "retired_before_escalation",
+    "followup_retired", "followup_before_escalation",
+)  # fmt: skip
+STREAM_SELECTION_COLUMNS = [
+    "run_id", "arm_role", "seed", "noticer",
+    *[f"{f}_{c}" for f in STREAM_SELECTION_FIELDS for c in STREAM_SELECTION_CLASSES],
+    "escalations_unattributed",
+]  # fmt: skip
+STREAM_SELECTION_COUNT_COLUMNS = [
+    c for c in STREAM_SELECTION_COLUMNS if c not in ("run_id", "arm_role", "noticer")
+]  # fmt: skip
+STREAM_SELECTION_NOTICES_COLUMNS = [
+    "run_id", "arm_role", "seed", "noticer", "anomaly", "incident", "class", "escalations",
+    "first_escalation_at_ns", "retired_at_ns", "retire_cause", "retired_before_escalation",
+]  # fmt: skip
+STREAM_RETIRE_CAUSES = ("quiet", "followup")
+STREAM_SELECTION_FILES = ("selection.csv", "selection_notices.csv")
+
 
 @dataclass
 class StreamArm:
@@ -490,7 +514,9 @@ class StreamArm:
     `notices`, `notice_incidents` and `notice_events` are the arm's notice files (work item B1),
     `None` for a run made before the notice seam: per stream (keyed on `seed`), per incident
     (keyed on `(seed, incident)`, with the same tier and family as `incidents`) and per notice or
-    retirement, in the order recorded.
+    retirement, in the order recorded. `selection` and `selection_notices` are the arm's selection
+    files (work item B4), `None` for a run made before them: per stream (keyed on `seed`: escalations
+    and notices by class, E2 and E7) and per notice (in the order recorded: what became of it, E3).
     """
 
     path: Path
@@ -502,6 +528,8 @@ class StreamArm:
     notices: pd.DataFrame | None = None
     notice_incidents: pd.DataFrame | None = None
     notice_events: pd.DataFrame | None = None
+    selection: pd.DataFrame | None = None
+    selection_notices: pd.DataFrame | None = None
 
 
 @dataclass
@@ -906,6 +934,188 @@ def _check_notice_files(
         raise LoadError(f"{path}: notice_events.csv is empty but notices.csv counts notices")
 
 
+def _load_stream_selection(path: Path, results: pd.DataFrame) -> pd.DataFrame:
+    """`selection.csv`: one row per stream, the escalations and the notices by class (E2, E7)."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_SELECTION_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    df["noticer"] = _single_value(raw, "noticer", where)
+    for c in STREAM_SELECTION_COUNT_COLUMNS:
+        df[c] = _parse_count(raw[c], c, where)
+    if df.duplicated(STREAM_KEY).any():
+        raise LoadError(f"{where}: duplicate seeds")
+    if set(df["seed"]) != set(results["seed"]):
+        raise LoadError(f"{path.parent}: results.csv and selection.csv do not have the same seeds")
+    return df[STREAM_SELECTION_COLUMNS]
+
+
+def _load_stream_selection_notices(path: Path) -> pd.DataFrame:
+    """`selection_notices.csv`: one row per notice in the order recorded (E3 to E5)."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_SELECTION_NOTICES_COLUMNS, allow_empty=True)
+    if len(raw) == 0:
+        return pd.DataFrame(columns=STREAM_SELECTION_NOTICES_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    df["noticer"] = _single_value(raw, "noticer", where)
+    for c in ("seed", "anomaly", "escalations"):
+        df[c] = _parse_count(raw[c], c, where)
+    for c in ("incident", "first_escalation_at_ns", "retired_at_ns"):
+        df[c] = _optional_count(raw, c, where)
+    df["class"] = raw["class"].str.strip()
+    bad = ~df["class"].isin(STREAM_SELECTION_CLASSES)
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(f"{where}: class {raw['class'].iloc[pos]!r} (row {pos + 2}) is not one of "
+                        f"{list(STREAM_SELECTION_CLASSES)}")
+    # A notice on background belongs to no incident, and only to none.
+    bad = (df["class"] == "background") != df["incident"].isna()
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: incident is empty "
+                        "exactly when the class is background")
+    df["retire_cause"] = raw["retire_cause"].str.strip()
+    bad = ~df["retire_cause"].isin(("", *STREAM_RETIRE_CAUSES))
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(f"{where}: retire_cause {raw['retire_cause'].iloc[pos]!r} (row {pos + 2}) "
+                        f"is not empty or one of {list(STREAM_RETIRE_CAUSES)}")
+    df["retired_before_escalation"] = _parse_bool(
+        raw["retired_before_escalation"].str.strip(), "retired_before_escalation", where
+    )
+    bad = df["retired_at_ns"].isna() != (df["retire_cause"] == "")
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: retired_at_ns and "
+                        "retire_cause are empty together")
+    bad = df["first_escalation_at_ns"].isna() != (df["escalations"] == 0)
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: "
+                        "first_escalation_at_ns is empty exactly when there is no escalation")
+    # E4.
+    bad = df["retired_before_escalation"] != (df["retired_at_ns"].notna() & (df["escalations"] == 0))
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: "
+                        "retired_before_escalation is not 'retired and never escalated'")
+    return df[STREAM_SELECTION_NOTICES_COLUMNS]
+
+
+def _check_selection_files(
+    path: Path,
+    results: pd.DataFrame,
+    notices: pd.DataFrame,
+    notice_events: pd.DataFrame,
+    selection: pd.DataFrame,
+    selection_notices: pd.DataFrame,
+):
+    """The selection files describe the same streams as the results and the notice files, and add
+    up to them: the classes' calls, tokens and modelled nanoseconds are the stream's reasoner totals
+    (E2, S26), the notices by class are the notice counts (N8), and the per-notice rows are the
+    per-stream counts (E7)."""
+    for column in ("run_id", "arm_role"):
+        if set(selection[column]) != set(results[column]) or (
+            len(selection_notices) and set(selection_notices[column]) != set(results[column])
+        ):
+            raise LoadError(f"{path}: {column} differs between results.csv and the selection files")
+    sel = selection.set_index("seed").sort_index()
+    res = results.set_index("seed").reindex(sel.index)
+    classes = STREAM_SELECTION_CLASSES
+    for field, column in (
+        ("calls", "reasoner_calls"),
+        ("tokens", "reasoner_tokens"),
+        ("modelled_ns", "reasoner_modelled_ns"),
+    ):
+        have = sum(sel[f"{field}_{c}"] for c in classes)
+        bad = have.to_numpy() != res[column].to_numpy()
+        if bad.any():
+            seed = int(sel.index[int(np.argmax(bad))])
+            raise LoadError(f"{path}: seed {seed}: selection.csv's {field} by class do not add up "
+                            f"to results.csv's {column}")
+    n = notices.set_index("seed").reindex(sel.index)
+    for have, column in (
+        (sel["notices_background"], "notices_on_background"),
+        (sel["notices_plain"], "notices_on_plain"),
+        (sel["notices_hard"] + sel["notices_leak"], "notices_on_hard"),
+        (sel["notices_decoy"], "notices_on_decoy"),
+    ):
+        bad = have.to_numpy() != n[column].to_numpy()
+        if bad.any():
+            seed = int(sel.index[int(np.argmax(bad))])
+            raise LoadError(f"{path}: seed {seed}: selection.csv's notices disagree with {column}")
+    for c in classes:
+        bounds = (
+            ("escalated", "notices"),
+            ("retired_before_escalation", "notices"),
+            ("followup_retired", "notices"),
+            ("followup_before_escalation", "followup_retired"),
+            ("followup_before_escalation", "retired_before_escalation"),
+        )
+        for small, big in bounds:
+            bad = (sel[f"{small}_{c}"] > sel[f"{big}_{c}"]).to_numpy()
+            if bad.any():
+                seed = int(sel.index[int(np.argmax(bad))])
+                raise LoadError(f"{path}: seed {seed}: more {small} than {big} ({c})")
+        # A notice retired before escalation was never escalated: the two cannot overlap.
+        bad = (sel[f"escalated_{c}"] + sel[f"retired_before_escalation_{c}"] > sel[f"notices_{c}"]).to_numpy()
+        if bad.any():
+            seed = int(sel.index[int(np.argmax(bad))])
+            raise LoadError(f"{path}: seed {seed}: escalated and retired-before-escalation notices "
+                            f"overlap ({c})")
+    # The per-notice rows: the same counts, stream by stream.
+    sn = selection_notices
+    for c in classes:
+        mine = sn[sn["class"] == c].groupby("seed")
+        for field, have in (
+            ("notices", mine.size()),
+            ("escalated", mine["escalations"].agg(lambda x: int((x > 0).sum()))),
+            ("retired_before_escalation", mine["retired_before_escalation"].sum()),
+            ("followup_retired", mine["retire_cause"].agg(lambda x: int((x == "followup").sum()))),
+        ):
+            have = have.reindex(sel.index, fill_value=0).astype("int64")
+            bad = have.to_numpy() != sel[f"{field}_{c}"].to_numpy()
+            if bad.any():
+                seed = int(sel.index[int(np.argmax(bad))])
+                raise LoadError(f"{path}: seed {seed}: selection_notices.csv disagrees with "
+                                f"selection.csv about {field} ({c})")
+        both = mine.apply(
+            lambda g: int(((g["retire_cause"] == "followup") & g["retired_before_escalation"]).sum()),
+            include_groups=False,
+        ) if len(sn[sn["class"] == c]) else pd.Series(dtype="int64")
+        both = both.reindex(sel.index, fill_value=0).astype("int64")
+        bad = both.to_numpy() != sel[f"followup_before_escalation_{c}"].to_numpy()
+        if bad.any():
+            seed = int(sel.index[int(np.argmax(bad))])
+            raise LoadError(f"{path}: seed {seed}: selection_notices.csv disagrees with "
+                            f"selection.csv about followup_before_escalation ({c})")
+    # E1: the escalations about a notice and the unattributed ones are all the escalations.
+    about = sn.groupby("seed")["escalations"].sum().reindex(sel.index, fill_value=0)
+    bad = (about + sel["escalations_unattributed"]).to_numpy() != res["reasoner_calls"].to_numpy()
+    if bad.any():
+        seed = int(sel.index[int(np.argmax(bad))])
+        raise LoadError(f"{path}: seed {seed}: escalations about notices plus unattributed ones are "
+                        "not the stream's reasoner calls")
+    # The retirements are the notice record's.
+    retired = sn[sn["retire_cause"] != ""].groupby("seed").size().reindex(sel.index, fill_value=0)
+    bad = retired.to_numpy() != n["retirements"].to_numpy()
+    if bad.any():
+        seed = int(sel.index[int(np.argmax(bad))])
+        raise LoadError(f"{path}: seed {seed}: selection_notices.csv retires a different number of "
+                        "notices than notices.csv")
+    # The notices are the notice record's, in its order.
+    if len(notice_events):
+        ev = notice_events[notice_events["event"] == "notice"][["seed", "anomaly"]]
+        if not (
+            len(ev) == len(sn)
+            and (ev["seed"].to_numpy() == sn["seed"].to_numpy()).all()
+            and (ev["anomaly"].to_numpy() == sn["anomaly"].to_numpy()).all()
+        ):
+            raise LoadError(f"{path}: selection_notices.csv is not the notices of notice_events.csv, "
+                            "in order")
+    elif len(sn):
+        raise LoadError(f"{path}: selection_notices.csv has notices but notice_events.csv has none")
+
+
 def _load_stream_measured(path: Path, results: pd.DataFrame) -> pd.DataFrame:
     """Attach the measured columns and `arm_position` to results on `seed`."""
     where = str(path)
@@ -954,6 +1164,18 @@ def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
         _check_notice_files(path, results, notices, notice_incidents, notice_events)
         notices = notices.sort_values("seed").reset_index(drop=True)
         notice_incidents = notice_incidents.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
+    selection = selection_notices = None
+    sel_present = [(path / f).is_file() for f in STREAM_SELECTION_FILES]
+    if any(sel_present) and not all(sel_present):
+        missing = [f for f, p in zip(STREAM_SELECTION_FILES, sel_present) if not p]
+        raise LoadError(f"{path}: the selection files come together; missing {missing}")
+    if all(sel_present):
+        if notices is None:
+            raise LoadError(f"{path}: the selection files need the notice files")
+        selection = _load_stream_selection(path / "selection.csv", results)
+        selection_notices = _load_stream_selection_notices(path / "selection_notices.csv")
+        _check_selection_files(path, results, notices, notice_events, selection, selection_notices)
+        selection = selection.sort_values("seed").reset_index(drop=True)
     return StreamArm(
         path=path,
         name=name or path.name,
@@ -964,6 +1186,8 @@ def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
         notices=notices,
         notice_incidents=notice_incidents,
         notice_events=notice_events,
+        selection=selection,
+        selection_notices=selection_notices,
     )
 
 

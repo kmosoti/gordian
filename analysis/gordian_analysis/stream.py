@@ -20,7 +20,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .load import COMPARISON_ROLE, STREAM_FAMILIES, StreamArm, StreamRun
+from .load import (
+    COMPARISON_ROLE,
+    STREAM_FAMILIES,
+    STREAM_SELECTION_CLASSES,
+    STREAM_SELECTION_FIELDS,
+    StreamArm,
+    StreamRun,
+)
 
 NS_PER_S = 1_000_000_000
 
@@ -320,3 +327,53 @@ def notice_latency(arm: StreamArm) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------------------------
+# Selection (work item B4). The measures are the evaluator's (crates/gordian-stream-eval/RULES.md,
+# E1 to E8), read from the selection files the harness writes beside the notice files. Every ratio
+# is pooled from counts over streams, as above.
+# ---------------------------------------------------------------------------------------------
+
+
+def _need_selection(arm: StreamArm) -> None:
+    if arm.selection is None or arm.selection_notices is None:
+        raise ValueError(
+            f"arm {arm.name!r} has no selection files (a run made before work item B4)"
+        )
+
+
+def selection_per_stream(arm: StreamArm) -> pd.DataFrame:
+    """The numerators and denominators of the selection measures, one row per stream (index `seed`,
+    ascending), for pooling and for resampling whole streams.
+
+    Per class `c` of `STREAM_SELECTION_CLASSES` (E2): `<field>_<c>` for each of
+    `STREAM_SELECTION_FIELDS` (the calls, tokens and modelled nanoseconds; the notices, those
+    escalated, retired before escalation, retired by a follow-up rule, and retired by one before
+    escalation), copied from `selection.csv`; `escalations_unattributed` (E1); and the
+    incident-level counts of the follow-up rule, from `selection_notices.csv`: `leak_followup_hit`
+    (slow-leak incidents with at least one notice retired by the rule before escalation),
+    `leak_lost` (slow-leak incidents with such a notice and no notice escalated at all) and
+    `decoy_followup_hit` (decoy incidents with at least one notice retired by the rule before
+    escalation).
+    """
+    _need_selection(arm)
+    sel = arm.selection.set_index("seed").sort_index()
+    out = pd.DataFrame(index=sel.index)
+    for field in STREAM_SELECTION_FIELDS:
+        for c in STREAM_SELECTION_CLASSES:
+            out[f"{field}_{c}"] = sel[f"{field}_{c}"]
+    out["escalations_unattributed"] = sel["escalations_unattributed"]
+    sn = arm.selection_notices
+    for name, cls in (("leak", "leak"), ("decoy", "decoy")):
+        mine = sn[sn["class"] == cls].copy()
+        mine["hit"] = (mine["retire_cause"] == "followup") & mine["retired_before_escalation"]
+        mine["asked"] = mine["escalations"] > 0
+        g = mine.groupby(["seed", "incident"])
+        per = pd.DataFrame({"hit": g["hit"].any(), "asked": g["asked"].any()})
+        hit = per[per["hit"]].groupby("seed").size()
+        out[f"{name}_followup_hit"] = hit.reindex(sel.index, fill_value=0).astype("int64")
+        if name == "leak":
+            lost = per[per["hit"] & ~per["asked"]].groupby("seed").size()
+            out["leak_lost"] = lost.reindex(sel.index, fill_value=0).astype("int64")
+    return out.astype("int64")

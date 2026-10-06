@@ -174,9 +174,12 @@ impl NoticerSpec {
             Self::EarliestAnchor { .. } => EARLIEST_ID,
             Self::Reanchor { .. } => REANCHOR_ID,
             Self::Medium(_) => super::medium::MEDIUM_ID,
-            Self::Composed { base, ramp, split } => {
-                composed_id(base, ramp.is_some(), split.is_some())
-            }
+            Self::Composed { base, ramp, split } => composed_id_with(
+                base,
+                ramp.is_some(),
+                split.is_some(),
+                ramp.is_some_and(|r| r.follow.is_some()),
+            ),
         }
     }
 
@@ -229,16 +232,29 @@ pub const REANCHOR_ID: &str = "reanchor";
 /// later re-anchor (`ramp`, `split`, `ramp_split`, and each with `_reanchor`). The ids are
 /// written to the run output unquoted and contain no comma.
 pub fn composed_id(base: &BaseSpec, ramp: bool, split: bool) -> &'static str {
+    composed_id_with(base, ramp, split, false)
+}
+
+/// As [`composed_id`], with `follow` (work item B4): the ramp noticer has a follow-up rule
+/// ([`super::noticer_follow::FollowSpec`]), so the id says so (`ramp_follow`,
+/// `ramp_follow_reanchor`, `ramp_split_follow`, `ramp_split_follow_reanchor`). `follow` without
+/// `ramp` is not a spelling the manifest has (the rule is part of the ramp's spec) and reads as
+/// `follow = false`.
+pub fn composed_id_with(base: &BaseSpec, ramp: bool, split: bool, follow: bool) -> &'static str {
     let reanchor = matches!(base, BaseSpec::Reanchor { .. });
-    match (ramp, split, reanchor) {
-        (true, false, false) => "ramp",
-        (true, false, true) => "ramp_reanchor",
-        (false, true, false) => "split",
-        (false, true, true) => "split_reanchor",
-        (true, true, false) => "ramp_split",
-        (true, true, true) => "ramp_split_reanchor",
-        (false, false, false) => "composed_rung",
-        (false, false, true) => "composed_reanchor",
+    match (ramp, split, reanchor, follow && ramp) {
+        (true, false, false, false) => "ramp",
+        (true, false, true, false) => "ramp_reanchor",
+        (false, true, false, _) => "split",
+        (false, true, true, _) => "split_reanchor",
+        (true, true, false, false) => "ramp_split",
+        (true, true, true, false) => "ramp_split_reanchor",
+        (true, false, false, true) => "ramp_follow",
+        (true, false, true, true) => "ramp_follow_reanchor",
+        (true, true, false, true) => "ramp_split_follow",
+        (true, true, true, true) => "ramp_split_follow_reanchor",
+        (false, false, false, _) => "composed_rung",
+        (false, false, true, _) => "composed_reanchor",
     }
 }
 
@@ -293,6 +309,32 @@ pub struct NoticeLogEntry {
     pub anchor_at: Instant,
     /// The instant of the step at which it was noticed or retired.
     pub at: Instant,
+    /// Why the anomaly was retired (work item B4); `None` for a notice. The run output's
+    /// `notice_events.csv` does not carry it (its columns are B1's and B2's); the selection files
+    /// do.
+    pub cause: Option<RetireCause>,
+}
+
+/// Why a noticer's anomaly was retired (work item B4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetireCause {
+    /// The anomaly was quiet: no abnormal observation attached to it for the rung's quiet time.
+    /// Every retirement of every noticer before work item B4, and every one of a noticer without a
+    /// follow-up rule.
+    Quiet,
+    /// The follow-up rule ([`super::noticer_follow`]) retired a ramp-noticed anomaly whose later
+    /// readings did not keep rising.
+    Followup,
+}
+
+impl RetireCause {
+    /// The word written to the run output.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Quiet => "quiet",
+            Self::Followup => "followup",
+        }
+    }
 }
 
 /// What a noticer is: the part of the rung that decides what is noticed and where it is anchored.
@@ -330,6 +372,13 @@ pub trait Noticer {
 
     /// The rung is finished with anomaly `id`: forget it.
     fn retire(&mut self, id: u32);
+
+    /// Why anomaly `id`, which the rung is about to retire, is retirable (work item B4): the
+    /// noticer's own follow-up rule said so ([`RetireCause::Followup`]) or it is quiet. Asked
+    /// before [`Noticer::retire`]. Quiet, the default, for every noticer without a follow-up rule.
+    fn retire_cause(&self, _id: u32) -> RetireCause {
+        RetireCause::Quiet
+    }
 
     /// The anomaly `id`, if tracked.
     fn tracked(&self, id: u32) -> Option<&Tracked> {

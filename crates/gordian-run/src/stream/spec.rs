@@ -11,6 +11,8 @@
 //! {"policy": "random_escalation", "p": 0.5, "delay_ns": 8000000000}
 //! {"policy": "always_escalate", "delay_ns": 8000000000}
 //! {"policy": "contradiction_escalation", "delay_ns": 8000000000, "persist_ns": 2000000000}
+//! {"policy": "public_threshold", "delay_ns": 16000000000, "persist_ns": 2000000000}
+//! {"policy": "public_change", "delay_ns": 16000000000, "k": 5}
 //! {"policy": "oracle_selection", "delay_ns": 8000000000}
 //! {"policy": "oracle_selection", "delay_ns": 8000000000, "hold_until_asked": true}
 //! {"policy": "oracle_selection_context", "delay_ns": 8000000000}
@@ -22,9 +24,11 @@
 //! (`always_escalate` is then its bare id, and `random_escalation` has no `delay_ns`), so a
 //! manifest written before the parameter existed is the same text as one written now.
 //!
-//! `persist_ns` (`contradiction_escalation`) is how long the consistency checker must have found
+//! `persist_ns` (`contradiction_escalation` and `public_threshold`, work item B4) is how long the consistency checker must have found
 //! no hypothesis consistent with the anomaly's evidence before the arm escalates; its default is 0
-//! and, like a zero delay, it is not written.
+//! and, like a zero delay, it is not written. `k` (`public_change`, work item B4) is the growth in
+//! an anomaly's attached evidence, in observations, that makes the arm escalate it; it is at least
+//! 1 and always written.
 //!
 //! `hold_until_asked` (`oracle_selection` only, work item B2) keeps an anomaly the oracle will ask
 //! about live until it has asked (see `oracle.rs`); its default is false and, like a zero delay,
@@ -50,6 +54,8 @@ use super::arms::change::{self, Change};
 use super::arms::contradiction::{self, Contradiction};
 use super::arms::never::{self, Never};
 use super::arms::periodic::{self, Periodic};
+use super::arms::public_change::{self, PublicChange};
+use super::arms::public_threshold::{self, PublicThreshold};
 use super::arms::random::{self, Random};
 use super::arms::rung::RungConfig;
 use super::arms::threshold::{self, Threshold};
@@ -69,6 +75,8 @@ pub const KNOWN: &[&str] = &[
     threshold::ID,
     random::ID,
     contradiction::ID,
+    public_threshold::ID,
+    public_change::ID,
     privileged::ID,
     privileged::SELECTION_ID,
     privileged::DECOY_ID,
@@ -115,6 +123,20 @@ pub enum StreamPolicySpec {
         /// Nanoseconds the consistency checker must have found no hypothesis.
         persist_ns: u64,
     },
+    /// `public_threshold` (work item B4) with its delay after notice and its persistence.
+    PublicThreshold {
+        /// Nanoseconds after notice before an anomaly may be escalated (R5's 16 s in B4's table).
+        delay_ns: u64,
+        /// Nanoseconds the rung's conclusion must have been contradictory or silent.
+        persist_ns: u64,
+    },
+    /// `public_change` (work item B4) with its delay after notice and its growth.
+    PublicChange {
+        /// Nanoseconds after notice before an anomaly may be escalated (R5's 16 s in B4's table).
+        delay_ns: u64,
+        /// Observations the anomaly's attached evidence must have grown by since notice.
+        k: u32,
+    },
     /// `oracle_escalation`: privileged.
     Oracle,
     /// `oracle_selection`: privileged; escalates exactly the hard anomalies.
@@ -149,7 +171,7 @@ impl StreamPolicySpec {
         Self::from_parts(id, None, None, None, None, None, None, None)
     }
 
-    /// The arm `id` with the given parameters. A parameter the arm does not have is an error.
+    /// [`StreamPolicySpec::from_parts`] for the arms that have the parameter `k` (work item B4).
     #[allow(clippy::too_many_arguments)]
     pub fn from_parts(
         id: &str,
@@ -161,6 +183,32 @@ impl StreamPolicySpec {
         persist_ns: Option<u64>,
         hold_until_asked: Option<bool>,
     ) -> Result<Self, String> {
+        Self::from_parts_k(
+            id,
+            period_ns,
+            tau,
+            wait_ns,
+            p,
+            delay_ns,
+            persist_ns,
+            hold_until_asked,
+            None,
+        )
+    }
+
+    /// The arm `id` with the given parameters. A parameter the arm does not have is an error.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts_k(
+        id: &str,
+        period_ns: Option<u64>,
+        tau: Option<f64>,
+        wait_ns: Option<u64>,
+        p: Option<f64>,
+        delay_ns: Option<u64>,
+        persist_ns: Option<u64>,
+        hold_until_asked: Option<bool>,
+        k: Option<u32>,
+    ) -> Result<Self, String> {
         let stray = |name: &str| format!("policy {id:?} has no parameter {name:?}");
         let only = |allowed: &[&str]| -> Result<(), String> {
             for (name, given) in [
@@ -171,6 +219,7 @@ impl StreamPolicySpec {
                 ("delay_ns", delay_ns.is_some()),
                 ("persist_ns", persist_ns.is_some()),
                 ("hold_until_asked", hold_until_asked.is_some()),
+                ("k", k.is_some()),
             ] {
                 if given && !allowed.contains(&name) {
                     return Err(stray(name));
@@ -227,6 +276,20 @@ impl StreamPolicySpec {
                     persist_ns: persist_ns.unwrap_or(contradiction::DEFAULT_PERSIST_NS),
                 }
             }
+            public_threshold::ID => {
+                only(&["delay_ns", "persist_ns"])?;
+                Self::PublicThreshold {
+                    delay_ns: delay_ns.unwrap_or(0),
+                    persist_ns: persist_ns.unwrap_or(0),
+                }
+            }
+            public_change::ID => {
+                only(&["delay_ns", "k"])?;
+                Self::PublicChange {
+                    delay_ns: delay_ns.unwrap_or(0),
+                    k: k.ok_or_else(|| "policy \"public_change\" needs k".to_owned())?,
+                }
+            }
             ablation::ID => {
                 only(&[])?;
                 Self::Ablation
@@ -269,6 +332,9 @@ impl StreamPolicySpec {
             Self::Random { p, .. } if !(p.is_finite() && (0.0..=1.0).contains(p)) => {
                 Err(format!("random_escalation needs p in [0, 1], got {p}"))
             }
+            Self::PublicChange { k: 0, .. } => {
+                Err("public_change needs k of at least 1".to_owned())
+            }
             _ => Ok(()),
         }
     }
@@ -282,6 +348,8 @@ impl StreamPolicySpec {
             Self::Threshold { .. } => threshold::ID,
             Self::Random { .. } => random::ID,
             Self::Contradiction { .. } => contradiction::ID,
+            Self::PublicThreshold { .. } => public_threshold::ID,
+            Self::PublicChange { .. } => public_change::ID,
             Self::Oracle => privileged::ID,
             Self::OracleSelection { .. } => privileged::SELECTION_ID,
             Self::OracleDecoy => privileged::DECOY_ID,
@@ -328,6 +396,8 @@ struct Tagged {
     persist_ns: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     hold_until_asked: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    k: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -348,6 +418,7 @@ impl Serialize for StreamPolicySpec {
             delay_ns,
             persist_ns,
             hold_until_asked: None,
+            k: None,
         };
         // A delay of zero is the arm as it was before the parameter existed and is not written.
         let delay = |d: u64| (d != 0).then_some(d);
@@ -361,6 +432,18 @@ impl Serialize for StreamPolicySpec {
             Self::Random { p, delay_ns } => {
                 tagged(None, None, None, Some(*p), delay(*delay_ns), None).serialize(serializer)
             }
+            Self::PublicThreshold {
+                delay_ns,
+                persist_ns,
+            } if *delay_ns != 0 || *persist_ns != 0 => {
+                tagged(None, None, None, None, delay(*delay_ns), delay(*persist_ns))
+                    .serialize(serializer)
+            }
+            Self::PublicChange { delay_ns, k } => Tagged {
+                k: Some(*k),
+                ..tagged(None, None, None, None, delay(*delay_ns), None)
+            }
+            .serialize(serializer),
             Self::Always { delay_ns } if *delay_ns != 0 => {
                 tagged(None, None, None, None, Some(*delay_ns), None).serialize(serializer)
             }
@@ -397,7 +480,7 @@ impl<'de> Deserialize<'de> for StreamPolicySpec {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let result = match Repr::deserialize(deserializer)? {
             Repr::Id(id) => Self::from_id(&id),
-            Repr::Full(t) => Self::from_parts(
+            Repr::Full(t) => Self::from_parts_k(
                 &t.policy,
                 t.period_ns,
                 t.tau,
@@ -406,6 +489,7 @@ impl<'de> Deserialize<'de> for StreamPolicySpec {
                 t.delay_ns,
                 t.persist_ns,
                 t.hold_until_asked,
+                t.k,
             ),
         };
         result.map_err(serde::de::Error::custom)
@@ -477,6 +561,19 @@ pub fn build_public(
             persist_ns,
         } => Box::new(StreamArm::with(
             Contradiction::new(*delay_ns, *persist_ns),
+            public,
+            config,
+        )),
+        StreamPolicySpec::PublicThreshold {
+            delay_ns,
+            persist_ns,
+        } => Box::new(StreamArm::with(
+            PublicThreshold::new(*delay_ns, *persist_ns),
+            public,
+            config,
+        )),
+        StreamPolicySpec::PublicChange { delay_ns, k } => Box::new(StreamArm::with(
+            PublicChange::new(*delay_ns, *k),
             public,
             config,
         )),
