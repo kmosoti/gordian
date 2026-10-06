@@ -62,7 +62,7 @@
 //! every parameter of the baselines is, and the tuning is in the B2 report.
 
 use super::noticer::{Notice, Noticer, REANCHOR_ID, Tracked};
-use super::noticer_rung::RungNoticer;
+use super::noticer_rung::{RungBased, RungNoticer};
 use super::rung::{Held, RungConfig, Store};
 use gordian_core::Instant;
 use gordian_world::Service;
@@ -202,5 +202,15 @@ impl Noticer for ReanchorNoticer {
 
     fn retire(&mut self, id: u32) {
         self.inner.retire(id);
+    }
+}
+
+impl RungBased for ReanchorNoticer {
+    fn rung(&self) -> &RungNoticer {
+        &self.inner
+    }
+
+    fn rung_mut(&mut self) -> &mut RungNoticer {
+        &mut self.inner
     }
 }

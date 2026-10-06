@@ -1,0 +1,4 @@
+arm,compared_with,results_identical_modulo_run_id,incidents_identical_modulo_run_id,notice_events_identical_modulo_run_id
+sel_rung_z3_privileged,R10 held-out sel_rung_privileged,True,True,
+sel_rung_z2_privileged,R10 sweep z = 2 sel_rung_privileged,True,True,
+sel_reanchor_privileged,B2 held-out sel_reanchor_privileged,True,True,True
