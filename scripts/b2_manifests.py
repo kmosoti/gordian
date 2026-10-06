@@ -16,6 +16,10 @@ Usage:
                              threshold ladder, all at R5's fixed delay with the rung's retirement; and
                              for the five table noticers, the selection oracle with `hold_until_asked`
                              at the delay stage 3 chose (needs b2-selected.json complete)
+  b2_manifests.py supp       the 200 held-out streams: the flood-like noticers of B1's sensitivity table
+                             (ChangeTriggered at q = 0.5 to 8 s, the rung at z = 1 and 0.5) with
+                             `hold_until_asked` at R5's 16 s, a supplementary reading of the retirement
+                             confound (not rows of the table; the delay is not tuned)
   b2_manifests.py xcheck-final  R6's held-out manifest again, `source_revision` only replaced, under
                              the prefix `xcheck2-` (the byte-identity gate with the final binary)
 
@@ -150,6 +154,24 @@ def heldout(sel):
     write(C.run_id("heldout"), C.HELDOUT_SEEDS, arms, noticers, 11_700, "exploration-b2-heldout")
 
 
+SUPP_Q_S = [0.5, 1, 2, 4, 8]
+SUPP_Z = [1.0, 0.5]
+
+
+def supp():
+    """The flood-like rows of B1's sensitivity table, with the hold at R5's 16 s (not tuned: these are a
+    supplementary reading of how large the retirement confound is where the rung's 6 s retirement
+    bites hardest, not rows of the table)."""
+    arms, noticers = [], {}
+    configs = [(C.C1.change_name(q), "change_triggered", {"q": q}) for q in SUPP_Q_S]
+    configs += [(f"rung_z{z:g}", "rung", {"z": z}) for z in SUPP_Z]
+    for name, kind, p in configs:
+        arm = C.delay_arm_name(name, C.FIXED_DELAY_S)
+        arms.append((arm, C.hold_policy(C.FIXED_DELAY_S)))
+        noticers[arm] = C.spec(kind, **p)
+    write(C.run_id("supp"), C.HELDOUT_SEEDS, arms, noticers, 11_900, "exploration-b2-supplementary")
+
+
 def xcheck(tag):
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=C.ROOT, capture_output=True, text=True,
                           check=True).stdout.strip()
@@ -185,6 +207,8 @@ def main():
         tunedelay(C.load_selected())
     elif stage == "heldout":
         heldout(C.load_selected())
+    elif stage == "supp":
+        supp()
     elif stage == "xcheck-final":
         xcheck("2")
     else:
