@@ -185,6 +185,8 @@ pub struct IncObs {
     pub node: Option<u32>,
     pub abnormal: bool,
     pub decisive: bool,
+    /// Part of the first moments of a hard incident (the shared presentation).
+    pub burst: bool,
 }
 
 /// An incident's instants, in nanoseconds, before any tick grid is applied.
@@ -275,6 +277,17 @@ pub struct LagSamples {
     pub decisive_all: u64,
     /// Incidents with at least one decisive observation (the denominator of the three above).
     pub with_decisive: u64,
+    /// First observation to the first decisive observation.
+    pub to_decisive: Hist,
+    pub no_decisive: u64,
+    /// Incidents with a burst (the leak has none), and the sum over them of the share of the
+    /// burst that falls in the first observation's tick.
+    pub with_burst: u64,
+    pub burst_share_sum: f64,
+    /// Incidents whose whole burst falls in one tick.
+    pub burst_one_tick: u64,
+    /// Ticks the burst spans (last tick minus first tick plus one).
+    pub burst_span: Hist,
 }
 
 /// Add one incident to `s` at one tick length.
@@ -304,6 +317,22 @@ pub fn add_incident(s: &mut LagSamples, obs: &[IncObs], partner: Option<u32>, ti
         s.decisive_any += u64::from(same > 0);
         s.decisive_all += u64::from(same == total);
     }
+    match obs.iter().filter(|o| o.decisive).map(|o| o.at_ns).min() {
+        Some(d) => s.to_decisive.add(lag_ticks(i.first_ns, d, tick_ns), 1),
+        None => s.no_decisive += 1,
+    }
+    let burst: Vec<u64> = obs
+        .iter()
+        .filter(|o| o.burst)
+        .map(|o| tick_of(o.at_ns, tick_ns))
+        .collect();
+    if let (Some(&lo), Some(&hi)) = (burst.iter().min(), burst.iter().max()) {
+        s.with_burst += 1;
+        let t0 = tick_of(i.first_ns, tick_ns);
+        s.burst_share_sum += burst.iter().filter(|&&t| t == t0).count() as f64 / burst.len() as f64;
+        s.burst_one_tick += u64::from(lo == hi);
+        s.burst_span.add(hi - lo + 1, 1);
+    }
 }
 
 /// The same lags in whole milliseconds, tick-free: one sample per incident, for context.
@@ -318,6 +347,9 @@ pub fn add_incident_ms(ms: &mut MsSamples, obs: &[IncObs], partner: Option<u32>)
             ms.abnormal_to_partner.add((p - a) / MS, 1);
         }
     }
+    if let Some(d) = obs.iter().filter(|o| o.decisive).map(|o| o.at_ns).min() {
+        ms.to_decisive.add((d - i.first_ns) / MS, 1);
+    }
 }
 
 /// Lag samples in milliseconds, independent of any tick grid.
@@ -326,6 +358,7 @@ pub struct MsSamples {
     pub to_abnormal: Hist,
     pub to_partner: Hist,
     pub abnormal_to_partner: Hist,
+    pub to_decisive: Hist,
 }
 
 /// Reduce a stream's passive observations. The abnormal flag is the public rules' verdict.
@@ -354,18 +387,16 @@ pub fn incident_obs(evs: &[Ev], truth: &StreamTruth, inc: &IncidentTruth) -> Vec
         .iter()
         .map(|id| {
             let e = evs[id.0 as usize];
-            let decisive = matches!(
-                truth.labels[id.0 as usize],
-                ObsLabel::Incident {
-                    role: EvidenceRole::Decisive,
-                    ..
-                }
-            );
+            let role = match truth.labels[id.0 as usize] {
+                ObsLabel::Incident { role, .. } => Some(role),
+                ObsLabel::Background(_) => None,
+            };
             IncObs {
                 at_ns: e.at_ns,
                 node: e.node,
                 abnormal: e.abnormal,
-                decisive,
+                decisive: role == Some(EvidenceRole::Decisive),
+                burst: role == Some(EvidenceRole::Presentation),
             }
         })
         .collect()

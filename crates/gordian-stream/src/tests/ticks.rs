@@ -34,6 +34,14 @@ fn io(at_ms: u64, node: u32, abnormal: bool, decisive: bool) -> IncObs {
         node: Some(node),
         abnormal,
         decisive,
+        burst: false,
+    }
+}
+
+fn burst(at_ms: u64, node: u32) -> IncObs {
+    IncObs {
+        burst: true,
+        ..io(at_ms, node, true, false)
     }
 }
 
@@ -127,6 +135,10 @@ fn lags_are_counted_on_the_grid_and_missing_instants_are_not_dropped() {
     assert_eq!(s500.abnormal_to_partner.0, BTreeMap::from([(0, 1)]));
     assert!((s500.decisive_share_sum - 2.0 / 3.0).abs() < 1e-12);
 
+    // The first decisive observation is at 96 ms: tick 0, then tick 0 and tick 0.
+    assert_eq!(s100.to_decisive.0, BTreeMap::from([(0, 1)]));
+    assert_eq!(s500.to_decisive.0, BTreeMap::from([(0, 1)]));
+
     // No alarm at the partner: counted as missing at every tick length.
     let silent = [io(0, 0, true, true), io(40, 1, false, false)];
     let mut s = LagSamples::default();
@@ -145,6 +157,44 @@ fn lags_are_counted_on_the_grid_and_missing_instants_are_not_dropped() {
         (1, 0, 0)
     );
     assert_eq!(q.decisive_any, 0);
+}
+
+#[test]
+fn the_first_decisive_observation_and_the_burst_are_placed_on_the_grid() {
+    // A burst of three observations at 95, 105 and 230 ms, decisive evidence only at 6.2 s.
+    let obs = [
+        burst(95, 0),
+        burst(105, 0),
+        burst(230, 1),
+        io(500, 0, false, false),
+        io(6_200, 1, false, true),
+    ];
+    let mut s100 = LagSamples::default();
+    add_incident(&mut s100, &obs, Some(1), 100 * MS);
+    assert_eq!(s100.to_decisive.0, BTreeMap::from([(62, 1)]));
+    assert_eq!(s100.burst_span.0, BTreeMap::from([(3, 1)])); // ticks 0, 1, 2
+    assert_eq!((s100.with_burst, s100.burst_one_tick), (1, 0));
+    assert!((s100.burst_share_sum - 1.0 / 3.0).abs() < 1e-12);
+    // The decisive observation is far from the first tick at every length considered.
+    assert_eq!((s100.decisive_any, s100.with_decisive), (0, 1));
+
+    let mut s500 = LagSamples::default();
+    add_incident(&mut s500, &obs, Some(1), 500 * MS);
+    assert_eq!(s500.to_decisive.0, BTreeMap::from([(12, 1)]));
+    assert_eq!(s500.burst_span.0, BTreeMap::from([(1, 1)]));
+    assert_eq!(s500.burst_one_tick, 1);
+    assert!((s500.burst_share_sum - 1.0).abs() < 1e-12);
+
+    // An incident with no burst (the leak) adds nothing to the burst columns.
+    let leak = [io(0, 0, false, false), io(8_000, 0, true, true)];
+    let mut l = LagSamples::default();
+    add_incident(&mut l, &leak, None, 100 * MS);
+    assert_eq!((l.with_burst, l.burst_span.n()), (0, 0));
+    assert_eq!(l.to_decisive.0, BTreeMap::from([(80, 1)]));
+
+    let mut ms = MsSamples::default();
+    add_incident_ms(&mut ms, &obs, Some(1));
+    assert_eq!(ms.to_decisive.0, BTreeMap::from([(6_105, 1)]));
 }
 
 #[test]
@@ -334,6 +384,46 @@ fn partner_alarms_follow_the_documented_timing() {
         seen > 10,
         "seen {seen}: the test must meet each partner family"
     );
+}
+
+#[test]
+fn a_hard_incidents_decisive_evidence_is_at_least_six_seconds_after_its_first_observation() {
+    // HIDDEN-DESIGN.md section 4: phase-2 evidence lies in [6 s, 16 s) after onset, and a hard
+    // incident's burst is never decisive. A leak's first observation is its first heartbeat,
+    // 0.8 to 1.5 s after onset, so even there the gap is more than 4 s. No tick of 2 s or less
+    // holds both an incident's first observation and a decisive one, which is what the
+    // example's table reports as zero.
+    let mut n = 0;
+    for seed in SEEDS {
+        let (s, t) = with_truth(&StreamParams::new(seed));
+        let evs = stream_events(&s);
+        for inc in &t.incidents {
+            if group_of(inc).is_none() {
+                continue;
+            }
+            let obs = incident_obs(&evs, &t, inc);
+            let first = obs.iter().map(|o| o.at_ns).min().unwrap();
+            let d = obs
+                .iter()
+                .filter(|o| o.decisive)
+                .map(|o| o.at_ns)
+                .min()
+                .unwrap();
+            assert!(
+                d >= inc.onset_ns + 6_000 * MS,
+                "decisive {} ms after onset",
+                (d - inc.onset_ns) / MS
+            );
+            assert!(
+                d >= first + 4_000 * MS,
+                "decisive {} ms after the first",
+                (d - first) / MS
+            );
+            assert!(obs.iter().filter(|o| o.burst).all(|o| !o.decisive));
+            n += 1;
+        }
+    }
+    assert!(n > 20);
 }
 
 #[test]

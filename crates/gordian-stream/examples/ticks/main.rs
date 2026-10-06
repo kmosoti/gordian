@@ -6,7 +6,7 @@
 //! ```
 //!
 //! For tick lengths 100 ms, 500 ms and 2 s, over `--count` streams at the default parameters
-//! (regime schedule included), writes four CSV files into `--out-dir`:
+//! (regime schedule included), writes five CSV files into `--out-dir`:
 //!
 //! - `w1-ticks-hist.csv`: the histogram of events per tick (all, abnormal by the public rules)
 //!   and per (node, tick) cell, empty ticks and cells included.
@@ -17,6 +17,9 @@
 //!   the same lags in milliseconds (`tick_ms` 0).
 //! - `w1-ticks-decisive.csv`: per hard family and mode, the share of the incident's decisive
 //!   evidence that falls in the same tick as its first observation.
+//! - `w1-ticks-burst.csv`: per hard family and mode (the leak has no burst), the share of the
+//!   incident's first-moments burst that falls in the first observation's tick, the share of
+//!   incidents whose whole burst fits in one tick, and the number of ticks the burst spans.
 //!
 //! Streams here carry the hidden labels (tier, family, mode, partner, decisive evidence); nothing
 //! in this example is a policy input. The output is a pure function of the arguments. The
@@ -130,6 +133,9 @@ mod real {
         let mut decisive = String::from(
             "family,mode,tick_ms,incidents,with_decisive,mean_share_in_first_tick,share_any_in_first_tick,share_all_in_first_tick\n",
         );
+        let mut burst = String::from(
+            "family,mode,tick_ms,incidents,mean_share_in_first_tick,share_in_one_tick,mean_span_ticks,max_span_ticks\n",
+        );
         let groups: Vec<Group> = totals.lags[0].keys().copied().collect();
         for g in &groups {
             let fam = format!("{:?}", g.family);
@@ -188,6 +194,27 @@ mod real {
                         s.no_partner_alarm,
                     );
                 }
+                row(
+                    &mut lags,
+                    ms,
+                    "ticks",
+                    "first_obs_to_first_decisive",
+                    s.incidents,
+                    &s.to_decisive,
+                    s.no_decisive,
+                );
+                if s.with_burst > 0 {
+                    writeln!(
+                        burst,
+                        "{fam},{mode},{ms},{},{:.4},{:.4},{:.4},{}",
+                        s.with_burst,
+                        s.burst_share_sum / s.with_burst as f64,
+                        s.burst_one_tick as f64 / s.with_burst as f64,
+                        s.burst_span.mean(),
+                        s.burst_span.max()
+                    )
+                    .unwrap();
+                }
                 writeln!(
                     decisive,
                     "{fam},{mode},{ms},{},{},{:.4},{:.4},{:.4}",
@@ -209,6 +236,15 @@ mod real {
                 s0.incidents,
                 &m.to_abnormal,
                 s0.no_abnormal,
+            );
+            row(
+                &mut lags,
+                0,
+                "ms",
+                "first_obs_to_first_decisive",
+                s0.incidents,
+                &m.to_decisive,
+                s0.no_decisive,
             );
             if has_partner {
                 row(
@@ -236,7 +272,8 @@ mod real {
             && write(&out_dir, "w1-ticks-hist.csv", &hist)
             && write(&out_dir, "w1-ticks-summary.csv", &summary)
             && write(&out_dir, "w1-ticks-lags.csv", &lags)
-            && write(&out_dir, "w1-ticks-decisive.csv", &decisive);
+            && write(&out_dir, "w1-ticks-decisive.csv", &decisive)
+            && write(&out_dir, "w1-ticks-burst.csv", &burst);
         eprintln!(
             "ticks: {} streams from seed {seed_from}, {} events ({} abnormal), {} s of stream",
             totals.streams,
