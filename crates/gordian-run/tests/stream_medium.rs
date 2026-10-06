@@ -1699,3 +1699,264 @@ fn the_noticer_describes_itself() {
         "{text}"
     );
 }
+
+/// On real streams, at each frozen M3 tick length: an anomaly never holds an observation twice,
+/// never holds one earlier than its anchor, and the counters of proposals add up.
+#[test]
+fn on_real_streams_attachments_are_unique_and_never_precede_the_anchor() {
+    for tick in ["100", "500", "2000"] {
+        let Some(params) = m3_frozen(tick) else {
+            return;
+        };
+        for seed in [3u64, 5] {
+            let sp = stream_common::params(seed, 150);
+            let stream = generate(&sp);
+            let public = stream.public_info();
+            let all: Vec<Held> = stream
+                .events()
+                .iter()
+                .enumerate()
+                .map(|(i, (at, o))| Held {
+                    id: ObsId(i as u32),
+                    at: *at,
+                    abnormal: is_abnormal(o, &public.services),
+                    obs: o.clone(),
+                })
+                .collect();
+            let mut n =
+                MediumNoticer::new(params, RungConfig::default(), &public.services).unwrap();
+            let (mut items, mut next, mut now, mut notices) = (Vec::new(), 0, 0u64, 0u64);
+            while now < sp.duration_ns {
+                while next < all.len() && all[next].at.0 <= now {
+                    if all[next].abnormal {
+                        n.observe(&all[next]);
+                    }
+                    items.push(all[next].clone());
+                    next += 1;
+                }
+                notices += n.notice(Instant(now), &Store::with(items.clone())).len() as u64;
+                for a in n.anomalies() {
+                    let mut ids: Vec<u32> = a.attached.iter().map(|(_, o, _)| o.0).collect();
+                    assert!(
+                        ids.iter().all(|i| *i >= a.anchor.0),
+                        "tick {tick} seed {seed}"
+                    );
+                    let len = ids.len();
+                    ids.sort_unstable();
+                    ids.dedup();
+                    assert_eq!(ids.len(), len, "tick {tick} seed {seed}: {:?}", a.attached);
+                }
+                for id in n.retirable(Instant(now)) {
+                    n.retire(id);
+                }
+                now += 500 * MS;
+            }
+            let s = n.stats();
+            assert!(notices > 0);
+            assert_eq!(
+                s.notice_proposals,
+                notices + s.duplicate_notices + s.lost_anchors
+            );
+            assert_eq!((s.lost_anchors, s.step_errors), (0, 0));
+            assert!(s.retire_proposals > 0);
+        }
+    }
+}
+
+/// An anomaly made by one service's emitter but sited at another (its anchor is another
+/// service's alarm) retires when that emitter's service has been quiet for the hold.
+#[test]
+fn an_anomaly_sited_elsewhere_retires_with_the_emitter_that_made_it() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let obs = vec![
+        (1_510, counter(dep, CounterName::ErrorRate, 80)),
+        (1_520, counter(site, CounterName::ErrorRate, 80)),
+        (1_530, counter(site, CounterName::Latency, 80)),
+    ];
+    let mut d = Drive::new(onset_only(), &p);
+    d.play(&obs, 12_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.site, ServiceId(dep));
+    assert_eq!(d.retirable.len(), 1, "{:?}", d.retirable);
+    assert_eq!(d.retirable[0].1, vec![d.notices[0].1.id]);
+    assert!(d.noticer.stats().retire_proposals >= 1);
+}
+
+/// The rung's score and its peak, as the rung computes them, are what the medium reports.
+#[test]
+fn the_medium_reports_the_rungs_score_and_its_peak() {
+    use gordian_run::stream::arms::noticer::Scorer;
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let mut d = Drive::new(onset_only(), &p);
+    d.play(&burst(site, 1_000), 2_000, &p);
+    let id = d.notices[0].1.id;
+    let now = Instant(2_000 * MS);
+    let mut scorer = Scorer::new(&RungConfig::default(), p.services.len());
+    for _ in 0..4 {
+        scorer.saw_abnormal();
+    }
+    let tracked = d.noticer.tracked(id).unwrap().clone();
+    let s = d.noticer.score(id, now);
+    assert_eq!(s, scorer.score(&tracked, now));
+    assert!(s.is_finite() && s != 0.0 && s != 1.0 && s != -1.0, "{s}");
+    assert_eq!(d.noticer.score(9_999, now), f64::NEG_INFINITY);
+    d.noticer.refresh(now);
+    assert_eq!(
+        d.noticer.tracked(id).unwrap().peak_score,
+        s.max(tracked.peak_score)
+    );
+    assert!(d.noticer.tracked(id).unwrap().peak_score > tracked.peak_score);
+}
+
+/// Once the bill refuses it, the medium runs no tick and makes no notice for the segment.
+#[test]
+fn after_a_refusal_the_medium_runs_no_tick() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let mut n = MediumNoticer::new(onset_only(), RungConfig::default(), &p.services).unwrap();
+    n.refused();
+    let items: Vec<Held> = burst(site, 1_000)
+        .into_iter()
+        .enumerate()
+        .map(|(i, (ms, o))| held(i as u32, ms, o, &p))
+        .collect();
+    for h in &items {
+        n.observe(h);
+    }
+    assert!(
+        n.notice(Instant(5_000 * MS), &Store::with(items))
+            .is_empty()
+    );
+    assert_eq!(n.ledger().total_ticks, 0);
+}
+
+/// An abnormal observation that joined no anomaly is offered to a notice made while it is kept,
+/// and it is kept until it is more than 4 s old at the end of a step (`REOFFER_NS`).
+#[test]
+fn an_unattached_alarm_is_reoffered_for_four_seconds_only() {
+    let p = public();
+    let ramp_only = MediumParams {
+        onset: false,
+        ramp_tau_ns: 60_000 * MS,
+        ramp_threshold: 5.0,
+        ramp_lookback_ns: 20_000 * MS,
+        ..MediumParams::default()
+    };
+    // A ramp at service 3 every 1 s from 1 s, noticed at the fifth reading; one error-rate alarm
+    // at service 3, `gap` ms before the step that notices the ramp.
+    let ramp: Vec<(u64, Observation)> = (0..8)
+        .map(|i| {
+            (
+                1_000 + 1_000 * i,
+                counter(3, CounterName::Saturation, 22 + 2 * i),
+            )
+        })
+        .collect();
+    let mut d = Drive::new(ramp_only, &p);
+    d.play(&ramp, 12_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    let at = d.notices[0].0;
+    // Unattached alarms are pruned at the end of each step (every 500 ms here), when 4 s old
+    // or more strictly: one exactly 4 s old at the previous step survives into this one.
+    for (gap, joined) in [(3_500u64, true), (4_500, true), (5_000, false)] {
+        let mut obs = ramp.clone();
+        obs.push((at - gap, counter(3, CounterName::ErrorRate, HIGH + 10)));
+        obs.sort_by_key(|(t, _)| *t);
+        let alarm = obs.iter().position(|(t, _)| *t == at - gap).unwrap() as u32;
+        let mut d = Drive::new(ramp_only, &p);
+        d.play(&obs, 12_000, &p);
+        let n = &d.notices[0].1;
+        assert_eq!(d.notices[0].0, at, "gap {gap}");
+        assert_eq!(
+            n.attached.contains(&ObsId(alarm)),
+            joined,
+            "gap {gap}: {n:?}"
+        );
+    }
+}
+
+/// The lookbacks and windows the graph gives in time are the documented ones: the emitter cites
+/// the burst path's lookback plus the confirmation's delay; the cluster merge's window covers
+/// the delay plus two ticks and its lookback the delay plus one; the confirmation relay's
+/// lookback the burst's plus the delay.
+#[test]
+fn the_graphs_lookbacks_and_windows_are_the_documented_ones() {
+    use gordian_medium::Archetype;
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    let base = MediumParams {
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 20 * MS,
+        burst_lookback_ns: 100 * MS,
+        lookback_ns: 0,
+        merge_window_ns: 30 * MS,
+        ..MediumParams::default()
+    };
+    // (params, emitter lookback, merge window us, merge lookback, relay lookback), 100 ms ticks.
+    let cases = [
+        (base, 1.0, 200_000.0, 2.0, None),
+        (
+            MediumParams {
+                burst_confirm: Confirm::All,
+                confirm_delay_ticks: 2,
+                ..base
+            },
+            3.0,
+            400_000.0,
+            4.0,
+            Some(3.0),
+        ),
+        (
+            MediumParams {
+                burst_confirm: Confirm::All,
+                confirm_delay_ticks: 1,
+                tick_ns: 500 * MS,
+                ..base
+            },
+            2.0,
+            1_500_000.0,
+            3.0,
+            Some(2.0),
+        ),
+    ];
+    for (i, (params, emit_lb, merge_w, merge_lb, relay_lb)) in cases.into_iter().enumerate() {
+        let (s, layout) = spec(&params, &p.services).unwrap();
+        let emitter = &s.cells[layout.notice[0].0 as usize];
+        assert_eq!(emitter.params[2], emit_lb, "case {i}: emitter lookback");
+        let merges: Vec<_> = s
+            .cells
+            .iter()
+            .filter(|c| {
+                c.archetype == Archetype::Coincidence && c.params[4] == 2.0 && c.params[0] == 1.0
+            })
+            .collect();
+        assert_eq!(merges.len(), p.services.len(), "case {i}");
+        assert_eq!(merges[0].params[1], merge_w, "case {i}: merge window");
+        assert_eq!(merges[0].params[3], merge_lb, "case {i}: merge lookback");
+        assert_eq!(
+            merges[0].params[7], 30_000.0,
+            "case {i}: merge sub-tick lookback"
+        );
+        let relays: Vec<_> = s
+            .synapses
+            .iter()
+            .filter(|y| y.delay_ticks > 0)
+            .map(|y| &s.cells[y.to.0 as usize])
+            .collect();
+        match relay_lb {
+            None => assert!(relays.is_empty(), "case {i}"),
+            Some(lb) => {
+                assert_eq!(relays.len(), p.services.len(), "case {i}");
+                assert!(
+                    relays.iter().all(|c| c.params[3] == lb),
+                    "case {i}: relay lookback"
+                );
+            }
+        }
+    }
+}
