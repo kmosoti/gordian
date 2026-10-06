@@ -54,7 +54,7 @@ def main():
     pd.DataFrame(status, columns=["run_id", "driver_exit", "wall_s", "waits"]).to_csv(C.OUT / "b1-driver-log.csv", index=False)
 
     index, shas, refusals = [], [], []
-    dirs = sorted(p for p in C.RUNS.iterdir() if p.is_dir() and (p.name.startswith("b1-") or p.name.startswith("xcheck-r6-"))
+    dirs = sorted(p for p in C.RUNS.iterdir() if p.is_dir() and (p.name.startswith("b1-") or p.name.startswith("xcheck"))
                   and (p / "manifest.json").exists())
     for d in dirs:
         man = json.load(open(d / "manifest.json"))
@@ -111,16 +111,23 @@ def main():
     print(f"check 1: {len(reg)} arms replayed, results identical {int(reg.results_identical.sum())}, "
           f"incidents identical {int(reg.incidents_identical.sum())}, arms in R6's record {len(want)}")
     assert reg.results_identical.all() and reg.incidents_identical.all()
+    # The same replay with the binary of the final tree (b1_gate.py wrote b1-regression-final.csv),
+    # and R10's held-out run, which has the notice oracle R6's has not (b1-regression-r10.csv).
+    for name in ("b1-regression-final.csv", "b1-regression-r10.csv"):
+        again = pd.read_csv(C.OUT / name)
+        print(f"check 1 ({name}): {len(again)} arms, results identical {int(again.results_identical.sum())}, "
+              f"incidents identical {int(again.incidents_identical.sum())}")
+        assert again.results_identical.all() and again.incidents_identical.all()
 
     # 2. seeds
     tune = ix[ix.run_id == C.run_id("tune")]
-    held = ix[ix.run_id == C.run_id("heldout")]
+    held = ix[ix.run_id.isin([C.run_id("heldout"), C.run_id("heldout-extra")])]
     assert set(zip(tune.seed_first, tune.seed_last)) == {(10000, 10099)}, "tuning seeds"
     assert set(zip(held.seed_first, held.seed_last)) == {(20000, 20199)}, "held-out seeds"
     print("check 2: tuning 10000-10099, held-out 20000-20199: disjoint")
 
     # 3. incidents identical across arms of a run
-    for name in (C.run_id("tune"), C.run_id("heldout")):
+    for name in (C.run_id("tune"), C.run_id("heldout"), C.run_id("heldout-extra")):
         base = None
         for a in sorted(x.name for x in (C.RUNS / name).iterdir() if x.is_dir()):
             inc = pd.read_csv(C.RUNS / name / a / "incidents.csv")[["seed", "incident", "tier", "family", "critical"]]

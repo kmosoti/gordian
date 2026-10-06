@@ -1,0 +1,7 @@
+run,arm,results_identical,incidents_identical
+r10-heldout-b5-rho0.7,never_escalate,True,True
+r10-heldout-b5-rho0.7,notice_rung_privileged,True,True
+r10-heldout-b5-rho0.7,notice_win_w40_n256_privileged,True,True
+r10-heldout-b5-rho0.7,oracle_escalation_privileged,True,True
+r10-heldout-b5-rho0.7,sel_rung_privileged,True,True
+r10-heldout-b5-rho0.7,sel_win_w40_n256_privileged,True,True

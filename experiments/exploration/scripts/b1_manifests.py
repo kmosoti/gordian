@@ -7,6 +7,8 @@ Usage:
   b1_manifests.py xcheck-final   the same replay again (`xcheck2-`), with the binary of the final tree
   b1_manifests.py xcheck-r10     R10's held-out manifest at b = 5, rho = 0.7 (62 arms of R6 plus the
                             notice oracle's, six arms), replayed the same way
+  b1_manifests.py extra     b = 5, rho = 0.7, the 200 held-out streams: the selection oracle under the
+                            rung's noticer at z = 1 and z = 0.5 (sensitivity only, run after the table)
   b1_manifests.py tune      b = 5, rho = 0.7, the 100 tuning streams (10000-10099): the selection
                             oracle under every noticer configuration of the grid
   b1_manifests.py heldout   b = 5, rho = 0.7, the 200 held-out streams (20000-20199): the selection
@@ -85,11 +87,11 @@ def xcheck(source="r6", tag=""):
     print(out)
 
 
-def sweep(stage, seeds, run_seed, experiment):
+def sweep(stage, seeds, run_seed, experiment, grid=None):
     d = C.sel_delay_s()
     policy = {"policy": C.SEL_POLICY, "delay_ns": d * C.NS}
     arms, noticers = [], {}
-    for name, kind, p in C.grid():
+    for name, kind, p in grid or C.grid():
         arm = C.arm_name(name)
         arms.append((arm, policy))
         noticers[arm] = C.spec(kind, **p)
@@ -108,6 +110,8 @@ def main():
         sweep("tune", C.TUNING_SEEDS, 11_100, "exploration-b1-tuning")
     elif stage == "heldout":
         sweep("heldout", C.HELDOUT_SEEDS, 11_200, "exploration-b1-heldout")
+    elif stage == "extra":
+        sweep("heldout-extra", C.HELDOUT_SEEDS, 11_300, "exploration-b1-heldout-extra", C.extra_grid())
     else:
         sys.exit(__doc__)
 

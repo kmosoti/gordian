@@ -88,14 +88,36 @@ def main():
     table = rows(primary)
     table.to_csv(C.OUT / "b1-noticers-table.csv", index=False)
     sens = rows([n for n, _, _ in C.grid()])
-    sens["primary"] = sens["config"].isin(primary)
-    sens.to_csv(C.OUT / "b1-noticers-sensitivity.csv", index=False)
-
     lat = []
     for name, _, _ in C.grid():
         t = notice_latency(run.arms[C.arm_name(name)])
         t.insert(0, "config", name)
         lat.append(t)
+    # The rung's noticer at z = 1 and 0.5, run after the table was made (sensitivity only). Its own
+    # run, the same 200 streams: the resamples are the same draws (the seed and the number of
+    # streams are the same), so its intervals are comparable with the others'.
+    extra_dir = C.RUNS / C.run_id("heldout-extra")
+    if extra_dir.exists():
+        xrun = load_stream_run(extra_dir)
+        assert [int(s) for s in next(iter(xrun.arms.values())).results["seed"]] == seeds
+        xm = B.Measures(xrun)
+        xpts, xci = xm.points(), xm.boot(C.BOOT_SEED, C.N_RESAMPLES)
+        extra = []
+        for name, _, _ in C.extra_grid():
+            i = xm.row[C.arm_name(name)]
+            row = {"noticer": label(name), "config": name, "arm": C.arm_name(name)}
+            for key in B.MEASURES:
+                row[key] = float(xpts[key][i])
+                row[f"{key}_lo"] = float(xci[key][0][i])
+                row[f"{key}_hi"] = float(xci[key][1][i])
+            extra.append(row)
+            t = notice_latency(xrun.arms[C.arm_name(name)])
+            t.insert(0, "config", name)
+            lat.append(t)
+        # in order of the rung's own line: z = 3, 2, 1, 0.5 first, then the others
+        sens = pd.concat([sens.iloc[:2], pd.DataFrame(extra), sens.iloc[2:]], ignore_index=True)
+    sens["primary"] = sens["config"].isin(primary)
+    sens.to_csv(C.OUT / "b1-noticers-sensitivity.csv", index=False)
     pd.concat(lat).to_csv(C.OUT / "b1-noticers-latency.csv", index=False)
 
     def md(df, cols):

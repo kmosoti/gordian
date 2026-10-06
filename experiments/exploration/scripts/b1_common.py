@@ -110,6 +110,19 @@ def grid():
 
 GRID = {name: (kind, p) for name, kind, p in grid()}
 
+# Two more thresholds of the rung's own noticer, R10's sweep values below 2 (`r10_common.SWEEP_Z`),
+# run on the held-out streams after the table was made, to show the rung's own line between the
+# default and a noticer that notices everything. Sensitivity only: nothing was chosen from them,
+# they are not part of the tuning grid, and the four rows of the table were fixed before they ran.
+EXTRA_Z = [1.0, 0.5]
+
+
+def extra_grid():
+    return [(f"rung_z{z:g}", "rung", {"z": z}) for z in EXTRA_Z]
+
+
+GRID.update({name: (kind, p) for name, kind, p in extra_grid()})
+
 
 def arm_name(name):
     """The arm's name in a manifest: the selection oracle under the noticer `name`."""
