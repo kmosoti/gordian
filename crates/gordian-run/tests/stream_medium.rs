@@ -934,3 +934,68 @@ fn dump_public_observations() {
     }
     std::fs::write(&out, text).expect("write the dump");
 }
+
+// ---- the frozen M2 media, pinned before M3 changes the medium crate
+
+/// FNV-1a 64 over text.
+fn fnv(h: &mut u64, text: &str) {
+    for b in text.as_bytes() {
+        *h ^= u64::from(*b);
+        *h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+}
+
+/// The frozen media of M2 (`m2-selected.json`), by tick length in milliseconds.
+fn m2_frozen(tick: &str) -> MediumParams {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../experiments/exploration/m2-selected.json"
+    );
+    let sel: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let NoticerSpec::Medium(p) =
+        serde_json::from_value(sel["ticks"][tick]["noticer"].clone()).unwrap()
+    else {
+        panic!("not a medium");
+    };
+    p
+}
+
+/// What the frozen M2 media do on two short streams under the selection oracle (every notice
+/// and retirement, the trajectory, and the medium's charge on the bill), at each tick length.
+fn m2_frozen_digest() -> (u64, usize) {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut notices = 0;
+    for tick in ["100", "500", "2000"] {
+        for seed in [3u64, 5] {
+            let r = medium_arm_record(seed, m2_frozen(tick));
+            notices += r
+                .notice_log
+                .iter()
+                .filter(|e| e.kind == NoticeKind::Notice)
+                .count();
+            fnv(&mut h, &format!("{:?}", r.notice_log));
+            fnv(&mut h, &format!("{:?}", r.trajectory));
+            let charged: u64 = r
+                .bill
+                .by_phase(Resource::Compute)
+                .filter(|(phase, _)| *phase == Phase::Component(MEDIUM_COMPONENT))
+                .map(|(_, ns)| ns)
+                .sum();
+            fnv(&mut h, &charged.to_string());
+        }
+    }
+    (h, notices)
+}
+
+/// The digest M2's frozen media produced on M2's merged code, before any M3 change (commit
+/// "Pin M1b's bytes as digests before sub-tick pruning changes anything"): with sub-tick pruning
+/// off, M3's medium must reproduce it.
+const M2_FROZEN_DIGEST: u64 = 0xbdee_d209_4069_7150;
+
+#[test]
+fn the_frozen_m2_media_notice_as_they_did_with_sub_tick_pruning_off() {
+    let (digest, notices) = m2_frozen_digest();
+    eprintln!("m2 frozen digest {digest:#018x}, {notices} notices");
+    assert!(notices > 10, "not vacuous");
+    assert_eq!(digest, M2_FROZEN_DIGEST);
+}
