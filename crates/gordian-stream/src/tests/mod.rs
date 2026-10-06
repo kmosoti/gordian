@@ -12,6 +12,7 @@ mod reasoner;
 mod recurrence;
 mod soundness;
 mod structure;
+mod ticks;
 mod tiers;
 
 use crate::oracle::{StreamTruth, reveal};
