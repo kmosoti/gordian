@@ -1,0 +1,551 @@
+//! The noticing seam (work item B1): what turns held observations into noticed anomalies.
+//!
+//! The shared cheap rung ([`super::rung`]) used to bundle four things: noticing (which abnormal
+//! observations make an anomaly worth attention, and where it is anchored), attaching (which
+//! observations belong to a noticed anomaly), concluding (the first world's components and the
+//! shared rule) and declaring. This file separates the first from the rest. A [`Noticer`] is
+//! given the public view and yields **noticed anomalies** ([`Notice`]: anchor, site, attached
+//! observations) and **retirements**; everything downstream of a notice (the working state, the
+//! components, the shared rule, declaring, the context builders, the escalation rules) is
+//! [`super::rung::Rung`]'s and does not depend on which noticer produced it.
+//!
+//! # What a noticer reads
+//!
+//! Each observation the stream delivers, with the public rules' verdict on it ([`Held`]); the
+//! observations the rung holds ([`Store`]), at the moment it is asked to notice; the public graph
+//! (given at construction); and the instant. Nothing else: no tier, no label, no incident, no
+//! decisive evidence, no reasoner answer. This file is held to the textual ban of
+//! `scripts/check-no-oracle.sh` like every file under `arms/`.
+//!
+//! # What a noticer owns
+//!
+//! The anomalies it tracks ([`Tracked`]): their anchor, site, attached observations and the
+//! evidence digest's content, from the first abnormal observation attached to them. A tracked
+//! anomaly that has been noticed ([`Tracked::noticed_at`]) is one the rung then works on. The
+//! rung owns the rest (reviews, probes, escalations, declarations) and tells the noticer when an
+//! anomaly is finished with ([`Noticer::retire`]).
+//!
+//! # The noticers built
+//!
+//! | Id | What it does |
+//! |---|---|
+//! | `rung` ([`super::noticer_rung::RungNoticer`]) | the rung's own noticing, unchanged: candidates grouped by the public graph, each scored by a z-score of its recent abnormal count against a baseline learned from the stream so far, noticed when the score crosses `notice_z`, then re-anchored on the densest burst |
+//! | `change_triggered` ([`super::noticer_change::ChangeTriggered`]) | a notice on the first abnormal observation at a node after `quiet_ns` without one there, anchored on it |
+//! | `earliest_anchor` ([`super::noticer_rung::EarliestAnchor`]) | the rung's noticer with its anchor moved to the earliest abnormal observation at the anomaly's site within `lookback_ns` before the rung's anchor |
+//!
+//! # The record
+//!
+//! Every notice and every retirement is recorded as a [`NoticeLogEntry`] (anchor, site, the
+//! instants, the noticer's id) and reaches the run output through the harness. The log holds
+//! public information only; it is scored against the hidden record by the evaluator, elsewhere.
+
+use super::rung::{Held, RungConfig, Store};
+use gordian_core::Instant;
+use gordian_stream::{Diagnosis, ObsId};
+use gordian_world::graph::dependents_mask;
+use gordian_world::physics::{SymptomTag, signature};
+use gordian_world::{Observation, Service, ServiceId};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
+
+/// Which noticer an arm uses, and its parameters. Written to a manifest as an object tagged by
+/// `noticer`; the default (`rung` with no override) is never written, so a manifest written before
+/// noticers existed is the same text as one written now.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "noticer", rename_all = "snake_case", deny_unknown_fields)]
+pub enum NoticerSpec {
+    /// The rung's own noticing. `notice_z` replaces the rung's `notice_z` for this noticer when
+    /// given (the sweep of work item R10, spelled per arm).
+    Rung {
+        /// The z-score at which a candidate anomaly is noticed, if not the rung's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice_z: Option<f64>,
+    },
+    /// A notice on the first abnormal observation at a node after a quiet period.
+    ChangeTriggered {
+        /// How long a node must have had no abnormal observation, nanoseconds.
+        quiet_ns: u64,
+    },
+    /// The rung's noticer with the anchor moved earlier.
+    EarliestAnchor {
+        /// How far before the rung's anchor an abnormal observation at the site may be, nanoseconds.
+        lookback_ns: u64,
+    },
+}
+
+impl Default for NoticerSpec {
+    fn default() -> Self {
+        Self::Rung { notice_z: None }
+    }
+}
+
+impl NoticerSpec {
+    /// Whether this is the default, which is not written to a manifest.
+    pub fn is_default(&self) -> bool {
+        matches!(self, Self::Rung { notice_z: None })
+    }
+
+    /// The noticer's id, as the run output writes it.
+    pub fn id(&self) -> &'static str {
+        match self {
+            Self::Rung { .. } => RUNG_ID,
+            Self::ChangeTriggered { .. } => CHANGE_ID,
+            Self::EarliestAnchor { .. } => EARLIEST_ID,
+        }
+    }
+
+    /// Check the parameters.
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::Rung {
+                notice_z: Some(z), ..
+            } if !z.is_finite() => Err("noticer rung: notice_z must be finite".to_owned()),
+            _ => Ok(()),
+        }
+    }
+}
+
+/// The id of the rung's own noticer.
+pub const RUNG_ID: &str = "rung";
+/// The id of the change-triggered noticer.
+pub const CHANGE_ID: &str = "change_triggered";
+/// The id of the earliest-anchor noticer.
+pub const EARLIEST_ID: &str = "earliest_anchor";
+
+/// A noticed anomaly, as a noticer yields it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Notice {
+    /// The anomaly's id (dense from zero in order of creation; unique within a noticer).
+    pub id: u32,
+    /// Where the anomaly is anchored: the observation a declaration and a question are about.
+    pub anchor: ObsId,
+    /// When the anchor was emitted.
+    pub anchor_at: Instant,
+    /// The service the anomaly is about.
+    pub site: ServiceId,
+    /// The abnormal observations attached to it now, in delivery order, the anchor first.
+    pub attached: Vec<ObsId>,
+}
+
+/// What the harness writes for a notice or a retirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeKind {
+    /// The anomaly was noticed.
+    Notice,
+    /// The anomaly was retired: the rung is finished with it.
+    Retire,
+}
+
+impl NoticeKind {
+    /// The word written to the run output.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Notice => "notice",
+            Self::Retire => "retire",
+        }
+    }
+}
+
+/// One line of the notice record: public information only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoticeLogEntry {
+    /// A notice or a retirement.
+    pub kind: NoticeKind,
+    /// The noticer that tracked the anomaly.
+    pub noticer: &'static str,
+    /// The anomaly's id.
+    pub anomaly: u32,
+    /// Its anchor.
+    pub anchor: ObsId,
+    /// Its site.
+    pub site: ServiceId,
+    /// When its anchor was emitted.
+    pub anchor_at: Instant,
+    /// The instant of the step at which it was noticed or retired.
+    pub at: Instant,
+}
+
+/// What a noticer is: the part of the rung that decides what is noticed and where it is anchored.
+///
+/// One instance per segment. The rung calls, in this order at each step: [`Noticer::observe`]
+/// for each delivered passive observation, [`Noticer::notice`] once if the step may do work, and
+/// later [`Noticer::retirable`] and [`Noticer::retire`]. A noticer is deterministic: a function of
+/// what it has been given.
+pub trait Noticer {
+    /// The noticer's id.
+    fn id(&self) -> &'static str;
+
+    /// Take in one delivered passive observation, with the public rules' verdict on it
+    /// ([`Held::abnormal`]). Returns the id of the anomaly it was attached to, if any.
+    fn observe(&mut self, held: &Held) -> Option<u32>;
+
+    /// The anomalies noticed at this step, in order, now marked noticed. `store` holds what has
+    /// been delivered, including the observations just taken in.
+    fn notice(&mut self, now: Instant, store: &Store) -> Vec<Notice>;
+
+    /// Every anomaly the noticer tracks, noticed or not, in order of creation.
+    fn anomalies(&self) -> &[Tracked];
+
+    /// The anomaly's score now: how strongly the evidence about it stands out. Meaningful for
+    /// every noticer (the rung's z-score of the abnormal count over the score window), so that a
+    /// rule that reads it works with any of them.
+    fn score(&self, id: u32, now: Instant) -> f64;
+
+    /// Bring the highest score each noticed anomaly has had up to date with `now`.
+    fn refresh(&mut self, now: Instant);
+
+    /// The noticed anomalies that have had no abnormal observation for the quiet time, by id: the
+    /// ones the noticer holds ready to retire. The rung may decline (a call or a probe in flight).
+    fn retirable(&self, now: Instant) -> Vec<u32>;
+
+    /// The rung is finished with anomaly `id`: forget it.
+    fn retire(&mut self, id: u32);
+
+    /// The anomaly `id`, if tracked.
+    fn tracked(&self, id: u32) -> Option<&Tracked> {
+        self.anomalies().iter().find(|a| a.id == id)
+    }
+}
+
+/// One tracked anomaly: its anchor, site and attached evidence, from public observations.
+#[derive(Debug, Clone)]
+pub struct Tracked {
+    /// Dense from zero in order of creation.
+    pub id: u32,
+    /// The service it is anchored at.
+    pub site: ServiceId,
+    /// The dependents of the site, by service index.
+    pub region: Vec<bool>,
+    /// Its anchor.
+    pub anchor: ObsId,
+    /// When the anchor was emitted.
+    pub anchor_at: Instant,
+    /// The abnormal observations attached to it: instant, id, service.
+    pub attached: Vec<(Instant, ObsId, ServiceId)>,
+    /// For each attached observation, its symptom tags and whether it is a changed snapshot, so
+    /// that the evidence can be rebuilt when the anchor moves.
+    sigs: Vec<(Vec<SymptomTag>, bool)>,
+    /// The symptom tags of what is attached (service forgotten): the evidence digest's content.
+    tags: BTreeSet<SymptomTag>,
+    snapshot_changed: bool,
+    services: BTreeSet<ServiceId>,
+    /// When the last abnormal observation was attached to it.
+    pub last_abnormal_at: Instant,
+    /// When the last abnormal observation at its own site was attached.
+    last_site_at: Instant,
+    /// When the current burst began at the site: its first abnormal observation after a silence
+    /// of the burst gap. Propagation to dependents is measured from here.
+    burst_open_at: Instant,
+    /// When it was noticed, once it has been.
+    pub noticed_at: Option<Instant>,
+    /// The highest score it has had since it was noticed.
+    pub peak_score: f64,
+}
+
+impl Tracked {
+    /// A new anomaly with `held` (about `service`) as its first attached observation.
+    pub fn new(
+        id: u32,
+        held: &Held,
+        service: ServiceId,
+        services: &[Service],
+        gap_ns: u64,
+    ) -> Self {
+        let mut anomaly = Self {
+            id,
+            site: service,
+            region: dependents_mask(services, service),
+            anchor: held.id,
+            anchor_at: held.at,
+            attached: Vec::new(),
+            sigs: Vec::new(),
+            tags: BTreeSet::new(),
+            snapshot_changed: false,
+            services: BTreeSet::new(),
+            last_abnormal_at: held.at,
+            last_site_at: held.at,
+            burst_open_at: held.at,
+            noticed_at: None,
+            peak_score: f64::NEG_INFINITY,
+        };
+        anomaly.note_attached(held, service, gap_ns);
+        anomaly
+    }
+
+    /// The instant `at` relative to the anchor, zero before it.
+    pub fn rel(&self, at: Instant) -> Instant {
+        Instant(at.0.saturating_sub(self.anchor_at.0))
+    }
+
+    /// Whether the anomaly's anchor or one of its attached observations is `id`.
+    pub fn owns(&self, id: ObsId) -> bool {
+        id == self.anchor || self.attached.iter().any(|(_, o, _)| *o == id)
+    }
+
+    /// The tags and snapshot flag of one observation.
+    fn signature_of(held: &Held) -> (Vec<SymptomTag>, bool) {
+        let snapshot = matches!(held.obs, Observation::Snapshot { .. });
+        let tags = if snapshot {
+            Vec::new()
+        } else {
+            signature(&[(held.at, held.obs.clone())])
+        };
+        (tags, snapshot)
+    }
+
+    /// Attach `held`, an abnormal observation about `service`.
+    pub fn note_attached(&mut self, held: &Held, service: ServiceId, burst_gap_ns: u64) {
+        let (tags, snapshot) = Self::signature_of(held);
+        self.attached.push((held.at, held.id, service));
+        self.last_abnormal_at = held.at;
+        if service == self.site {
+            if held.at.0 >= self.last_site_at.0.saturating_add(burst_gap_ns)
+                || self.attached.len() == 1
+            {
+                self.burst_open_at = held.at;
+            }
+            self.last_site_at = held.at;
+        }
+        self.services.insert(service);
+        self.snapshot_changed |= snapshot;
+        self.tags.extend(tags.iter().copied());
+        self.sigs.push((tags, snapshot));
+    }
+
+    /// Recompute what is derived from `attached` and `sigs` after they changed at the front.
+    fn rebuild(&mut self) {
+        self.tags = self
+            .sigs
+            .iter()
+            .flat_map(|(t, _)| t.iter().copied())
+            .collect();
+        self.snapshot_changed = self.sigs.iter().any(|(_, snap)| *snap);
+        self.services = self.attached.iter().map(|(_, _, s)| *s).collect();
+    }
+
+    /// Move the anchor to the start of the densest burst among the attached observations: the
+    /// attached observation with the most attached observations in the `cluster_ns` from it (the
+    /// earliest on a tie), and make its service the anomaly's site.
+    ///
+    /// An anomaly's first attached observation may be background (an isolated blip or stray at
+    /// the same service, or at a service the site depends on, a moment before the incident
+    /// began). The anchor is what a declaration and a question are *about*, and the site is what
+    /// the region is built from, so both must belong to the thing noticed and not to whatever
+    /// happened to come first. A real incident begins with a burst (several abnormal observations
+    /// within a few hundred milliseconds); a stray is alone. Observations before the new anchor
+    /// are dropped from the anomaly's evidence. Public statistics only.
+    pub fn reanchor(&mut self, cluster_ns: u64, services: &[Service]) {
+        let density = |k: usize| {
+            let from = self.attached[k].0.0;
+            self.attached[k..]
+                .iter()
+                .take_while(|(t, _, _)| t.0 <= from.saturating_add(cluster_ns))
+                .count()
+        };
+        let mut chosen = 0;
+        let mut best = 0;
+        for k in 0..self.attached.len() {
+            let d = density(k);
+            if d > best {
+                best = d;
+                chosen = k;
+            }
+        }
+        if chosen == 0 {
+            return;
+        }
+        self.attached.drain(..chosen);
+        self.sigs.drain(..chosen);
+        self.rebuild();
+        self.anchor = self.attached[0].1;
+        self.anchor_at = self.attached[0].0;
+        self.site = self.attached[0].2;
+        self.region = dependents_mask(services, self.site);
+        self.last_site_at = self
+            .attached
+            .iter()
+            .rev()
+            .find(|(_, _, s)| *s == self.site)
+            .map_or(self.anchor_at, |(t, _, _)| *t);
+        self.burst_open_at = self.anchor_at;
+    }
+
+    /// Put `earlier` (abnormal observations about the anomaly's site, oldest first, all before the
+    /// anchor) in front of the attached evidence and anchor the anomaly on the first of them. The
+    /// site, the region and the burst timing are the anomaly's own and do not move.
+    pub fn prepend(&mut self, earlier: &[Held]) {
+        let Some(first) = earlier.first() else {
+            return;
+        };
+        let front: Vec<(Instant, ObsId, ServiceId)> =
+            earlier.iter().map(|h| (h.at, h.id, self.site)).collect();
+        let sigs: Vec<(Vec<SymptomTag>, bool)> = earlier.iter().map(Self::signature_of).collect();
+        self.attached.splice(0..0, front);
+        self.sigs.splice(0..0, sigs);
+        self.rebuild();
+        self.anchor = first.id;
+        self.anchor_at = first.at;
+    }
+
+    /// The observation a declaration of `diagnosis` is anchored on: the first attached abnormal
+    /// observation at the diagnosed site if there is one, else the anomaly's anchor. The rule
+    /// names the site from the evidence, and the evidence at that site is what the declaration
+    /// is about.
+    pub fn anchor_for(&self, diagnosis: &Diagnosis) -> ObsId {
+        diagnosis
+            .and_then(|h| {
+                self.attached
+                    .iter()
+                    .find(|(_, _, s)| *s == h.site)
+                    .map(|(_, o, _)| *o)
+            })
+            .unwrap_or(self.anchor)
+    }
+
+    /// A digest of the evidence about the anomaly: its symptom tags and the number of services
+    /// they are about. FNV-1a over their text, so it is stable. A repeated heartbeat does not
+    /// change it; a new kind of symptom, or a new service, does.
+    pub fn digest(&self) -> u64 {
+        let mut h = 0xCBF2_9CE4_8422_2325u64;
+        let mut feed = |bytes: &[u8]| {
+            for b in bytes {
+                h = (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01B3);
+            }
+        };
+        for t in &self.tags {
+            feed(format!("{t:?};").as_bytes());
+        }
+        feed(
+            format!(
+                "snapshot={};services={}",
+                self.snapshot_changed,
+                self.services.len()
+            )
+            .as_bytes(),
+        );
+        h
+    }
+}
+
+/// Which tracked anomaly an abnormal observation about `service` at `at` belongs to, if any (an
+/// index into `anomalies`).
+///
+/// An observation about the site of an anomaly that is still speaking (its last observation at
+/// its site within two burst gaps) is that anomaly's, even if it falls in another site's burst
+/// window: a site's heartbeat is not propagation. Otherwise, propagation: an observation about a
+/// dependent of an anomaly's site, within the burst window of the burst that began at that site,
+/// belongs to that burst; when several anomalies qualify, the one whose burst began most
+/// recently. Last, the same site's stale anomaly. The orders matter: letting a stale isolated
+/// observation at the dependent swallow the dependent's share of someone else's burst, measuring
+/// the window from an anomaly's first observation, or letting another incident's burst window
+/// take a site's own heartbeat, each fragments incidents and lands declarations on background.
+pub fn attach_target(
+    anomalies: &[Tracked],
+    service: ServiceId,
+    at: Instant,
+    burst_ns: u64,
+    gap_ns: u64,
+) -> Option<usize> {
+    let speaking = gap_ns.saturating_mul(2);
+    anomalies
+        .iter()
+        .rposition(|a| a.site == service && at.0 <= a.last_site_at.0.saturating_add(speaking))
+        .or_else(|| {
+            anomalies
+                .iter()
+                .enumerate()
+                .filter(|(_, a)| {
+                    a.site != service
+                        && a.region.get(service.index()).copied().unwrap_or(false)
+                        && at.0 >= a.burst_open_at.0
+                        && at.0 <= a.burst_open_at.0.saturating_add(burst_ns)
+                })
+                .max_by_key(|(i, a)| (a.burst_open_at, std::cmp::Reverse(*i)))
+                .map(|(i, _)| i)
+        })
+        .or_else(|| anomalies.iter().rposition(|a| a.site == service))
+}
+
+/// The anomalies whose last abnormal observation is `quiet_ns` or more behind `now`, among the
+/// noticed ones, by id.
+pub fn quiet_ids(anomalies: &[Tracked], now: Instant, quiet_ns: u64) -> Vec<u32> {
+    anomalies
+        .iter()
+        .filter(|a| {
+            a.noticed_at.is_some() && now.0 >= a.last_abnormal_at.0.saturating_add(quiet_ns)
+        })
+        .map(|a| a.id)
+        .collect()
+}
+
+/// The score every noticer reports: the z-score of an anomaly's abnormal count over the score
+/// window against the abnormal rate per service learned from the stream so far, with a prior.
+/// Basic IEEE arithmetic only, so it replays bit for bit.
+#[derive(Debug, Clone)]
+pub struct Scorer {
+    services: usize,
+    prior_ns: u64,
+    prior_mhz: u64,
+    window_ns: u64,
+    abnormal_seen: u64,
+}
+
+impl Scorer {
+    /// A scorer for a graph of `services` services under the rung's parameters.
+    pub fn new(cfg: &RungConfig, services: usize) -> Self {
+        Self {
+            services,
+            prior_ns: cfg.prior_ns,
+            prior_mhz: cfg.prior_mhz,
+            window_ns: cfg.score_window_ns,
+            abnormal_seen: 0,
+        }
+    }
+
+    /// One more abnormal observation was delivered.
+    pub fn saw_abnormal(&mut self) {
+        self.abnormal_seen += 1;
+    }
+
+    /// The expected abnormal observations per service per second, learned from the stream so
+    /// far with the configured prior.
+    fn baseline_hz(&self, now: Instant) -> f64 {
+        let services = self.services.max(1) as f64;
+        let prior_s = self.prior_ns as f64 / 1e9;
+        let prior_hz = self.prior_mhz as f64 / 1000.0;
+        let t_s = now.0 as f64 / 1e9;
+        (self.abnormal_seen as f64 + prior_hz * services * prior_s) / (services * (t_s + prior_s))
+    }
+
+    /// The score of `a` at `now`.
+    pub fn score(&self, a: &Tracked, now: Instant) -> f64 {
+        let window = self.window_ns;
+        let from = now.0.saturating_sub(window);
+        let n = a.attached.iter().filter(|(at, _, _)| at.0 > from).count() as f64;
+        let mu = self.baseline_hz(now) * (window as f64 / 1e9);
+        (n - mu) / (mu + 1.0).sqrt()
+    }
+}
+
+/// The noticer `spec` names, for a stream with the public graph `services`, under the rung's
+/// parameters `cfg`.
+pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<dyn Noticer> {
+    use super::noticer_change::ChangeTriggered;
+    use super::noticer_rung::{EarliestAnchor, RungNoticer};
+    match *spec {
+        NoticerSpec::Rung { notice_z } => {
+            let mut cfg = cfg.clone();
+            if let Some(z) = notice_z {
+                cfg.notice_z = z;
+            }
+            Box::new(RungNoticer::new(cfg, services))
+        }
+        NoticerSpec::ChangeTriggered { quiet_ns } => {
+            Box::new(ChangeTriggered::new(cfg.clone(), services, quiet_ns))
+        }
+        NoticerSpec::EarliestAnchor { lookback_ns } => Box::new(EarliestAnchor::new(
+            RungNoticer::new(cfg.clone(), services),
+            lookback_ns,
+        )),
+    }
+}

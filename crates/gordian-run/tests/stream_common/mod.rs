@@ -65,6 +65,7 @@ pub fn manifest(
         limits: limits(&stream_params),
         stream_params,
         rung: RungConfig::default(),
+        noticers: std::collections::BTreeMap::new(),
         exchange: Exchange::default(),
         trace_sample_rate: 0.0,
         internal_external_ratio: None,

@@ -451,10 +451,41 @@ STREAM_INCIDENT_OPTIONAL_COLUMNS = ["first_correct_at_ns", "time_to_first_correc
 STREAM_KEY = ["seed"]
 STREAM_INCIDENT_KEY = ["seed", "incident"]
 
+# The notice files of work item B1 (crates/gordian-run/src/stream/results.rs: NOTICES_HEADER,
+# NOTICE_INCIDENTS_HEADER, NOTICE_EVENTS_HEADER), written beside the three files above, which they
+# leave byte for byte as they were. All three are present or none is (a run made before the seam
+# has none). The measures are the evaluator's (crates/gordian-stream-eval/RULES.md, N1 to N12).
+STREAM_NOTICES_COLUMNS = [
+    "run_id", "arm_role", "seed", "noticer", "notices", "notices_on_background",
+    "notices_on_plain", "notices_on_hard", "notices_on_decoy", "retirements",
+    "noticed_plain", "noticed_hard", "noticed_decoy",
+    "anchor_correct_plain", "anchor_correct_hard", "anchor_correct_decoy",
+]  # fmt: skip
+STREAM_NOTICE_INCIDENTS_COLUMNS = [
+    "run_id", "arm_role", "seed", "incident", "tier", "family", "first_observation_at_ns",
+    "notices", "noticed", "first_notice_at_ns", "notice_latency_ns", "anchor_correct",
+]  # fmt: skip
+STREAM_NOTICE_EVENTS_COLUMNS = [
+    "run_id", "arm_role", "seed", "noticer", "event", "anomaly", "anchor", "site",
+    "anchor_at_ns", "at_ns", "incident", "anchor_offset_ns", "anchor_correct",
+]  # fmt: skip
+STREAM_NOTICES_COUNT_COLUMNS = [
+    c for c in STREAM_NOTICES_COLUMNS
+    if c not in ("run_id", "arm_role", "noticer")
+]  # fmt: skip
+STREAM_NOTICE_EVENT_KINDS = ("notice", "retire")
+STREAM_NOTICE_FILES = ("notices.csv", "notice_incidents.csv", "notice_events.csv")
+
 
 @dataclass
 class StreamArm:
-    """One arm of a stream run: its per-stream and per-incident tables, both keyed on `seed`."""
+    """One arm of a stream run: its per-stream and per-incident tables, both keyed on `seed`.
+
+    `notices`, `notice_incidents` and `notice_events` are the arm's notice files (work item B1),
+    `None` for a run made before the notice seam: per stream (keyed on `seed`), per incident
+    (keyed on `(seed, incident)`, with the same tier and family as `incidents`) and per notice or
+    retirement, in the order recorded.
+    """
 
     path: Path
     name: str
@@ -462,6 +493,9 @@ class StreamArm:
     role: str
     results: pd.DataFrame
     incidents: pd.DataFrame
+    notices: pd.DataFrame | None = None
+    notice_incidents: pd.DataFrame | None = None
+    notice_events: pd.DataFrame | None = None
 
 
 @dataclass
@@ -487,7 +521,7 @@ def _parse_count(series: pd.Series, column: str, where: str) -> pd.Series:
     return text.astype("int64")
 
 
-def _read_stream_csv(path: Path, expected: list[str]) -> pd.DataFrame:
+def _read_stream_csv(path: Path, expected: list[str], allow_empty: bool = False) -> pd.DataFrame:
     """Read a stream CSV as strings; its columns must be exactly the ones the harness writes."""
     where = str(path)
     raw = pd.read_csv(path, dtype=str, keep_default_na=False)
@@ -499,7 +533,7 @@ def _read_stream_csv(path: Path, expected: list[str]) -> pd.DataFrame:
             f"results.rs (missing {missing}, unknown {unknown}, or out of order); a change to "
             "that schema needs a change here"
         )
-    if len(raw) == 0:
+    if len(raw) == 0 and not allow_empty:
         raise LoadError(f"{where}: no rows")
     return raw
 
@@ -623,6 +657,183 @@ def _check_incidents_against_results(results: pd.DataFrame, incidents: pd.DataFr
             raise LoadError(f"{where}: {column} differs between results.csv and incidents.csv")
 
 
+def _optional_count(raw: pd.DataFrame, column: str, where: str) -> pd.Series:
+    """A count column that is empty when there is nothing to count, as nullable integers."""
+    text = raw[column].str.strip()
+    empty = text == ""
+    parsed = _parse_count(text.where(~empty, "0"), column, where).astype("Int64")
+    return parsed.mask(empty)
+
+
+def _load_stream_notices(path: Path, results: pd.DataFrame) -> pd.DataFrame:
+    """`notices.csv`: one row per stream, the stream's counts of notices (N8 to N10)."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_NOTICES_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    df["noticer"] = _single_value(raw, "noticer", where)
+    for c in STREAM_NOTICES_COUNT_COLUMNS:
+        df[c] = _parse_count(raw[c], c, where)
+    if df.duplicated(STREAM_KEY).any():
+        raise LoadError(f"{where}: duplicate seeds")
+    if set(df["seed"]) != set(results["seed"]):
+        raise LoadError(f"{path.parent}: results.csv and notices.csv do not have the same seeds")
+    by_anchor = (
+        df["notices_on_background"]
+        + df["notices_on_plain"]
+        + df["notices_on_hard"]
+        + df["notices_on_decoy"]
+    )
+    bad = by_anchor != df["notices"]
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(f"{where}: row {pos + 2}: the notices by anchor do not add up to notices")
+    # The harness guarantees one notice per anomaly the arm's rung reports noticing.
+    r = results.set_index("seed")["anomalies_noticed"]
+    bad = df.set_index("seed")["notices"] != r.reindex(df["seed"]).to_numpy()
+    if bad.any():
+        seed = int(df["seed"].iloc[int(np.argmax(bad.to_numpy()))])
+        raise LoadError(f"{where}: seed {seed}: notices is not results.csv's anomalies_noticed")
+    for tier in STREAM_TIERS:
+        bad = df[f"anchor_correct_{tier}"] > df[f"noticed_{tier}"]
+        if bad.any():
+            pos = int(np.argmax(bad.to_numpy()))
+            raise LoadError(f"{where}: row {pos + 2}: more anchor-correct than noticed {tier}")
+    return df[STREAM_NOTICES_COLUMNS]
+
+
+def _load_stream_notice_incidents(path: Path, incidents: pd.DataFrame) -> pd.DataFrame:
+    """`notice_incidents.csv`: one row per incident (N1 to N6), the same incidents as
+    `incidents.csv`."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_NOTICE_INCIDENTS_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    for c in ("seed", "incident", "notices"):
+        df[c] = _parse_count(raw[c], c, where)
+    df["tier"] = raw["tier"].str.strip()
+    df["family"] = raw["family"].str.strip()
+    for c in ("noticed", "anchor_correct"):
+        df[c] = _parse_bool(raw[c], c, where)
+    optional = ("first_observation_at_ns", "first_notice_at_ns", "notice_latency_ns")
+    for c in optional:
+        df[c] = _optional_count(raw, c, where)
+    if df.duplicated(STREAM_INCIDENT_KEY).any():
+        raise LoadError(f"{where}: duplicate (seed, incident) keys")
+    mine = df.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
+    theirs = incidents.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
+    key = ["seed", "incident", "tier", "family"]
+    if not mine[key].equals(theirs[key]):
+        raise LoadError(
+            f"{where}: not the incidents of incidents.csv (same seed, incident, tier and family "
+            "on every row)"
+        )
+    # N2, N3, N4, N5: what holds together.
+    bad = df["noticed"] != (df["notices"] > 0)
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: noticed is not 'notices > 0'")
+    bad = df["first_notice_at_ns"].isna() == df["noticed"]
+    if bad.any():
+        raise LoadError(
+            f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: first_notice_at_ns is empty "
+            "exactly when the incident was not noticed"
+        )
+    has_latency = df["notice_latency_ns"].notna()
+    bad = has_latency != (df["noticed"] & df["first_observation_at_ns"].notna())
+    if bad.any():
+        raise LoadError(
+            f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: notice_latency_ns is empty "
+            "unless the incident was noticed and has a first observation"
+        )
+    bad = df["anchor_correct"] & ~df["noticed"]
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: anchor-correct but not noticed")
+    return df[STREAM_NOTICE_INCIDENTS_COLUMNS]
+
+
+def _load_stream_notice_events(path: Path) -> pd.DataFrame:
+    """`notice_events.csv`: every notice and retirement the noticer recorded, in order (N7)."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_NOTICE_EVENTS_COLUMNS, allow_empty=True)
+    if len(raw) == 0:
+        return pd.DataFrame(columns=STREAM_NOTICE_EVENTS_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    df["noticer"] = _single_value(raw, "noticer", where)
+    for c in ("seed", "anomaly", "anchor", "site", "anchor_at_ns", "at_ns"):
+        df[c] = _parse_count(raw[c], c, where)
+    df["event"] = raw["event"].str.strip()
+    bad = ~df["event"].isin(STREAM_NOTICE_EVENT_KINDS)
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(f"{where}: event {raw['event'].iloc[pos]!r} (row {pos + 2}) is not one of "
+                        f"{list(STREAM_NOTICE_EVENT_KINDS)}")
+    for c in ("incident", "anchor_offset_ns"):
+        df[c] = _optional_count(raw, c, where)
+    text = raw["anchor_correct"].str.strip()
+    notice = df["event"] == "notice"
+    # A retirement has no verdict; a notice has one, true or false.
+    if ((text == "") != ~notice).any():
+        raise LoadError(f"{where}: anchor_correct is empty exactly on retirements")
+    parsed = _parse_bool(text.where(text != "", "false"), "anchor_correct", where)
+    df["anchor_correct"] = parsed.astype("boolean").mask(~notice)
+    bad = df["at_ns"] < df["anchor_at_ns"]
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: an event before its anchor")
+    return df[STREAM_NOTICE_EVENTS_COLUMNS]
+
+
+def _check_notice_files(
+    path: Path,
+    results: pd.DataFrame,
+    notices: pd.DataFrame,
+    notice_incidents: pd.DataFrame,
+    notice_events: pd.DataFrame,
+):
+    """The three notice files describe the same streams and add up to one another (N8 to N10)."""
+    for column in ("run_id", "arm_role"):
+        if set(notice_incidents[column]) != set(results[column]) or set(notices[column]) != set(
+            results[column]
+        ):
+            raise LoadError(f"{path}: {column} differs between results.csv and the notice files")
+    n = notices.set_index("seed")
+    g = notice_incidents.groupby("seed")
+    on_incidents = g["notices"].sum().reindex(n.index, fill_value=0)
+    expected = n["notices"] - n["notices_on_background"]
+    bad = on_incidents.to_numpy() != expected.to_numpy()
+    if bad.any():
+        seed = int(n.index[int(np.argmax(bad))])
+        raise LoadError(
+            f"{path}: seed {seed}: notice_incidents.csv counts {int(on_incidents.loc[seed])} "
+            f"notices on incidents, notices.csv {int(expected.loc[seed])}"
+        )
+    for tier in STREAM_TIERS:
+        sub = notice_incidents[notice_incidents["tier"] == tier].groupby("seed")
+        for flag, column in (("noticed", f"noticed_{tier}"), ("anchor_correct", f"anchor_correct_{tier}")):
+            have = sub[flag].sum().reindex(n.index, fill_value=0)
+            bad = have.to_numpy() != n[column].to_numpy()
+            if bad.any():
+                seed = int(n.index[int(np.argmax(bad))])
+                raise LoadError(f"{path}: seed {seed}: {column} disagrees with notice_incidents.csv")
+    if len(notice_events):
+        events = notice_events.groupby(["seed", "event"]).size().unstack(fill_value=0)
+        for kind, column in (("notice", "notices"), ("retire", "retirements")):
+            have = (events[kind] if kind in events else pd.Series(0, index=events.index)).reindex(
+                n.index, fill_value=0
+            )
+            bad = have.to_numpy() != n[column].to_numpy()
+            if bad.any():
+                seed = int(n.index[int(np.argmax(bad))])
+                raise LoadError(f"{path}: seed {seed}: notice_events.csv disagrees with {column}")
+        if set(notice_events["noticer"]) != set(notices["noticer"]):
+            raise LoadError(f"{path}: the noticer differs between notices.csv and notice_events.csv")
+    elif int(n["notices"].sum() + n["retirements"].sum()) != 0:
+        raise LoadError(f"{path}: notice_events.csv is empty but notices.csv counts notices")
+
+
 def _load_stream_measured(path: Path, results: pd.DataFrame) -> pd.DataFrame:
     """Attach the measured columns and `arm_position` to results on `seed`."""
     where = str(path)
@@ -659,6 +870,18 @@ def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
         results = _load_stream_measured(measured_path, results)
     results = results.sort_values("seed").reset_index(drop=True)
     incidents = incidents.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
+    notices = notice_incidents = notice_events = None
+    present = [(path / f).is_file() for f in STREAM_NOTICE_FILES]
+    if any(present) and not all(present):
+        missing = [f for f, p in zip(STREAM_NOTICE_FILES, present) if not p]
+        raise LoadError(f"{path}: the notice files come together; missing {missing}")
+    if all(present):
+        notices = _load_stream_notices(path / "notices.csv", results)
+        notice_incidents = _load_stream_notice_incidents(path / "notice_incidents.csv", incidents)
+        notice_events = _load_stream_notice_events(path / "notice_events.csv")
+        _check_notice_files(path, results, notices, notice_incidents, notice_events)
+        notices = notices.sort_values("seed").reset_index(drop=True)
+        notice_incidents = notice_incidents.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
     return StreamArm(
         path=path,
         name=name or path.name,
@@ -666,6 +889,9 @@ def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
         role=str(results["arm_role"].iloc[0]),
         results=results,
         incidents=incidents,
+        notices=notices,
+        notice_incidents=notice_incidents,
+        notice_events=notice_events,
     )
 
 

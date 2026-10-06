@@ -27,7 +27,9 @@
 use super::harness::{StreamHarnessError, run_segment, run_segment_privileged};
 use super::manifest::StreamManifest;
 use super::results::{
-    MEASURED_HEADER, incident_rows, incidents_header, measured_row, results_header, results_row,
+    MEASURED_HEADER, NOTICE_EVENTS_HEADER, NOTICE_INCIDENTS_HEADER, NOTICES_HEADER, incident_rows,
+    incidents_header, measured_row, notice_event_rows, notice_incident_rows, notices_row,
+    results_header, results_row,
 };
 use super::spec::{build_public, privileged_factory};
 use crate::drift::{DRIFT_HEADER, Workload, drift_row};
@@ -187,9 +189,15 @@ struct ArmOut {
     incidents_path: PathBuf,
     measured_path: PathBuf,
     events_path: PathBuf,
+    notices_path: PathBuf,
+    notice_incidents_path: PathBuf,
+    notice_events_path: PathBuf,
     results: String,
     incidents: String,
     measured: String,
+    notices: String,
+    notice_incidents: String,
+    notice_events: String,
     events: Option<BufWriter<File>>,
     summary: StreamRunSummary,
 }
@@ -245,9 +253,15 @@ pub fn execute_stream(
             incidents_path: dir.join("incidents.csv"),
             measured_path: dir.join("measured.csv"),
             events_path: dir.join("events-sample.jsonl"),
+            notices_path: dir.join("notices.csv"),
+            notice_incidents_path: dir.join("notice_incidents.csv"),
+            notice_events_path: dir.join("notice_events.csv"),
             results: format!("{}\n", results_header()),
             incidents: format!("{}\n", incidents_header()),
             measured: format!("{MEASURED_HEADER}\n"),
+            notices: format!("{NOTICES_HEADER}\n"),
+            notice_incidents: format!("{NOTICE_INCIDENTS_HEADER}\n"),
+            notice_events: format!("{NOTICE_EVENTS_HEADER}\n"),
             events: None,
             summary: StreamRunSummary::default(),
         };
@@ -256,6 +270,9 @@ pub fn execute_stream(
             &arm.incidents_path,
             &arm.measured_path,
             &arm.events_path,
+            &arm.notices_path,
+            &arm.notice_incidents_path,
+            &arm.notice_events_path,
         ] {
             if path.exists() {
                 return Err(StreamRunError::Io(format!(
@@ -322,6 +339,16 @@ pub fn execute_stream(
             arm.measured
                 .push_str(&measured_row(&arm.run_id, &record, position));
             arm.measured.push('\n');
+            arm.notices.push_str(&notices_row(&arm.run_id, &record));
+            arm.notices.push('\n');
+            for line in notice_incident_rows(&arm.run_id, &record) {
+                arm.notice_incidents.push_str(&line);
+                arm.notice_incidents.push('\n');
+            }
+            for line in notice_event_rows(&arm.run_id, &record) {
+                arm.notice_events.push_str(&line);
+                arm.notice_events.push('\n');
+            }
             arm.summary.segments += 1;
             arm.summary.step_capped +=
                 usize::from(record.stop == super::harness::StreamStop::StepCap);
@@ -357,6 +384,12 @@ pub fn execute_stream(
             .map_err(|e| io_error("cannot write", &arm.incidents_path, e))?;
         fs::write(&arm.measured_path, &arm.measured)
             .map_err(|e| io_error("cannot write", &arm.measured_path, e))?;
+        fs::write(&arm.notices_path, &arm.notices)
+            .map_err(|e| io_error("cannot write", &arm.notices_path, e))?;
+        fs::write(&arm.notice_incidents_path, &arm.notice_incidents)
+            .map_err(|e| io_error("cannot write", &arm.notice_incidents_path, e))?;
+        fs::write(&arm.notice_events_path, &arm.notice_events)
+            .map_err(|e| io_error("cannot write", &arm.notice_events_path, e))?;
         total.add(&arm.summary);
         summaries.push((arm.name, arm.summary));
     }

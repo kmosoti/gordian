@@ -185,3 +185,115 @@ def format_summary(summary: dict) -> str:
         "counts, and do not read a gap between arms off a point estimate.",
     ]
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------------------------
+# Notices (work item B1). The measures are the evaluator's (crates/gordian-stream-eval/RULES.md,
+# N1 to N12), read from the notice files the harness writes beside results.csv and incidents.csv.
+# Every ratio is pooled from counts over streams, as above; a per-stream ratio is never taken.
+# ---------------------------------------------------------------------------------------------
+
+LEAK_FAMILY = "slow_leak"
+
+
+def _need_notices(arm: StreamArm) -> None:
+    if arm.notices is None or arm.notice_incidents is None:
+        raise ValueError(
+            f"arm {arm.name!r} has no notice files (a run made before the Noticer seam)"
+        )
+
+
+def notice_per_stream(arm: StreamArm) -> pd.DataFrame:
+    """The numerators and denominators of the notice measures, one row per stream (index `seed`,
+    ascending), for pooling and for resampling whole streams.
+
+    Columns: for hard incidents outside the slow-leak family (`hard`), the slow leak (`leak`), plain
+    incidents and decoys: the incidents (`_n`), those noticed (`_noticed`: N2) and those with an
+    anchor-correct notice (`_correct`: N5); then `notices`, the notices on background, plain
+    incidents, hard incidents and decoys (N8), `notices_on_incidents`, `incidents` (every tier) and
+    `retirements`.
+    """
+    _need_notices(arm)
+    ni = arm.notice_incidents
+    seeds = arm.notices["seed"].to_numpy()
+    out = pd.DataFrame(index=pd.Index(seeds, name="seed"))
+    groups = {
+        "hard": (ni["tier"] == "hard") & (ni["family"] != LEAK_FAMILY),
+        "leak": (ni["tier"] == "hard") & (ni["family"] == LEAK_FAMILY),
+        "plain": ni["tier"] == "plain",
+        "decoy": ni["tier"] == "decoy",
+    }
+    for name, mask in groups.items():
+        g = ni[mask].groupby("seed")
+        out[f"{name}_n"] = g.size().reindex(seeds, fill_value=0).to_numpy()
+        out[f"{name}_noticed"] = g["noticed"].sum().reindex(seeds, fill_value=0).to_numpy()
+        out[f"{name}_correct"] = g["anchor_correct"].sum().reindex(seeds, fill_value=0).to_numpy()
+    n = arm.notices.set_index("seed")
+    out["notices"] = n["notices"].to_numpy()
+    out["notices_background"] = n["notices_on_background"].to_numpy()
+    out["notices_plain"] = n["notices_on_plain"].to_numpy()
+    out["notices_hard"] = n["notices_on_hard"].to_numpy()
+    out["notices_decoy"] = n["notices_on_decoy"].to_numpy()
+    out["notices_on_incidents"] = out["notices"] - out["notices_background"]
+    out["incidents"] = ni.groupby("seed").size().reindex(seeds, fill_value=0).to_numpy()
+    out["retirements"] = n["retirements"].to_numpy()
+    return out.astype("int64")
+
+
+def notice_points(arm: StreamArm) -> dict:
+    """The pooled notice measures of one arm, as plain Python values.
+
+    `hard_noticed_share`, `hard_anchor_correct_share`: hard non-leak incidents noticed, and noticed
+    with an anchor within 1 s of their first observation. `leak_noticed_share`,
+    `leak_anchor_correct_share`: the same for the slow leak. `*_per_stream` are means over streams;
+    `notices_per_incident` is the pooled count of notices anchored on incidents over incidents. A
+    share is NaN when its denominator is zero.
+    """
+    t = notice_per_stream(arm)
+    return {
+        "arm": arm.name,
+        "noticer": str(arm.notices["noticer"].iloc[0]),
+        "streams": len(t),
+        "hard_incidents": int(t["hard_n"].sum()),
+        "hard_noticed_share": pooled_ratio(t["hard_noticed"], t["hard_n"]),
+        "hard_anchor_correct_share": pooled_ratio(t["hard_correct"], t["hard_n"]),
+        "leak_incidents": int(t["leak_n"].sum()),
+        "leak_noticed_share": pooled_ratio(t["leak_noticed"], t["leak_n"]),
+        "leak_anchor_correct_share": pooled_ratio(t["leak_correct"], t["leak_n"]),
+        "plain_noticed_share": pooled_ratio(t["plain_noticed"], t["plain_n"]),
+        "notices_per_stream": float(t["notices"].mean()),
+        "notices_on_background_per_stream": float(t["notices_background"].mean()),
+        "notices_on_plain_per_stream": float(t["notices_plain"].mean()),
+        "notices_on_hard_per_stream": float(t["notices_hard"].mean()),
+        "notices_on_decoy_per_stream": float(t["notices_decoy"].mean()),
+        "notices_per_incident": pooled_ratio(t["notices_on_incidents"], t["incidents"]),
+        "retirements_per_stream": float(t["retirements"].mean()),
+    }
+
+
+def notice_latency(arm: StreamArm) -> pd.DataFrame:
+    """Notice latency (N4), seconds, among the incidents noticed: count, median and 90th
+    percentile, for hard non-leak incidents, the slow leak and plain incidents. A latency exists
+    only for an incident that was noticed, so it says how late the noticed ones were and nothing of
+    the others (their number is `incidents - noticed`)."""
+    _need_notices(arm)
+    ni = arm.notice_incidents
+    groups = {
+        "hard": (ni["tier"] == "hard") & (ni["family"] != LEAK_FAMILY),
+        "slow_leak": (ni["tier"] == "hard") & (ni["family"] == LEAK_FAMILY),
+        "plain": ni["tier"] == "plain",
+    }
+    rows = []
+    for name, mask in groups.items():
+        g = ni[mask]
+        lat = g["notice_latency_ns"].dropna().astype("int64").to_numpy() / NS_PER_S
+        rows.append(
+            {
+                "group": name,
+                "incidents": len(g),
+                "noticed": int(g["noticed"].sum()),
+                "median_s": float(np.median(lat)) if len(lat) else float("nan"),
+                "p90_s": float(np.quantile(lat, 0.9)) if len(lat) else float("nan"),
+            }
+        )
+    return pd.DataFrame(rows)

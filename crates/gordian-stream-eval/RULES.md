@@ -165,3 +165,45 @@ incident; read them with the counts (S23, S24) and the cost (S26).
 | Totals: "escalation precision and recall against 'hard incident'" | counts, and two methods | Ratios must be pooled from counts across streams (Derived ratios). |
 | Totals: "total reasoner cost in its own units (calls, references, tokens)" | adds `modelled_ns` | It is the quantity the stream's hard budget limits, and the charter's exchange rate (section 4) is applied to it by the harness. |
 | Decoys: silence is "neither" | `decoys_silent` counts it | A count of the neutral case lets a consumer check that the three decoy outcomes cover every decoy. |
+
+## Notices (work item B1)
+
+`score_notices(truth, obs_at, trace)` scores what a noticer noticed, not a trajectory. It is a
+separate pure function with its own inputs: the truth, `obs_at` (the instant each passive
+observation was emitted, parallel to `truth.labels`: public information the harness holds, since
+the truth carries no per-observation instant, judgement 8 above) and a `NoticeTrace` (every
+notice: anomaly id, anchor observation, instant of the step that yielded it; every retirement:
+anomaly id, instant). It does not read the trajectory or the call records. Rule ids start with `N`;
+`fixtures/notice-cases.json` pins each, and `tests/notice_fixtures.rs` fails if a rule here is
+pinned by no case or a case names a rule that is not here.
+
+| Id | Rule |
+|---|---|
+| N1 | **A notice is about an incident** when its anchor's label names the incident, read as S2 reads a declaration's anchor. An anchor labelled background makes a notice about no incident. Which observations the notice *attaches* is not read: only the anchor counts. |
+| N2 | **Noticed.** An incident (of any tier) is noticed when at least one notice is about it. |
+| N3 | **First notice.** `first_notice_at` is the earliest instant among the notices about the incident, `None` when it was not noticed. |
+| N4 | **Notice latency.** The incident's *first observation* is the lowest-id observation labelled with it (`IncidentTruth::observations`, the first), at the instant `obs_at` gives it. `notice_latency_ns` is `first_notice_at` minus that instant; `None` when the incident was not noticed or has no observation. It is measured from the first observation, not from the onset and not from the first abnormal observation: for a family whose first observations are not abnormal by the public rules (the slow leak's early readings) it includes that stretch. |
+| N5 | **Anchor-correct.** A notice is anchor-correct when its anchor belongs to an incident (N1) and the anchor's instant is within `ANCHOR_WINDOW_NS` (1 s, inclusive) of that incident's first observation, in absolute difference. An incident is anchor-correct when at least one notice about it is. A notice anchored exactly 1 s after the first observation is anchor-correct; one nanosecond later is not. Anchor-correct is a property of the anchor only: it does not say the notice was the first, the only, or a useful one. |
+| N6 | **Notices per incident.** `notices` counts the notices about the incident, whatever their anchors' offsets. |
+| N7 | **Per-notice score.** For each notice, in the order recorded: the incident it is about (N1) and its tier, the anchor's offset from the incident's first observation (`None` for background or an incident with no observation) and whether it is anchor-correct (N5). |
+| N8 | **Notices by what they are anchored on.** `notices` is the number recorded. `on_background`, `on_plain`, `on_hard` and `on_decoy` count them by what the anchor belongs to (N1); the four sum to `notices`. |
+| N9 | **Incident totals.** `noticed` (N2) and `anchor_correct` (N5) count incidents by tier. Ratios (the share of hard incidents noticed, the share anchor-correct, the leak's share, notices on background per stream, notices per incident) are pooled from counts across streams by the analysis, as the derived ratios above are; a per-stream ratio is not written. |
+| N10 | **Retirements.** `retirements` is the number recorded. A retirement is not about an incident: it is the noticer's record of an anomaly it is finished with. |
+| N11 | **Errors, not verdicts.** The record is refused, with no verdict, in this order: `obs_at` does not have one instant per label; an incident's id is not its position; a label names an unknown incident; then for each notice in order, the anchor is not an observation, the notice is earlier than its anchor's instant, the notice is earlier than the notice before it, the anomaly was noticed already; then for each retirement in order, it is earlier than the retirement before it, its anomaly is not live (never noticed, or retired already), it is earlier than its notice. |
+| N12 | **Purity.** The verdict is a function of the three inputs; it reads no clock, no randomness, nothing else. Notices and retirements are not trajectory steps, are never charged and do not move any score of `score_stream`. |
+
+### Where the notice rules are a judgement
+
+1. **Only the anchor counts (N1).** A noticer that anchors on background but attaches an incident's
+   observations has noticed nothing of that incident by this measure, though the rung may then work
+   on the incident's evidence under the wrong anchor (R10 found this is how most never-noticed
+   incidents arise). The measure is the one the queue fixed; "evidence attached to an incident" is
+   a different measure and is not scored here.
+2. **Any later notice makes an incident noticed (N2).** An incident noticed once, late, is
+   noticed. Latency (N4) and anchor-correct (N5) say how well.
+3. **Anchor-correct is gameable (N5).** It rewards an anchor on the incident's first observation
+   wherever it is cheap to put one: a noticer that notices every abnormal observation is
+   anchor-correct for every incident that begins with an abnormal observation. It must be read
+   with notices on background per stream and notices per incident beside it, never alone.
+4. **The 1 s window is applied to the anchor's emission instant**, not to the instant of the
+   notice (N5): a noticer may notice late and still be anchor-correct, which latency (N4) shows.

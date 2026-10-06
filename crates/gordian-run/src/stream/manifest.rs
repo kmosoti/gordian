@@ -19,13 +19,14 @@
 
 use super::arms::ArmRole;
 use super::arms::context::ContextBuilder;
+use super::arms::noticer::NoticerSpec;
 use super::arms::rung::RungConfig;
 use super::spec::StreamPolicySpec;
 use crate::manifest::{Environment, IsolationSpec, RatioTolerance};
 use gordian_core::{Budget, Resource};
 use gordian_stream::{ReasonerCostSpec, StreamBudgetSpec, StreamParams};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 /// What the arm name of a privileged arm must contain.
@@ -191,6 +192,13 @@ pub struct StreamManifest {
     pub stream_params: StreamParams,
     /// The cheap rung every arm shares.
     pub rung: RungConfig,
+    /// The noticer of the arms that do not use the rung's own (work item B1), by arm name: an arm
+    /// that is not listed notices as `rung.noticer` says. Not written when empty, so a manifest
+    /// written before the seam existed is the same text as one written now. It is a map of the
+    /// manifest and not a field of [`StreamArmSpec`] so that the arm's specification, which the
+    /// binary builds from the command line, is unchanged.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub noticers: BTreeMap<String, NoticerSpec>,
     /// Hard limits and loop parameters.
     pub limits: StreamLimits,
     /// How the reasoner's cost becomes total cost.
@@ -304,6 +312,13 @@ impl StreamManifest {
         if iso.cpu_quota_percent == 0 || iso.memory_bytes == 0 || iso.timeout_secs == 0 {
             return Err("isolation needs a positive quota, memory and timeout".to_owned());
         }
+        for (arm, spec) in &self.noticers {
+            if !names.contains(arm.as_str()) {
+                return Err(format!("noticers names {arm:?}, which is not an arm"));
+            }
+            spec.validate()
+                .map_err(|e| format!("noticers {arm:?}: {e}"))?;
+        }
         self.rung.validate()?;
         self.rung
             .context
@@ -323,10 +338,16 @@ impl StreamManifest {
     }
 
     /// The cheap rung of `spec`'s arm: the manifest's, with the arm's own context builder in place
-    /// of the manifest's when it names one. The one place an arm's rung is derived.
+    /// of the manifest's when it names one, and its own noticer likewise
+    /// ([`StreamManifest::noticers`]). The one place an arm's rung is derived.
     pub fn rung_for(&self, spec: &StreamArmSpec) -> RungConfig {
         RungConfig {
             context: spec.context.unwrap_or(self.rung.context),
+            noticer: self
+                .noticers
+                .get(&spec.arm)
+                .copied()
+                .unwrap_or(self.rung.noticer),
             ..self.rung.clone()
         }
     }
@@ -361,9 +382,16 @@ impl StreamManifest {
             return self.clone();
         }
         let spec = self.arms[index].clone();
+        let noticers = self
+            .noticers
+            .iter()
+            .filter(|(arm, _)| **arm == spec.arm)
+            .map(|(arm, n)| (arm.clone(), *n))
+            .collect();
         StreamManifest {
             run_id: format!("{}.{}", self.run_id, spec.arm),
             arms: vec![spec],
+            noticers,
             ..self.clone()
         }
     }
@@ -414,6 +442,7 @@ impl StreamManifest {
             seeds: (seed_start..seed_start + u64::from(seed_count)).collect(),
             stream_params,
             rung: RungConfig::default(),
+            noticers: BTreeMap::new(),
             limits,
             exchange: Exchange::default(),
             trace_sample_rate,

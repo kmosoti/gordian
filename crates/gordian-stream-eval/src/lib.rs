@@ -19,6 +19,7 @@
 
 mod bridge;
 mod error;
+mod notice;
 mod score;
 mod step;
 mod timeserde;
@@ -26,6 +27,10 @@ mod verdict;
 
 pub use bridge::{calls_from_sim, truth_from_stream};
 pub use error::StreamEvalError;
+pub use notice::{
+    ANCHOR_WINDOW_NS, IncidentNotices, NoticeEntry, NoticeEvalError, NoticeScore, NoticeTotals,
+    NoticeTrace, NoticeVerdict, RetireEntry, score_notices,
+};
 pub use score::score_stream;
 pub use step::{CallSummary, StreamStep};
 pub use verdict::{

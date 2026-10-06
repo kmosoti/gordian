@@ -742,3 +742,50 @@ which a notice is made is the first step at which the arm's `direct` hook runs a
 observation was delivered; a step on which the bill refuses the arm's declared bookkeeping runs no
 hook, so a notice can only be made late, never early. `tests/stream_r10.rs` pins the above and
 that, with no hard incident, the arm's row equals `never_escalate`'s.
+
+**The noticer seam and the notice record (B1).** What the shared rung notices, and where it anchors
+what it notices, is a `Noticer` (`src/stream/arms/noticer.rs`, documented there); the rung's own
+noticing is `RungNoticer` (`noticer_rung.rs`), the default, moved out of `rung.rs` without change.
+Built: the trait, `RungNoticer` (at any `notice_z`), `EarliestAnchor` (the rung's noticer with its
+anchor moved to the earliest abnormal observation at the site within a lookback; a lookback of zero
+is the rung exactly, a test and a run check it) and `ChangeTriggered` (a notice on the first abnormal
+observation at a node after a quiet period, anchored there), with the readings each file states. The
+rung keeps, per anomaly the noticer tracks, what happens after notice (`Down` in `rung.rs`: the
+working state, reviews, probes, escalations, declarations, which a noticer cannot touch). Verified:
+R6's held-out run at b = 5, rho = 0.7 replays byte for byte for all 62 arms
+(`experiments/exploration/scripts/b1_gate.py`, `b1-regression.csv`): `results.csv` and `incidents.csv`
+are unchanged by the seam.
+
+*Choosing a noticer.* `rung.noticer` is the default for every arm and `noticers` (a map of the
+manifest, arm name to noticer) overrides it per arm, so that an interleaved run can play one arm per
+noticer. It is a map of the manifest and not a field of `StreamArmSpec` so that the specification the
+binary builds from the command line is unchanged. Neither is written to a manifest when it is the
+default, so earlier manifests are the same text (a test).
+
+*The record.* The rung logs every notice and retirement (`NoticeLogEntry`: the noticer's id, the
+anomaly, its anchor and site, the anchor's instant, the instant of the step) and the harness hands the
+log to the evaluator (`score_notices`, rules N1 to N12 of `gordian-stream-eval/RULES.md`) with the
+instants of the stream's public observations. An `Err` is a defect (`StreamHarnessError::NoticeEval`)
+and stops the run; it is never a row. The run writes three files per arm beside the three it always
+wrote, which it leaves byte for byte as they were:
+
+- `notices.csv`, one row per stream: the noticer's id, notices, notices anchored on background, plain
+  incidents, hard incidents and decoys, retirements, and incidents noticed and anchor-correct by tier;
+- `notice_incidents.csv`, one row per incident (the keys, tier and family of `incidents.csv`): first
+  observation, notices about it, whether it was noticed, the first notice and its latency from the
+  first observation, and whether it has an anchor-correct notice;
+- `notice_events.csv`, one row per notice and retirement in the order recorded: the public fields
+  (anchor, site, instants) and the evaluator's reading of a notice (the incident its anchor belongs to,
+  the anchor's offset from that incident's first observation, anchor-correct).
+
+The schema lives in `src/stream/results.rs` (`NOTICES_HEADER`, `NOTICE_INCIDENTS_HEADER`,
+`NOTICE_EVENTS_HEADER`) and the analysis loader's guard compares against it. *The notice files
+carry hidden-side facts* (tiers, which anchors belong to incidents, families) and follow the rule of
+`incidents.csv`: evaluator output for the analysis, never an input to an arm, never training data.
+The record of an arm that injects notices of its own (`oracle_notice`) is the rung's own notices; its
+injected notices are not logged.
+
+*Not built.* A noticer that learns, one that reads a reasoner answer, the medium as a noticer (M2),
+any measure of evidence attached to an incident (only the anchor counts, N1), and any calibration of
+a noticer's own bookkeeping cost (as for the rung, it is in `measured_sched_ns` and not in the
+modelled cost).

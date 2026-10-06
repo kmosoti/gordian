@@ -38,8 +38,9 @@
 use gordian_stream::{HardKind, StreamAction, StreamOutcome};
 
 pub use gordian_stream_eval::{
-    CallSummary, EscalationCounts, IncidentVerdict, ReasonerUsage, ScoredCounts, StreamEvalError,
-    StreamStep, StreamTotals, StreamVerdict, TierCounts,
+    CallSummary, EscalationCounts, IncidentNotices, IncidentVerdict, NoticeEntry, NoticeEvalError,
+    NoticeScore, NoticeTotals, NoticeTrace, NoticeVerdict, ReasonerUsage, RetireEntry,
+    ScoredCounts, StreamEvalError, StreamStep, StreamTotals, StreamVerdict, TierCounts,
 };
 
 /// Counts the evaluator does not make, read from the trajectory alone.
