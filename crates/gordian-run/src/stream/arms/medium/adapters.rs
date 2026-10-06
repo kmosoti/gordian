@@ -103,10 +103,9 @@ pub fn severity_tag(severity: Severity) -> Tag {
 /// cell's pattern (which holds one tag) can select "an abnormal reading of this kind".
 pub fn abnormal_kind_tag(obs: &Observation) -> Tag {
     let kind = match obs {
-        Observation::Counter { name, .. } => CounterName::ALL
-            .iter()
-            .position(|n| n == name)
-            .unwrap_or(0) as u32,
+        Observation::Counter { name, .. } => {
+            CounterName::ALL.iter().position(|n| n == name).unwrap_or(0) as u32
+        }
         Observation::Message { .. } => 5,
         _ => 6,
     };

@@ -112,6 +112,52 @@ TUNE_BACKGROUND = 7.5  # under the first comparator's 9.03 (tune-a, tune-b)
 # After the re-fix the same margin below the new bound, about 17%: 6.82 * 7.5 / 9.03.
 TUNE_BACKGROUND = 5.6
 
+# ---- the held-out run (written at the freeze, before it runs) ------------------------------------
+#
+# One run, the 200 held-out streams (20000-20199), b = 5, rho = 0.7, the selection oracle at 16 s
+# with the rung's context, as B1's and B2's tables:
+# - the comparator rows: the rung at z = 3 and z = 2 and the re-anchor (B2's row);
+# - the frozen medium at each tick length (m2-selected.json);
+# - at each tick length, the coincidence ablation (the sliding form in place of the ordered one)
+#   and the control of the synthesis decision (the abnormal-only sense adapter);
+# - at 100 ms, sensitivity rows (labelled; nothing is chosen from them): the burst path's anchor
+#   lookback at 100, 200, 500 and 1,000 ms (the frozen value is 0), for "anchor correctness as a
+#   function of the emitter lookback"; and the binned form on the 10 s rhythm, the one oscillome
+#   element that the tuning grids tried (it lost there).
+# The rhythms, phase gates and oscillators are not in any frozen graph (none earned a place on the
+# tuning streams; phase gates and oscillators had no candidate role in this world), so "rhythms
+# off", "phase gates off" and "oscillators off" are the frozen arms themselves: they are reported,
+# not rerun under another name.
+LOOKBACK_SENSITIVITY_MS = (100, 200, 500, 1000)
+BINNED_WINDOW_MS = 100
+
+
+def selected():
+    return load_json(OUT / "m2-selected.json")
+
+
+def heldout(stage):
+    """(arms, seeds, run_seed, experiment) of the held-out run; arms are (name, noticer)."""
+    if stage != "heldout":
+        raise SystemExit(f"unknown held-out stage {stage!r}")
+    sel = selected()["ticks"]
+    arms = [("rung_z3", {"noticer": "rung", "notice_z": 3.0}),
+            ("rung_z2", {"noticer": "rung", "notice_z": 2.0}),
+            ("reanchor", dict(REANCHOR))]
+    for tick in TICKS_MS:
+        frozen = sel[str(tick)]["noticer"]
+        arms.append((f"med_t{tick}", frozen))
+        arms.append((f"med_t{tick}_sliding", dict(frozen, coincidence="sliding")))
+        arms.append((f"med_t{tick}_abnormal_only", dict(frozen, abnormal_only=True)))
+    frozen = sel["100"]["noticer"]
+    for lb in LOOKBACK_SENSITIVITY_MS:
+        arms.append((f"med_t100_lb{lb}", dict(frozen, burst_lookback_ns=lb * MS)))
+    arms.append(("med_t100_binned", dict(frozen, coincidence="binned", rhythms=True,
+                                         burst_window_ns=BINNED_WINDOW_MS * MS,
+                                         burst3_window_ns=BINNED_WINDOW_MS * MS)))
+    return arms, HELDOUT_SEEDS, 12_900, "exploration-m2-heldout"
+
+
 # B2's comparator, in the manifest's spelling (b2-selected.json, stage 2).
 REANCHOR = {"noticer": "reanchor", "notice_z": 2.0, "gap_ns": 20_000_000, "min_burst": 2,
             "isolation": "site"}

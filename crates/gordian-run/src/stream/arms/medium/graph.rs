@@ -217,9 +217,11 @@ impl MediumParams {
     pub fn validate(&self) -> Result<(), String> {
         let t = self.tick_ns;
         if t == 0 || t > u64::from(u32::MAX) || !t.is_multiple_of(1_000) {
-            return Err("noticer medium: tick_ns must be a positive whole number of \
+            return Err(
+                "noticer medium: tick_ns must be a positive whole number of \
                         microseconds of at most u32::MAX"
-                .to_owned());
+                    .to_owned(),
+            );
         }
         let finite = [
             self.onset_threshold,
@@ -229,9 +231,11 @@ impl MediumParams {
             self.ramp_threshold,
         ];
         if finite.iter().any(|x| !x.is_finite() || *x < 0.0) {
-            return Err("noticer medium: thresholds, weights and rates must be finite and \
+            return Err(
+                "noticer medium: thresholds, weights and rates must be finite and \
                         non-negative"
-                .to_owned());
+                    .to_owned(),
+            );
         }
         if self.onset_threshold <= 0.0 || (self.ramp && self.ramp_threshold <= 0.0) {
             return Err("noticer medium: thresholds must be positive".to_owned());

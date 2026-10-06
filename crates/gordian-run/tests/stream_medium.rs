@@ -545,6 +545,64 @@ fn a_burst_of_two_kinds_needs_a_confirming_alarm_and_keeps_its_anchor_at_the_ser
     assert_eq!(d.notices[0].1.anchor, ObsId(0));
 }
 
+/// The frozen media (`experiments/exploration/m2-selected.json`) and every variant the held-out run
+/// plays of them build, and the frozen ones use no rhythm, phase gate or oscillator.
+#[test]
+fn the_frozen_media_and_their_variants_validate() {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../experiments/exploration/m2-selected.json"
+    );
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return; // before the freeze
+    };
+    let sel: Value = serde_json::from_str(&text).unwrap();
+    for tick in ["100", "500", "2000"] {
+        let noticer = sel["ticks"][tick]["noticer"].clone();
+        let NoticerSpec::Medium(frozen) = serde_json::from_value(noticer).unwrap() else {
+            panic!("not a medium");
+        };
+        frozen.validate().unwrap();
+        assert!(!frozen.rhythms, "tick {tick}");
+        let (spec, _) =
+            gordian_run::stream::arms::medium::graph::spec(&frozen, &public().services).unwrap();
+        assert!(spec.oscillome.periods_ns.is_empty());
+        assert!(
+            spec.synapses
+                .iter()
+                .all(|s| !matches!(s.gate, gordian_medium::Gate::Phase { .. }))
+        );
+        assert!(
+            spec.cells
+                .iter()
+                .all(|c| c.archetype != gordian_medium::Archetype::Oscillator)
+        );
+        for variant in [
+            MediumParams {
+                coincidence: CoincidenceForm::Sliding,
+                ..frozen
+            },
+            MediumParams {
+                abnormal_only: true,
+                ..frozen
+            },
+            MediumParams {
+                coincidence: CoincidenceForm::Binned,
+                rhythms: true,
+                burst_window_ns: 100 * MS,
+                burst3_window_ns: 100 * MS,
+                ..frozen
+            },
+            MediumParams {
+                burst_lookback_ns: 1_000 * MS,
+                ..frozen
+            },
+        ] {
+            variant.validate().unwrap();
+        }
+    }
+}
+
 // ---- the manifest
 
 #[test]
