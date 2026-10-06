@@ -232,3 +232,58 @@ fn short(o: &gordian_world::Observation) -> String {
         _ => "other".into(),
     }
 }
+
+/// What the ramp detector does on whole streams, counted: counter readings fed, chain comparisons
+/// made, the most chains alive at once, over the seeds of `B3_SEEDS`, with the ramp parameters of
+/// `B3_RAMP` (`gap_ms,max_step,max_drop,min_readings,min_rise`). The noticers' own operations are
+/// not billed by the harness (the rung's noticing is not either), so this is the only count of them.
+///
+/// ```text
+/// B3_SEEDS=20000-20199 B3_RAMP=2000,10,2,4,10 \
+///   cargo test --release -p gordian-run --test stream_b3_probe -- --ignored --nocapture ramp_operations
+/// ```
+#[test]
+#[ignore]
+fn ramp_operations() {
+    use gordian_run::stream::arms::noticer_ramp::{RampDetector, RampSpec};
+    let seeds = std::env::var("B3_SEEDS").unwrap_or("10000-10009".into());
+    let (a, b) = seeds.split_once('-').unwrap();
+    let (a, b): (u64, u64) = (a.parse().unwrap(), b.parse().unwrap());
+    let p: Vec<u64> = std::env::var("B3_RAMP")
+        .unwrap_or("2000,10,2,4,10".into())
+        .split(',')
+        .map(|x| x.parse().unwrap())
+        .collect();
+    let spec = RampSpec {
+        gap_ns: p[0] * 1_000_000,
+        max_step: p[1] as u32,
+        max_drop: p[2] as u32,
+        min_readings: p[3] as u32,
+        min_rise: p[4] as u32,
+    };
+    let (mut readings, mut comparisons, mut observations, mut streams, mut peak) = (0u64, 0u64, 0u64, 0u64, 0usize);
+    for seed in a..=b {
+        let stream = generate(&StreamParams::new(seed));
+        let mut det = RampDetector::new(spec);
+        for (i, (at, obs)) in stream.events().iter().enumerate() {
+            let held = Held {
+                id: ObsId(i as u32),
+                at: *at,
+                obs: obs.clone(),
+                abnormal: false,
+            };
+            det.feed(&held);
+            peak = peak.max(det.live_chains());
+        }
+        readings += det.readings_seen();
+        comparisons += det.comparisons();
+        observations += stream.events().len() as u64;
+        streams += 1;
+    }
+    println!(
+        "streams {streams} observations/stream {:.1} counter readings/stream {:.1} comparisons/stream {:.1} peak live chains {peak}",
+        observations as f64 / streams as f64,
+        readings as f64 / streams as f64,
+        comparisons as f64 / streams as f64
+    );
+}

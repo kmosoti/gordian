@@ -12,8 +12,8 @@ Usage: b3_gate.py [RUN_DIR [OUT_CSV]]
 
 import sys
 
-import b1_gate
-import b3_common as C
+import b3_common as C  # (first: it puts the exploration scripts on the path)
+import b1_gate  # noqa: E402,I001
 
 if __name__ == "__main__":
     run_dir = sys.argv[1] if len(sys.argv) > 1 else f"xcheck3-r6-heldout-{C.setting_id(*C.PRIMARY)}"
