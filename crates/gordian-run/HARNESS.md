@@ -781,6 +781,35 @@ with them, `b2-regression.csv`):
   (the rung's last-resort attach rule), so the notice record of a run with the hold is that run's
   own; `oracle.rs` says so.
 
+**B3: a ramp noticer and a splitting noticer.** Two noticers that wrap a base noticer (the rung's, or
+the later re-anchor) and add anomalies to the base's own set, so that the attach rule, the score, the
+retirement and everything downstream of a notice treat them as the base's. Neither changes
+`results.csv` or `incidents.csv` of any arm that does not use it (R6's held-out run replays byte for
+byte for all 62 arms, `b3-regression.csv`); neither touches the manifest's schema (they are one more
+spelling of an entry of `noticers`) or the evaluator.
+
+- *`RampNoticer`* (`noticer_ramp.rs`): follows chains of counter readings per (service, counter),
+  every reading, benign ones included, and opens an anomaly, noticed at once, anchored on the first
+  reading of a chain that rises smoothly (steps within `max_step` above and `max_drop` below the
+  chain's level, within `gap_ns` of each other) by `min_rise` over at least `min_readings` readings.
+  A reading that fits no chain starts one, so a stray reading does not end a ramp. It reads the store
+  the rung already holds, not the verdicts, so the rung's `observe` (abnormal observations only) is
+  unchanged. Its readings are stated in the file's documentation before any tuning.
+- *`SplitNoticer`* (`noticer_split.rs`): before the base notices, an anomaly whose attached
+  observations hold a complete cluster of at least `min_burst` observations about services other
+  than its site, after a silence of more than `gap_ns` from the latest earlier burst, loses those
+  observations to a new candidate anomaly anchored on the first of them. What is noticed stays the
+  base's rule. `Tracked::split_off` is the move.
+- *The spelling.* `{"noticer": "composed", "base": {"noticer": "rung" | "reanchor", ...}, "ramp"?: {...},
+  "split"?: {...}}`; at least one of the two pieces. The id written to the run output is `ramp`,
+  `split`, `ramp_split`, each with `_reanchor` when the base is the later re-anchor
+  (`noticer::composed_id`). A composed noticer whose pieces cannot act (`min_rise` of `u32::MAX`, a
+  gap longer than the stream) records exactly what its base records, over whole segments (tests).
+- *Cost.* The harness bills the components, the shared rule and the reasoner. It does not bill any
+  noticer's own work, the rung's noticing included, so no row of a table is charged for noticing. The
+  ramp noticer's work is counted by `RampDetector::readings_seen` and `comparisons`
+  (`tests/stream_b3_probe.rs`, `ramp_operations`).
+
 *Choosing a noticer.* `rung.noticer` is the default for every arm and `noticers` (a map of the
 manifest, arm name to noticer) overrides it per arm, so that an interleaved run can play one arm per
 noticer. It is a map of the manifest and not a field of `StreamArmSpec` so that the specification the
