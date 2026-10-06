@@ -77,6 +77,42 @@ Synchronous update, one tick:
 
 Within-tick order is total and documented, so replay is exact.
 
+## 4b. Rhythms: ticks as nested waves (added 2026-10-06, user direction)
+
+W1 found three timescales in the world that one tick cannot serve: burst order at 20–150 ms,
+the incident horizon at 6–16 s, retention and regime change at 100–200 s. The medium therefore
+keeps **nested rhythms** beside the base tick, in the spirit of brain oscillations, with the
+analogy's limits stated at the end of this section.
+
+- **Global rhythms** are periods in seconds in the `MediumSpec` (first set: 0.1 s, 10 s, 100 s;
+  the fastest is the base tick). Each rhythm's **phase** in `[0, 1)` is a pure function of the
+  tick index and the tick length, and all phases are broadcast in the field every tick (the
+  `Field` gains `phases: [f32; R]`, `R` = 3 first). A rhythm boundary is the tick where its
+  phase wraps.
+- **Delays, decays and lookbacks are specified in seconds** in the spec and converted to ticks
+  at build time, so a change of base tick does not change the program.
+- **Phase gates.** `Gate::Phase { rhythm, from, to }`: the synapse carries only while that
+  rhythm's phase is in `[from, to)`. This is oscillatory gating: sample in one window,
+  integrate in another, emit in a third.
+- **Binding by phase.** Two events are co-occurrence candidates at the fast scale when they
+  share a fast cycle, and at the slow scale when they share a slow phase bin. The `Coincidence`
+  archetype takes the rhythm it binds on as a parameter.
+- **Local oscillators.** The `Latch` archetype gains a phase-reset form (`Oscillator`): an event
+  resets its phase to 0 and it advances by its own period until it decays. A global rhythm cannot
+  time an incident's own horizon, because incidents arrive by a Poisson process and a global
+  phase is unrelated to onset; per-incident timing (notice, then wait for the decisive phase)
+  belongs to local oscillators.
+- **Schedules.** The plasticity adapter runs at the boundaries of the rhythm named in the spec
+  (first: the 10 s rhythm), not every tick. Trace sampling happens at the 100 s boundaries.
+  Memory decay is counted in slow cycles. Per-cycle work costs nothing per tick, which keeps
+  the medium sparse; its operations are still counted when it runs.
+
+**Where the analogy breaks, stated now.** In a brain the rhythms emerge from the dynamics; here
+they are imposed clocks, a human prior like the archetypes. Each rhythm, the phase gate and
+binding by phase must each earn its place by ablation (charter section 3): a medium with the
+rhythms removed is an arm in M2's follow-up. Nothing in the world is periodic, so the rhythms
+serve multi-scale integration and consolidation, not resonance with the world.
+
 ## 5. Archetypes (first set, hand-written)
 
 One function, many instances, parameters per cell. These are the first set, enough for a
