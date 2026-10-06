@@ -802,6 +802,96 @@ fn an_arm_without_the_medium_writes_the_same_files_beside_a_medium_arm() {
     );
 }
 
+/// The medium's own cost per stream, replayed on the public observations of the streams named by
+/// `M2_COST_SEEDS` (`first:count`) as the rung's steps deliver them, for each medium in
+/// `M2_COST_PARAMS` (a JSON object, label to noticer), written as CSV to `M2_COST_OUT`, with the
+/// conversion table of each medium to `M2_COST_OUT` + `.conversions.csv`. The replay equals the
+/// in-run charge (`the_bill_is_charged_the_mediums_counts_at_the_declared_prices_plus_the_tick_price`).
+#[test]
+#[ignore = "a tool for the PI: writes files"]
+fn replay_medium_cost() {
+    let seeds = std::env::var("M2_COST_SEEDS").unwrap_or_else(|_| "20000:2".to_owned());
+    let out = std::env::var("M2_COST_OUT").unwrap_or_else(|_| "m2-cost.csv".to_owned());
+    let params: Value = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("M2_COST_PARAMS").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let (first, count) = seeds.split_once(':').expect("first:count");
+    let first: u64 = first.parse().unwrap();
+    let count: u64 = count.parse().unwrap();
+    let mut text = String::from(
+        "label,seed,ticks,cell_updates,synapse_traversals,event_routings,field_reads,proposals,truncated_ticks,modelled_ns\n",
+    );
+    let mut conv = String::from("label,target,kind,ns,tick_len_ns,value\n");
+    for (label, noticer) in params.as_object().unwrap() {
+        let NoticerSpec::Medium(p) = serde_json::from_value(noticer.clone()).unwrap() else {
+            panic!("{label}: not a medium");
+        };
+        for seed in first..first + count {
+            let sp = StreamParams::new(seed);
+            let stream = generate(&sp);
+            let public = stream.public_info();
+            if seed == first {
+                let (spec, _) =
+                    gordian_run::stream::arms::medium::graph::spec(&p, &public.services).unwrap();
+                for c in spec.conversions().unwrap() {
+                    writeln!(
+                        conv,
+                        "{label},{:?},{:?},{},{},{}",
+                        c.target, c.kind, c.ns, c.tick_len_ns, c.value
+                    )
+                    .unwrap();
+                }
+            }
+            let all: Vec<Held> = stream
+                .events()
+                .iter()
+                .enumerate()
+                .map(|(i, (at, o))| Held {
+                    id: ObsId(i as u32),
+                    at: *at,
+                    abnormal: is_abnormal(o, &public.services),
+                    obs: o.clone(),
+                })
+                .collect();
+            let mut n = MediumNoticer::new(p, RungConfig::default(), &public.services).unwrap();
+            let mut store: std::collections::VecDeque<Held> = std::collections::VecDeque::new();
+            let (mut next, mut now) = (0, 0u64);
+            while now < sp.duration_ns {
+                while next < all.len() && all[next].at.0 <= now {
+                    store.push_back(all[next].clone());
+                    next += 1;
+                }
+                while store
+                    .front()
+                    .is_some_and(|h| h.at.0 + 120_000_000_000 < now)
+                {
+                    store.pop_front();
+                }
+                n.notice(Instant(now), &Store::with(store.iter().cloned()));
+                now += 500 * MS;
+            }
+            let l = n.ledger();
+            let c = l.total_counts;
+            writeln!(
+                text,
+                "{label},{seed},{},{},{},{},{},{},{},{}",
+                l.total_ticks,
+                c.cell_updates,
+                c.synapse_traversals,
+                c.event_routings,
+                c.field_reads,
+                c.proposals,
+                l.truncated_ticks,
+                n.total_ns()
+            )
+            .unwrap();
+        }
+    }
+    std::fs::write(&out, text).unwrap();
+    std::fs::write(format!("{out}.conversions.csv"), conv).unwrap();
+}
+
 /// Public observations of the streams named by `M2_DUMP_SEEDS` (`first:count`), written as CSV
 /// to `M2_DUMP_OUT`: for designing the graph on the tuning streams from public data. Every
 /// column is public (the observation, its instant and id, the public rules' verdict).
