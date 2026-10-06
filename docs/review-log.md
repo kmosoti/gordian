@@ -4,6 +4,67 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## M1 the medium crate — merged (Lab 1); prices calibrated at 10× the design's guess
+
+**Provenance.** Gates on exit codes on the merged tree: fmt, clippy `--locked`, 626 Rust tests,
+the oracle guard, 354 analysis tests. The crate forbids `unsafe`, has no hash map, I/O or
+transcendental call (grepped), and depends on `gordian-core` and `serde` only (`serde_json`,
+`proptest`, `criterion` as dev-dependencies). `Cargo.lock` gains one entry. The lab's
+benchmark data is kept in `artifacts/runs/m1/` (ignored).
+
+**Re-verified by the chief.**
+
+- **A mutation of my own.** Removing the within-tick event sort makes
+  `events_are_summed_in_offset_order` fail. The determinism tests test the claim; the lab's
+  eight mutations are credible.
+- **The benchmark**, rerun under the cgroup on cores 0-2 (67.7 s wall, 65.5 s CPU, 64.5 MB
+  peak): headline tick 7.1 / 7.8 / 8.7 × the declared prices at 10 / 100 / 1,000 active cells;
+  least-squares prices 201 ns per cell update, 19 per traversal, 40 per routing, 0.6 per field
+  read. The lab measured 202 / 22.8 / 42.3. The proposed prices (200, 25, 40, 2) put every
+  measurement within 0.78–1.28 of its model.
+
+**Verdict.** Accepted. The acceptance allowed a miss of the factor-of-5 price bound if new
+prices come with the measurement, and they do.
+
+**Decided on prices.** The calibrated prices are the declared prices from here: M2's manifests
+declare 200 / 25 / 40 / 2 ns, and M1b updates `Prices::DECLARED` with a test. This version of
+the tick stays the reference implementation; any faster tick is calibrated against it (AGENTS.md,
+"Keep a simple reference implementation as an oracle"). A medium cell update at 200 ns is about
+a tenth of a cheap component call (median 1,743 ns) and 10⁻⁵ of a reasoner call; cost is not in
+M2's criterion, but these are the numbers its cost column will carry.
+
+**The PI's three warnings, and what the chief decided (structure and failure perspectives).**
+
+1. **Silence never propagates.** Cells run only with input, so the end of an anomaly reaches
+   nobody, and B1's seam needs retirements. Decision for M2: a heartbeat event per tick from the
+   clock adapter, priced like any event (one routing, one update per tick), not a time-out in
+   the effector. A time-out in the adapter would be anchoring logic outside the medium, which
+   section 2 forbids.
+2. **The anchoring rule as built prunes the starting event.** An accumulating cell's lookback
+   bounds what it cites, not what it sums, so the event that began an anomaly is the one most
+   likely to fall out of the support, which moves the anchor later. That is the rung's failure
+   in a new form, and the PI is right to flag it. M2 must treat the lookback as a tuned
+   parameter per tick length, report anchor correctness as a function of it, and the
+   `EarliestAnchor` baseline from B1 is the fair comparator for exactly this. If anchor
+   correctness is bounded by pruning rather than by the graph, that is M2's first finding.
+3. **Pass-limit latency.** With `max_passes` 2 a sense → integrator → emitter chain emits one
+   tick late. M2 uses `max_passes` 3 and reports latency at each tick length.
+
+**Departures accepted**, all 33 recorded in the crate's `DESIGN.md`. The material ones: event
+references carry their offset; cells carry a bounded support of references (a new hard limit)
+and messages carry the sender's support; archetypes receive the ticks since they last ran so
+that cells without input truly do not run; "counts monotone in events" is true only in its weak
+form because inhibition exists, and the weak form is what is tested.
+
+**Rhythms.** The PI did not fold the oscillome into M1, for reviewability, and proposed a
+bounded M1b with an acceptance. Accepted: judging two designs under one acceptance would have
+been the chief's error. M1b is queued to Lab 1 with the PI's acceptance and the open questions
+of section 4b resolved in the queue entry.
+
+**Resource-rule violation, recorded.** The PI's first build overlapped a Lab 2 byte-identity
+run (a check, not a timed measurement). It disclosed it and guarded every later call. No
+measurement was affected.
+
 ## W1 tick statistics and the aim's measures — merged (Lab 3)
 
 **Provenance.** The example reruns byte-identical under the cgroup on the chief's own invocation
