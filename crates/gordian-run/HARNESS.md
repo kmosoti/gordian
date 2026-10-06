@@ -756,6 +756,31 @@ R6's held-out run at b = 5, rho = 0.7 replays byte for byte for all 62 arms
 (`experiments/exploration/scripts/b1_gate.py`, `b1-regression.csv`): `results.csv` and `incidents.csv`
 are unchanged by the seam.
 
+**B2: the site check, a later re-anchor and `hold_until_asked`.** Three additions, none of which
+changes `results.csv` or `incidents.csv` (R6's held-out run replays byte for byte for all 62 arms
+with them, `b2-regression.csv`):
+
+- *The record carries the notice's site.* The harness gives the evaluator each notice's site
+  (`NoticeEntry::site`), and the evaluator scores the site check, the single notice that is both
+  anchor-correct and site-correct, and the counts notice precision is made of (rules N13 to N16 of
+  `gordian-stream-eval/RULES.md`). The three notice files gain columns at the end (`NOTICES_HEADER`,
+  `NOTICE_INCIDENTS_HEADER`, `NOTICE_EVENTS_HEADER` in `src/stream/results.rs`); the analysis loader's
+  schema guard compares against them, so a loader written for B1's files refuses B2's.
+- *`ReanchorNoticer`* (`noticer_reanchor.rs`, id `reanchor`): the rung's noticer with one more step at
+  the moment of notice, a re-anchor onto the first burst that begins after an isolated anchor. Its
+  readings of "isolated" (`site` or `any`, and a gap), "burst" (a count in the rung's `burst_ns`), and
+  of when the move is made (at notice, never after) are stated in the file's documentation and are
+  parameters of the spec: `{"noticer": "reanchor", "gap_ns", "min_burst", "isolation", "notice_z"?}`.
+  `Tracked::move_anchor_to` is the move the rung's own re-anchor already made, extracted. A
+  `reanchor` noticer that never moves (`any` with a gap longer than the stream) records exactly what
+  the rung's does, over whole segments (a test).
+- *`hold_until_asked`* (`oracle_selection` only, off by default and then not written): an anomaly the
+  selection oracle will ask about stays live until it has asked (`EscalationRule::keeps`, consulted
+  only when the rule says it `may_keep`). It removes the retirement confound of the oracle's fixed
+  delay from the quality reading. A live anomaly can still take a later observation at its site
+  (the rung's last-resort attach rule), so the notice record of a run with the hold is that run's
+  own; `oracle.rs` says so.
+
 *Choosing a noticer.* `rung.noticer` is the default for every arm and `noticers` (a map of the
 manifest, arm name to noticer) overrides it per arm, so that an interleaved run can play one arm per
 noticer. It is a map of the manifest and not a field of `StreamArmSpec` so that the specification the
@@ -764,19 +789,23 @@ default, so earlier manifests are the same text (a test).
 
 *The record.* The rung logs every notice and retirement (`NoticeLogEntry`: the noticer's id, the
 anomaly, its anchor and site, the anchor's instant, the instant of the step) and the harness hands the
-log to the evaluator (`score_notices`, rules N1 to N12 of `gordian-stream-eval/RULES.md`) with the
+log to the evaluator (`score_notices`, rules N1 to N16 of `gordian-stream-eval/RULES.md`) with the
 instants of the stream's public observations. An `Err` is a defect (`StreamHarnessError::NoticeEval`)
 and stops the run; it is never a row. The run writes three files per arm beside the three it always
 wrote, which it leaves byte for byte as they were:
 
 - `notices.csv`, one row per stream: the noticer's id, notices, notices anchored on background, plain
-  incidents, hard incidents and decoys, retirements, and incidents noticed and anchor-correct by tier;
+  incidents, hard incidents and decoys, retirements, incidents noticed and anchor-correct by tier, and
+  (B2) the notices that are site-correct and that are both anchor-correct and site-correct, and the
+  incidents with a site-correct notice and with one notice that is both, by tier;
 - `notice_incidents.csv`, one row per incident (the keys, tier and family of `incidents.csv`): first
   observation, notices about it, whether it was noticed, the first notice and its latency from the
-  first observation, and whether it has an anchor-correct notice;
+  first observation, whether it has an anchor-correct notice, and (B2) whether it has a site-correct
+  one and one that is both;
 - `notice_events.csv`, one row per notice and retirement in the order recorded: the public fields
   (anchor, site, instants) and the evaluator's reading of a notice (the incident its anchor belongs to,
-  the anchor's offset from that incident's first observation, anchor-correct).
+  the anchor's offset from that incident's first observation, anchor-correct, and (B2) site-correct and
+  anchor-and-site-correct).
 
 The schema lives in `src/stream/results.rs` (`NOTICES_HEADER`, `NOTICE_INCIDENTS_HEADER`,
 `NOTICE_EVENTS_HEADER`) and the analysis loader's guard compares against it. *The notice files
