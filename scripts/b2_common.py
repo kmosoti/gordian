@@ -58,6 +58,11 @@ TABLE = ["rung_z3", "rung_z2", C1.change_name(CHANGE_Q), C1.earliest_name(EARLIE
 
 REANCHOR_ISOLATION = ["site", "any"]
 REANCHOR_GAP_MS = [50, 100, 150, 200, 300, 400]
+# AMENDMENT 1, made after stage 1's first run and before any held-out run: the anchor-correct share
+# fell monotonically with the gap and the best configuration was at the smallest gap of the grid
+# (50 ms), so the grid is extended downward (run `b2-tune1b`) to see where the shortfall stops. The
+# extension is run on the tuning streams only; the rule below chooses among both runs' configurations.
+REANCHOR_GAP_MS_EXTENSION = [10, 20, 30]
 REANCHOR_MIN_BURST = [2, 3]
 REANCHOR_Z = [3.0, 2.0, 1.5, 1.0]  # stage 2: the threshold, at the stage 1 choice of the rest
 
@@ -79,10 +84,15 @@ def spec(kind, **p):
     return C1.spec(kind, **p)
 
 
-def stage1_grid():
+def stage1_grid(gaps=None):
     """Every (isolation, gap, burst) at the rung's default threshold: (name, kind, parameters)."""
     return [(reanchor_name(i, g, b), "reanchor", {"isolation": i, "gap_ms": g, "burst": b})
-            for i in REANCHOR_ISOLATION for g in REANCHOR_GAP_MS for b in REANCHOR_MIN_BURST]
+            for i in REANCHOR_ISOLATION for g in (gaps or REANCHOR_GAP_MS) for b in REANCHOR_MIN_BURST]
+
+
+def stage1b_grid():
+    """The extension of amendment 1: the same, at the gaps below the first grid's."""
+    return stage1_grid(REANCHOR_GAP_MS_EXTENSION)
 
 
 def b1_grid():
@@ -122,9 +132,17 @@ def hold_policy(delay_s):
 # the rung's retirement, as B1's tuning. CHOSEN: the configuration of the highest anchor-correct share
 # of hard incidents outside the slow-leak family (pooled over streams) among those whose notices on
 # background per stream do not exceed BACKGROUND_BUDGET (9.03; at the default threshold none comes
-# near it). A tie is broken toward the configuration that moves fewer anchors: `any` before `site`,
-# then the larger gap, then the larger burst. Beside it, never in the rule: the anchor-and-site-correct
-# share, so that a configuration that buys anchor-correctness with a wrong site is visible.
+# near it). A tie is broken toward the configuration that moves fewer anchors: the larger gap, then the
+# larger burst, then the literal reading of the brief's "no other abnormal observation at its site"
+# (`site`) before `any`. Beside it, never in the rule: the anchor-and-site-correct share, so that a
+# configuration that buys anchor-correctness with a wrong site is visible.
+#
+# AMENDMENT 2, made after stage 1's first run and before any held-out run: the tie rule as first
+# written put `any` before `site` (on the reasoning that `any` moves fewer anchors) and ranked the
+# reading ahead of the gap. The first run tied the two readings at the top (185 of 199 incidents each),
+# with `site`, the brief's own wording, the one with fewer notices on background; a tie rule that
+# prefers my own variant to the brief's literal reading is backwards, and the gap is the parameter that
+# says how many anchors move. The rule is now: larger gap, larger burst, then `site` before `any`.
 #
 # Stage 2 (run `b2-tune2`): the stage 1 choice at each threshold of REANCHOR_Z, under the same rule
 # and budget; a tie goes to the larger threshold. The result is the `reanchor` row of the table.
@@ -137,7 +155,19 @@ def hold_policy(delay_s):
 # Nothing is chosen on any held-out stream.
 
 TUNE_OBJECTIVE = "hard_anchor_correct_share"
-TIE_ORDER_NOTE = "any before site, larger gap, larger burst; larger threshold"
+TIE_ORDER_NOTE = "larger gap, larger burst, site before any; larger threshold"
+
+
+def tie_keys_stage1():
+    """The stage 1 tie rule as (column, ascending) pairs over `with_tie_columns`."""
+    return [("p_gap_ms", False), ("p_burst", False), ("site_first", True)]
+
+
+def with_tie_columns(df):
+    """`df` (a tuning table) with the column the stage 1 tie rule sorts on: 0 for `site`, 1 for `any`."""
+    df = df.copy()
+    df["site_first"] = (df["p_isolation"] != "site").astype(int)
+    return df
 
 
 def run_id(stage):

@@ -1,0 +1,28 @@
+{
+  "objective": "hard_anchor_correct_share",
+  "budget_notices_on_background_per_stream": 9.03,
+  "tuning_seeds": [
+    10000,
+    10099
+  ],
+  "stage1": {
+    "chosen": {
+      "name": "reanchor_any_g50_b2",
+      "isolation": "any",
+      "gap_ms": 50,
+      "burst": 2,
+      "z": 3.0,
+      "hard_anchor_correct_share_tuning": 0.9296482412060302,
+      "hard_anchor_site_correct_share_tuning": 0.9246231155778895,
+      "notices_on_background_per_stream_tuning": 2.49
+    },
+    "rung_z3_tuning": {
+      "hard_anchor_correct_share": 0.8542713567839196,
+      "hard_anchor_site_correct_share": 0.8492462311557789,
+      "notices_on_background_per_stream": 3.99
+    },
+    "feasible": 24,
+    "tied_at_the_best": 2,
+    "rule": "highest anchor-correct share within the background budget; ties: any before site, larger gap, larger burst"
+  }
+}

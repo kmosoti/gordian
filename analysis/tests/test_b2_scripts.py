@@ -94,19 +94,23 @@ def test_the_choice_rule_takes_the_best_within_the_budget_and_breaks_ties_toward
 
     df = pd.DataFrame(
         [
-            # name, anchor-correct, background notices per stream, any-first, gap, burst
-            ("a", 0.90, 5.0, 1, 100, 2),
-            ("b", 0.95, 12.0, 1, 100, 3),  # the best, over the budget
-            ("c", 0.93, 8.0, 1, 100, 3),  # the best within the budget, tied with d and e
-            ("d", 0.93, 8.5, 0, 100, 3),  # `any`: moves fewer anchors than `site`
-            ("e", 0.93, 7.0, 0, 300, 3),  # larger gap: moves fewer anchors
-            ("f", 0.93, 7.0, 0, 300, 2),  # smaller burst: moves more
+            # name, anchor-correct, background notices per stream, reading, gap, burst
+            ("a", 0.90, 5.0, "site", 100, 2),
+            ("b", 0.95, 12.0, "site", 100, 3),  # the best, over the budget
+            ("c", 0.93, 8.0, "any", 100, 3),  # the best within the budget, tied with d, e and f
+            ("d", 0.93, 8.5, "site", 100, 3),  # `site` before `any` at the same gap and burst
+            ("e", 0.93, 7.0, "any", 300, 2),  # the larger gap moves fewer anchors: first of all
+            ("f", 0.93, 7.0, "site", 300, 2),  # `site` before `any`, the gap and burst being equal
+            ("g", 0.93, 7.0, "site", 300, 3),  # the larger burst moves fewer anchors than f's
         ],
-        columns=["noticer", C.TUNE_OBJECTIVE, "notices_on_background_per_stream", "any_first",
+        columns=["noticer", C.TUNE_OBJECTIVE, "notices_on_background_per_stream", "p_isolation",
                  "p_gap_ms", "p_burst"],
     )
-    pick, ties, feasible = SEL.choose(df, [("any_first", True), ("p_gap_ms", False), ("p_burst", False)])
-    assert pick["noticer"] == "e" and ties == 4 and feasible == 5
+    pick, ties, feasible = SEL.choose(C.with_tie_columns(df), C.tie_keys_stage1())
+    assert pick["noticer"] == "g" and ties == 5 and feasible == 6
+    # Without g, the literal reading wins the tie at equal gap and burst.
+    pick, _, _ = SEL.choose(C.with_tie_columns(df[df.noticer != "g"]), C.tie_keys_stage1())
+    assert pick["noticer"] == "f"
     # The threshold ladder breaks ties toward the larger threshold.
     ladder = pd.DataFrame(
         [("z1", 0.9, 8.0, 1.0), ("z2", 0.9, 8.0, 2.0), ("z3", 0.9, 8.0, 3.0), ("z0", 0.95, 9.5, 0.5)],

@@ -4,6 +4,8 @@ Usage:
   b2_manifests.py tune1      b = 5, rho = 0.7, the 100 tuning streams: the selection oracle (R5's 16 s,
                              the rung's retirement) under the rung's noticer at z = 3 and z = 2 (the
                              controls) and under `reanchor` at every (isolation, gap, burst) of stage 1
+  b2_manifests.py tune1b     the same streams: `reanchor` at the gaps below the first grid's (amendment 1
+                             of `b2_common.py`), at the rung's default threshold
   b2_manifests.py tune2      the same streams: `reanchor` at the stage 1 choice, at every threshold of
                              stage 2 (needs b2-selected.json with stage 1)
   b2_manifests.py tunedelay  the same streams: for each of the five table noticers, the selection oracle
@@ -172,6 +174,9 @@ def main():
     if stage == "tune1":
         arms, noticers = fixed_arms(stage1_configs())
         write(C.run_id("tune1"), C.TUNING_SEEDS, arms, noticers, 11_300, "exploration-b2-tune1")
+    elif stage == "tune1b":
+        arms, noticers = fixed_arms(controls() + C.stage1b_grid())
+        write(C.run_id("tune1b"), C.TUNING_SEEDS, arms, noticers, 11_350, "exploration-b2-tune1b")
     elif stage == "tune2":
         sel = C.load_selected()
         arms, noticers = fixed_arms(stage2_configs(sel))

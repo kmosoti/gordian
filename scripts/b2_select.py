@@ -1,7 +1,7 @@
 """Choose the parameters of `reanchor` and the hold delays from the tuning streams only.
 
 Usage:
-  b2_select.py stage1      after `b2-tune1-b5-rho0.7`: every configuration's tuning point to
+  b2_select.py stage1      after `b2-tune1-b5-rho0.7` and `b2-tune1b-b5-rho0.7`: every configuration's tuning point to
                            experiments/exploration/b2-tuning-stage1.csv, the choice into b2-selected.json
   b2_select.py stage2      after `b2-tune2-b5-rho0.7`: b2-tuning-stage2.csv, the choice added
   b2_select.py stage3      after `b2-tunedelay-b5-rho0.7`: b2-tuning-delays.csv, one delay per table
@@ -10,7 +10,7 @@ Usage:
 The rules are fixed in `b2_common.py` before the run each governs, and repeated here: stage 1 and 2
 choose the configuration of the highest anchor-correct share of hard incidents outside the slow-leak
 family among those within the background budget (BACKGROUND_BUDGET notices on background per stream),
-ties toward the configuration that moves fewer anchors (`any` before `site`, larger gap, larger burst;
+ties toward the configuration that moves fewer anchors (larger gap, larger burst, `site` before `any`;
 larger threshold); stage 3 is R5's rule for a delay: the highest quality, the cheapest of ties.
 Nothing is chosen on any held-out stream.
 """
@@ -71,12 +71,19 @@ def choose(df, tie_keys):
 
 
 def stage1():
-    run = load_run("tune1")
-    df = table(run, [c for c in C.stage1_grid()] + [("rung_z3", "rung", {}), ("rung_z2", "rung", {"z": 2.0})])
+    controls = [("rung_z3", "rung", {}), ("rung_z2", "rung", {"z": 2.0})]
+    first = table(load_run("tune1"), C.stage1_grid() + controls)
+    first["grid"] = "first"
+    ext = table(load_run("tune1b"), C.stage1b_grid() + controls)
+    ext["grid"] = "extension (amendment 1)"
+    # The controls are in both runs (the same arms, the same streams: the two copies must agree).
+    c1, c2 = first[first.kind == "rung"].set_index("noticer"), ext[ext.kind == "rung"].set_index("noticer")
+    for col in ("hard_anchor_correct_share", "notices_on_background_per_stream", "quality"):
+        assert (c1[col] == c2.loc[c1.index, col]).all(), f"the controls differ between the two runs in {col}"
+    df = pd.concat([first, ext[ext.kind != "rung"]], ignore_index=True)
     df.to_csv(C.OUT / "b2-tuning-stage1.csv", index=False)
-    grid = df[df.kind == "reanchor"].copy()
-    grid["any_first"] = (grid["p_isolation"] != "any").astype(int)  # `any` (0) sorts before `site` (1)
-    pick, ties, feasible = choose(grid, [("any_first", True), ("p_gap_ms", False), ("p_burst", False)])
+    grid = C.with_tie_columns(df[df.kind == "reanchor"])
+    pick, ties, feasible = choose(grid, C.tie_keys_stage1())
     rung = df[df.noticer == "rung_z3"].iloc[0]
     sel = load_sel()
     sel["objective"] = C.TUNE_OBJECTIVE
@@ -96,8 +103,8 @@ def stage1():
             "notices_on_background_per_stream": float(rung["notices_on_background_per_stream"]),
         },
         "feasible": feasible, "tied_at_the_best": ties,
-        "rule": "highest anchor-correct share within the background budget; ties: any before site, "
-                "larger gap, larger burst",
+        "rule": "highest anchor-correct share within the background budget; ties: larger gap, larger burst, site before any "
+                "(amendments 1 and 2 of b2_common.py)",
     }
     save_sel(sel)
     cols = ["noticer", "hard_noticed_share", "hard_anchor_correct_share", "hard_site_correct_share",
