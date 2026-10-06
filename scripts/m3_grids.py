@@ -145,4 +145,36 @@ def stage(name):
                                          f"_h{hold}_{t}")
                                 arms.append((label, arm))
         return arms, seeds, 13_300, "exploration-m3-tuning"
+    if name == "tune-d":
+        # tune-c: within both tuning bounds the best anchoring is 0.975 at 100 ms (z1 0.84),
+        # 0.980 at 500 ms (z1 1.0, strict precision 0.703, with the ramp silenced) and 0.965 at
+        # 2 s (z1 0.5, the cluster merge at 50 ms and the ramp silenced); the merge at 20 ms or
+        # more costs one to three incidents of anchoring, the hold of 15 s costs leak noticing
+        # and nothing else, the ramp's own refractory period changes little once the ramp is
+        # silenced. Last stage: the cluster merge at 10, 20 and 30 ms, with and without the ramp
+        # silenced, for the three best confirmations at each tick length (hold 6 s, ramp
+        # refractory 30 s).
+        confirms = {
+            100: {"latch": None, "all50L": ("all", 50), "dep50L": ("dependents", 50)},
+            500: {"dep50L": ("dependents", 50), "dep100L": ("dependents", 100),
+                  "all50L": ("all", 50)},
+            2000: {"dep50L": ("dependents", 50), "dep100L": ("dependents", 100),
+                   "all50L": ("all", 50)},
+        }
+        for tick in C.TICKS_MS:
+            base = dict(m2_frozen(tick), burst_subtick_ns=window_ns(m2_frozen(tick)),
+                        burst_every_event=True, burst_lookback_ns=tick * MS)
+            if tick == 2000:
+                base = dict(base, burst_n=2, burst_window_ns=25 * MS, burst_subtick_ns=25 * MS,
+                            burst3_window_ns=30 * MS)
+            t = f"t{tick}"
+            for cname, c in confirms[tick].items():
+                b = dict(base, ramp_refractory_ns=30 * S, hold_ns=6 * S)
+                if c is not None:
+                    b.update(burst_confirm=c[0], confirm_window_ns=c[1] * MS, confirm_lead=True)
+                for merge in (10, 20, 30):
+                    for inhibit in (False, True):
+                        arms.append((f"{cname}_m{merge}_i{int(inhibit)}_{t}",
+                                     dict(b, merge_window_ns=merge * MS, ramp_inhibit=inhibit)))
+        return arms, seeds, 13_400, "exploration-m3-tuning"
     raise SystemExit(f"unknown stage {name!r}")

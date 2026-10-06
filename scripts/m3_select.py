@@ -18,7 +18,7 @@ import pandas as pd
 import m3_common as C
 import m3_grids as G
 
-STAGES = ["tune-a", "tune-b", "tune-c"]
+STAGES = ["tune-a", "tune-b", "tune-c", "tune-d"]
 
 
 def noticer_of(stage, arm):
