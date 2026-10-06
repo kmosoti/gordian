@@ -4,6 +4,45 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## M1b the oscillome — merged (Lab 1); one benchmark point outside the band, accepted with a decision
+
+**Provenance.** The all-off identity: `tests/m1_identity.rs` was committed on M1's code
+(`a232cf5`) with two pinned digests over 310 specs; the chief reran it at that commit (M1 code,
+no `oscillome.rs`) and at HEAD; both pass and the file is unchanged between them. Gates on
+exit codes on the merged tree: fmt, clippy `--locked`, 686 Rust tests, the oracle guard, 377
+analysis tests. 23 mutations, 22 caught; the one not caught (decay through `f32::exp`) gives
+identical bits on this platform and is recorded. Benchmark data in `artifacts/runs/m1b/`.
+
+**Verdict.** Accepted. One acceptance point fails: the smallest routing-only workload measures
+1.42–1.43 of its model against a band of 0.7–1.4. The PI diagnosed two causes, an unpriced
+fixed cost per tick (about 85 ns idle, about 190 ns with the engine on) and an 18–20% slower
+routing path with the larger tick function, verified by alternating M1's and M1b's binaries
+under one cgroup.
+
+**Decided on the miss.** A per-tick fixed price of **200 ns** is charged by the ledger adapter
+in M2 (a declared manifest price, like the others) so that a medium that ticks is billed for
+ticking: 6,000 ticks per 600 s stream at 100 ms is 1.2 ms of modelled cost, against the rung's
+0.66 s. The routing slowdown is not optimised now; this tick stays the reference and any faster
+one is calibrated against it. The band is met at every other point (46 of 48 measurements, the
+headline 0.89–1.22).
+
+**What it means (time and structure).**
+
+- **Times in seconds survive the tick sweep, with stated losses.** The conversion table shows
+  which delays collapse to one tick (everything under 150 ms at 500 ms and 2 s) and which are
+  refused (over 255 ticks). A design that wants a 100 s delay at a 100 ms tick uses a rhythm,
+  not a synapse delay. That is the oscillome doing what it was added for.
+- **The PI's prediction for the ablation is on record:** the global rhythms, phase gates and
+  binned coincidence will be removed; the ordered coincidence (event order from `offset_ns`
+  inside a long tick) is the element most likely to earn its place, at 500 ms and 2 s only;
+  oscillators matter for the 6–16 s horizon, not first-tick anchoring; retirement lets the end
+  of an anomaly reach B1's seam without a heartbeat. The chief agrees with the direction and
+  records it so the ablation cannot be read post hoc.
+- **A hazard accepted:** parameters M1 documented as unused now carry meaning; decoding refuses
+  stored conversions that disagree with their quantities. No M1 spec exists outside the tests.
+
+**M2 is unblocked.** M1b and B1 are merged; the M2 brief follows in `docs/lab-queue.md`.
+
 ## Synthesis after W1, M1, B1 (chief; the perspectives of AGENTS.md "Multidimensional analysis")
 
 **Structure.** The three units compose at one point: B1's `Noticer` seam is the rung's noticing,

@@ -28,9 +28,9 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | M1 | 1 | The medium crate: types, tick, archetypes, ports, determinism | — | merged |
 | B1 | 2 | The `Noticer` seam, notice measures in the evaluator, public noticing baselines | — | merged |
 | W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
-| M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | running |
+| M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | merged |
 | B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | queued |
-| M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | queued |
+| M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | running |
 
 ## M1 The medium crate (Lab 1)
 
@@ -187,6 +187,39 @@ and that is recorded as the public status quo closing the gap.
 A hand-designed noticing graph on the medium (with the oscillome of M1b), fed by the stream sense adapter, emitting notices
 into B1's `Noticer` seam, compared with B1's public noticers on the same held-out streams with
 the selection oracle and the rung's context.
+
+**Build (Lab 1, after M1b and B1; fixed 2026-10-06).**
+
+1. **Sense and clock adapters** in `crates/gordian-run/src/stream/arms/medium/` (Lab 1's
+   territory for M2): every `StreamEvent::Observed` becomes an `Event` with its value, benign
+   readings included (the synthesis entry in the review log says why: the slow leak is benign
+   under the public rules), its public-rule verdict as a tag, the service as the address node,
+   the channel as counter, message, snapshot or probe; message ids folded to a `Tag` with the
+   collision rule stated. The tick length is a manifest parameter; the clock adapter derives
+   the tick from the harness's logical instant.
+2. **Effector adapter** into B1's `Noticer` seam: proposals of kind `notice` become notices
+   (anchor, site from the anchor's address, attached = the proposal's refs); `retire` proposals
+   become retirements. The medium is the arm's noticer; everything downstream is the shared rung,
+   the rung's context, and the selection oracle at R5's delay, as the comparator rows use.
+3. **Ledger adapter**: the medium's operation counts at the calibrated prices (200 / 25 / 40 / 2)
+   plus 200 ns per tick, charged to the arm's bill like a component call. The stream's hard
+   limits stay on.
+4. **The noticing graph**, hand-designed, public information only, with `max_passes` 3: sense
+   cells per (node, channel); per-node integrators and novelty cells with time constants in
+   seconds; coincidence across the public graph's neighbours (sliding, binned and ordered forms
+   available); latches with retirement; emitters whose lookback is a tuned parameter. Designed
+   and tuned on the tuning seeds 10000–10099 at each tick length, frozen (commit named) before
+   any held-out run; the PI records every structural choice and what it was for.
+5. **Runs** through the driver at b = 5, ρ = 0.7 on the 200 held-out streams: the medium at
+   each tick length beside `RungNoticer` z = 2 and z = 3 (the comparator rows, rerun so the
+   table is one run), plus the oscillome ablations as labelled arms at the best tick length
+   (rhythms off; phase gates off; coincidence sliding instead of ordered or binned; oscillators
+   off), and a medium with an abnormal-only sense adapter as a labelled control for the
+   synthesis decision.
+6. **Report** `experiments/exploration/m2-medium-noticer.md`: the criterion as written at each
+   tick length with paired intervals; everything "reported beside"; anchor correctness as a
+   function of the emitter lookback; latency per tick length; the medium's cost column; the
+   ablations; the PI's analysis.
 
 **Criterion, fixed by the chief before any M2 code or run (2026-10-06).** Two separate results,
 each named, at b = 5, ρ = 0.7, 200 held-out streams, paired 90% cluster bootstrap over streams,
