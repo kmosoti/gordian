@@ -4,6 +4,58 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## W1 tick statistics and the aim's measures — merged (Lab 3)
+
+**Provenance.** The example reruns byte-identical under the cgroup on the chief's own invocation
+(five CSVs). Gates on exit codes on the merged tree: fmt, clippy `--locked`, 588 Rust tests, the
+oracle guard, 354 analysis tests. The chief added the `[[example]]` wiring in the crate's
+`Cargo.toml`, outside the lab's territory, as the PI asked. Run usage in `artifacts/runs/w1/`.
+
+**Re-verified.** Sample efficiency and energy ratios follow from R10's numbers the chief already
+checked: `notice_rung` 348/511 = 0.681, the oracle 480/511 = 0.939; ns per correct hard decision
+equals cost per stream × 200 / correct hard, to three figures, for every arm checked.
+
+**What it means for the medium (time perspective).**
+
+- **The two timescales are real and a tick cannot serve both.** At 100 ms a contradicting
+  burst's partner alarm lands in a later tick 79% (cascade) and 63% (split brain) of the time,
+  so order survives; at 500 ms about five in six partner pairs share a tick; at 2 s order is gone
+  (97–100% same tick). The leak is tick-indifferent. `offset_ns` inside the tick is therefore
+  not a nicety: at 500 ms it is the only carrier of burst order.
+- **Background swamps the long tick.** The share of (node, tick) cells with two or more abnormal
+  observations is 0.12% at 100 ms and 15% at 2 s. A "two abnormal at a node" rule fires 446
+  times per stream at 2 s against 75 at 100 ms. Thresholds on counts cannot be shared across
+  tick lengths; M2 tunes per tick, and delays and decays are stated in seconds, not ticks.
+- **Decisive evidence is never in the first tick**, by construction: hard incidents present for
+  6–16 s before their decisive phase. A noticer's job in the first tick is anchoring, not
+  deciding; the design's "earliest contributing event" rule is aimed at the right moment.
+- **"Cost inverse in tick length" was wrong as stated.** Routed events are constant; active
+  (node, tick) cells fall only 4,261 → 2,175 across a 20× change in tick. Only per-tick fixed
+  work scales inversely. The medium's cost is driven by events, not ticks, which is what a
+  sparse design should show; `docs/medium-ports.md` section 8 is corrected below.
+
+**What it means for the aim (objective perspective).**
+
+- **Cost per correct decision over all incidents is cost in disguise** (Spearman 1.00 with cost),
+  because plain incidents dominate the denominator and every arm gets them equally. The proxy
+  that discriminates is per correct *hard* decision, and even that is near cost order where
+  quality is flat (R9: 0.98). Decision: preregistrations report both, with the hard-decision
+  denominator as the aim's proxy 1.
+- **Joules rank exactly as modelled nanoseconds** because the reasoner is 99.87% or more of
+  every reasoner arm's cost. The placeholder watts (10 W cheap, 1,000 W reasoner) matter only
+  for `never_escalate`. The conversion stays a labelled placeholder until measured.
+- **Sample-efficiency curves of fixed policies are flat**, as they must be. The instrument is
+  built; it has nothing to read until a learning arm exists (aim proxy 2). The PI's next test,
+  an online public noticer against a never-learning control on the same stream order, is the
+  right one and is queued after M2.
+
+**Accepted with notes.** `is_abnormal` is a copy of the rung's rule because the stream crate
+cannot depend on the harness; equality is by reading. Same-tick shares assume a grid starting at
+zero; phase is not swept. Group counts are 56–140 without intervals.
+
+**Decided.** `docs/medium-ports.md` section 8: replace the cost expectation with W1's finding;
+require `offset_ns`-aware archetypes at 500 ms and above; tick sweep stays {100 ms, 500 ms, 2 s}.
+
 ## R9 grounded distractor penalty — merged; the world's look-alikes cost a strong reader little
 
 **Provenance.**
