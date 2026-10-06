@@ -12,8 +12,13 @@ Seeds, settings, the selection oracle's delay and the bootstrap are R4 to R10's,
 
 import os
 import pathlib
+import sys
 
-import r10_common as C10
+# The analysis package of this worktree (the shared virtual environment installs the main
+# checkout's copy, which does not have the notice loader).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "analysis"))
+
+import r10_common as C10  # noqa: E402
 
 C6 = C10.C6
 C5 = C10.C5
@@ -127,7 +132,15 @@ def arm_name(name):
 # it can be at the background budget the rung spends; the quality row is then a consequence, not a
 # target. The held-out grid is also run and reported as sensitivity, and no parameter is chosen from
 # it.
+#
+# AMENDMENT, made after the tuning run and before any held-out run (the tuning table showed the
+# need; no held-out number had been seen): a lookback of 0 is the rung itself, not an instance of
+# EarliestAnchor, so it stays in the grid as a control and is not a candidate for the choice. Under
+# the rule as first written the tie between l = 0 and l = 0.25 would have gone to l = 0 and
+# the row "EarliestAnchor" would have been the rung's row again. The chosen parameter is then the
+# best of l > 0 under the same budget. Nothing else of the rule changed.
 TUNE_OBJECTIVE = "anchor_correct_hard_no_leak"
+TUNE_EXCLUDED = {"earliest_anchor": 0.0}  # parameter values that are controls, not candidates
 TUNE_BUDGET_REFERENCE = "rung_z3"
 
 # ---- the criterion's fixed numbers (R10's; the bootstrap and the interval are the plan's) ------------

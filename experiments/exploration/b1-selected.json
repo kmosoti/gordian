@@ -1,0 +1,31 @@
+{
+  "objective": "anchor_correct_hard_no_leak",
+  "budget_reference": "rung_z3",
+  "budget_notices_on_background_per_stream": 3.99,
+  "tuning_seeds": [
+    10000,
+    10099
+  ],
+  "change_triggered": {
+    "arm": "sel_change_q128_privileged",
+    "noticer": "change_q128",
+    "parameter": "q",
+    "value": 128.0,
+    "hard_anchor_correct_share_tuning": 0.035175879396984924,
+    "notices_on_background_per_stream_tuning": 8.63,
+    "feasible": [],
+    "rule": "no parameter within the background budget; the fewest background notices"
+  },
+  "earliest_anchor": {
+    "arm": "sel_earliest_l0.25_privileged",
+    "noticer": "earliest_l0.25",
+    "parameter": "l",
+    "value": 0.25,
+    "hard_anchor_correct_share_tuning": 0.8542713567839196,
+    "notices_on_background_per_stream_tuning": 3.97,
+    "feasible": [
+      "earliest_l0.25"
+    ],
+    "rule": "highest anchor-correct share within the background budget"
+  }
+}
