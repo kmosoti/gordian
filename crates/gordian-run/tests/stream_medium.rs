@@ -493,6 +493,7 @@ fn medium_arm_record(seed: u64, params: MediumParams) -> gordian_run::stream::Se
         None,
         Some(16_000_000_000),
         None,
+        None,
     )
     .unwrap();
     play_with_rung(&p, &spec, &limits(&p), &rung).unwrap()

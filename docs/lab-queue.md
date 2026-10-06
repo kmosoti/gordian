@@ -29,7 +29,8 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | B1 | 2 | The `Noticer` seam, notice measures in the evaluator, public noticing baselines | — | merged |
 | W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
 | M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | merged |
-| B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | queued |
+| B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | merged |
+| B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | queued |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | running |
 
 ## M1 The medium crate (Lab 1)
@@ -182,6 +183,30 @@ intervals. No claim about which noticer is better. If `ReanchorNoticer` reaches 
 anchor-correct within the budget, the chief re-fixes M2's comparator to it before any M2 run,
 and that is recorded as the public status quo closing the gap.
 
+## B3 A public leak noticer and a splitting noticer (Lab 2, after B2)
+
+The re-anchor closed most of the burst-family anchoring gap and left the leak untouched (0.460
+noticed, 0.000 anchor-correct for every abnormal-only noticer). Before the medium claims the
+leak, the status quo gets its fair chance at it, and at the 8 never-noticed incidents.
+
+1. **`RampNoticer`**, public information only: a per-node trend detector on counter values,
+   benign readings included (the public rules' "abnormal" verdict is not its trigger), that
+   notices when a node's reading has risen monotonically, or by more than a slope threshold,
+   over a window, anchored at the earliest observation of the rise. It composes with the rung's
+   noticer (both notice; the rung's downstream is shared). Parameters tuned on seeds
+   10000–10099 under the background budget of 6.82 notices per stream.
+2. **`SplitNoticer`**: when an anomaly's attached observations form two bursts at different
+   sites separated by more than a gap, the later burst becomes its own anomaly anchored at its
+   first observation. Public information only; tuned as above.
+3. The B2 table extended with both and their composition with the re-anchor, on the 200
+   held-out streams, with leak anchor-correct, strict precision and notices per incident.
+
+**Acceptance (fixed 2026-10-06).** Byte identity on R6's held-out run; fixtures and mutation
+checks for any evaluator change; the extended table with intervals; no claim about which is
+better. If a public row reaches leak noticed ≥ 0.660 within the budget, the chief re-fixes M2's
+result-2 comparator if M2's held-out runs have not started, and otherwise records the
+supplementary comparison in both reports.
+
 ## M2 The medium as a noticer (Lab 1, after M1 and B1)
 
 A hand-designed noticing graph on the medium (with the oscillome of M1b), fed by the stream sense adapter, emitting notices
@@ -224,20 +249,23 @@ the selection oracle and the rung's context.
 **Criterion, fixed by the chief before any M2 code or run (2026-10-06).** Two separate results,
 each named, at b = 5, ρ = 0.7, 200 held-out streams, paired 90% cluster bootstrap over streams,
 at each tick length in {100 ms, 500 ms, 2 s}, against one named comparator for both results,
-**`RungNoticer` at z = 2 from B1's table** (anchor-correct 0.914 [0.890, 0.937]; leak noticed
-0.460; 9.03 background notices per stream). *Amended 2026-10-06, before any M2 code or run:* the
+**`ReanchorNoticer` from B2's table** (anchor-correct 0.952 [0.932, 0.970]; leak noticed 0.460;
+6.82 background notices per stream). *Re-fixed 2026-10-06 under B2's acceptance clause, before
+any M2 held-out run, from `RungNoticer` z = 2 (0.914; 0.460; 9.03); Lab 1 was told directly.
+Feasibility: 18 of 372 hard non-leak incidents remain not anchor-correct for the comparator, so
+result 1 means fixing at least 11 of them.* *Amended 2026-10-06, before any M2 code or run:* the
 original wording, "the best public noticer by that result's own measure", would have admitted a
 flooding noticer (B1's sensitivity rows: 588 background notices per stream, anchor-correct
 0.984), under which both results are unreachable; the review log records the error.
 
 1. **Anchored noticing on hard incidents, slow leak excluded:** the medium's anchor-correct
    noticed share exceeds the comparator's by at least 0.03, with the paired lower bound above
-   0.01, with the medium's notices on background per stream not exceeding 9.03.
+   0.01, with the medium's notices on background per stream not exceeding 6.82.
 2. **Noticing the slow leak:** the medium's leak noticed share exceeds the comparator's by at
    least 0.20, with the paired lower bound above 0.10, under the same background bound.
 
 Reported beside, never folded in: leak anchor-correct (0.000 for every public noticer), notice
-precision, notices per incident, notice latency, and hard-incident quality with the selection
+precision and strict precision (B2's N16), notices per incident, notice latency, and hard-incident quality with the selection
 oracle, whose fixed 16 s delay and the rung's 6 s retirement confound it (B1).
 
 A result that holds at one tick length and not another is reported as such; "holds" for the

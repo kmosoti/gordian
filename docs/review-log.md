@@ -4,6 +4,70 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## B2 the public later re-anchor — merged (Lab 2); the status quo closes most of the anchoring gap
+
+**Provenance.** R6's held-out run replays byte-identical for all 62 arms, twice (chief's hashes).
+cargo-mutants: 78 of 80 caught on the evaluator (2 unviable), 33 of 35 on the new noticer (2
+unviable), 20 of 20 hand mutants. Two tuning amendments were made after the first tuning run
+and before any held-out run (grid extended downward; a tie rule), both recorded with the first
+run's files kept. Gates on exit codes on the merged tree: fmt, clippy `--locked`, 713 Rust
+tests, the oracle guard, 389 analysis tests. Outputs in `artifacts/runs/b2/` (ignored).
+
+**Re-verified from the per-incident notice files.** `ReanchorNoticer` (site isolation 20 ms,
+burst ≥ 2, z = 2): anchor-correct 0.952, leak noticed 0.460, 6.82 background notices per
+stream; the rung at z = 2: 0.914, 0.460, 9.03; paired difference +0.038 [+0.021, +0.055] with
+the chief's own cluster bootstrap. The held-out-best configuration within the budget is the
+tuning-selected one, so the number is not selection luck.
+
+**Verdict.** The acceptance clause triggers: the public later re-anchor reaches the 0.944 bar
+within the budget (point estimate; the interval's lower end, 0.932, does not, and 200 streams
+cannot say more). **M2's comparator is re-fixed to `ReanchorNoticer`** before any M2 held-out
+run; Lab 1 was told directly.
+
+**What it means (objective, failure and meta perspectives).**
+
+- **A one-line public rule closes most of the mis-anchoring gap.** "If nothing follows the
+  anchor within 20 ms and a burst begins later, move the anchor to the burst" gains 19
+  incidents and loses 1 at the rung's own threshold, with fewer false notices. Of the gap R10
+  measured, what remains for anything cleverer is 18 of 372 incidents: 10 anchored late (1–52
+  s) and 8 never noticed. On burst families the status quo, tuned, has reached the noticing
+  ceiling in quality terms: with the retirement confound removed, the re-anchor scores 0.591
+  against the injected-notice oracle's 0.586 on the same streams (+0.005 [−0.028, +0.038]).
+- **The leak is where noticing still has measured value**, and the re-anchor does not touch
+  it: 0.460 noticed, 0.000 anchor-correct for every public noticer. R10's 0.75 lever stands.
+- **The retirement confound is real and small for the rung family** (+0.008 to +0.040), and
+  it is the whole story for floods (0.000 → 0.62–0.70 with the hold, bought with 57–63
+  reasoner calls per stream). Neither quality reading measures noticing alone, which is why M2
+  decides on noticing.
+- **Precision as specified rewards floods** (0.56–0.60), because most abnormal observations
+  belong to incidents. Strict precision (anchor- and site-correct notices over all notices:
+  0.02 for floods, 0.67 for the re-anchor) and notices per incident expose them; both join M2's
+  reported-beside list.
+- **The 20 ms gap is a constant of this world's burst spacing.** The PI says so; the rule is
+  close to "nothing follows the anchor immediately". One world, one setting. The medium's
+  version of the same idea at a 100 ms tick is the fair comparison (B2's sensitivity rows: 0.935
+  at 100 ms, 0.927 at 200 ms, 0.900 at 400 ms).
+
+**For the aim.** This is the program's second instance of the status quo, given a fair chance,
+capturing most of a lever (Stage B was the first). It is the falsification rule working as
+intended, and it sharpens M2: the medium is now asked to beat the best public noticer, not the
+default one. Its remaining claims are the 18 incidents, the leak, and cost.
+
+**Decided.**
+
+1. M2's comparator: `ReanchorNoticer`, anchor-correct 0.952 [0.932, 0.970], leak noticed 0.460,
+   background bound 6.82 per stream. Margins unchanged: result 1 needs ≥ 0.982 (paired lower
+   bound > 0.962), feasible only by fixing 11 of the 18 remaining incidents, and stated so.
+2. Strict precision and notices per incident are reported beside M2's results.
+3. **B3 (Lab 2):** the status quo gets its fair chance at the leak too: a public noticer that
+   reads benign values (a per-node ramp or trend detector on saturation-type counters, tuned
+   under the background budget), plus a splitting noticer for the 8 never-noticed incidents.
+   If B3 reports before M2's held-out runs, the comparator for result 2 is re-fixed; otherwise
+   M2 is read against B3 afterwards as a labelled supplementary comparison, and that is said in
+   both reports.
+4. The hold option stays off in every comparison row; the "held" quality reading is reported
+   beside, never in a criterion.
+
 ## M1b the oscillome — merged (Lab 1); one benchmark point outside the band, accepted with a decision
 
 **Provenance.** The all-off identity: `tests/m1_identity.rs` was committed on M1's code

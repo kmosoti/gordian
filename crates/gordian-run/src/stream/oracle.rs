@@ -96,6 +96,28 @@
 //! What the plan gives it: the hard flag and the first observation of each incident, and nothing
 //! else (a test builds plans that differ in every other field and checks the arm does not move).
 //!
+//! # Work item B2: `hold_until_asked`
+//!
+//! `oracle_selection` asks about a noticed anomaly `delay_ns` after it was noticed, and only if the
+//! anomaly is still live then. The shared rung retires an anomaly after its quiet time (6 s with no
+//! abnormal observation), so with a delay longer than that, an anomaly that went quiet is retired
+//! before the oracle asks and is never asked about: the selection oracle's quality then measures
+//! how long the noticer's anomalies live as much as what they were anchored on. The option
+//! `hold_until_asked` (off by default, and then the arm is byte for byte what it was) keeps an
+//! anomaly the oracle *will* ask about live until it has asked: a quiet anomaly whose anchor
+//! belongs to a hard incident and which has had no escalation proposed ([`AnomalyView::attempts`] is
+//! zero) is not given the rule's final call and not retired ([`EscalationRule::keeps`]). Once asked
+//! it retires as every anomaly does. Its only privilege is the one the arm already has, which
+//! anomalies are hard.
+//!
+//! What the hold changes besides the retirement, stated because a reader will look for it: a live
+//! anomaly stays in the noticer's set, so the rung's last-resort attach rule (an abnormal
+//! observation at the site of a stale anomaly joins it) can take a later observation at that
+//! site into the held anomaly instead of opening a new candidate. That can change what is noticed
+//! later at that site, within the delay. The notice record of a run with the hold is therefore the
+//! record of that run, and is reported as such, not read as the record of the same noticer without
+//! it.
+//!
 //! # How the truth reaches it, and only it
 //!
 //! [`StreamPolicy`] and [`EscalationRule`] have no place for a truth. [`OracleFactory::build`]
@@ -194,8 +216,9 @@ pub struct OracleFactory {
 enum Mode {
     /// `oracle_escalation`.
     Escalation,
-    /// `oracle_selection`, with its delay after notice.
-    Selection { delay_ns: u64 },
+    /// `oracle_selection`, with its delay after notice and whether it keeps an anomaly it will
+    /// ask about live until it has asked (work item B2).
+    Selection { delay_ns: u64, hold: bool },
     /// `oracle_decoy`.
     Decoy,
     /// `oracle_selection_context`, with its delay after notice.
@@ -216,9 +239,16 @@ impl OracleFactory {
     /// A factory of `oracle_selection`, which escalates each hard anomaly `delay_ns` after it is
     /// noticed, with the context of the shared cheap rung `rung`.
     pub fn selection(rung: RungConfig, delay_ns: u64) -> Self {
+        Self::selection_with(rung, delay_ns, false)
+    }
+
+    /// A factory of `oracle_selection` with the option `hold_until_asked` (work item B2): as
+    /// [`OracleFactory::selection`], and an anomaly the oracle will ask about stays live until it
+    /// has been asked. `hold = false` is `selection` exactly.
+    pub fn selection_with(rung: RungConfig, delay_ns: u64, hold: bool) -> Self {
         Self {
             rung,
-            mode: Mode::Selection { delay_ns },
+            mode: Mode::Selection { delay_ns, hold },
         }
     }
 
@@ -285,11 +315,12 @@ impl OracleFactory {
                     self.rung.clone(),
                 ))
             }
-            Mode::Selection { delay_ns } => Box::new(StreamArm::with(
+            Mode::Selection { delay_ns, hold } => Box::new(StreamArm::with(
                 SelectionOracle {
                     owner: plan.owner.clone(),
                     hard_ids: ids_where(&|i| i.hard),
                     delay_ns,
+                    hold_until_asked: hold,
                 },
                 public,
                 self.rung.clone(),
@@ -401,6 +432,20 @@ struct SelectionOracle {
     owner: Vec<Option<u32>>,
     hard_ids: BTreeSet<u32>,
     delay_ns: u64,
+    /// Keep an anomaly the oracle will ask about live until it has asked (work item B2).
+    hold_until_asked: bool,
+}
+
+impl SelectionOracle {
+    /// Whether the anomaly anchored on `anchor` is one this oracle asks about: its anchor belongs
+    /// to a hard incident.
+    fn is_hard(&self, anchor: ObsId) -> bool {
+        self.owner
+            .get(anchor.0 as usize)
+            .copied()
+            .flatten()
+            .is_some_and(|i| self.hard_ids.contains(&i))
+    }
 }
 
 impl EscalationRule for SelectionOracle {
@@ -410,6 +455,16 @@ impl EscalationRule for SelectionOracle {
 
     fn role(&self) -> ArmRole {
         ArmRole::Privileged
+    }
+
+    fn may_keep(&self) -> bool {
+        self.hold_until_asked
+    }
+
+    /// With `hold_until_asked`: a quiet anomaly this oracle will ask about and has not yet asked
+    /// about (no escalation proposed for it) is kept live. Once asked, it retires as any does.
+    fn keeps(&self, view: &AnomalyView) -> bool {
+        self.hold_until_asked && view.attempts == 0 && self.is_hard(view.anchor)
     }
 
     /// The noticed anomalies whose anchor belongs to a hard incident, once each, `delay_ns` after

@@ -12,6 +12,7 @@
 //! {"policy": "always_escalate", "delay_ns": 8000000000}
 //! {"policy": "contradiction_escalation", "delay_ns": 8000000000, "persist_ns": 2000000000}
 //! {"policy": "oracle_selection", "delay_ns": 8000000000}
+//! {"policy": "oracle_selection", "delay_ns": 8000000000, "hold_until_asked": true}
 //! {"policy": "oracle_selection_context", "delay_ns": 8000000000}
 //! {"policy": "oracle_notice", "delay_ns": 8000000000}
 //! ```
@@ -24,6 +25,11 @@
 //! `persist_ns` (`contradiction_escalation`) is how long the consistency checker must have found
 //! no hypothesis consistent with the anomaly's evidence before the arm escalates; its default is 0
 //! and, like a zero delay, it is not written.
+//!
+//! `hold_until_asked` (`oracle_selection` only, work item B2) keeps an anomaly the oracle will ask
+//! about live until it has asked (see `oracle.rs`); its default is false and, like a zero delay,
+//! it is not written, so a manifest written before the option existed is the same text as one
+//! written now.
 //!
 //! A parameter an arm does not have, or an out-of-range one, is a parse error. Every parameter is
 //! written (a defaulted one is filled in at parse time), so a manifest records what ran. The
@@ -115,6 +121,9 @@ pub enum StreamPolicySpec {
     OracleSelection {
         /// Nanoseconds after notice before a hard anomaly is escalated.
         delay_ns: u64,
+        /// Keep an anomaly the oracle will ask about live until it has asked (work item B2). Off
+        /// by default, and then not written.
+        hold_until_asked: bool,
     },
     /// `oracle_decoy`: privileged; dismisses exactly the decoy anomalies.
     OracleDecoy,
@@ -137,10 +146,11 @@ pub enum StreamPolicySpec {
 impl StreamPolicySpec {
     /// The arm with `id` and its default configuration, or why there is none.
     pub fn from_id(id: &str) -> Result<Self, String> {
-        Self::from_parts(id, None, None, None, None, None, None)
+        Self::from_parts(id, None, None, None, None, None, None, None)
     }
 
     /// The arm `id` with the given parameters. A parameter the arm does not have is an error.
+    #[allow(clippy::too_many_arguments)]
     pub fn from_parts(
         id: &str,
         period_ns: Option<u64>,
@@ -149,6 +159,7 @@ impl StreamPolicySpec {
         p: Option<f64>,
         delay_ns: Option<u64>,
         persist_ns: Option<u64>,
+        hold_until_asked: Option<bool>,
     ) -> Result<Self, String> {
         let stray = |name: &str| format!("policy {id:?} has no parameter {name:?}");
         let only = |allowed: &[&str]| -> Result<(), String> {
@@ -159,6 +170,7 @@ impl StreamPolicySpec {
                 ("p", p.is_some()),
                 ("delay_ns", delay_ns.is_some()),
                 ("persist_ns", persist_ns.is_some()),
+                ("hold_until_asked", hold_until_asked.is_some()),
             ] {
                 if given && !allowed.contains(&name) {
                     return Err(stray(name));
@@ -186,9 +198,10 @@ impl StreamPolicySpec {
                 Self::Oracle
             }
             privileged::SELECTION_ID => {
-                only(&["delay_ns"])?;
+                only(&["delay_ns", "hold_until_asked"])?;
                 Self::OracleSelection {
                     delay_ns: delay_ns.unwrap_or(0),
+                    hold_until_asked: hold_until_asked.unwrap_or(false),
                 }
             }
             privileged::DECOY_ID => {
@@ -313,6 +326,8 @@ struct Tagged {
     delay_ns: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     persist_ns: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    hold_until_asked: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -332,6 +347,7 @@ impl Serialize for StreamPolicySpec {
             p,
             delay_ns,
             persist_ns,
+            hold_until_asked: None,
         };
         // A delay of zero is the arm as it was before the parameter existed and is not written.
         let delay = |d: u64| (d != 0).then_some(d);
@@ -355,7 +371,17 @@ impl Serialize for StreamPolicySpec {
                 tagged(None, None, None, None, delay(*delay_ns), delay(*persist_ns))
                     .serialize(serializer)
             }
-            Self::OracleSelection { delay_ns }
+            // The hold, like a zero delay, is the arm as it was before the option existed when it
+            // is off, and is then not written.
+            Self::OracleSelection {
+                delay_ns,
+                hold_until_asked: true,
+            } => Tagged {
+                hold_until_asked: Some(true),
+                ..tagged(None, None, None, None, delay(*delay_ns), None)
+            }
+            .serialize(serializer),
+            Self::OracleSelection { delay_ns, .. }
             | Self::OracleSelectionContext { delay_ns }
             | Self::OracleNotice { delay_ns }
                 if *delay_ns != 0 =>
@@ -379,6 +405,7 @@ impl<'de> Deserialize<'de> for StreamPolicySpec {
                 t.p,
                 t.delay_ns,
                 t.persist_ns,
+                t.hold_until_asked,
             ),
         };
         result.map_err(serde::de::Error::custom)
@@ -393,9 +420,14 @@ pub fn privileged_factory(
 ) -> Option<privileged::OracleFactory> {
     match spec {
         StreamPolicySpec::Oracle => Some(privileged::OracleFactory::new(rung.clone())),
-        StreamPolicySpec::OracleSelection { delay_ns } => Some(
-            privileged::OracleFactory::selection(rung.clone(), *delay_ns),
-        ),
+        StreamPolicySpec::OracleSelection {
+            delay_ns,
+            hold_until_asked,
+        } => Some(privileged::OracleFactory::selection_with(
+            rung.clone(),
+            *delay_ns,
+            *hold_until_asked,
+        )),
         StreamPolicySpec::OracleSelectionContext { delay_ns } => Some(
             privileged::OracleFactory::selection_context(rung.clone(), *delay_ns),
         ),

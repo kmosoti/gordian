@@ -1,0 +1,9 @@
+comparison,new,old,family,incidents,kept_correct,gained,lost,never_correct,site_correct_old,site_correct_new,both_old,both_new
+reanchor_pure,reanchor_site_g20_b2,rung_z3,compound,119,105,4,0,10,110,116,105,109
+reanchor_pure,reanchor_site_g20_b2,rung_z3,cascade,122,108,9,0,5,109,117,107,117
+reanchor_pure,reanchor_site_g20_b2,rung_z3,split_brain,131,117,6,1,7,122,123,118,123
+reanchor_pure,reanchor_site_g20_b2,rung_z3,all,372,330,19,1,22,341,356,330,349
+reanchor_row,reanchor,rung_z2,compound,119,108,4,0,7,112,118,106,111
+reanchor_row,reanchor,rung_z2,cascade,122,110,6,1,5,111,117,108,116
+reanchor_row,reanchor,rung_z2,split_brain,131,121,5,0,5,122,125,119,125
+reanchor_row,reanchor,rung_z2,all,372,339,15,1,17,345,360,333,352

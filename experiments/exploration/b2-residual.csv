@@ -1,0 +1,4 @@
+family,incidents,anchor_correct,never_noticed,noticed_late,never_noticed_bg_notice_within_1s_before,never_noticed_bg_notice_1_to_5s,never_noticed_none_within_5s,anchor_correct_not_site_correct
+compound,119,112,0,7,0,0,0,1
+cascade,122,116,4,2,0,1,3,0
+split_brain,131,126,4,1,1,1,2,1

@@ -1,0 +1,80 @@
+{
+  "objective": "hard_anchor_correct_share",
+  "budget_notices_on_background_per_stream": 9.03,
+  "tuning_seeds": [
+    10000,
+    10099
+  ],
+  "stage1": {
+    "chosen": {
+      "name": "reanchor_site_g20_b2",
+      "isolation": "site",
+      "gap_ms": 20,
+      "burst": 2,
+      "z": 3.0,
+      "hard_anchor_correct_share_tuning": 0.9346733668341709,
+      "hard_anchor_site_correct_share_tuning": 0.9296482412060302,
+      "notices_on_background_per_stream_tuning": 2.26
+    },
+    "rung_z3_tuning": {
+      "hard_anchor_correct_share": 0.8542713567839196,
+      "hard_anchor_site_correct_share": 0.8492462311557789,
+      "notices_on_background_per_stream": 3.99
+    },
+    "feasible": 36,
+    "tied_at_the_best": 2,
+    "rule": "highest anchor-correct share within the background budget; ties: larger gap, larger burst, site before any (amendments 1 and 2 of b2_common.py)"
+  },
+  "stage2": {
+    "chosen": {
+      "name": "reanchor",
+      "isolation": "site",
+      "gap_ms": 20,
+      "burst": 2,
+      "z": 2.0,
+      "hard_anchor_correct_share_tuning": 0.949748743718593,
+      "hard_anchor_site_correct_share_tuning": 0.9396984924623115,
+      "notices_on_background_per_stream_tuning": 6.55
+    },
+    "feasible": 2,
+    "tied_at_the_best": 1,
+    "rule": "the stage 1 choice at the threshold of the highest anchor-correct share within the background budget; ties: the larger threshold"
+  },
+  "stage3": {
+    "rung_z3": {
+      "delay_s": 16,
+      "quality_tuning": 0.5025125628140703,
+      "cost_s_per_stream_tuning": 0.6902931435,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "rung_z2": {
+      "delay_s": 16,
+      "quality_tuning": 0.5577889447236181,
+      "cost_s_per_stream_tuning": 0.7031220091100001,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "change_q128": {
+      "delay_s": 30,
+      "quality_tuning": 0.01507537688442211,
+      "cost_s_per_stream_tuning": 0.045706902560000005,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "earliest_l0.25": {
+      "delay_s": 16,
+      "quality_tuning": 0.5025125628140703,
+      "cost_s_per_stream_tuning": 0.6902930396900001,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    },
+    "reanchor": {
+      "delay_s": 16,
+      "quality_tuning": 0.6030150753768844,
+      "cost_s_per_stream_tuning": 0.7668275868300001,
+      "tied_at_the_best": 1,
+      "rule": "R5: the delay of the highest tuning quality, the cheapest of ties"
+    }
+  }
+}

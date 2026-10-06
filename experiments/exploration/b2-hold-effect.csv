@@ -1,0 +1,6 @@
+config,notices_fixed,notices_held,background_fixed,background_held,hard_anchor_correct_fixed,hard_anchor_correct_held,hard_noticed_fixed,hard_noticed_held
+rung_z3,5510,5506,799,797,331,331,341,341
+rung_z2,6950,6940,1806,1802,340,340,352,352
+change_q128,2008,2008,1751,1751,12,12,12,12
+earliest_l0.25,5510,5506,803,801,331,331,341,341
+reanchor,6898,6889,1364,1362,354,354,364,364

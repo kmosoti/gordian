@@ -55,6 +55,8 @@ def stage(name):
     """(arms, seeds, run_seed, experiment) of tuning stage `name`; arms are (name, noticer)."""
     seeds = C.TUNING_SEEDS
     arms = [("rung_z2", rung(2.0)), ("rung_z3", rung(3.0))]
+    if name != "tune-a":
+        arms.append(("reanchor", dict(C.REANCHOR)))
     if name == "tune-a":
         # First look at 100 ms: the onset path alone (threshold x time constant x dependents),
         # two propagation forms, and the ramp path alone.

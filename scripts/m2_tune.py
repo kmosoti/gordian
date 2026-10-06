@@ -13,7 +13,7 @@ import sys
 import pandas as pd
 
 import m2_common as C  # noqa: I001 (sets the path for the two below)
-import b1_stats as B
+import b2_stats as B
 from gordian_analysis.load import load_stream_run
 
 COLS = [
@@ -21,7 +21,9 @@ COLS = [
     ("hard_anchor_correct_share", "anchor_ok"),
     ("leak_noticed_share", "leak_noticed"),
     ("leak_anchor_correct_share", "leak_anchor_ok"),
+    ("hard_anchor_site_correct_share", "anchor_site_ok"),
     ("notices_on_background_per_stream", "background"),
+    ("strict_precision", "strict_prec"),
     ("notices_per_incident", "per_incident"),
     ("plain_noticed_share", "plain_noticed"),
     ("quality", "quality"),

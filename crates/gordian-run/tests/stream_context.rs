@@ -407,7 +407,10 @@ fn calls(record: &SegmentRecord) -> BTreeSet<(u64, u32, Vec<ObsRef>)> {
 #[test]
 fn every_builder_is_deterministic_on_real_streams_for_a_public_and_a_privileged_arm() {
     let always = StreamPolicySpec::Always { delay_ns: 6 * NS };
-    let selection = StreamPolicySpec::OracleSelection { delay_ns: 6 * NS };
+    let selection = StreamPolicySpec::OracleSelection {
+        delay_ns: 6 * NS,
+        hold_until_asked: false,
+    };
     let mut total = 0usize;
     for seed in [3, 8] {
         let p = hard_heavy(seed);
@@ -528,7 +531,10 @@ fn the_selection_oracle_with_any_public_builder_asks_where_always_asks_about_har
                 play_with_rung(&p, &StreamPolicySpec::Always { delay_ns }, &l, &rung).unwrap();
             let selection = play_with_rung(
                 &p,
-                &StreamPolicySpec::OracleSelection { delay_ns },
+                &StreamPolicySpec::OracleSelection {
+                    delay_ns,
+                    hold_until_asked: false,
+                },
                 &l,
                 &rung,
             )
@@ -555,7 +561,15 @@ fn the_context_only_selection_oracle_asks_once_about_each_hard_anomaly_with_deci
         let truth = truth_from_stream(&generate(&p));
         let l = limits(&p);
         let delay_ns = 12 * NS;
-        let selection = play(&p, &StreamPolicySpec::OracleSelection { delay_ns }, &l).unwrap();
+        let selection = play(
+            &p,
+            &StreamPolicySpec::OracleSelection {
+                delay_ns,
+                hold_until_asked: false,
+            },
+            &l,
+        )
+        .unwrap();
         let context_only = play(
             &p,
             &StreamPolicySpec::OracleSelectionContext { delay_ns },

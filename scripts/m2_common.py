@@ -20,6 +20,7 @@ sys.path.insert(0, str(SCRIPTS))
 sys.path.insert(0, str(ROOT / "analysis"))
 
 import b1_common as B1  # noqa: E402
+import b2_common  # noqa: E402,F401  (B2's scripts, beside this file)
 
 RUNS = B1.RUNS
 MANIFESTS = B1.MANIFESTS
@@ -55,10 +56,17 @@ def run_id(stage):
 
 # ---- the criterion, as the chief fixed it (docs/lab-queue.md, "## M2"; not changed here) ----------
 
-COMPARATOR = "rung_z2"  # RungNoticer at z = 2, rerun in the held-out run so the table is one run
-COMPARATOR_B1 = {"hard_anchor_correct_share": 0.914, "leak_noticed_share": 0.460,
-                 "notices_on_background_per_stream": 9.03}
-BACKGROUND_BOUND = 9.03  # the medium's notices on background per stream may not exceed this
+# RE-FIXED BY THE CHIEF, 2026-10-06, before any M2 held-out run (docs/lab-queue.md, "## M2", under
+# B2's acceptance clause; Lab 1 was told directly while tuning, after two tuning stages): the
+# comparator is B2's `ReanchorNoticer` (anchor-correct 0.952 [0.932, 0.970], leak noticed 0.460,
+# 6.82 background notices per stream), no longer `RungNoticer` z = 2 (0.914, 0.460, 9.03). Margins,
+# settings, seeds and the tick sweep are unchanged. The first two tuning stages (tune-a, tune-b
+# grids) were designed under the old budget; their tables are kept as run.
+COMPARATOR = "reanchor"  # rerun in the held-out run beside the rung rows, so the table is one run
+COMPARATOR_B2 = {"hard_anchor_correct_share": 0.952, "leak_noticed_share": 0.460,
+                 "notices_on_background_per_stream": 6.82}
+OLD_COMPARATOR = "rung_z2"  # the comparator first fixed, reported beside
+BACKGROUND_BOUND = 6.82  # the medium's notices on background per stream may not exceed this
 RESULT1 = {"measure": "hard_anchor_correct_share", "margin": 0.03, "lower_bound_above": 0.01}
 RESULT2 = {"measure": "leak_noticed_share", "margin": 0.20, "lower_bound_above": 0.10}
 TICKS_MS = (100, 500, 2000)
@@ -71,12 +79,12 @@ BOOT_SEED = B1.BOOT_SEED
 #    distribution of (medium minus comparator), 90% equal-tailed, resamples of whole streams with
 #    the same stream counts for both arms (`b1_stats.Measures.paired_difference`), must be > 0.01
 #    (result 1) or > 0.10 (result 2); and the point difference must be >= 0.03 (or >= 0.20).
-# 2. "the medium's notices on background per stream not exceeding 9.03": the point estimate (mean
-#    over the 200 held-out streams) of the medium arm, <= 9.03. Its interval is reported beside;
-#    the bound is on the point, as B1's table gives the comparator's 9.03 as a point.
-# 3. The comparator's numbers are those of the rung z = 2 arm of the same held-out run (rerun, as
-#    the brief says, "so the table is one run"); B1's 0.914 / 0.460 / 9.03 are what it must
-#    reproduce (it replays B1's arm), and the background bound stays the fixed 9.03 whatever the
+# 2. "the medium's notices on background per stream not exceeding 6.82": the point estimate (mean
+#    over the 200 held-out streams) of the medium arm, <= 6.82. Its interval is reported beside;
+#    the bound is on the point, as B2's table gives the comparator's 6.82 as a point.
+# 3. The comparator's numbers are those of the `reanchor` arm of the same held-out run (rerun, as
+#    the chief asked, "so the table is one run"); B2's 0.952 / 0.460 / 6.82 are what it must
+#    reproduce (it replays B2's arm), and the background bound stays the fixed 6.82 whatever the
 #    rerun gives.
 # 4. "At the best tick length": a result holds for the experiment if it holds, as written, at at
 #    least one tick length; the best tick length is the one at which both hold, or else the one
@@ -94,10 +102,16 @@ BOOT_SEED = B1.BOOT_SEED
 #     min( (AC - AC_ref) / 0.03 , (LN - LN_ref) / 0.20 )
 #
 # where AC is the hard non-leak anchor-correct share, LN the leak noticed share, and _ref the
-# comparator (rung z = 2) on the same tuning streams, among the configurations whose notices on
+# comparator (`reanchor`, after the re-fix; rung z = 2 before it) on the same tuning streams, among the configurations whose notices on
 # background per stream are at most TUNE_BACKGROUND (a margin below the criterion's 9.03, so that a
 # held-out stream set noisier than the tuning set does not cross the bound). Ties go to the fewer
 # background notices. Structural choices (which coincidence form; whether the rhythms, a phase gate
 # or an oscillator are in the graph) are made by the same rule, so an element is in the frozen graph
 # only if it earned its place on the tuning streams.
-TUNE_BACKGROUND = 7.5
+TUNE_BACKGROUND = 7.5  # under the first comparator's 9.03 (tune-a, tune-b)
+# After the re-fix the same margin below the new bound, about 17%: 6.82 * 7.5 / 9.03.
+TUNE_BACKGROUND = 5.6
+
+# B2's comparator, in the manifest's spelling (b2-selected.json, stage 2).
+REANCHOR = {"noticer": "reanchor", "notice_z": 2.0, "gap_ns": 20_000_000, "min_burst": 2,
+            "isolation": "site"}

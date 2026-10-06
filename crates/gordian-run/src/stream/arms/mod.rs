@@ -42,6 +42,7 @@ pub mod medium;
 pub mod never;
 pub mod noticer;
 pub mod noticer_change;
+pub mod noticer_reanchor;
 pub mod noticer_rung;
 pub mod periodic;
 pub mod random;
@@ -274,6 +275,22 @@ pub trait EscalationRule {
     /// the cheap rung's meanwhile would add a wrong declaration the arm is about to replace.
     fn holds(&self, view: &AnomalyView) -> bool {
         view.pending > 0
+    }
+
+    /// Whether the rule may keep anomalies from retiring ([`EscalationRule::keeps`]). False by
+    /// default, and then the step does not look at the views of the quiet anomalies at all, so an
+    /// arm whose rule does not keep does exactly what it did before the hook existed. Only the
+    /// selection oracle with `hold_until_asked` keeps any (work item B2).
+    fn may_keep(&self) -> bool {
+        false
+    }
+
+    /// Whether this quiet anomaly is kept live: not given the rule's final call and not retired
+    /// this step, though it has had no abnormal observation for the rung's quiet time. Asked only
+    /// when [`EscalationRule::may_keep`] is true. The rung retires it at the first step at which
+    /// this is false and the anomaly is still quiet.
+    fn keeps(&self, _view: &AnomalyView) -> bool {
+        false
     }
 
     /// Questions to ask the reasoner that are not about a noticed anomaly. Only the privileged
@@ -520,8 +537,16 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
             }
         }
 
-        // Quiet anomalies get the rule's final call and retire.
+        // Quiet anomalies get the rule's final call and retire, unless the rule keeps them live
+        // (only the selection oracle with `hold_until_asked`, which keeps an anomaly it will ask
+        // about until it has asked).
         for id in self.rung.quiet(now) {
+            if self.rule.may_keep()
+                && let Some(view) = self.view_of(id, now)
+                && self.rule.keeps(&view)
+            {
+                continue;
+            }
             if let Some(proposed) = self.rung.finish_one(id, meter, 0) {
                 out.push(proposed);
             }

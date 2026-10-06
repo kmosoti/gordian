@@ -60,7 +60,7 @@ impl RungNoticer {
 
     /// Notice the candidates whose score has crossed the threshold, and forget the ones that
     /// never will. Returns the index of each anomaly noticed, in order.
-    fn cross(&mut self, now: Instant) -> Vec<usize> {
+    pub(super) fn cross(&mut self, now: Instant) -> Vec<usize> {
         let mut crossed = Vec::new();
         for (i, a) in self.anomalies.iter().enumerate() {
             if a.noticed_at.is_none() && self.scorer.score(a, now) >= self.cfg.notice_z {
@@ -75,14 +75,19 @@ impl RungNoticer {
     }
 
     /// Forget the candidates that were never noticed and have been silent for a score window.
-    fn forget_stale(&mut self, now: Instant) {
+    pub(super) fn forget_stale(&mut self, now: Instant) {
         let ttl = self.cfg.score_window_ns;
         self.anomalies.retain(|a| {
             a.noticed_at.is_some() || now.0 <= a.last_abnormal_at.0.saturating_add(ttl)
         });
     }
 
-    fn notice_of(a: &Tracked) -> Notice {
+    /// The tracked anomalies, mutably, for a noticer built on this one (work item B2).
+    pub(super) fn anomalies_mut(&mut self) -> &mut [Tracked] {
+        &mut self.anomalies
+    }
+
+    pub(super) fn notice_of(a: &Tracked) -> Notice {
         Notice {
             id: a.id,
             anchor: a.anchor,

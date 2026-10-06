@@ -454,20 +454,26 @@ STREAM_INCIDENT_KEY = ["seed", "incident"]
 # The notice files of work item B1 (crates/gordian-run/src/stream/results.rs: NOTICES_HEADER,
 # NOTICE_INCIDENTS_HEADER, NOTICE_EVENTS_HEADER), written beside the three files above, which they
 # leave byte for byte as they were. All three are present or none is (a run made before the seam
-# has none). The measures are the evaluator's (crates/gordian-stream-eval/RULES.md, N1 to N12).
+# has none). The measures are the evaluator's (crates/gordian-stream-eval/RULES.md, N1 to N16: the
+# last columns of each file are work item B2's, the site check and the correct notices, N13 to N15).
 STREAM_NOTICES_COLUMNS = [
     "run_id", "arm_role", "seed", "noticer", "notices", "notices_on_background",
     "notices_on_plain", "notices_on_hard", "notices_on_decoy", "retirements",
     "noticed_plain", "noticed_hard", "noticed_decoy",
     "anchor_correct_plain", "anchor_correct_hard", "anchor_correct_decoy",
+    "notices_site_correct", "notices_anchor_site_correct",
+    "site_correct_plain", "site_correct_hard", "site_correct_decoy",
+    "anchor_site_correct_plain", "anchor_site_correct_hard", "anchor_site_correct_decoy",
 ]  # fmt: skip
 STREAM_NOTICE_INCIDENTS_COLUMNS = [
     "run_id", "arm_role", "seed", "incident", "tier", "family", "first_observation_at_ns",
     "notices", "noticed", "first_notice_at_ns", "notice_latency_ns", "anchor_correct",
+    "site_correct", "anchor_site_correct",
 ]  # fmt: skip
 STREAM_NOTICE_EVENTS_COLUMNS = [
     "run_id", "arm_role", "seed", "noticer", "event", "anomaly", "anchor", "site",
     "anchor_at_ns", "at_ns", "incident", "anchor_offset_ns", "anchor_correct",
+    "site_correct", "anchor_site_correct",
 ]  # fmt: skip
 STREAM_NOTICES_COUNT_COLUMNS = [
     c for c in STREAM_NOTICES_COLUMNS
@@ -700,6 +706,32 @@ def _load_stream_notices(path: Path, results: pd.DataFrame) -> pd.DataFrame:
         if bad.any():
             pos = int(np.argmax(bad.to_numpy()))
             raise LoadError(f"{where}: row {pos + 2}: more anchor-correct than noticed {tier}")
+        # N14, N15: a site-correct incident is a noticed one; one with a single notice that is
+        # both is both anchor-correct and site-correct.
+        for flag in ("site_correct", "anchor_site_correct"):
+            bad = df[f"{flag}_{tier}"] > df[f"noticed_{tier}"]
+            if bad.any():
+                pos = int(np.argmax(bad.to_numpy()))
+                raise LoadError(f"{where}: row {pos + 2}: more {flag} than noticed {tier}")
+        bad = (df[f"anchor_site_correct_{tier}"] > df[f"anchor_correct_{tier}"]) | (
+            df[f"anchor_site_correct_{tier}"] > df[f"site_correct_{tier}"]
+        )
+        if bad.any():
+            pos = int(np.argmax(bad.to_numpy()))
+            raise LoadError(
+                f"{where}: row {pos + 2}: anchor_site_correct_{tier} exceeds anchor_correct or "
+                "site_correct"
+            )
+    on_incidents = df["notices"] - df["notices_on_background"]
+    bad = (df["notices_anchor_site_correct"] > df["notices_site_correct"]) | (
+        df["notices_site_correct"] > on_incidents
+    )
+    if bad.any():
+        pos = int(np.argmax(bad.to_numpy()))
+        raise LoadError(
+            f"{where}: row {pos + 2}: notices_anchor_site_correct <= notices_site_correct <= "
+            "notices on incidents does not hold"
+        )
     return df[STREAM_NOTICES_COLUMNS]
 
 
@@ -715,7 +747,7 @@ def _load_stream_notice_incidents(path: Path, incidents: pd.DataFrame) -> pd.Dat
         df[c] = _parse_count(raw[c], c, where)
     df["tier"] = raw["tier"].str.strip()
     df["family"] = raw["family"].str.strip()
-    for c in ("noticed", "anchor_correct"):
+    for c in ("noticed", "anchor_correct", "site_correct", "anchor_site_correct"):
         df[c] = _parse_bool(raw[c], c, where)
     optional = ("first_observation_at_ns", "first_notice_at_ns", "notice_latency_ns")
     for c in optional:
@@ -750,6 +782,17 @@ def _load_stream_notice_incidents(path: Path, incidents: pd.DataFrame) -> pd.Dat
     bad = df["anchor_correct"] & ~df["noticed"]
     if bad.any():
         raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: anchor-correct but not noticed")
+    # N14, N15: site-correct needs a notice about the incident; the single notice that is both
+    # needs the incident to be anchor-correct and site-correct.
+    bad = df["site_correct"] & ~df["noticed"]
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: site-correct but not noticed")
+    bad = df["anchor_site_correct"] & ~(df["anchor_correct"] & df["site_correct"])
+    if bad.any():
+        raise LoadError(
+            f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: anchor-and-site-correct but not "
+            "both anchor-correct and site-correct"
+        )
     return df[STREAM_NOTICE_INCIDENTS_COLUMNS]
 
 
@@ -773,13 +816,22 @@ def _load_stream_notice_events(path: Path) -> pd.DataFrame:
                         f"{list(STREAM_NOTICE_EVENT_KINDS)}")
     for c in ("incident", "anchor_offset_ns"):
         df[c] = _optional_count(raw, c, where)
-    text = raw["anchor_correct"].str.strip()
     notice = df["event"] == "notice"
-    # A retirement has no verdict; a notice has one, true or false.
-    if ((text == "") != ~notice).any():
-        raise LoadError(f"{where}: anchor_correct is empty exactly on retirements")
-    parsed = _parse_bool(text.where(text != "", "false"), "anchor_correct", where)
-    df["anchor_correct"] = parsed.astype("boolean").mask(~notice)
+    for flag in ("anchor_correct", "site_correct", "anchor_site_correct"):
+        text = raw[flag].str.strip()
+        # A retirement has no verdict; a notice has one, true or false.
+        if ((text == "") != ~notice).any():
+            raise LoadError(f"{where}: {flag} is empty exactly on retirements")
+        parsed = _parse_bool(text.where(text != "", "false"), flag, where)
+        df[flag] = parsed.astype("boolean").mask(~notice)
+    bad = ((df["anchor_site_correct"] == True) & ~(  # noqa: E712 (a nullable boolean column)
+        (df["anchor_correct"] == True) & (df["site_correct"] == True)  # noqa: E712
+    )).fillna(False).astype(bool)
+    if bad.any():
+        raise LoadError(
+            f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: anchor_site_correct is not "
+            "anchor_correct and site_correct"
+        )
     bad = df["at_ns"] < df["anchor_at_ns"]
     if bad.any():
         raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: an event before its anchor")
@@ -812,7 +864,12 @@ def _check_notice_files(
         )
     for tier in STREAM_TIERS:
         sub = notice_incidents[notice_incidents["tier"] == tier].groupby("seed")
-        for flag, column in (("noticed", f"noticed_{tier}"), ("anchor_correct", f"anchor_correct_{tier}")):
+        for flag, column in (
+            ("noticed", f"noticed_{tier}"),
+            ("anchor_correct", f"anchor_correct_{tier}"),
+            ("site_correct", f"site_correct_{tier}"),
+            ("anchor_site_correct", f"anchor_site_correct_{tier}"),
+        ):
             have = sub[flag].sum().reindex(n.index, fill_value=0)
             bad = have.to_numpy() != n[column].to_numpy()
             if bad.any():
@@ -823,6 +880,21 @@ def _check_notice_files(
         for kind, column in (("notice", "notices"), ("retire", "retirements")):
             have = (events[kind] if kind in events else pd.Series(0, index=events.index)).reindex(
                 n.index, fill_value=0
+            )
+            bad = have.to_numpy() != n[column].to_numpy()
+            if bad.any():
+                seed = int(n.index[int(np.argmax(bad))])
+                raise LoadError(f"{path}: seed {seed}: notice_events.csv disagrees with {column}")
+        notes = notice_events[notice_events["event"] == "notice"]
+        for flag, column in (
+            ("site_correct", "notices_site_correct"),
+            ("anchor_site_correct", "notices_anchor_site_correct"),
+        ):
+            have = (
+                (notes[flag] == True)  # noqa: E712 (a nullable boolean column)
+                .groupby(notes["seed"])
+                .sum()
+                .reindex(n.index, fill_value=0)
             )
             bad = have.to_numpy() != n[column].to_numpy()
             if bad.any():
