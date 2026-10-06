@@ -30,5 +30,49 @@
     "tied_at_the_best": 175,
     "within_budget": true,
     "rule": "highest leak noticed share within the background budget; then highest leak anchor-correct, fewest notices on background, larger min_readings, larger min_rise, smaller max_step, smaller max_drop, smaller gap (b3_common.py)"
+  },
+  "split_r3": {
+    "chosen": {
+      "name": "split_g8000_b4_over_r3",
+      "params": {
+        "gap_ms": 8000,
+        "min_burst": 4
+      },
+      "hard_anchor_correct_share_tuning": 0.8542713567839196,
+      "hard_noticed_share_tuning": 0.8844221105527639,
+      "notices_on_background_per_stream_tuning": 3.95
+    },
+    "base_tuning": {
+      "hard_anchor_correct_share": 0.8542713567839196,
+      "hard_noticed_share": 0.8844221105527639,
+      "notices_on_background_per_stream": 3.99
+    },
+    "feasible": 15,
+    "of": 15,
+    "tied_at_the_best": 15,
+    "within_budget": true,
+    "rule": "highest anchor-correct share of hard non-leak incidents within the background budget; ties: larger gap, larger burst (b3_common.py)"
+  },
+  "split_re2": {
+    "chosen": {
+      "name": "split_g3000_b3_over_re2",
+      "params": {
+        "gap_ms": 3000,
+        "min_burst": 3
+      },
+      "hard_anchor_correct_share_tuning": 0.964824120603015,
+      "hard_noticed_share_tuning": 0.9748743718592965,
+      "notices_on_background_per_stream_tuning": 6.41
+    },
+    "base_tuning": {
+      "hard_anchor_correct_share": 0.949748743718593,
+      "hard_noticed_share": 0.9698492462311558,
+      "notices_on_background_per_stream": 6.55
+    },
+    "feasible": 15,
+    "of": 15,
+    "tied_at_the_best": 6,
+    "within_budget": true,
+    "rule": "highest anchor-correct share of hard non-leak incidents within the background budget; ties: larger gap, larger burst (b3_common.py)"
   }
 }
