@@ -33,6 +33,7 @@
 //! | `change_triggered` ([`super::noticer_change::ChangeTriggered`]) | a notice on the first abnormal observation at a node after `quiet_ns` without one there, anchored on it |
 //! | `earliest_anchor` ([`super::noticer_rung::EarliestAnchor`]) | the rung's noticer with its anchor moved to the earliest abnormal observation at the anomaly's site within `lookback_ns` before the rung's anchor |
 //! | `reanchor` ([`super::noticer_reanchor::ReanchorNoticer`], work item B2) | the rung's noticer with a later re-anchor: an anomaly anchored on an isolated abnormal observation (none other at its site within `gap_ns`) whose attached evidence holds a burst that begins after the anchor is re-anchored on that burst's first observation, at the moment of notice |
+//! | `ramp`, `split`, `ramp_split` and each with `_reanchor` ([`NoticerSpec::Composed`], work item B3) | a base noticer (the rung's, or the later re-anchor) with [`super::noticer_ramp::RampNoticer`] (a per-node trend detector on counter readings, benign ones included, which opens a noticed anomaly of its own on a smooth rise, anchored on the rise's first reading), [`super::noticer_split::SplitNoticer`] (an anomaly holding a later burst at other sites, after a silence, is two anomalies), or both, wrapped around it. Both open and move anomalies in the base's own set, so everything downstream is shared |
 //!
 //! # The record
 //!
@@ -40,6 +41,9 @@
 //! instants, the noticer's id) and reaches the run output through the harness. The log holds
 //! public information only; it is scored against the hidden record by the evaluator, elsewhere.
 
+use super::noticer_ramp::{RampNoticer, RampSpec};
+use super::noticer_rung::RungBased;
+use super::noticer_split::{SplitNoticer, SplitSpec};
 use super::rung::{Held, RungConfig, Store};
 use gordian_core::Instant;
 use gordian_stream::{Diagnosis, ObsId};
@@ -86,6 +90,64 @@ pub enum NoticerSpec {
         /// Which attached observations make the anchor non-isolated.
         isolation: super::noticer_reanchor::Isolation,
     },
+    /// A base noticer with a ramp noticer and/or a splitting noticer wrapped around it (work item
+    /// B3). At least one of `ramp` and `split` is given; a manifest naming neither is refused.
+    Composed {
+        /// The noticer underneath: the rung's, or the later re-anchor.
+        base: BaseSpec,
+        /// The ramp noticer's parameters, if it is part of this noticer.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ramp: Option<super::noticer_ramp::RampSpec>,
+        /// The splitting noticer's parameters, if it is part of this noticer.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        split: Option<super::noticer_split::SplitSpec>,
+    },
+}
+
+/// The noticer a composed noticer ([`NoticerSpec::Composed`]) is built on: one that works over a
+/// [`super::noticer_rung::RungNoticer`]'s set of anomalies.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "noticer", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BaseSpec {
+    /// The rung's own noticing (as [`NoticerSpec::Rung`]).
+    Rung {
+        /// The z-score at which a candidate anomaly is noticed, if not the rung's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice_z: Option<f64>,
+    },
+    /// The later re-anchor (as [`NoticerSpec::Reanchor`]).
+    Reanchor {
+        /// The z-score at which a candidate anomaly is noticed, if not the rung's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice_z: Option<f64>,
+        /// The isolation gap, nanoseconds.
+        gap_ns: u64,
+        /// The fewest attached observations that make a burst.
+        min_burst: u32,
+        /// Which attached observations make the anchor non-isolated.
+        isolation: super::noticer_reanchor::Isolation,
+    },
+}
+
+impl BaseSpec {
+    /// Check the parameters, as the noticer of the same name would.
+    pub fn validate(&self) -> Result<(), String> {
+        match *self {
+            Self::Rung { notice_z } => NoticerSpec::Rung { notice_z }.validate(),
+            Self::Reanchor {
+                notice_z,
+                gap_ns,
+                min_burst,
+                isolation,
+            } => NoticerSpec::Reanchor {
+                notice_z,
+                gap_ns,
+                min_burst,
+                isolation,
+            }
+            .validate(),
+        }
+    }
 }
 
 impl Default for NoticerSpec {
@@ -107,6 +169,9 @@ impl NoticerSpec {
             Self::ChangeTriggered { .. } => CHANGE_ID,
             Self::EarliestAnchor { .. } => EARLIEST_ID,
             Self::Reanchor { .. } => REANCHOR_ID,
+            Self::Composed { base, ramp, split } => {
+                composed_id(base, ramp.is_some(), split.is_some())
+            }
         }
     }
 
@@ -125,6 +190,21 @@ impl NoticerSpec {
             Self::Reanchor { min_burst, .. } if *min_burst < 2 => {
                 Err("noticer reanchor: min_burst must be at least 2".to_owned())
             }
+            Self::Composed {
+                ramp: None,
+                split: None,
+                ..
+            } => Err("noticer composed: needs a ramp, a split or both".to_owned()),
+            Self::Composed { base, ramp, split } => {
+                base.validate()?;
+                if let Some(r) = ramp {
+                    r.validate()?;
+                }
+                if let Some(sp) = split {
+                    sp.validate()?;
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -138,6 +218,23 @@ pub const CHANGE_ID: &str = "change_triggered";
 pub const EARLIEST_ID: &str = "earliest_anchor";
 /// The id of the later re-anchor noticer (work item B2).
 pub const REANCHOR_ID: &str = "reanchor";
+
+/// The id of a composed noticer (work item B3): the pieces it has, then its base when that is the
+/// later re-anchor (`ramp`, `split`, `ramp_split`, and each with `_reanchor`). The ids are
+/// written to the run output unquoted and contain no comma.
+pub fn composed_id(base: &BaseSpec, ramp: bool, split: bool) -> &'static str {
+    let reanchor = matches!(base, BaseSpec::Reanchor { .. });
+    match (ramp, split, reanchor) {
+        (true, false, false) => "ramp",
+        (true, false, true) => "ramp_reanchor",
+        (false, true, false) => "split",
+        (false, true, true) => "split_reanchor",
+        (true, true, false) => "ramp_split",
+        (true, true, true) => "ramp_split_reanchor",
+        (false, false, false) => "composed_rung",
+        (false, false, true) => "composed_reanchor",
+    }
+}
 
 /// A noticed anomaly, as a noticer yields it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -423,6 +520,88 @@ impl Tracked {
         self.anchor_at = first.at;
     }
 
+    /// Recompute the instants derived from `attached`: when the last abnormal observation was
+    /// attached, when the last one at the site was, and when the current burst at the site began
+    /// (the first observation at the site, or one after a silence of `burst_gap_ns`: the rule
+    /// [`Tracked::note_attached`] applies one observation at a time).
+    fn retime(&mut self, burst_gap_ns: u64) {
+        self.last_abnormal_at = self.attached.last().map_or(self.anchor_at, |(t, _, _)| *t);
+        let mut last_site: Option<Instant> = None;
+        let mut open = self.anchor_at;
+        for (t, _, s) in &self.attached {
+            if *s == self.site {
+                if last_site.is_none_or(|l| t.0 >= l.0.saturating_add(burst_gap_ns)) {
+                    open = *t;
+                }
+                last_site = Some(*t);
+            }
+        }
+        self.last_site_at = last_site.unwrap_or(self.anchor_at);
+        self.burst_open_at = open;
+    }
+
+    /// Move the attached observations at `picks` (indices into `attached`, strictly increasing,
+    /// none of them 0) out of this anomaly into a new anomaly `id` (work item B3). The first moved
+    /// observation is the new anomaly's anchor and its service its site; the region, the evidence
+    /// digest's content and the burst timing of both anomalies are rebuilt from what each now
+    /// holds. The new anomaly is not noticed. An index that is 0, repeated, out of order or past
+    /// the end is a caller's error and moves nothing (the result is `None`), as is an empty list.
+    pub fn split_off(
+        &mut self,
+        picks: &[usize],
+        id: u32,
+        services: &[Service],
+        burst_gap_ns: u64,
+    ) -> Option<Tracked> {
+        let valid = !picks.is_empty()
+            && picks.windows(2).all(|w| w[0] < w[1])
+            && picks[0] >= 1
+            && picks[picks.len() - 1] < self.attached.len();
+        if !valid {
+            return None;
+        }
+        let mut moved = Vec::with_capacity(picks.len());
+        let mut moved_sigs = Vec::with_capacity(picks.len());
+        let mut kept = Vec::with_capacity(self.attached.len() - picks.len());
+        let mut kept_sigs = Vec::with_capacity(self.attached.len() - picks.len());
+        let mut next = picks.iter().copied().peekable();
+        for (i, (a, s)) in self.attached.drain(..).zip(self.sigs.drain(..)).enumerate() {
+            if next.peek() == Some(&i) {
+                next.next();
+                moved.push(a);
+                moved_sigs.push(s);
+            } else {
+                kept.push(a);
+                kept_sigs.push(s);
+            }
+        }
+        self.attached = kept;
+        self.sigs = kept_sigs;
+        self.rebuild();
+        self.retime(burst_gap_ns);
+        let (anchor_at, anchor, site) = moved[0];
+        let mut split = Tracked {
+            id,
+            site,
+            region: dependents_mask(services, site),
+            anchor,
+            anchor_at,
+            attached: moved,
+            sigs: moved_sigs,
+            tags: BTreeSet::new(),
+            snapshot_changed: false,
+            services: BTreeSet::new(),
+            last_abnormal_at: anchor_at,
+            last_site_at: anchor_at,
+            burst_open_at: anchor_at,
+            noticed_at: None,
+            peak_score: f64::NEG_INFINITY,
+        };
+        split.rebuild();
+        split.retime(burst_gap_ns);
+        Some(split)
+    }
+
     /// The observation a declaration of `diagnosis` is anchored on: the first attached abnormal
     /// observation at the diagnosed site if there is one, else the anomaly's anchor. The rule
     /// names the site from the evidence, and the evidence at that site is what the declaration
@@ -598,5 +777,50 @@ pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<
                 cfg, services, gap_ns, min_burst, isolation,
             ))
         }
+        NoticerSpec::Composed { base, ramp, split } => match base {
+            BaseSpec::Rung { notice_z } => {
+                let mut cfg = cfg.clone();
+                if let Some(z) = notice_z {
+                    cfg.notice_z = z;
+                }
+                compose(RungNoticer::new(cfg, services), spec, ramp, split)
+            }
+            BaseSpec::Reanchor {
+                notice_z,
+                gap_ns,
+                min_burst,
+                isolation,
+            } => {
+                let mut cfg = cfg.clone();
+                if let Some(z) = notice_z {
+                    cfg.notice_z = z;
+                }
+                compose(
+                    ReanchorNoticer::new(cfg, services, gap_ns, min_burst, isolation),
+                    spec,
+                    ramp,
+                    split,
+                )
+            }
+        },
+    }
+}
+
+/// `base` with the splitting noticer wrapped around it if `split` is given, then the ramp noticer
+/// around that if `ramp` is. The ramp notices first within a step (its anomalies are in the set
+/// before the base's score is read), the split runs before the base notices (so a candidate holding
+/// two bursts is two candidates when its score is read).
+fn compose<B: RungBased + 'static>(
+    base: B,
+    spec: &NoticerSpec,
+    ramp: Option<RampSpec>,
+    split: Option<SplitSpec>,
+) -> Box<dyn Noticer> {
+    let id = spec.id();
+    match (ramp, split) {
+        (None, None) => Box::new(base),
+        (None, Some(sp)) => Box::new(SplitNoticer::new(base, sp, id)),
+        (Some(r), None) => Box::new(RampNoticer::new(base, r, id)),
+        (Some(r), Some(sp)) => Box::new(RampNoticer::new(SplitNoticer::new(base, sp, id), r, id)),
     }
 }
