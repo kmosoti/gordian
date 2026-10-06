@@ -83,6 +83,28 @@
 //! Named as the episode harness names them, so that `scripts/run-driver.sh` sums them for
 //! `internal_external_ratio` unchanged. `measured_sched_ns` is the rule's calls plus the arm's own
 //! bookkeeping (the tracker, scores, the context builder).
+//!
+//! # The notice files (work item B1)
+//!
+//! Three more files per arm, beside the three above, which they leave byte for byte as they were
+//! (`NOTICES_HEADER`, `NOTICE_INCIDENTS_HEADER` and `NOTICE_EVENTS_HEADER`; the measures are the
+//! evaluator's, rules N1 to N12 of its `RULES.md`):
+//!
+//! - `notices.csv`, one row per stream: `noticer` (the id of the noticer the arm's rung used),
+//!   `notices`, the notices by what the anchor belongs to (`notices_on_background`, `_on_plain`,
+//!   `_on_hard`, `_on_decoy`), `retirements`, and the incidents `noticed_*` and `anchor_correct_*`
+//!   by tier. Counts, never ratios.
+//! - `notice_incidents.csv`, one row per incident in id order: `first_observation_at_ns`,
+//!   `notices` about it (anchor belongs to it), `noticed`, `first_notice_at_ns`,
+//!   `notice_latency_ns` (from the first observation) and `anchor_correct`. The three instants are
+//!   empty when there is nothing to report.
+//! - `notice_events.csv`, one row per notice and retirement in the order recorded: `event`,
+//!   `anomaly`, `anchor`, `site`, `anchor_at_ns`, `at_ns`, and the evaluator's reading of a notice
+//!   (`incident` the anchor belongs to, `anchor_offset_ns`, `anchor_correct`); empty for a
+//!   retirement, and `incident` and `anchor_offset_ns` empty for a notice on background.
+//!
+//! `tier`, `family` and the evaluator's readings are hidden-side facts, as in `incidents.csv`:
+//! evaluator output for the analysis, never a policy input. All three files are deterministic.
 
 use super::arms::noticer::NoticeKind;
 use super::harness::SegmentRecord;
