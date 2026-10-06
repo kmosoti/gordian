@@ -4,6 +4,83 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## B1 the Noticer seam, notice measures, public noticing baselines — merged (Lab 2)
+
+**Provenance.** R6's held-out run replays byte-identical for all 62 arms with the seam, twice
+(seam commit and final binary; hashes recomputed by the chief), and R10's 6 arms replay too. The
+notice record is three new files per arm; `results.csv` and `incidents.csv` keep their columns,
+pinned by a test. 29 evaluator fixtures; cargo-mutants 39 caught, 2 unviable, 0 missed; 25 hand
+mutants caught. Gates on exit codes on the merged tree: fmt, clippy `--locked`, 652 Rust tests,
+the oracle guard, 377 analysis tests. One driver refusal (unclean tree), nothing run; outputs in
+`artifacts/runs/b1/` (ignored).
+
+**Re-verified from the per-incident notice files** (200 held-out streams, 372 hard non-leak,
+139 leak):
+
+| Noticer | Noticed | Anchor-correct | Leak noticed | Background notices / stream |
+|---|---|---|---|---|
+| Rung z = 3 (default) | 0.917 | 0.890 | 0.460 | 4.00 |
+| Rung z = 2 | 0.946 | 0.914 | 0.460 | 9.03 |
+| EarliestAnchor l = 0.25 s | 0.917 | 0.890 | 0.460 | 4.01 |
+| ChangeTriggered q = 128 s | 0.032 | 0.032 | 0.000 | 8.76 |
+| ChangeTriggered q = 0.5 s (sensitivity, a flood) | 1.000 | 0.984 | 1.000 | 587.8 |
+
+All match the PI's table.
+
+**What it means (failure and objective perspectives).**
+
+- **The rung's noticing gap is now measured without ledgers:** 8.3% of hard non-leak incidents
+  never noticed, 2.7% noticed with a wrong or late anchor. Of the 31 never-noticed, 17 have a
+  background-anchored notice within 1 s of their first observation (chance: about 1%). R10's
+  mis-anchoring finding is confirmed by an independent instrument.
+- **The cheapest public fix does not work.** Moving the anchor earlier (`EarliestAnchor`) makes
+  anchoring worse as the lookback grows (0.890 → 0.422 at 8 s), because an earlier anchor lands
+  on same-site background strays. The failure R10 found needs a *later* re-anchor onto the
+  incident, which no public noticer here can make. That is a precise target for the medium.
+- **Threshold tuning saturates early.** Anchor-correct peaks at z = 2 (0.914) and falls by
+  z = 0.5 while background notices go 4 → 60 per stream.
+- **Change-triggered noticing cannot be tuned into the rung's background budget.** At q ≤ 1 s it
+  notices everything at 500+ background notices per stream; at the budget it notices nothing.
+  The charter's change-triggered baseline is answered at the noticing level: it is a flood or
+  it is blind.
+- **The anchor-correctness measure is gameable by flooding**, and the PI showed it: a flood is
+  0.984 anchor-correct. The measure is sound only under a background budget, which is why M2's
+  criterion carries one. The leak is 0.000 anchor-correct for every abnormal-only noticer,
+  because its early readings are benign under the public rules; a noticer that anchors a leak
+  at its start must read the ramp, not the alarm.
+- **The quality column is confounded** by the selection oracle's fixed 16 s delay and the rung's
+  6 s retirement: a flood's anomalies die before they are asked about. M2 reports quality but
+  decides on noticing, as its criterion says.
+
+**Coordinator error, recorded (fourth).** M2's criterion named "the best public noticer by that
+result's own measure" as the comparator. B1's sensitivity rows show that reading admits the
+flood, under which both results are unreachable. The lab's budget rule kept the flood out of its
+table, but the criterion should not have depended on a lab's tuning rule. Amended below, before
+any M2 code or run. Lesson, added to the earlier three: a comparator must be named by a rule
+that cannot select a degenerate arm, and the feasibility check must include the arms that game
+the measure.
+
+**Decided.**
+
+1. **M2's comparator is fixed as `RungNoticer` z = 2** from B1's table: anchor-correct 0.914
+   [0.890, 0.937], leak noticed 0.460, 9.03 background notices per stream. The medium's
+   background notices per stream may not exceed 9.03. Result 1 needs anchor-correct ≥ 0.944
+   with the paired lower bound above 0.924; result 2 needs leak noticed ≥ 0.660 with the lower
+   bound above 0.560. Power: a +0.03 paired gain is 11 incidents of 372; feasible, tight, and
+   stated.
+2. **Reported beside M2's results:** leak anchor-correct (0.000 for every public noticer; a
+   medium that anchors a leak at its ramp will show here first), notice precision (share of
+   notices anchored on an incident), notices per incident, latency, and the quality column with
+   its confound named.
+3. **Lab 2's next unit, B2:** the evaluator gains a site check and a notice-level precision
+   measure; the selection oracle gets a notice-relative delay option so quality measures
+   noticing; and a public *later re-anchor* noticer (re-anchor a background-anchored anomaly
+   onto the incident whose evidence it attaches) is built as the strongest public comparator for
+   exactly the mis-anchoring the medium targets. If that public fix closes the gap, the medium's
+   first job is already done by the status quo, and that is a result.
+4. **Workers' scratch files:** a PI overwrote another's helper in the shared scratchpad. Each
+   lab now uses its own subdirectory, named by its worktree, under the session scratchpad.
+
 ## M1 the medium crate — merged (Lab 1); prices calibrated at 10× the design's guess
 
 **Provenance.** Gates on exit codes on the merged tree: fmt, clippy `--locked`, 626 Rust tests,

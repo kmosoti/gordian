@@ -1135,6 +1135,8 @@ Two workers may hold worktrees at once. The driver refuses to start a run while 
   `gordian-run` process (`pgrep -f target/release/gordian-run`). If one exists it waits, polling
   every 30 s, until none does, then builds. It records in its report every time it waited.
 - A worker never kills another worker's process.
+- A worker keeps its scratch files in its own subdirectory of the session scratchpad, named by
+  its worktree, and never writes to another's (a PI's helper was overwritten by another lab).
 - Python analysis that takes more than a minute runs under `scripts/cgroup-run.sh` on cores 0-2,
   like a measurement, and is subject to the same check.
 

@@ -26,9 +26,10 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | Id | Lab | Title | Depends on | Status |
 |---|---|---|---|---|
 | M1 | 1 | The medium crate: types, tick, archetypes, ports, determinism | — | merged |
-| B1 | 2 | The `Noticer` seam, notice measures in the evaluator, public noticing baselines | — | running |
+| B1 | 2 | The `Noticer` seam, notice measures in the evaluator, public noticing baselines | — | merged |
 | W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
-| M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | queued |
+| M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | running |
+| B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | queued |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | queued |
 
 ## M1 The medium crate (Lab 1)
@@ -157,15 +158,22 @@ the selection oracle and the rung's context.
 
 **Criterion, fixed by the chief before any M2 code or run (2026-10-06).** Two separate results,
 each named, at b = 5, ρ = 0.7, 200 held-out streams, paired 90% cluster bootstrap over streams,
-at each tick length in {100 ms, 500 ms, 2 s}, with the best public noticer from B1's table as the
-comparator for each result (the best by that result's own measure):
+at each tick length in {100 ms, 500 ms, 2 s}, against one named comparator for both results,
+**`RungNoticer` at z = 2 from B1's table** (anchor-correct 0.914 [0.890, 0.937]; leak noticed
+0.460; 9.03 background notices per stream). *Amended 2026-10-06, before any M2 code or run:* the
+original wording, "the best public noticer by that result's own measure", would have admitted a
+flooding noticer (B1's sensitivity rows: 588 background notices per stream, anchor-correct
+0.984), under which both results are unreachable; the review log records the error.
 
 1. **Anchored noticing on hard incidents, slow leak excluded:** the medium's anchor-correct
-   noticed share exceeds the best public noticer's by at least 0.03, with the lower bound above
-   0.01, at no more notices on background per stream than that noticer.
-2. **Noticing the slow leak:** the medium's leak noticed share exceeds the best public
-   noticer's by at least 0.20, with the lower bound above 0.10, at no more notices on background
-   per stream than that noticer.
+   noticed share exceeds the comparator's by at least 0.03, with the paired lower bound above
+   0.01, with the medium's notices on background per stream not exceeding 9.03.
+2. **Noticing the slow leak:** the medium's leak noticed share exceeds the comparator's by at
+   least 0.20, with the paired lower bound above 0.10, under the same background bound.
+
+Reported beside, never folded in: leak anchor-correct (0.000 for every public noticer), notice
+precision, notices per incident, notice latency, and hard-incident quality with the selection
+oracle, whose fixed 16 s delay and the rung's 6 s retirement confound it (B1).
 
 A result that holds at one tick length and not another is reported as such; "holds" for the
 experiment means at the best tick length, with the sweep shown. Modelled cost per stream for the
