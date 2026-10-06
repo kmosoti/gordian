@@ -64,7 +64,27 @@ def main():
             flood.append({"config": name, "notices_on_background": len(bg), "in_first_30_s": early,
                           "after_30_s": len(bg) - early, "per_stream_in_first_30_s": early / len(arm.notices),
                           "per_stream_after_30_s": (len(bg) - early) / len(arm.notices)})
-    for rows, name in ((fam, "families"), (off, "offsets"), (life, "lifetimes"), (flood, "flood-floor")):
+    # The hard non-leak incidents no notice was about: is there a notice anchored on background
+    # near their first observation (the mis-anchoring R10 found in ledgers), or none at all?
+    mis = []
+    for name in ("rung_z3", "rung_z2", "rung_z1", "rung_z0.5"):
+        arm_dir = C.RUNS / (C.run_id("heldout-extra") if name in ("rung_z1", "rung_z0.5") else C.run_id("heldout"))
+        arm = load_stream_run(arm_dir).arms[C.arm_name(name)]
+        ni, ev = arm.notice_incidents, arm.notice_events
+        lost = ni[(ni.tier == "hard") & (ni.family != "slow_leak") & (~ni.noticed)]
+        bgn = ev[(ev.event == "notice") & ev.incident.isna()][["seed", "anchor_at_ns"]]
+        row = {"config": name, "hard_non_leak_incidents": int(((ni.tier == "hard") & (ni.family != "slow_leak")).sum()),
+               "not_noticed": len(lost), "bg_notice_within_1s_of_first_obs": 0,
+               "bg_notice_within_1_to_5s": 0, "no_bg_notice_within_5s": 0}
+        for _, inc in lost.iterrows():
+            mine = bgn[bgn.seed == inc.seed].anchor_at_ns.astype("int64")
+            gap = (mine - int(inc.first_observation_at_ns)).abs().min() if len(mine) else np.inf
+            key = ("bg_notice_within_1s_of_first_obs" if gap <= 1e9 else
+                   "bg_notice_within_1_to_5s" if gap <= 5e9 else "no_bg_notice_within_5s")
+            row[key] += 1
+        mis.append(row)
+    for rows, name in ((fam, "families"), (off, "offsets"), (life, "lifetimes"), (flood, "flood-floor"),
+                       (mis, "misanchor")):
         df = pd.DataFrame(rows)
         df.to_csv(C.OUT / f"b1-{name}.csv", index=False)
         print(f"== {name}")

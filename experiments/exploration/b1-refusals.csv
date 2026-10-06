@@ -17,6 +17,8 @@ b1-heldout-b5-rho0.7,sel_earliest_l4_privileged,200,0,0,0,0,0,0,2147099
 b1-heldout-b5-rho0.7,sel_earliest_l8_privileged,200,0,0,0,0,0,0,2160625
 b1-heldout-b5-rho0.7,sel_rung_z2_privileged,200,0,0,0,0,0,0,2249240
 b1-heldout-b5-rho0.7,sel_rung_z3_privileged,200,0,0,0,0,0,0,2053889
+b1-heldout-extra-b5-rho0.7,sel_rung_z0.5_privileged,200,0,0,0,0,0,0,3488250
+b1-heldout-extra-b5-rho0.7,sel_rung_z1_privileged,200,0,0,0,0,0,0,2721235
 b1-tune-b5-rho0.7,sel_change_q0.5_privileged,100,0,0,76,0,0,0,25505017
 b1-tune-b5-rho0.7,sel_change_q128_privileged,100,0,0,0,0,0,0,1066973
 b1-tune-b5-rho0.7,sel_change_q16_privileged,100,0,0,0,0,0,0,3003339

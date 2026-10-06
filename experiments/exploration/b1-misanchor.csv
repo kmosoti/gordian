@@ -1,0 +1,5 @@
+config,hard_non_leak_incidents,not_noticed,bg_notice_within_1s_of_first_obs,bg_notice_within_1_to_5s,no_bg_notice_within_5s
+rung_z3,372,31,17,4,10
+rung_z2,372,20,10,4,6
+rung_z1,372,22,10,5,7
+rung_z0.5,372,27,14,9,4

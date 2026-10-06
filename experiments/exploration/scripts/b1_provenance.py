@@ -144,10 +144,16 @@ def main():
         ("sel_rung_z2_privileged", C.R10_RUNS / "r10-sweep-z2-b5-rho0.7" / "sel_rung_privileged", "R10 sweep z = 2 sel_rung_privileged"),
         ("sel_earliest_l0_privileged", mine / "sel_rung_z3_privileged", "this run's sel_rung_z3_privileged (a lookback of 0 is the rung)"),
     ]
+    extra = C.RUNS / C.run_id("heldout-extra")
+    pairs += [
+        ("sel_rung_z1_privileged", C.R10_RUNS / "r10-sweep-z1-b5-rho0.7" / "sel_rung_privileged", "R10 sweep z = 1 sel_rung_privileged"),
+        ("sel_rung_z0.5_privileged", C.R10_RUNS / "r10-sweep-z0.5-b5-rho0.7" / "sel_rung_privileged", "R10 sweep z = 0.5 sel_rung_privileged"),
+    ]
     rows = []
     for a, other, what in pairs:
-        r_ok = body_sha(mine / a / "results.csv") == body_sha(other / "results.csv")
-        i_ok = body_sha(mine / a / "incidents.csv") == body_sha(other / "incidents.csv")
+        base = extra if a in ("sel_rung_z1_privileged", "sel_rung_z0.5_privileged") else mine
+        r_ok = body_sha(base / a / "results.csv") == body_sha(other / "results.csv")
+        i_ok = body_sha(base / a / "incidents.csv") == body_sha(other / "incidents.csv")
         rows.append({"arm": a, "compared_with": what, "results_identical_modulo_run_id": r_ok,
                      "incidents_identical_modulo_run_id": i_ok})
     vs = pd.DataFrame(rows)
