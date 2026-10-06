@@ -503,6 +503,117 @@ fn a_burst_is_two_kinds_within_the_window_read_from_the_offsets() {
     assert_eq!(d.notices.len(), 1);
 }
 
+/// M3: the burst's sub-tick lookback keeps a stray that shares the burst's tick out of the
+/// anchor at every tick length, and arrivals at event resolution see a burst behind a stray of
+/// one of its own kinds.
+#[test]
+fn with_a_sub_tick_lookback_a_stray_in_the_bursts_tick_is_not_the_anchor() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let params = |tick_ms: u64, sub_ms: u64, every: bool| MediumParams {
+        tick_ns: tick_ms * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_subtick_ns: sub_ms * MS,
+        burst_every_event: every,
+        ..MediumParams::default()
+    };
+    // A latency stray 160 ms before an error rate and a message 12 ms apart (as above).
+    let tight = vec![
+        (2_150, counter(site, CounterName::Latency, 70)),
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    for tick in [100, 500, 2_000] {
+        let mut d = Drive::new(params(tick, 25, false), &p);
+        d.play(&tight, 6_000, &p);
+        assert_eq!(d.notices.len(), 1, "tick {tick}");
+        assert_eq!(d.notices[0].1.anchor, ObsId(1), "tick {tick}");
+        assert!(!d.notices[0].1.attached.contains(&ObsId(0)));
+    }
+    // A stray of the burst's own kind (an error rate) 160 ms before it, in the same 2 s tick:
+    // M1b's arrival stands at the stray, so no burst is seen in that tick; at event resolution
+    // the burst is seen and anchored on its first event.
+    let same_kind = vec![
+        (2_150, counter(site, CounterName::ErrorRate, 70)),
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    let mut d = Drive::new(params(2_000, 25, false), &p);
+    d.play(&same_kind, 6_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    let mut d = Drive::new(params(2_000, 25, true), &p);
+    d.play(&same_kind, 6_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(1));
+    // Arrivals at event resolution need the ordered form.
+    let sliding = MediumParams {
+        coincidence: CoincidenceForm::Sliding,
+        ..params(500, 0, true)
+    };
+    assert!(sliding.validate().is_err());
+}
+
+/// M3: with the cluster merge, a burst at a dependent just after the site's burst repeats the
+/// site's anchor, so one anomaly is noticed, not two; a merge window shorter than the gap does
+/// not merge; and it works across a tick edge.
+#[test]
+fn the_cluster_merge_notices_bursts_at_neighbouring_services_once() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let params = |merge_ms: u64| MediumParams {
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_subtick_ns: 25 * MS,
+        merge_window_ns: merge_ms * MS,
+        ..MediumParams::default()
+    };
+    let cluster = |t0: u64, t1: u64| {
+        vec![
+            (t0, counter(site, CounterName::ErrorRate, 80)),
+            (t0 + 5, message(site, SignalText::OutOfResource)),
+            (t1, counter(dep, CounterName::ErrorRate, 80)),
+            (t1 + 6, counter(dep, CounterName::Latency, 90)),
+        ]
+    };
+    for (t0, t1) in [(2_310, 2_340), (2_390, 2_420)] {
+        let obs = cluster(t0, t1);
+        let mut off = Drive::new(params(0), &p);
+        off.play(&obs, 6_000, &p);
+        assert_eq!(off.notices.len(), 2, "{t0}: {:?}", off.notices);
+        let mut on = Drive::new(params(50), &p);
+        on.play(&obs, 6_000, &p);
+        assert_eq!(on.notices.len(), 1, "{t0}: {:?}", on.notices);
+        assert_eq!(on.notices[0].1.anchor, ObsId(0));
+        assert_eq!(on.notices[0].1.site, ServiceId(site));
+        assert_eq!(on.noticer.stats().duplicate_notices, 1);
+        let mut short = Drive::new(params(10), &p);
+        short.play(&obs, 6_000, &p);
+        assert_eq!(short.notices.len(), 2, "{t0}");
+    }
+    // The merge needs the burst cells.
+    let bad = MediumParams {
+        burst: false,
+        coincidence: CoincidenceForm::Ordered,
+        merge_window_ns: 50 * MS,
+        ..MediumParams::default()
+    };
+    assert!(bad.validate().is_err());
+    // And it builds with a confirmation and the three-kind path.
+    let confirmed = MediumParams {
+        burst_confirm: Confirm::All,
+        burst3_window_ns: 20 * MS,
+        ..params(100)
+    };
+    confirmed.validate().unwrap();
+}
+
 #[test]
 fn a_burst_of_two_kinds_needs_a_confirming_alarm_and_keeps_its_anchor_at_the_service() {
     let p = public();
