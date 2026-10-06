@@ -285,7 +285,7 @@ per element), `tests/m1_identity.rs` (the all-off identity), unit tests in `src/
 | 2. Seconds to ticks; delays nearest with a minimum of one, lookbacks and holds up, decays by a pinned `exp` in `f64` | `Oscillome::seconds` (`Timed` entries), `MediumSpec::resolved`, `delay_ticks`, `span_ticks`, `decay_per_tick`, `rate_per_tick`, `exp_det` | `the_conversion_table_per_tick_length`, `delays_round_to_the_nearest_tick_with_a_minimum_of_one`, `spans_round_up`, `exp_det_agrees_with_the_platform_and_returns_pinned_bits` |
 | 3. Phases in integer nanoseconds, divided once; boundaries where the cycle index changes; unevenness reported | `phase_of`, `cycle_index`, `OscillomeEngine::is_boundary`, `ticks_per_cycle` | `phases_are_a_pure_function_of_tick_index_and_tick_length` (property, 2,000 cases, against an independent integer reference), `the_field_carries_the_engines_phases_from_any_start`, `boundaries_fall_unevenly_when_the_period_is_not_a_multiple`, `a_phase_is_never_rounded_up_to_one` |
 | 4. Binding by phase and the sliding window both modes of `Coincidence` | `Coincidence` mode 0 (M1's window) and mode 1 (binned by a rhythm, `bins` per cycle) share one rule with ages in ticks or in bins | `bins_and_windows_disagree_at_the_edges` |
-| 5. `Oscillator` wakes itself by a delayed self-message, cost per cycle | `Archetype::Oscillator`, its period the delay of its one self-synapse | `the_oscillator_runs_once_per_cycle_and_decays`, `a_reset_mid_cycle_restarts_the_phase_and_ends_the_old_chain` |
+| 5. `Oscillator` wakes itself by a delayed self-message, cost per cycle | `Archetype::Oscillator`, its period the delay of its one self-synapse | `the_oscillator_runs_once_per_cycle_and_decays`, `a_reset_mid_cycle_restarts_the_phase_and_ends_the_old_chain`, `a_reset_with_its_own_message_cites_only_the_new_event` |
 | 6. Per-cycle summary handed to plasticity at the named boundary | `CycleSummary`, `TickSummary::completed`, `Plasticity::end_of_cycle`, `Oscillome::plasticity_rhythm`; trace sampling at `Oscillome::trace_rhythm` boundaries | `cycle_summaries_reach_plasticity_at_the_named_boundaries_only`, `the_trace_rhythm_samples_only_boundary_ticks` |
 | 7. A latch whose hold expires proposes `retire` citing its anchor | `Latch` parameters 2 (retire) and 3 (kind) | `a_retiring_latch_proposes_retire_when_its_hold_expires` |
 | 8. `Prices::DECLARED` = 200 / 25 / 40 / 2 ns | `Prices::DECLARED`; the old values kept as `Prices::FIRST_GUESS` | `declared_prices_are_the_m1_calibration`, `prices_in_specs_are_the_declared_ones_unless_stated` |
@@ -311,7 +311,7 @@ and limit settings and of 300 generated M1 specs, 30 ticks each, and pins the tw
 code produced. The M1b code reproduces both. The specs state M1's prices explicitly: decision 8
 moves `Prices::DECLARED`, so "the same spec" means the same prices. A spec that takes the
 default prices differs from M1's bytes in its 40 bytes of prices and nowhere else in the
-encoding; the behaviour does not depend on prices.
+encoding; the behaviour does not depend on prices (`the_new_default_prices_change_only_the_price_bytes`).
 
 ### Departures and choices where the decisions left room
 
@@ -514,7 +514,91 @@ event density were changed, and two hand-worked tests were added that make the o
 | `cells_not_run` not recorded | `the_operation_limit_truncates...` |
 | no support pruning | `an_accumulating_cell_prunes_its_support_to_its_lookback` |
 
-## Benchmark: measured cost per operation against the declared prices
+## Benchmark (M1b): the calibrated prices, and the oscillome's workloads
+
+`benches/tick.rs` now holds M1's five workloads, unchanged (oscillome off; the acceptance), and
+five with the oscillome on (100 ms tick, rhythms of 10 s and 100 s, cycle summaries, plasticity at
+the 10 s boundaries): `mixed_osc`, `phasegate`, `oscillator`, and `idle` / `idle_osc` (no
+counted operation; their difference is the engine's per-tick work). The module documentation
+says what each does; `bench_prices.py` reads the runs. Release profile (thin LTO, one codegen
+unit), criterion medians, 60 samples, 3 s measurement. Every run went through
+`scripts/cgroup-run.sh --cpus 0-2 --cpu-quota 300 --memory 2G`, started only when no
+`gordian-run`, `cargo` or `rustc` process existed on the machine, and was checked again at its
+end. Data in `artifacts/runs/m1b/` (ignored).
+
+| run | code | cgroup | wall | CPU | peak memory | OOM | other labs' processes |
+|---|---|---|---|---|---|---|---|
+| 1 | before the step extraction (`98c9b82`) | v1, cores 0-2, 300%, 2 GB | 136.5 s | 134.5 s | 120.9 MB | 0 | none at start or end |
+| 2 | the same | the same | 136.4 s | 132.7 s | 120.6 MB | 0 | **a Lab 2 `cargo test` running at the end**: its later (1,000-cell) points may be contaminated |
+| 3 | the same | the same | 136.3 s | 134.3 s | 120.5 MB | 0 | none at start or end (waited 30 s) |
+| 4 | final (`ca00d37`) | the same | 137.8 s | 135.8 s | 129.2 MB | 0 | none at start or end (waited 270 s for a Lab 2 `gordian-run`) |
+| 5 | final | the same | 138.2 s | 135.8 s | 120.5 MB | 0 | none at start or end |
+
+**The acceptance, on the final code (runs 4 and 5), at the declared prices 200 / 25 / 40 / 2 ns.**
+
+| workload | n | run 4 measured / modelled | run 5 |
+|---|---|---|---|
+| mixed (headline) | 10 / 100 / 1,000 | 0.90 / 1.01 / 1.22 | 0.89 / 1.07 / 1.09 |
+| unmatched | 10 / 100 / 1,000 | **1.42** / 1.29 / 1.15 | **1.43** / 1.31 / 1.14 |
+| sense | 10 / 100 / 1,000 | 0.91 / 1.08 / 1.23 | 0.90 / 1.09 / 1.22 |
+| fanout | 10 / 100 / 1,000 | 0.81 / 1.05 / 1.16 | 0.91 / 1.05 / 1.19 |
+| fieldgate | 10 / 100 / 1,000 | 0.86 / 1.02 / 1.15 | 0.85 / 0.99 / 1.13 |
+| mixed_osc | 10 / 100 / 1,000 | 1.00 / 1.04 / 1.14 | 1.05 / 1.08 / 1.12 |
+| phasegate | 10 / 100 / 1,000 | 0.95 / 1.03 / 1.17 | 0.94 / 1.06 / 1.15 |
+| oscillator | 10 / 100 / 1,000 | 1.27 / 0.80 / 0.72 | 1.02 / 0.80 / 0.74 |
+
+28 of M1's 30 measurements and all 18 of the oscillome's are within 0.7 to 1.4; **`unmatched/10`
+is outside in both runs (1.42, 1.43), and was in runs 1 and 3 (1.40, 1.43)**. The acceptance
+("every measurement within 0.7–1.4 of its model") is therefore not met at that one point. Least
+squares over the final runs: 199.4 ns per update, 21.8 per traversal, 50.8 per routing, 0.4 per
+field read (M1's workloads; worst relative residual 0.22); with the oscillome's workloads, 189.2,
+21.0, 51.8, 6.7.
+
+**Why `unmatched/10` misses.** Two costs the model does not have. First, a tick has a fixed cost
+the prices do not model: an idle tick (`idle`, no counted operation) measures 84 to 91 ns, which
+is a fifth of the 400 ns modelled for ten routings. Second, routing costs 46 to 57 ns per event
+here against the declared 40, and more than M1's own code. An A/B on the same machine, M1's
+binary (built from the commit before any M1b change) alternated with M1b's under the same
+cgroup, on `unmatched`, `sense` and `mixed` (`artifacts/runs/m1b/ab/`), measured M1b's off path
+slower on routing in every round: in the two rounds clear of other labs at both ends of both
+legs (1 and 3), `unmatched/100` 4,056 against 4,805 ns and 3,997 against 4,788 (M1b / M1 = 1.18,
+1.20), `unmatched/10` 472 against 511 and 497 against 543 (1.08, 1.09); rounds 2 and 4 had another
+lab's `cargo` running at the end of a leg and agree in direction (1.04 to 1.48). With M1's code
+`unmatched/10` measured 472 to 519 ns, 1.18 to 1.30 of its model, inside the band. The bytes are
+M1's; the time is not. Moving the oscillome's per-tick work out of `step` into non-inlined
+helpers (`begin_rhythms`, `end_rhythms`, commit `ca00d37`) brought `mixed` and `sense` back to
+parity with M1 (round 3: 0.95 to 1.06), but not routing (1.09 to 1.23). The routing code itself
+did not change, and `route` is inlined into `step` in both binaries; `step` grew from 22.2 KB to
+26.3 KB, because the new archetype code is inlined into it through `run_pass`. My hypothesis is a
+code-layout effect on the routing loop. It is not tested: no profile was taken. Options for the
+chief: accept the point with this explanation; give the tick a fixed price (about 85 ns, and
+about 105 ns more with the oscillome on, below); or have the routing path optimised against this
+implementation as its oracle in a later unit.
+
+**What the oscillome itself costs (final runs).**
+
+| quantity | 10 | 100 | 1,000 | how |
+|---|---|---|---|---|
+| engine per tick, unpriced (ns) | 110, 106 | 103, 117 | 101, 106 | `idle_osc - idle`: phases of two rhythms and the cycle summaries; flat in the number of cells |
+| idle tick, oscillome off (ns) | 84, 91 | 84, 88 | 85, 86 | `idle` |
+| oscillator run (ns, its self traversal at 25 removed) | 262, 204 | 156, 156 | 138, 142 | `oscillator / n - 25`; priced at 200 as a cell update |
+| phase-gate read (ns) | 14.0, 3.9 | 0.5, 3.2 | 3.1, -1.6 | `(phasegate - fanout) / 4n`, priced at 2 as a field read; within noise of M1's field read |
+
+An oscillator's run costs about what a cell update is priced at (0.72 to 1.27 of the model with
+its traversal), and a phase-gate read about what a field read is. The engine's per-tick work is
+real and flat: about 0.1 us per tick, which is 0.6 ms per 600 s stream at a 100 ms tick, 0.12 ms
+at 500 ms, 0.03 ms at 2 s; with the idle tick's 85 ns it is about 1 ms per stream at 100 ms that
+the prices do not charge, against roughly 2 ms or more of priced event-driven work for a stream's
+4,497 events. It is not in M2's criterion; it should be in M2's cost column if the chief decides
+ticks are priced.
+
+What these numbers are and are not: they price this reference implementation, on this VM, with
+criterion medians (stolen time included). Runs 1 to 3 measured the code before the step
+extraction; the acceptance table uses only runs 4 and 5. The oscillome workloads run only at a
+100 ms tick; the engine's per-tick cost does not depend on the tick length, but its cost per
+second of stream does.
+
+## Benchmark (M1): measured cost per operation against the declared prices of that time
 
 `benches/tick.rs` (five steady-state workloads, its module documentation says what each does),
 release profile (thin LTO, one codegen unit), run twice on 2026-10-06 through

@@ -530,8 +530,9 @@ mod tests {
         // The same inputs and bits as gordian-stream's det_exp, which this copies.
         assert_eq!(exp_det(1.0).to_bits(), 0x4005_bf0a_8b14_5768);
         assert_eq!(exp_det(-3.7).to_bits(), 0x3f99_511f_c687_1045);
-        // The bits of the decays the conversion table uses, computed independently (Python,
-        // the same series in IEEE double precision, then rounded to single precision with
+        // The bits of the decays the conversion table uses, computed independently
+        // (`pinned_bits.py` next to this crate's manifest: the same series in IEEE double
+        // precision in Python, then rounded to single precision with
         // struct.pack; each also agrees with math.exp after that rounding; exp(-0.1) in double
         // precision is one ulp above math.exp's).
         assert_eq!(exp_det(-0.1).to_bits(), 0x3fec_f46d_99d5_2b3b);
