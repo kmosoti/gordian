@@ -413,7 +413,7 @@ fn generated_events(g: &mut TestGen, start: u64, ticks: u64, tick_len_ns: u64) -
 fn generated_digest() -> (u64, (u64, u64, u64)) {
     let mut h = Fnv::new();
     let mut seen = (0, 0, 0);
-    let mut g = TestGen(0x5eed_0f_3b1d_0001);
+    let mut g = TestGen(0x005e_ed0f_3b1d_0001);
     for k in 0..300 {
         let tick = TICKS_NS[k % 3];
         let spec = generated_spec(&mut g, tick);

@@ -17,9 +17,9 @@
 //! | Archetype | params | state | activation | support |
 //! |---|---|---|---|---|
 //! | `Sense` | 0 mode: 0 presence (1), 1 sum of event values, 2 count of events | none | by mode | the events routed to it this tick |
-//! | `Integrator` | 0 leak per tick in `[0, 1]`; 1 threshold; 2 reset: 0 to zero on firing, 1 keep (decay only); 3 lookback (integer) | 0 level | the level, on the tick it rises across the threshold; else 0 | accumulated, pruned to the lookback, cleared on reset |
+//! | `Integrator` | 0 leak per tick in `[0, 1]`; 1 threshold; 2 reset: 0 to zero on firing, 1 keep (decay only); 3 lookback (integer); 7 sub-tick lookback in microseconds (M3; integer, 0 off) | 0 level | the level, on the tick it rises across the threshold; else 0 | accumulated, pruned to the lookback, cleared on reset; on firing, cut to the sub-tick lookback before its newest event |
 //! | `Novelty` | 0 rate in `(0, 1]`; 1 k `>= 0`; 2 floor `>= 0`; 3 warm-up runs (integer); 4 gaps: 0 ignored, 1 each silent tick is a zero input | 0 mean, 1 mean absolute deviation, 2 runs seen | the deviation, when it exceeds `k * dev + floor` after warm-up; else 0 | this run's inputs |
-//! | `Coincidence` | 0 n (integer 1..=8); 1 window w (integer; ticks, bins or microseconds by mode); 2 consume: 0 no, 1 clear on firing; 3 lookback (integer); 4 mode (M1b): 0 sliding window in ticks, 1 binned by a rhythm, 2 ordered by event time; 5 mode 1: rhythm index, mode 2: lead (0 none, 1 slot 0 first); 6 mode 1: bins per cycle (integer `>= 1`) | modes 0 and 1: slot i: ticks (bins) since the last positive arrival on incoming synapse i, or -1; mode 2: slot i < 4: ticks since the event time of that arrival, slot 4 + i: its offset in microseconds | the number of slots within the window, when at least n (and, mode 2 with a lead, slot 0 first); else 0 | accumulated, pruned to the lookback, cleared when consumed |
+//! | `Coincidence` | 0 n (integer 1..=8); 1 window w (integer; ticks, bins or microseconds by mode); 2 consume: 0 no, 1 clear on firing; 3 lookback (integer); 4 mode (M1b): 0 sliding window in ticks, 1 binned by a rhythm, 2 ordered by event time; 5 mode 1: rhythm index, mode 2: lead (0 none, 1 slot 0 first); 6 mode 1: bins per cycle (integer `>= 1`), mode 2 (M3): arrivals at event resolution (0 the earliest event each message cites, 1 every event it cites); 7 sub-tick lookback in microseconds (M3; integer, 0 off) | modes 0 and 1: slot i: ticks (bins) since the last positive arrival on incoming synapse i, or -1; mode 2: slot i < 4: ticks since the event time of that arrival, slot 4 + i: its offset in microseconds | the number of slots within the window, when at least n (and, mode 2 with a lead, slot 0 first); else 0 | accumulated, pruned to the lookback, cleared when consumed; on firing, cut to the sub-tick lookback before its firing instant (mode 2) or its newest event |
 //! | `Gate` | 0 field index (integer `< F`); 1 threshold; 2 sense: 0 open when the scalar `>=` threshold, 1 open when `<` | none | the input sum while open; else 0 | this run's inputs |
 //! | `Latch` | 0 threshold; 1 hold h ticks (integer); 2 retire (M1b): 0 no, 1 propose `retire` when the hold expires; 3 the retire kind (integer `<= 65535`) | 0 held value, 1 ticks of hold left or -1 | the held value on the firing tick and the h ticks after it; else 0 | the inputs that fired it, held (with retire: merged across re-firings within one hold) |
 //! | `Emit` | 0 threshold; 1 kind (integer `<= 65535`); 2 lookback (integer); 3 refractory ticks (integer) | 0 ticks since the last proposal, or -1 | the input sum when it proposes; else 0 | this run's inputs |
@@ -132,7 +132,9 @@ impl Archetype {
     /// gate and no oscillome element is M1's medium.
     pub fn uses_oscillome(self, params: &[f32; P]) -> bool {
         match self {
-            Archetype::Coincidence => params[4] != 0.0,
+            // A sub-tick lookback (M3) reads event times, which need the oscillome's tick length.
+            Archetype::Integrator => params[7] != 0.0,
+            Archetype::Coincidence => params[4] != 0.0 || params[7] != 0.0,
             Archetype::Latch => params[2] != 0.0,
             Archetype::Oscillator => true,
             _ => false,
@@ -144,6 +146,18 @@ impl Archetype {
     pub(crate) fn support_lookback(self, params: &[f32; P]) -> Option<u64> {
         match self {
             Archetype::Integrator | Archetype::Coincidence => Some(params[3] as u64),
+            _ => None,
+        }
+    }
+
+    /// The sub-tick lookback (M3), in microseconds, to which an accumulating archetype cuts its
+    /// support when it fires: the events cited are those no earlier than this before the run's
+    /// instant (see [`RunOut::at_us`]). `None` when it is off (0) or the archetype has none.
+    pub(crate) fn sub_tick_lookback_us(self, params: &[f32; P]) -> Option<u64> {
+        match self {
+            Archetype::Integrator | Archetype::Coincidence if params[7] > 0.0 => {
+                Some(params[7] as u64)
+            }
             _ => None,
         }
     }
@@ -182,7 +196,8 @@ impl Archetype {
             Archetype::Integrator => {
                 range(0, 0.0, 1.0, "leak outside [0, 1]")?;
                 int(2, 0.0, 1.0)?;
-                int(3, 0.0, MAX_INT_PARAM)
+                int(3, 0.0, MAX_INT_PARAM)?;
+                int(7, 0.0, MAX_INT_PARAM)
             }
             Archetype::Novelty => {
                 if !(params[0] > 0.0 && params[0] <= 1.0) {
@@ -202,6 +217,7 @@ impl Archetype {
                 int(2, 0.0, 1.0)?;
                 int(3, 0.0, MAX_INT_PARAM)?;
                 int(4, 0.0, 2.0)?;
+                int(7, 0.0, MAX_INT_PARAM)?;
                 match params[4] as u8 {
                     1 => {
                         int(5, 0.0, (R - 1) as f32)?;
@@ -209,7 +225,8 @@ impl Archetype {
                     }
                     2 => {
                         int(0, 1.0, ORDERED_SLOTS as f32)?;
-                        int(5, 0.0, 1.0)
+                        int(5, 0.0, 1.0)?;
+                        int(6, 0.0, 1.0)
                     }
                     _ => Ok(()),
                 }
@@ -372,6 +389,12 @@ pub(crate) struct RunOut {
     pub(crate) clear_support: bool,
     /// Make a proposal from this run (emitters, and retiring latches).
     pub(crate) emit: Option<Emission>,
+    /// When it fires, the instant it fired at in event time, in microseconds from the start of
+    /// the current tick (negative: in an earlier tick): an ordered coincidence's newest counted
+    /// arrival, or with arrivals at event resolution the end of the first window that held its
+    /// sources. `None` for the other archetypes, whose instant is their support's newest event.
+    /// Read only by the sub-tick lookback (M3).
+    pub(crate) at_us: Option<i64>,
 }
 
 /// Clamp to `[-BOUND, BOUND]`; NaN becomes zero.
@@ -423,6 +446,7 @@ fn quiet(support: SupportRule) -> RunOut {
         support,
         clear_support: false,
         emit: None,
+        at_us: None,
     }
 }
 
@@ -626,6 +650,9 @@ fn ordered_coincidence(
             *age = (*age + step).min(MAX_INT_PARAM * 2.0);
         }
     }
+    if params[6] == 1.0 {
+        return ordered_every_event(params, state, inputs, ctx);
+    }
     for input in inputs {
         if let Origin::Synapse { slot, .. } = input.origin
             && input.value > 0.0
@@ -674,6 +701,96 @@ fn ordered_coincidence(
     RunOut {
         activation: if fire { counted.len() as f32 } else { 0.0 },
         clear_support: fire && consume,
+        at_us: if fire { newest } else { None },
+        ..quiet(SupportRule::Merge)
+    }
+}
+
+/// Mode 2 with arrivals at event resolution (parameter 6 = 1; M3). Every event a positive
+/// message cites is an arrival on its slot, not only the earliest, so that in a long tick a stray
+/// of one kind before a burst does not stand for that kind, and an event after the burst does not
+/// hide it. The candidates of a slot are its kept arrival (from an earlier run, aged as in M1b's
+/// rule) and every event its messages cite in this run, each `(ticks ago, offset in
+/// microseconds)` as in M1b's state; a message citing nothing is the current tick at offset 0. A
+/// candidate more than the window before the current tick's start is dropped. Scanning the
+/// candidates in time order as window ends `E`, the cell fires at the first `E` whose window
+/// `[E - w, E]` holds candidates of at least `n` slots (with a lead: slot 0 among them and its
+/// earliest in the window no later than any other's). When it does not fire, or fires without
+/// consuming, each slot keeps its latest candidate: any later window that holds one of a slot's
+/// candidates holds its latest. The work is bounded by the support limit (`max_refs` per message).
+fn ordered_every_event(
+    params: &[f32; P],
+    state: &mut [f32; S],
+    inputs: &[Input],
+    ctx: &Ctx,
+) -> RunOut {
+    let (n, window, consume, lead) = (
+        params[0] as usize,
+        params[1] as i64,
+        params[2] == 1.0,
+        params[5] == 1.0,
+    );
+    let k = ORDERED_SLOTS;
+    let len_us = (ctx.tick_len_ns / 1_000) as i64;
+    // (time in microseconds from the current tick's start, slot, ticks ago, offset in us).
+    let mut cands: Vec<(i64, usize, f32, f32)> = Vec::new();
+    let time = |age: f32, off: f32| off as i64 - age as i64 * len_us;
+    for (i, &age) in state.iter().enumerate().take(k) {
+        if age >= 0.0 {
+            cands.push((time(age, state[k + i]), i, age, state[k + i]));
+        }
+    }
+    for input in inputs {
+        if let Origin::Synapse { slot, .. } = input.origin
+            && input.value > 0.0
+            && (slot as usize) < k
+        {
+            let refs = input.refs.as_slice();
+            if refs.is_empty() {
+                cands.push((0, slot as usize, 0.0, 0.0));
+            }
+            for r in refs {
+                let age = age_step(ctx.tick.saturating_sub(r.tick));
+                let off = (r.offset_ns / 1_000) as f32;
+                cands.push((time(age, off), slot as usize, age, off));
+            }
+        }
+    }
+    cands.retain(|&(t, ..)| -t <= window);
+    cands.sort_by_key(|c| (c.0, c.1));
+    let mut fired: Option<(i64, usize)> = None;
+    for &(end, ..) in &cands {
+        // The earliest candidate of each slot inside [end - window, end].
+        let mut first: [Option<i64>; ORDERED_SLOTS] = [None; ORDERED_SLOTS];
+        for &(t, i, ..) in cands.iter().filter(|c| c.0 <= end && end - c.0 <= window) {
+            if first[i].is_none() {
+                first[i] = Some(t);
+            }
+        }
+        let count = first.iter().filter(|f| f.is_some()).count();
+        let led = !lead || first[0].is_some_and(|t0| first.iter().flatten().all(|&ti| t0 <= ti));
+        if count >= n && led {
+            fired = Some((end, count));
+            break;
+        }
+    }
+    if fired.is_some() && consume {
+        *state = [-1.0; S];
+    } else {
+        // Each slot keeps its latest candidate (the list is in time order).
+        for i in 0..k {
+            state[i] = -1.0;
+            state[k + i] = 0.0;
+        }
+        for &(_, i, age, off) in &cands {
+            state[i] = age;
+            state[k + i] = off;
+        }
+    }
+    RunOut {
+        activation: fired.map_or(0.0, |(_, count)| count as f32),
+        clear_support: fired.is_some() && consume,
+        at_us: fired.map(|(end, _)| end),
         ..quiet(SupportRule::Merge)
     }
 }
