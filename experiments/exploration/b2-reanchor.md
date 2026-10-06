@@ -47,7 +47,9 @@ written to a separate directory) replays byte-identical for **all 62 arms** agai
 `r6-results-sha256.csv`, for `results.csv` and `incidents.csv`: 62 of 62 and 62 of 62
 (`b2-regression.csv`), with the binary built at `df996bc`, which holds the evaluator, the oracle option
 and the noticer; the Rust sources have not changed since (the diff to HEAD in `crates/` is
-`HARNESS.md` only). GATE_FINAL_PLACEHOLDER
+`HARNESS.md` only). The replay was made again at the end with the binary of the final tree (`235c7a9`; the
+release binary was rebuilt from the same Rust sources after the mutation runs touched a file): 62 of 62
+and 62 of 62 again (`b2-regression-final.csv`).
 
 ## The evaluator: rules, fixtures, mutation
 
@@ -76,7 +78,8 @@ and the noticer; the Rust sources have not changed since (the diff to HEAD in `c
   notice about service 3, which that mutant also rejects. A fixture with the notice about service 0
   kills it, and the whole list was rerun after the fixture changed.
 - **Loader.** The new columns are in the loader's schema guard, which a test compares with the
-  harness's header constants; 13 new tests refuse each way the three files can disagree about them.
+  harness's header constants; 6 new tests (and loops over the flags) refuse each way the three files can
+  disagree about them.
 
 ## `hold_until_asked`
 
@@ -147,7 +150,9 @@ B1's grid (20 configurations), all at the fixed delay; **nothing was chosen from
 context, 372 hard non-leak incidents, 139 slow-leak incidents, 4,264 plain. 90% equal-tailed percentile
 intervals from 10,000 resamples of whole streams (`numpy.random.default_rng(9950)`, the draws B1 used,
 so B1's four rows reproduce B1's numbers and intervals exactly, which they do). **Intervals are not
-paired differences**; paired ones are in the next table and `b2-paired.csv`.
+paired differences**; paired ones are in the next table and `b2-paired.csv`. The sensitivity table
+(every configuration the run played: B1's whole grid and both reanchor grids, at the fixed delay) is
+`b2-noticers-sensitivity.csv` and `b2-noticers-table.md`.
 
 | noticer | hard non-leak noticed | anchor-correct | site-correct | anchor-and-site-correct | leak noticed | notices on background / stream | notice precision | strict precision | quality, fixed 16 s, retirement | quality, tuned delay, hold | cost s / stream |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -244,7 +249,7 @@ still has measured value.
 - **The background budget counts notices by their anchor, so re-anchoring spends it.** `reanchor` makes
   about as many notices as the rung at z = 2 (34.5 against 34.8 per stream) and 2.2 fewer on background:
   the headroom is reclassification, not fewer notices. A lower threshold would use it (z = 1.5 is 13.8,
-  over the budget, and not better: 0.957 against 0.952), so the budget is not what limits this row, but
+  over the budget, and not better beyond noise: 0.957 against 0.952), so the budget is not what limits this row, but
   it is a different budget for a noticer that anchors better, and the chief should know the M2 bound is
   not a bound on how often a noticer fires.
 - **A parameter tuned on 199 incidents** chose between configurations 1 incident apart; the held-out
@@ -289,15 +294,25 @@ generated-stream tests (30 streams, and every stream the unit played); cargo-mut
 boundary, the readings, the failure through the rung, the identity with the rung when it never moves
 over whole segments, the files and their replay). Hold: 4 tests in `tests/stream_hold.rs`, including
 that with the hold no hard-anchored anomaly retires before it can be asked (over 24 streams, and that
-without it some do, so the test is not vacuous). Loader and measures: 13 new tests in
-`analysis/tests/test_notices.py`, 6 in `test_b2_scripts.py`. Provenance (`b2_provenance.py`): the
+without it some do, so the test is not vacuous). Loader and measures: 6 new tests in
+`analysis/tests/test_notices.py` (and the existing ones extended by hand counts), 6 in `test_b2_scripts.py`. Provenance (`b2_provenance.py`): the
 table's rung arms are R10's byte for byte (modulo run id), a lookback of 0 and a re-anchor with a gap
 longer than the burst window and `any` are the rung's bytes, the table's `reanchor` arm equals its grid
 arm, the incidents are the same in every arm of a run, no segment was step-capped. cargo-mutants on `noticer_reanchor.rs` (with the tests of `stream_reanchor.rs` and `stream_noticer.rs`):
 35 mutants, first run 29 caught, 4 missed, 2 unviable; the four misses were the delegation of `score` and
 `refresh` to the rung's (no test read them), a test was added, and the four rerun caught: **33 caught, 2
 unviable, 0 missed** (`b2-mutants.md`).
-GATES_PLACEHOLDER
+Gates on exit codes at the final tree: `cargo fmt --all -- --check` 0; `cargo clippy --locked
+--workspace --all-targets -- -D warnings` 0; `cargo test --locked --workspace --no-fail-fast` 0 (679
+passed, 0 failed, 5 ignored); `bash scripts/check-no-oracle.sh` 0; `PYTHONPATH=analysis .venv/bin/python -W error
+-m pytest -q analysis` 0 (389 passed, 4 deselected), **with `PYTHONPATH=analysis`**: the shared virtual
+environment installs the main checkout's `gordian_analysis`, which has no site check, so from a worktree
+the command without the path would import the wrong copy (the same note as B1's).
+
+**Environment.** `CARGO_BUILD_JOBS=3`, `CARGO_PROFILE_DEV_DEBUG=0`, `CARGO_INCREMENTAL=0` (to keep the
+worktree's build small: the disk had 6 to 8 GB free throughout), every cargo call and every driver run
+on cores 0-2 (`taskset -c 0-2`; the driver pins itself and the arms through the cgroup runner), scratch
+files only in `scratchpad/lab2-b2/`.
 
 **Runs** (`b2-driver-log.csv`, `b2-run-index.csv`; outputs in `artifacts/runs/` of the worktree,
 git-ignored): every driver exit was 0; none was refused by the driver, none excluded or step-capped.
@@ -311,7 +326,7 @@ git-ignored): every driver exit was 0; none was refused by the driver, none excl
 | `b2-tunedelay-b5-rho0.7` | 0 | 124 | 65 arms: five noticers x 13 delays with the hold |
 | `b2-heldout-b5-rho0.7` | 0 | 315 | 65 arms, 200 held-out streams |
 | `b2-supp-b5-rho0.7` | 0 | 110 | 7 arms, 200 held-out streams: the flood-like rows with the hold |
-| FINAL_RUN_ROW |
+| `xcheck2-r6-heldout-b5-rho0.7` | 0 | 256 | the gate again, final binary |
 
 The driver waited for another worker's process 6 polls (the gate) and 9 polls (stage 1); my cargo
 invocations never found a `gordian-run` to wait for. I checked, as instructed, for `gordian-run`
