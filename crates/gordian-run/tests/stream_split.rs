@@ -554,3 +554,66 @@ fn a_split_noticer_that_can_split_changes_the_record_somewhere_and_the_evaluator
         "a loose split makes a split somewhere in four segments"
     );
 }
+
+// ---- the count of splits and the delegation to the base (added after the mutation run)
+
+#[test]
+fn the_split_noticer_counts_its_splits_and_hands_score_and_refresh_to_its_base() {
+    use gordian_run::stream::arms::noticer::Noticer;
+    use gordian_run::stream::arms::noticer_rung::RungNoticer;
+    use gordian_run::stream::arms::noticer_split::SplitNoticer;
+    use gordian_run::stream::arms::rung::Store;
+    let public = public_of(&params(0, 150));
+    let (site, dep, _) = picks3(&public);
+    let obs = absorbed(site, dep);
+    let cfg = RungConfig::default();
+    let mut split = SplitNoticer::new(
+        RungNoticer::new(cfg.clone(), &public.services),
+        spec(2_000, 3),
+        "split",
+    );
+    let mut bare = RungNoticer::new(cfg, &public.services);
+    let held: Vec<Held> = obs
+        .iter()
+        .enumerate()
+        .map(|(i, (ms, o))| Held {
+            id: ObsId(i as u32),
+            at: at(*ms),
+            obs: o.clone(),
+            abnormal: true,
+        })
+        .collect();
+    // The first burst alone: nothing to split, score and refresh are the base's.
+    for h in &held[..5] {
+        split.observe(h);
+        bare.observe(h);
+    }
+    let store = Store::with(held[..5].to_vec());
+    let now = at(10_500);
+    let (a, b) = (split.score(0, now), bare.score(0, now));
+    assert!(a.is_finite() && a > 1.0, "{a}");
+    assert_eq!(a, b);
+    assert_eq!(
+        split.notice(now, &store).len(),
+        bare.notice(now, &store).len()
+    );
+    assert_eq!(split.splits(), 0);
+    assert_eq!(split.anomalies()[0].peak_score, f64::NEG_INFINITY);
+    split.refresh(now);
+    bare.refresh(now);
+    assert!(split.anomalies()[0].peak_score.is_finite());
+    assert_eq!(
+        split.anomalies()[0].peak_score,
+        bare.anomalies()[0].peak_score
+    );
+    // The heartbeat and the dependent's burst: one split, one more anomaly than the base holds.
+    for h in &held[5..] {
+        split.observe(h);
+        bare.observe(h);
+    }
+    let store = Store::with(held.clone());
+    split.notice(at(15_000), &store);
+    bare.notice(at(15_000), &store);
+    assert_eq!(split.splits(), 1);
+    assert_eq!(split.anomalies().len(), bare.anomalies().len() + 1);
+}

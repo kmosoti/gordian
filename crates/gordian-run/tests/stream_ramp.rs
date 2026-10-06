@@ -986,3 +986,104 @@ fn the_run_writes_the_composed_noticers_record_and_replays_it_byte_for_byte() {
         "rung"
     );
 }
+
+// ---- counts, the second chain at a key, and the delegation to the base (added after the mutation run)
+
+#[test]
+fn the_detectors_counts_are_the_readings_fed_and_the_chains_each_was_compared_with() {
+    let mut det = RampDetector::new(spec());
+    assert_eq!(
+        (det.readings_seen(), det.comparisons(), det.live_chains()),
+        (0, 0, 0)
+    );
+    // The first reading meets no chain, the second and the third meet the one chain.
+    feed(&mut det, &series(0, &[10, 12, 14]));
+    assert_eq!(
+        (det.readings_seen(), det.comparisons(), det.live_chains()),
+        (3, 2, 1)
+    );
+    // A reading of another key meets none of this key's chains, and starts its own.
+    det.feed(&held(9, 4_000, reading(1, CounterName::Saturation, 5)));
+    assert_eq!(
+        (det.readings_seen(), det.comparisons(), det.live_chains()),
+        (4, 2, 2)
+    );
+    // A message is not a reading and counts for nothing.
+    det.feed(&held(
+        10,
+        4_100,
+        Observation::Message {
+            service: ServiceId(0),
+            severity: Severity::High,
+            text_id: SignalText::OutOfResource.text_id(),
+        },
+    ));
+    assert_eq!((det.readings_seen(), det.comparisons()), (4, 2));
+}
+
+#[test]
+fn the_chain_that_crosses_is_the_one_linked_and_extended_when_another_is_live_at_its_key() {
+    let mut det = RampDetector::new(spec());
+    // A lone reading of 0, then a jump past max_step that starts a second chain, which ramps.
+    let s = [(0, 0), (500, 100), (1_000, 104), (1_500, 108), (2_000, 112)];
+    let fed = feed(&mut det, &s);
+    let Fed::Crossed { uid, key, readings } = &fed[4] else {
+        panic!("{fed:?}");
+    };
+    assert_eq!(
+        readings.len(),
+        4,
+        "the second chain's readings, not the lone one"
+    );
+    det.link(*key, *uid, 7);
+    let next = det.feed(&held(10, 2_500, reading(0, CounterName::Saturation, 116)));
+    assert_eq!(next, Fed::Extends(7));
+}
+
+#[test]
+fn the_ramp_noticer_hands_score_and_refresh_to_its_base() {
+    use gordian_run::stream::arms::noticer::Noticer;
+    use gordian_run::stream::arms::noticer_ramp::RampNoticer;
+    use gordian_run::stream::arms::noticer_rung::RungNoticer;
+    use gordian_run::stream::arms::rung::Store;
+    let public = public_of(&params(0, 150));
+    let site = ServiceId(0);
+    let cfg = RungConfig::default();
+    let mut ramp = RampNoticer::new(
+        RungNoticer::new(cfg.clone(), &public.services),
+        spec(),
+        "ramp",
+    );
+    let mut bare = RungNoticer::new(cfg, &public.services);
+    let burst: Vec<Held> = (0..5)
+        .map(|i| {
+            held(
+                i,
+                10_000 + 10 * u64::from(i),
+                reading(site.0, CounterName::ErrorRate, 80 + u64::from(i)),
+            )
+        })
+        .collect();
+    let store = Store::with(burst.clone());
+    for h in &burst {
+        ramp.observe(h);
+        bare.observe(h);
+    }
+    let now = at(10_500);
+    let (a, b) = (ramp.score(0, now), bare.score(0, now));
+    assert!(a.is_finite() && a > 1.0, "{a}");
+    assert_eq!(a, b);
+    assert_eq!(
+        ramp.notice(now, &store).len(),
+        bare.notice(now, &store).len()
+    );
+    assert!(ramp.anomalies()[0].noticed_at.is_some());
+    assert_eq!(ramp.anomalies()[0].peak_score, f64::NEG_INFINITY);
+    ramp.refresh(now);
+    bare.refresh(now);
+    assert!(ramp.anomalies()[0].peak_score.is_finite());
+    assert_eq!(
+        ramp.anomalies()[0].peak_score,
+        bare.anomalies()[0].peak_score
+    );
+}
