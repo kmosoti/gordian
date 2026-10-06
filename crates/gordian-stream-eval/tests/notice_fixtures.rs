@@ -143,6 +143,26 @@ fn every_error_variant_is_exercised() {
 }
 
 #[test]
+fn every_error_says_what_it_is_and_where() {
+    let mut said = BTreeSet::new();
+    for case in cases() {
+        if let Expected::Error(e) = &case.expected {
+            let text = e.to_string();
+            assert!(text.len() > 10, "{text}");
+            said.insert(text);
+        }
+    }
+    // The ten variants say ten different things (the fixtures use each with distinct numbers).
+    assert!(said.len() >= 10, "{said:?}");
+    let text = NoticeEvalError::RetirementWithoutNotice {
+        index: 4,
+        anomaly: 7,
+    }
+    .to_string();
+    assert!(text.contains('4') && text.contains('7') && text.contains("retirement"), "{text}");
+}
+
+#[test]
 fn every_tier_and_both_anchor_outcomes_appear() {
     let (mut correct, mut late, mut missed, mut background) = (false, false, false, false);
     let mut tiers = BTreeSet::new();

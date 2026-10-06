@@ -91,6 +91,19 @@
   }}
  },
  {
+  "name": "hard/an-earlier-correct-notice-is-not-undone-by-a-later-late-one",
+  "rules": ["N5","N6"],
+  "note": "The first notice is anchored on the incident's first observation (10 s), the second, later, on an observation 2.5 s after it. The incident is anchor-correct because one notice is; the later one does not undo it.",
+  "truth": {"duration_ns":600000000000,"incidents":[{"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}],"labels":[0,0,0]},
+  "obs_at": [10000000000,12500000000,13000000000],
+  "trace": {"notices":[{"anomaly":0,"anchor":0,"at":11000000000},{"anomaly":1,"anchor":1,"at":14000000000}],"retirements":[]},
+  "expected": {"Verdict": {
+   "per_incident": [{"id":0,"tier":"Hard","first_observation_at":10000000000,"notices":2,"noticed":true,"first_notice_at":11000000000,"notice_latency_ns":1000000000,"anchor_correct":true}],
+   "per_notice": [{"incident":0,"tier":"Hard","anchor_offset_ns":0,"anchor_correct":true},{"incident":0,"tier":"Hard","anchor_offset_ns":2500000000,"anchor_correct":false}],
+   "totals": {"notices":2,"on_background":0,"on_plain":0,"on_hard":2,"on_decoy":0,"noticed":{"plain":0,"hard":1,"decoy":0},"anchor_correct":{"plain":0,"hard":1,"decoy":0},"retirements":0}
+  }}
+ },
+ {
   "name": "tiers/plain-hard-decoy-and-background-notices-are-counted-by-what-they-anchor-on",
   "rules": ["N2","N8","N9"],
   "note": "A plain incident (observation 0 at 10 s), a decoy (observation 1 at 20 s), a hard incident (observation 2 at 30 s) and background (observation 3 at 40 s), each noticed once on its first observation, the last notice on the background observation. Every incident of every tier is noticed and anchor-correct; the four counts by anchor sum to four.",

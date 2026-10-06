@@ -1,0 +1,26 @@
+mutant,result,first_failing_tests
+window is 2 s,caught,every_fixture_produces_its_expected_result; expected_verdicts_are_internally_consistent
+window is 0.5 s,caught,every_fixture_produces_its_expected_result; expected_verdicts_are_internally_consistent
+window exclusive,caught,every_fixture_produces_its_expected_result
+anchor-correct needs no incident offset (always true for an incident),caught,every_fixture_produces_its_expected_result
+anchor-correct not accumulated per incident (last notice decides),caught,every_fixture_produces_its_expected_result
+offset from the incident's last observation,caught,every_fixture_produces_its_expected_result
+"latency from the anchor, not the first observation",caught,every_fixture_produces_its_expected_result
+first notice is the last notice,caught,every_fixture_produces_its_expected_result
+decoy notices counted as plain,caught,every_fixture_produces_its_expected_result
+hard notices counted as plain,caught,every_fixture_produces_its_expected_result
+background notices not counted,caught,every_fixture_produces_its_expected_result
+notices per incident not counted,caught,every_fixture_produces_its_expected_result
+noticed only when anchor-correct,caught,every_fixture_produces_its_expected_result
+retirements not counted,caught,every_fixture_produces_its_expected_result
+a notice before its anchor is accepted,caught,every_fixture_produces_its_expected_result
+notices may go back in time,caught,every_fixture_produces_its_expected_result
+an anomaly may be noticed twice,caught,every_fixture_produces_its_expected_result
+a retirement may precede its notice,caught,every_fixture_produces_its_expected_result
+retirements may go back in time,caught,every_fixture_produces_its_expected_result
+a retired anomaly stays live,caught,every_fixture_produces_its_expected_result
+instants not checked against labels,caught,every_fixture_produces_its_expected_result
+incident ids not checked,caught,every_fixture_produces_its_expected_result
+labels of unknown incidents not checked,caught,every_fixture_produces_its_expected_result
+per-notice tier dropped,caught,every_fixture_produces_its_expected_result
+an incident with no observation is noticed by a background anchor,caught,every_fixture_produces_its_expected_result

@@ -379,9 +379,9 @@ pub fn score_notices(
         }
         inc.notices += 1;
         inc.noticed = true;
-        if inc.first_notice_at.is_none_or(|t| n.at < t) {
-            inc.first_notice_at = Some(n.at);
-        }
+        // The notices are in time order (N11), so the first one about the incident is the earliest
+        // (N3).
+        inc.first_notice_at.get_or_insert(n.at);
         let anchor_at = obs_at[n.anchor.0 as usize];
         let offset = inc
             .first_observation_at
