@@ -1,7 +1,6 @@
 # Charter revision proposal: the aim and its proxies
 
-Status: **proposal, not adopted.** Nothing here is normative until the user approves it and the
-charter is edited. It would add one section to `docs/charter.md` and change nothing else.
+Status: **adopted 2026-10-06** as `docs/charter.md` section 1.1, approved by the user. The charter's text is normative; this file is the record of the proposal.
 
 ## The aim
 
