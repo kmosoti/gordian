@@ -1,0 +1,159 @@
+{
+  "rule": "max min(z1, z2) within the tuning background budget; ties: fewer background notices, then the earlier stage, then the arm name",
+  "tune_background": 5.6,
+  "stages": [
+    "tune-b",
+    "tune-c",
+    "tune-d",
+    "tune-e",
+    "tune-f"
+  ],
+  "ticks": {
+    "100": {
+      "stage": "tune-d",
+      "arm": "b2_w20_all_h200_b3w20_t100",
+      "noticer": {
+        "noticer": "medium",
+        "tick_ns": 100000000,
+        "abnormal_only": false,
+        "onset_tau_ns": 300000000,
+        "onset_threshold": 3.0,
+        "dependent_weight": 1.0,
+        "direct_dependents": false,
+        "lookback_ns": 200000000,
+        "refractory_ns": 1000000000,
+        "coincidence": "ordered",
+        "coincidence_window_ns": 300000000,
+        "ramp": true,
+        "ramp_jump": 10.0,
+        "ramp_penalty": 3.0,
+        "ramp_tau_ns": 4000000000,
+        "ramp_threshold": 3.0,
+        "ramp_lookback_ns": 10000000000,
+        "hold_ns": 6000000000,
+        "rhythms": false,
+        "onset": false,
+        "burst": true,
+        "burst_n": 2,
+        "burst_window_ns": 20000000,
+        "burst_lookback_ns": 0,
+        "propagation": false,
+        "burst_confirm": "all",
+        "confirm_hold_ns": 200000000,
+        "burst3_window_ns": 20000000,
+        "confirm_delay_ticks": 2
+      },
+      "tuning": {
+        "anchor_ok": 0.9798994974874372,
+        "leak_noticed": 1.0,
+        "background": 5.58,
+        "z1": 1.0050251256281415,
+        "z2": 2.7272727272727275,
+        "score": 1.0050251256281415
+      },
+      "feasible_configurations": 74,
+      "tied": [
+        "tune-d/b2_w20_all_h200_b3w20_t100",
+        "tune-e/all_w20_b3w20_r1_t100",
+        "tune-e/all_w20_b3w25_r1_t100"
+      ],
+      "positive_score": true
+    },
+    "500": {
+      "stage": "tune-e",
+      "arm": "dep_d1_b3w30_t500",
+      "noticer": {
+        "noticer": "medium",
+        "tick_ns": 500000000,
+        "abnormal_only": false,
+        "onset_tau_ns": 300000000,
+        "onset_threshold": 3.0,
+        "dependent_weight": 1.0,
+        "direct_dependents": false,
+        "lookback_ns": 200000000,
+        "refractory_ns": 1000000000,
+        "coincidence": "ordered",
+        "coincidence_window_ns": 300000000,
+        "ramp": true,
+        "ramp_jump": 10.0,
+        "ramp_penalty": 3.0,
+        "ramp_tau_ns": 4000000000,
+        "ramp_threshold": 3.0,
+        "ramp_lookback_ns": 10000000000,
+        "hold_ns": 6000000000,
+        "rhythms": false,
+        "onset": false,
+        "burst": true,
+        "burst_n": 2,
+        "burst_window_ns": 25000000,
+        "burst_lookback_ns": 0,
+        "propagation": false,
+        "burst_confirm": "dependents",
+        "confirm_hold_ns": 500000000,
+        "burst3_window_ns": 30000000,
+        "confirm_delay_ticks": 1
+      },
+      "tuning": {
+        "anchor_ok": 0.9547738693467336,
+        "leak_noticed": 1.0,
+        "background": 4.87,
+        "z1": 0.16750418760468716,
+        "z2": 2.7272727272727275,
+        "score": 0.16750418760468716
+      },
+      "feasible_configurations": 6,
+      "tied": [
+        "tune-e/dep_d1_b3w30_t500"
+      ],
+      "positive_score": true
+    },
+    "2000": {
+      "stage": "tune-f",
+      "arm": "b3w30_rampth2.45_t2000",
+      "noticer": {
+        "noticer": "medium",
+        "tick_ns": 2000000000,
+        "abnormal_only": false,
+        "onset_tau_ns": 300000000,
+        "onset_threshold": 3.0,
+        "dependent_weight": 1.0,
+        "direct_dependents": false,
+        "lookback_ns": 200000000,
+        "refractory_ns": 1000000000,
+        "coincidence": "ordered",
+        "coincidence_window_ns": 300000000,
+        "ramp": true,
+        "ramp_jump": 10.0,
+        "ramp_penalty": 0.0,
+        "ramp_tau_ns": 4000000000,
+        "ramp_threshold": 2.45,
+        "ramp_lookback_ns": 10000000000,
+        "hold_ns": 6000000000,
+        "rhythms": false,
+        "onset": false,
+        "burst": true,
+        "burst_n": 3,
+        "burst_window_ns": 30000000,
+        "burst_lookback_ns": 0,
+        "propagation": false,
+        "burst_confirm": "none",
+        "confirm_hold_ns": 300000000,
+        "burst3_window_ns": 0,
+        "confirm_delay_ticks": 2
+      },
+      "tuning": {
+        "anchor_ok": 0.8693467336683417,
+        "leak_noticed": 1.0,
+        "background": 4.26,
+        "z1": -2.6800670016750425,
+        "z2": 2.7272727272727275,
+        "score": -2.6800670016750425
+      },
+      "feasible_configurations": 8,
+      "tied": [
+        "tune-f/b3w30_rampth2.45_t2000"
+      ],
+      "positive_score": false
+    }
+  }
+}

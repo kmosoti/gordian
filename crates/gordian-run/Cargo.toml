@@ -44,6 +44,14 @@ gordian-stream = { path = "../gordian-stream" }
 # Simpler alternative: a second scorer, which would be a second evaluator, or enabling the feature
 # here, which both guards forbid.
 gordian-stream-eval = { path = "../gordian-stream-eval" }
+# Requirement (work item M2): the medium as a noticer on the stream world. The arm in
+# `src/stream/arms/medium/` builds a `Medium` from a hand-designed spec, feeds it public
+# observations through its sense and clock ports, and turns its proposals into notices.
+# Simpler alternative: a noticer written directly in this crate; rejected, the experiment is a
+# test of the medium itself, so the arm must run the medium's own tick, archetypes and counts.
+# Cost: a path dependency on a crate already in the workspace that depends only on
+# `gordian-core` and `serde`; nothing new in Cargo.lock.
+gordian-medium = { path = "../gordian-medium" }
 # Requirement: the `random_matched` arm draws from a seeded, reproducible ChaCha8 stream (plan
 # section 4 permits rand_chacha for this). The same crate and version the world already uses, so
 # it adds nothing to the lockfile.

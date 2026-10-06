@@ -86,6 +86,10 @@ pub enum NoticerSpec {
         /// Which attached observations make the anchor non-isolated.
         isolation: super::noticer_reanchor::Isolation,
     },
+    /// The medium as a noticer (work item M2, Lab 1): a hand-designed graph of cells on
+    /// `gordian-medium`, fed every delivered observation with its value
+    /// ([`super::medium`]).
+    Medium(super::medium::MediumParams),
 }
 
 impl Default for NoticerSpec {
@@ -107,6 +111,7 @@ impl NoticerSpec {
             Self::ChangeTriggered { .. } => CHANGE_ID,
             Self::EarliestAnchor { .. } => EARLIEST_ID,
             Self::Reanchor { .. } => REANCHOR_ID,
+            Self::Medium(_) => super::medium::MEDIUM_ID,
         }
     }
 
@@ -125,6 +130,7 @@ impl NoticerSpec {
             Self::Reanchor { min_burst, .. } if *min_burst < 2 => {
                 Err("noticer reanchor: min_burst must be at least 2".to_owned())
             }
+            Self::Medium(params) => params.validate(),
             _ => Ok(()),
         }
     }
@@ -232,6 +238,28 @@ pub trait Noticer {
     fn tracked(&self, id: u32) -> Option<&Tracked> {
         self.anomalies().iter().find(|a| a.id == id)
     }
+
+    /// The noticer's own counted work since the last call, priced, for the arm to charge to its
+    /// bill (work item M2: the medium's operations at its declared prices plus a price per
+    /// tick). `None`, the default, for a noticer whose work is bookkeeping (B1's three), which is
+    /// what they were before the method existed.
+    fn take_cost(&mut self) -> Option<NoticerCost> {
+        None
+    }
+
+    /// The bill refused the cost [`Noticer::take_cost`] reported: the noticer stops doing
+    /// counted work for the rest of the segment. Nothing, by default.
+    fn refused(&mut self) {}
+}
+
+/// A noticer's own counted work, priced (work item M2), charged by the arm to its bill under
+/// `Phase::Component(component)` like a component call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoticerCost {
+    /// The id the charge is attributed to.
+    pub component: gordian_core::ComponentId,
+    /// Modelled compute, nanoseconds.
+    pub compute_ns: u64,
 }
 
 /// One tracked anomaly: its anchor, site and attached evidence, from public observations.
@@ -598,5 +626,6 @@ pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<
                 cfg, services, gap_ns, min_burst, isolation,
             ))
         }
+        NoticerSpec::Medium(params) => super::medium::build(&params, cfg, services),
     }
 }
