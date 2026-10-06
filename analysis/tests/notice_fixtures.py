@@ -21,14 +21,18 @@ from gordian_analysis.load import (
 FIRST_OBSERVATION_NS = 10_000_000_000
 
 
-def noticed(notices=1, correct=True, latency_s=2.0) -> dict:
+def noticed(notices=1, correct=True, latency_s=2.0, site=True) -> dict:
     """What the evaluator says about one incident: `notices` notices about it, an anchor-correct one
-    among them when `correct`, the first `latency_s` seconds after its first observation."""
-    return {"notices": notices, "correct": correct and notices > 0, "latency_s": latency_s}
+    among them when `correct`, the first `latency_s` seconds after its first observation. The first
+    notice (the anchor-correct one, when there is one) is site-correct when `site`; no other notice
+    about the incident is. So the incident is site-correct when `site`, and has one notice that is
+    both when `correct and site`."""
+    return {"notices": notices, "correct": correct and notices > 0, "latency_s": latency_s,
+            "site": site and notices > 0}
 
 
 def not_noticed() -> dict:
-    return {"notices": 0, "correct": False, "latency_s": None}
+    return {"notices": 0, "correct": False, "latency_s": None, "site": False}
 
 
 def with_notices(stream: dict, rows: list[dict], bg: int = 0, retire: int = 0) -> dict:
@@ -51,14 +55,21 @@ def write_notice_files(path: Path, streams: list[dict], run_id="r.arm", role="co
         rows = s["notice_rows"]
         bg = s["notice_bg"]
         retire = s["notice_retire"]
-        by_tier = {"plain": [0, 0, 0], "hard": [0, 0, 0], "decoy": [0, 0, 0]}  # notices, noticed, correct
+        # notices, noticed, correct, site-correct, both (the last three count incidents)
+        by_tier = {"plain": [0, 0, 0, 0, 0], "hard": [0, 0, 0, 0, 0], "decoy": [0, 0, 0, 0, 0]}
         anomaly = 0
+        notices_site = notices_both = 0
         t_ns = 20_000_000_000
         for k, (inc, r) in enumerate(zip(s["incidents"], rows)):
             tier = inc["tier"]
             by_tier[tier][0] += r["notices"]
             by_tier[tier][1] += int(r["notices"] > 0)
             by_tier[tier][2] += int(r["correct"])
+            both_inc = r["correct"] and r["site"]
+            by_tier[tier][3] += int(r["site"])
+            by_tier[tier][4] += int(both_inc)
+            notices_site += int(r["site"])
+            notices_both += int(both_inc)
             lat = r["latency_s"]
             first_notice = ""
             latency_ns = ""
@@ -70,16 +81,19 @@ def write_notice_files(path: Path, streams: list[dict], run_id="r.arm", role="co
                 "family": inc["family"], "first_observation_at_ns": FIRST_OBSERVATION_NS,
                 "notices": r["notices"], "noticed": _b(r["notices"] > 0),
                 "first_notice_at_ns": first_notice, "notice_latency_ns": latency_ns,
-                "anchor_correct": _b(r["correct"]),
+                "anchor_correct": _b(r["correct"]), "site_correct": _b(r["site"]),
+                "anchor_site_correct": _b(both_inc),
             })
             for j in range(r["notices"]):
                 good = r["correct"] and j == 0
+                site_ok = r["site"] and j == 0
                 event_rows.append({
                     "run_id": run_id, "arm_role": role, "seed": s["seed"], "noticer": noticer,
                     "event": "notice", "anomaly": anomaly, "anchor": 100 + anomaly, "site": 3,
                     "anchor_at_ns": FIRST_OBSERVATION_NS + (0 if good else 5_000_000_000),
                     "at_ns": t_ns + anomaly, "incident": k,
                     "anchor_offset_ns": 0 if good else 5_000_000_000, "anchor_correct": _b(good),
+                    "site_correct": _b(site_ok), "anchor_site_correct": _b(good and site_ok),
                 })
                 anomaly += 1
         for j in range(bg):
@@ -87,7 +101,8 @@ def write_notice_files(path: Path, streams: list[dict], run_id="r.arm", role="co
                 "run_id": run_id, "arm_role": role, "seed": s["seed"], "noticer": noticer,
                 "event": "notice", "anomaly": anomaly, "anchor": 100 + anomaly, "site": 4,
                 "anchor_at_ns": 1_000_000_000, "at_ns": t_ns + anomaly, "incident": "",
-                "anchor_offset_ns": "", "anchor_correct": "false",
+                "anchor_offset_ns": "", "anchor_correct": "false", "site_correct": "false",
+                "anchor_site_correct": "false",
             })
             anomaly += 1
         for j in range(retire):
@@ -95,7 +110,8 @@ def write_notice_files(path: Path, streams: list[dict], run_id="r.arm", role="co
                 "run_id": run_id, "arm_role": role, "seed": s["seed"], "noticer": noticer,
                 "event": "retire", "anomaly": j, "anchor": 100 + j, "site": 3,
                 "anchor_at_ns": 1_000_000_000, "at_ns": t_ns + 10_000_000_000 + j, "incident": "",
-                "anchor_offset_ns": "", "anchor_correct": "",
+                "anchor_offset_ns": "", "anchor_correct": "", "site_correct": "",
+                "anchor_site_correct": "",
             })
         streams_rows.append({
             "run_id": run_id, "arm_role": role, "seed": s["seed"], "noticer": noticer,
@@ -105,6 +121,12 @@ def write_notice_files(path: Path, streams: list[dict], run_id="r.arm", role="co
             "noticed_plain": by_tier["plain"][1], "noticed_hard": by_tier["hard"][1],
             "noticed_decoy": by_tier["decoy"][1], "anchor_correct_plain": by_tier["plain"][2],
             "anchor_correct_hard": by_tier["hard"][2], "anchor_correct_decoy": by_tier["decoy"][2],
+            "notices_site_correct": notices_site, "notices_anchor_site_correct": notices_both,
+            "site_correct_plain": by_tier["plain"][3], "site_correct_hard": by_tier["hard"][3],
+            "site_correct_decoy": by_tier["decoy"][3],
+            "anchor_site_correct_plain": by_tier["plain"][4],
+            "anchor_site_correct_hard": by_tier["hard"][4],
+            "anchor_site_correct_decoy": by_tier["decoy"][4],
         })
     for name, columns, rows in (
         ("notices.csv", STREAM_NOTICES_COLUMNS, streams_rows),
@@ -125,12 +147,12 @@ def noticing_streams() -> list[dict]:
     return [
         with_notices(
             stream(1, [incident("plain"), incident("plain"), incident("decoy")]),
-            [noticed(1, True, 1.0), not_noticed(), noticed(1, True, 3.0)],
+            [noticed(1, True, 1.0), not_noticed(), noticed(1, True, 3.0, site=False)],
             bg=2, retire=1,
         ),
         with_notices(
             stream(2, [incident("plain"), incident("hard", "compound"), incident("decoy")]),
-            [noticed(2, True, 0.5), noticed(2, False, 4.0), not_noticed()],
+            [noticed(2, True, 0.5), noticed(2, False, 4.0, site=True), not_noticed()],
             bg=1, retire=2,
         ),
         with_notices(
@@ -143,7 +165,7 @@ def noticing_streams() -> list[dict]:
                     incident("plain"),
                 ],
             ),
-            [noticed(1, False, 18.0), not_noticed(), noticed(1, True, 2.0), noticed(3, True, 1.5)],
+            [noticed(1, False, 18.0, site=False), not_noticed(), noticed(1, True, 2.0), noticed(3, True, 1.5)],
             bg=0, retire=0,
         ),
     ]

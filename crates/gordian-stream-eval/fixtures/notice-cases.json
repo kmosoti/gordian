@@ -401,13 +401,13 @@
  {
   "name": "site/a-missing-site-on-either-side-is-never-site-correct",
   "rules": ["N13","N14"],
-  "note": "Two hard incidents with one anchor-correct notice each. Incident 0 occupies service 3 but its notice records no site; incident 1 occupies nothing (a hand-built truth) but its notice is about service 3. Neither is site-correct; both are anchor-correct and noticed.",
+  "note": "Two hard incidents with one anchor-correct notice each. Incident 0 occupies service 3 but its notice records no site; incident 1 occupies nothing (a hand-built truth) but its notice is about service 0 (the service a defaulted site would be). Neither is site-correct; both are anchor-correct and noticed.",
   "truth": {"duration_ns":600000000000,"incidents":[
     {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3},"occupies":[3]},
     {"tier":"Hard","critical":false,"onset_ns":20000000000,"deadline_ns":70000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}],
    "labels":[0,1]},
   "obs_at": [10000000000,20000000000],
-  "trace": {"notices":[{"anomaly":0,"anchor":0,"at":11000000000},{"anomaly":1,"anchor":1,"at":21000000000,"site":3}],"retirements":[]},
+  "trace": {"notices":[{"anomaly":0,"anchor":0,"at":11000000000},{"anomaly":1,"anchor":1,"at":21000000000,"site":0}],"retirements":[]},
   "expected": {"Verdict": {
    "per_incident": [
     {"id":0,"tier":"Hard","first_observation_at":10000000000,"notices":1,"noticed":true,"first_notice_at":11000000000,"notice_latency_ns":1000000000,"anchor_correct":true,"site_correct":false,"anchor_site_correct":false},
@@ -505,6 +505,22 @@
     {"incident":2,"tier":"Decoy","anchor_offset_ns":0,"anchor_correct":true,"site_correct":false,"anchor_site_correct":false}],
    "totals": {"notices":6,"on_background":2,"on_plain":1,"on_hard":2,"on_decoy":1,"noticed":{"plain":1,"hard":1,"decoy":1},"anchor_correct":{"plain":1,"hard":1,"decoy":1},"retirements":0,
     "notices_site_correct":3,"notices_anchor_site_correct":2,"site_correct":{"plain":1,"hard":1,"decoy":0},"anchor_site_correct":{"plain":1,"hard":1,"decoy":0}}
+  }}
+ },
+{
+  "name": "site/an-earlier-site-correct-notice-is-not-undone-by-a-later-wrong-one",
+  "rules": ["N14","N15"],
+  "note": "Observations at 10 s, 10.5 s and 12.5 s of one hard incident (site 3). Notice 0 is anchored on the first observation about service 3 (both anchor-correct and site-correct); notice 1 is anchored on observation 2 (late) about service 4 (neither). The incident keeps its site-correct and anchor-and-site-correct flags: 'at least one notice' decides, not the last. One of the two notices is site-correct and one is both.",
+  "truth": {"duration_ns":600000000000,"incidents":[{"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3},"occupies":[3]}],"labels":[0,0,0]},
+  "obs_at": [10000000000,10500000000,12500000000],
+  "trace": {"notices":[{"anomaly":0,"anchor":0,"at":11000000000,"site":3},{"anomaly":1,"anchor":2,"at":14000000000,"site":4}],"retirements":[]},
+  "expected": {"Verdict": {
+   "per_incident": [{"id":0,"tier":"Hard","first_observation_at":10000000000,"notices":2,"noticed":true,"first_notice_at":11000000000,"notice_latency_ns":1000000000,"anchor_correct":true,"site_correct":true,"anchor_site_correct":true}],
+   "per_notice": [
+    {"incident":0,"tier":"Hard","anchor_offset_ns":0,"anchor_correct":true,"site_correct":true,"anchor_site_correct":true},
+    {"incident":0,"tier":"Hard","anchor_offset_ns":2500000000,"anchor_correct":false,"site_correct":false,"anchor_site_correct":false}],
+   "totals": {"notices":2,"on_background":0,"on_plain":0,"on_hard":2,"on_decoy":0,"noticed":{"plain":0,"hard":1,"decoy":0},"anchor_correct":{"plain":0,"hard":1,"decoy":0},"retirements":0,
+    "notices_site_correct":1,"notices_anchor_site_correct":1,"site_correct":{"plain":0,"hard":1,"decoy":0},"anchor_site_correct":{"plain":0,"hard":1,"decoy":0}}
   }}
  }
 ]

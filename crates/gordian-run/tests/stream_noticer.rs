@@ -532,6 +532,7 @@ fn the_selection_oracle_works_on_the_anomalies_of_whatever_noticer_its_rung_has(
         None,
         Some(8_000_000_000),
         None,
+        None,
     )
     .unwrap();
     let base = play_with_rung(&p, &spec, &l, &rung_with(NoticerSpec::default())).unwrap();

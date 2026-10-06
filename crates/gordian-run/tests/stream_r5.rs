@@ -183,10 +183,16 @@ fn the_new_arms_are_written_as_their_ids_or_with_their_parameters() {
     );
     assert_eq!(
         from(r#"{"policy": "oracle_selection", "delay_ns": 6000000000}"#).unwrap(),
-        StreamPolicySpec::OracleSelection { delay_ns: 6 * NS }
+        StreamPolicySpec::OracleSelection {
+            delay_ns: 6 * NS,
+            hold_until_asked: false
+        }
     );
     assert_eq!(
-        to(&StreamPolicySpec::OracleSelection { delay_ns: 0 }),
+        to(&StreamPolicySpec::OracleSelection {
+            delay_ns: 0,
+            hold_until_asked: false
+        }),
         "\"oracle_selection\""
     );
     assert_eq!(to(&StreamPolicySpec::OracleDecoy), "\"oracle_decoy\"");
@@ -272,7 +278,10 @@ fn every_new_arm_is_deterministic() {
             delay_ns: 0,
             persist_ns: 0,
         },
-        StreamPolicySpec::OracleSelection { delay_ns: 6 * NS },
+        StreamPolicySpec::OracleSelection {
+            delay_ns: 6 * NS,
+            hold_until_asked: false,
+        },
         StreamPolicySpec::OracleDecoy,
     ];
     for seed in [3, 8] {
@@ -524,7 +533,10 @@ fn the_selection_oracle_is_always_escalate_restricted_to_hard_incidents_with_the
             let always = play(&p, &StreamPolicySpec::Always { delay_ns: delay }, &l).unwrap();
             let selection = play(
                 &p,
-                &StreamPolicySpec::OracleSelection { delay_ns: delay },
+                &StreamPolicySpec::OracleSelection {
+                    delay_ns: delay,
+                    hold_until_asked: false,
+                },
                 &l,
             )
             .unwrap();
@@ -574,7 +586,10 @@ fn the_selection_oracle_does_not_build_a_context_of_its_own() {
         let truth = truth_from_stream(&generate(&p));
         let selection = play(
             &p,
-            &StreamPolicySpec::OracleSelection { delay_ns: 4 * NS },
+            &StreamPolicySpec::OracleSelection {
+                delay_ns: 4 * NS,
+                hold_until_asked: false,
+            },
             &limits(&p),
         )
         .unwrap();

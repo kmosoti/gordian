@@ -1,0 +1,21 @@
+mutant,result,first_failing_tests
+the incident's site is the last service it occupies,caught,every_fixture_produces_its_expected_result
+an incident that occupies nothing has site 0,caught,every_fixture_produces_its_expected_result
+a notice is read against the first incident's site,caught,every_fixture_produces_its_expected_result
+site-correct is not accumulated per incident (the last notice decides),caught,every_fixture_produces_its_expected_result
+anchor-and-site-correct is not accumulated per incident (the last notice decides),caught,every_fixture_produces_its_expected_result
+a missing site is right,caught,every_fixture_produces_its_expected_result
+site compared with <=,caught,every_fixture_produces_its_expected_result
+both is anchor-correct or site-correct,caught,every_fixture_produces_its_expected_result; notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+both is site-correct only,caught,every_fixture_produces_its_expected_result; notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+both is anchor-correct only,caught,every_fixture_produces_its_expected_result; notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+a notice on background is site-correct when it has a site,caught,every_fixture_produces_its_expected_result
+site-correct incidents are counted in the anchor-correct totals,caught,every_fixture_produces_its_expected_result; the_site_does_not_change_the_measures_of_n1_to_n12
+both incidents are counted in the site-correct totals,caught,every_fixture_produces_its_expected_result
+site-correct notices counted by anchor-correctness,caught,every_fixture_produces_its_expected_result
+both notices counted by site-correctness,caught,every_fixture_produces_its_expected_result; notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+notices on incidents omit decoys,caught,expected_verdicts_are_internally_consistent; notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+precision in the hard tier reads the plain count,caught,expected_verdicts_are_internally_consistent; notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+precision in the decoy tier reads the hard count,caught,expected_verdicts_are_internally_consistent; notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+strict precision reads the site-correct count,caught,notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
+"precision of a stream with no notice is zero, not none",caught,notice_precision_is_the_share_of_notices_on_incidents_worked_by_hand
