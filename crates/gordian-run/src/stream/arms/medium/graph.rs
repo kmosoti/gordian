@@ -83,6 +83,10 @@ pub struct MediumParams {
     pub onset_threshold: f32,
     /// Weight of an abnormal observation at a dependent in the onset integrator of its upstream.
     pub dependent_weight: f32,
+    /// Whether "dependent" means a direct dependent only (a service that names `n` in its
+    /// `depends_on`) rather than every service that depends on `n`, directly or not.
+    #[serde(default)]
+    pub direct_dependents: bool,
     /// The anchor lookback (integrator, coincidence and emitter), nanoseconds.
     pub lookback_ns: u64,
     /// Fewest nanoseconds between two notices of one emitter.
@@ -121,6 +125,7 @@ impl Default for MediumParams {
             onset_tau_ns: 300_000_000,
             onset_threshold: 3.0,
             dependent_weight: 1.0,
+            direct_dependents: false,
             lookback_ns: 200_000_000,
             refractory_ns: 6_000_000_000,
             coincidence: CoincidenceForm::Off,
@@ -240,8 +245,14 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
         .collect();
     let dependents: Vec<Vec<usize>> = (0..n)
         .map(|i| {
-            let mask = dependents_mask(services, services[i].id);
-            (0..n).filter(|j| *j != i && mask[*j]).collect()
+            if params.direct_dependents {
+                (0..n)
+                    .filter(|j| services[*j].depends_on.contains(&services[i].id))
+                    .collect()
+            } else {
+                let mask = dependents_mask(services, services[i].id);
+                (0..n).filter(|j| *j != i && mask[*j]).collect()
+            }
         })
         .collect();
 

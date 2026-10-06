@@ -14,8 +14,11 @@
 //!    the medium made them:
 //!    - a proposal of kind notice is a new anomaly: anchor the proposal's anchor, site the
 //!      service the anchor is about, attached the anchor and the proposal's references in
-//!      delivery order. A proposal whose anchor a live anomaly already owns is the same anomaly
-//!      and makes no second notice;
+//!      delivery order. A proposal whose anchor is the anchor of a live anomaly is the same
+//!      anomaly and makes no second notice. (An anchor that a live anomaly merely *holds*, as
+//!      evidence attached to it by the rung's rule, does not stop a notice: that is how the rung's
+//!      own mis-anchoring would come back, a stray's anomaly absorbing the incident after it;
+//!      the observation then belongs to both anomalies, as with B1's `EarliestAnchor`);
 //!    - a proposal of kind retire, from the latch that watches service `n`, makes every live
 //!      anomaly sited at `n`, or made by `n`'s emitters, ready to retire ([`Noticer::retirable`]);
 //!      the rung retires it when nothing is pending on it.
@@ -64,7 +67,7 @@ const REOFFER_NS: u64 = 4_000_000_000;
 pub struct MediumStats {
     /// Proposals of kind notice.
     pub notice_proposals: u64,
-    /// Of those, the ones whose anchor a live anomaly already owned.
+    /// Of those, the ones whose anchor was a live anomaly's anchor.
     pub duplicate_notices: u64,
     /// Of those, the ones whose anchor was no longer held.
     pub lost_anchors: u64,
@@ -228,7 +231,7 @@ impl MediumNoticer {
                 KIND_NOTICE => {
                     self.stats.notice_proposals += 1;
                     let anchor = ObsId(p.anchor.seq);
-                    if self.anomalies.iter().any(|a| a.owns(anchor)) {
+                    if self.anomalies.iter().any(|a| a.anchor == anchor) {
                         self.stats.duplicate_notices += 1;
                         continue;
                     }

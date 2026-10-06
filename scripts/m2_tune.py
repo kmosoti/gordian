@@ -12,8 +12,8 @@ import sys
 
 import pandas as pd
 
+import m2_common as C  # noqa: I001 (sets the path for the two below)
 import b1_stats as B
-import m2_common as C
 from gordian_analysis.load import load_stream_run
 
 COLS = [

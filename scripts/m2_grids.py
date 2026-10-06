@@ -15,6 +15,7 @@ BASE = {
     "onset_tau_ns": 300 * MS,
     "onset_threshold": 3.0,
     "dependent_weight": 1.0,
+    "direct_dependents": False,
     "lookback_ns": 200 * MS,
     "refractory_ns": 6 * S,
     "coincidence": "off",
@@ -72,4 +73,22 @@ def stage(name):
                         onset_threshold=NEVER, ramp_jump=jump, ramp_tau_ns=tau * S,
                         ramp_threshold=th)))
         return arms, seeds, 12_100, "exploration-m2-tuning"
+    if name == "tune-b":
+        # After tune-a: a notice is no longer suppressed when a live anomaly merely holds its
+        # anchor (the rung's own mis-anchoring had come back through that rule). The onset path
+        # at 100 ms around threshold 2 to 3, dependents (none, direct at 1/2, all at 1/2), and the
+        # emitter's refractory period; the ramp path's lookback.
+        for th in (2.0, 2.5, 3.0):
+            for tau in (150, 300):
+                for dep, w, direct in (("w0", 0.0, False), ("d05", 0.5, True), ("a05", 0.5, False)):
+                    for refr in (1, 3, 6):
+                        arms.append((f"on_th{th:g}_tau{tau}_{dep}_r{refr}", medium(
+                            ramp=False, onset_threshold=th, onset_tau_ns=tau * MS,
+                            dependent_weight=w, direct_dependents=direct, refractory_ns=refr * S)))
+        for jump in (6.0, 10.0):
+            for lb in (3, 6, 10):
+                arms.append((f"ramp_j{jump:g}_tau4_th3_lb{lb}", medium(
+                    onset_threshold=NEVER, ramp_jump=jump, ramp_tau_ns=4 * S, ramp_threshold=3.0,
+                    ramp_lookback_ns=lb * S)))
+        return arms, seeds, 12_200, "exploration-m2-tuning"
     raise SystemExit(f"unknown stage {name!r}")
