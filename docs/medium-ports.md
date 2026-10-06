@@ -127,10 +127,14 @@ operation limit stops delivering and records a `Truncated` entry; it never silen
 
 The world has two timescales: a cascade's partner alarms 20–230 ms after the first alarm; a leak
 ramps over 6–14 s. The tick length is a manifest parameter and is swept at 100 ms, 500 ms and 2 s
-in every medium experiment until the sweep shows it does not matter. Expectation, to be tested:
-bursts need the short tick, the leak does not care, cost is roughly inverse in tick length.
-Delays are in ticks, so changing the tick length changes the program graph; a design that
-depends on the tick must say so.
+in every medium experiment until the sweep shows it does not matter. W1 measured
+(`experiments/exploration/w1-tick-and-measures.md`): bursts need the short tick (at 500 ms five
+in six partner alarms share a tick with the first alarm; at 2 s nearly all), the leak does not
+care, and cost is driven by routed events, which are constant across tick lengths, not by ticks.
+So `offset_ns` must be read by any archetype that depends on order at 500 ms or longer, and
+thresholds on counts are tuned per tick length. Delays are in ticks, so changing the tick length
+changes the program graph; a design that depends on the tick must say so, and delays and decays
+are specified in seconds and converted.
 
 ## 9. What M1 builds, and what it does not
 

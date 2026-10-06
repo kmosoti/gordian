@@ -25,9 +25,9 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 
 | Id | Lab | Title | Depends on | Status |
 |---|---|---|---|---|
-| M1 | 1 | The medium crate: types, tick, archetypes, ports, determinism | — | queued |
-| B1 | 2 | The `Noticer` seam, notice measures in the evaluator, public noticing baselines | — | queued |
-| W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | queued |
+| M1 | 1 | The medium crate: types, tick, archetypes, ports, determinism | — | running |
+| B1 | 2 | The `Noticer` seam, notice measures in the evaluator, public noticing baselines | — | running |
+| W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1, B1 | queued |
 
 ## M1 The medium crate (Lab 1)
