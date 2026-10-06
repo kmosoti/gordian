@@ -37,6 +37,7 @@ BASE = {
     "burst_confirm": "none",
     "confirm_hold_ns": 300 * MS,
     "burst3_window_ns": 0,
+    "confirm_delay_ticks": 2,
 }
 
 # The ramp path as tune-b left it (leak noticed 1.000 at 0.12 background notices per stream).
@@ -147,4 +148,40 @@ def stage(name):
                             arms.append((f"b2_w{win}_{confirm[:3]}_h{hold}_b3w{b3}_t{tick}",
                                          medium(**over)))
         return arms, seeds, 12_400, "exploration-m2-tuning"
+    if name == "tune-e":
+        # tune-d: at 100 ms the two-kind burst confirmed by any other service's alarm within a
+        # 200 ms hold, with three kinds unconfirmed, is 0.980 anchor-correct at 5.58 background
+        # notices; confirmed by dependents only, 0.975 at 2.1. The rest are two-kind pairs (an
+        # error rate and a catalogue message) that look like the background's commonest pair.
+        # Here: narrower and wider windows and the refractory period at 100 ms; the binned form
+        # (the 10 s rhythm's bins) in place of the ordered one; at 500 ms and 2 s a confirmation
+        # read one tick late and a density-only ramp (no penalty for jumps), since a 2 s tick
+        # sums two readings of a ramp.
+        conf = dict(RAMP, onset=False, burst=True, coincidence="ordered", burst_confirm="all",
+                    confirm_hold_ns=200 * MS, burst3_window_ns=20 * MS, refractory_ns=1 * S)
+        for win in (15, 20, 25):
+            for b3 in (15, 20, 25):
+                for refr in (0.5, 1, 3):
+                    arms.append((f"all_w{win}_b3w{b3}_r{refr:g}_t100", medium(
+                        **dict(conf, burst_window_ns=win * MS, burst3_window_ns=b3 * MS,
+                               refractory_ns=int(refr * S)))))
+        for confirm in ("dependents", "all"):
+            arms.append((f"binned_{confirm[:3]}_t100", medium(**dict(
+                conf, coincidence="binned", rhythms=True, burst_confirm=confirm,
+                burst_window_ns=100 * MS, burst3_window_ns=100 * MS))))
+        for tick in (500, 2000):
+            for confirm in ("dependents", "all"):
+                for delay in (1, 2):
+                    for b3 in (20, 30):
+                        arms.append((f"{confirm[:3]}_d{delay}_b3w{b3}_t{tick}", medium(**dict(
+                            conf, tick_ns=tick * MS, burst_confirm=confirm,
+                            confirm_delay_ticks=delay, confirm_hold_ns=delay * tick * MS,
+                            burst3_window_ns=b3 * MS))))
+            for pen in (0.0, 3.0):
+                for th in (2.0, 3.0, 4.0):
+                    arms.append((f"ramp_p{pen:g}_th{th:g}_t{tick}", medium(
+                        onset=False, tick_ns=tick * MS, ramp=True, ramp_jump=10.0,
+                        ramp_penalty=pen, ramp_tau_ns=4 * S, ramp_threshold=th,
+                        ramp_lookback_ns=10 * S, refractory_ns=1 * S)))
+        return arms, seeds, 12_500, "exploration-m2-tuning"
     raise SystemExit(f"unknown stage {name!r}")

@@ -15,7 +15,7 @@
 //! | `kind[n, k]` (`burst`) | `Sense`, count | abnormal observations about `n` of kind `k`: error rate, latency, a message | one input per kind |
 //! | `other[n]` (`burst`) | `Integrator`, no memory, threshold 1/2, lookback 0 | `Sense` cells of the other kinds (saturation, authentication failures, restarts, a snapshot) | the fourth kind, relayed |
 //! | `burst[n]` (`burst`) | `Coincidence` (form `coincidence`), n = `burst_n`, consumed, window `burst_window_ns`, lookback `burst_lookback_ns` | `kind[n, *]`, `other[n]` | abnormal observations of `burst_n` distinct kinds at `n` within the window: in the ordered form, by their time inside the tick (`offset_ns`) |
-//! | `confirm[n]`, `relay[n]` (`burst_confirm`) | `Latch`, hold `confirm_hold_ns`; `Integrator`, no memory | `abn[d]` of the confirming services (dependents, or all others); `burst[n]` two ticks late | the burst reaches `notice[n]` only through `relay[n]`, gated by `confirm[n]`: a burst of two kinds counts when another service alarmed around it; a gate carries no references, so the anchor stays at `n` |
+//! | `confirm[n]`, `relay[n]` (`burst_confirm`) | `Latch`, hold `confirm_hold_ns`; `Integrator`, no memory | `abn[d]` of the confirming services (dependents, or all others); `burst[n]`, `confirm_delay_ticks` late | the burst reaches `notice[n]` only through `relay[n]`, gated by `confirm[n]`: a burst of two kinds counts when another service alarmed around it; a gate carries no references, so the anchor stays at `n` |
 //! | `three[n]` (`burst3_window_ns`) | `Coincidence`, n = 3, window `burst3_window_ns` | `kind[n, *]`, `other[n]` | three kinds at `n`: a burst without confirmation |
 //! | `dep[n]`, `prop[n]` (`propagation`) | relay; `Coincidence` (form `coincidence`), n = 2, lead, window `coincidence_window_ns` | `abn[n]` (slot 0), `abn[d]` of the dependents | an alarm at `n` and then one at a dependent (public rule 1) |
 //! | `arrived[n, c]`, `value[n, c]` (`ramp`) | `Sense`, presence and sum | counter `c` at `n`, benign or not | that a reading came, and the reading itself (five counters) |
@@ -127,12 +127,16 @@ pub struct MediumParams {
     /// The burst path's anchor lookback, nanoseconds.
     #[serde(default)]
     pub burst_lookback_ns: u64,
-    /// Which services' alarms must confirm a burst (gating it, two ticks late).
+    /// Which services' alarms must confirm a burst (gating it, `confirm_delay_ticks` late).
     #[serde(default = "no_confirm")]
     pub burst_confirm: Confirm,
     /// How long a confirming alarm keeps the gate open, nanoseconds.
     #[serde(default)]
     pub confirm_hold_ns: u64,
+    /// How many ticks after a burst its confirmation is read (1 or more): a confirming alarm in
+    /// the burst's tick, or up to this many ticks after it less one, has reached the latch by then.
+    #[serde(default = "two")]
+    pub confirm_delay_ticks: u8,
     /// With a confirmation: the window of an unconfirmed burst of three kinds (0: none).
     #[serde(default)]
     pub burst3_window_ns: u64,
@@ -193,6 +197,7 @@ impl Default for MediumParams {
             burst_lookback_ns: 0,
             burst_confirm: Confirm::None,
             confirm_hold_ns: 300_000_000,
+            confirm_delay_ticks: 2,
             burst3_window_ns: 0,
             propagation: false,
             ramp: true,
@@ -236,6 +241,9 @@ impl MediumParams {
                 "noticer medium: the burst and propagation cells need a coincidence form"
                     .to_owned(),
             );
+        }
+        if self.burst_confirm != Confirm::None && self.confirm_delay_ticks == 0 {
+            return Err("noticer medium: confirm_delay_ticks must be at least 1".to_owned());
         }
         if self.burst && !(2..=4).contains(&self.burst_n) {
             return Err("noticer medium: burst_n must be 2 to 4".to_owned());
@@ -372,7 +380,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
         let confirm_ticks = if params.burst_confirm == Confirm::None {
             0
         } else {
-            2 * params.tick_ns
+            u64::from(params.confirm_delay_ticks) * params.tick_ns
         };
         timed(
             &mut b,
@@ -430,10 +438,11 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                     b.synapse(burst, notice, 1.0, 0);
                 }
                 Some(from) => {
-                    // The burst reaches the emitter two ticks later, through a relay, and only
-                    // while a latch says a confirming service alarmed within `confirm_hold_ns`
-                    // (two ticks, so that alarms in the burst's tick and the next have reached
-                    // the latch; the latch is a gate, so its events are not cited).
+                    // The burst reaches the emitter `confirm_delay_ticks` later, through a relay,
+                    // and only while a latch says a confirming service alarmed within
+                    // `confirm_hold_ns` (alarms in the burst's tick and the ticks before the
+                    // relay runs have reached the latch by then; the latch is a gate, so its
+                    // events are not cited).
                     let confirm = b.latch(f32::MIN_POSITIVE, 0);
                     timed(&mut b, confirm, 1, params.confirm_hold_ns);
                     for d in from {
@@ -444,9 +453,10 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                         &mut b,
                         relay,
                         3,
-                        params.burst_lookback_ns + 2 * params.tick_ns,
+                        params.burst_lookback_ns
+                            + u64::from(params.confirm_delay_ticks) * params.tick_ns,
                     );
-                    b.synapse(burst, relay, 1.0, 2);
+                    b.synapse(burst, relay, 1.0, params.confirm_delay_ticks);
                     b.synapse_with(SynapseSpec {
                         from: relay,
                         to: notice,
