@@ -219,6 +219,8 @@ def flood_hold(run):
             "calls_per_stream_held": float(held.results["reasoner_calls"].mean()),
             "escalations_refused_fixed": int(fixed.results["escalations_refused"].sum()),
             "escalations_refused_held": int(held.results["escalations_refused"].sum()),
+            "cost_s_per_stream_fixed": float(fixed.results["total_cost_ns"].mean()) / C.NS,
+            "cost_s_per_stream_held": float(held.results["total_cost_ns"].mean()) / C.NS,
         })
     return pd.DataFrame(rows)
 
