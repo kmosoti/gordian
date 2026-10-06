@@ -90,7 +90,11 @@ def heldout(sel4):
     triples += row_arms(C.COMPARATOR, cmp_noticer, grids=True)
     sel_follow = sel4["select"][C.follow_stem(C.COMPARATOR)]
     sel3_base = dict(M3.table_rows(sel3))[C.COMPARATOR]
+    seen_cfg = [sel4["follow"]["chosen"]["json"]]
     for tol, cfg in sorted(sel4["follow"]["tolerance"].items(), key=lambda kv: int(kv[0])):
+        if cfg["json"] in seen_cfg:
+            continue  # the same configuration as an earlier one: the same arm, not played twice
+        seen_cfg.append(cfg["json"])
         stem = f"{C.follow_stem(C.COMPARATOR)}_tol{tol}"
         noticer = C.with_follow(sel3_base, cfg["json"])
         triples += row_arms(stem, noticer, params=sel_follow)[1:]  # no oracle for the sensitivity rows
