@@ -138,6 +138,16 @@ Work is split into bounded logical units, normally one work item from
   single worker could see. It merges only what survives that review, and records rejected or
   revised work and why.
 
+### Labs
+
+Workers are organised as three labs, each with a principal investigator agent and a file territory,
+listed in [`docs/lab-queue.md`](docs/lab-queue.md) with the queue of units and the criterion fixed
+for each before it runs. The chief researcher (the coordinator) designs units, queues them, verifies
+every report independently, merges what survives, and analyses results across units from several
+perspectives (representation, structure, causality, time, environment, failure, objective, meta),
+recording the analysis in [`docs/review-log.md`](docs/review-log.md). A lab edits only its
+territory; a unit that needs a file outside it says so in its report rather than editing it.
+
 ## The rule that matters most
 
 An agent may implement alternatives, build instruments, and analyse results. An agent may **not**:
