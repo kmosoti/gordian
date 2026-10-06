@@ -90,6 +90,9 @@ pub enum NoticerSpec {
     /// `gordian-medium`, fed every delivered observation with its value
     /// ([`super::medium`]).
     Medium(super::medium::MediumParams),
+    /// The medium with three of its constants learned online (work item L1, Lab 3)
+    /// ([`super::learned`]).
+    Learned(super::learned::LearnedParams),
 }
 
 impl Default for NoticerSpec {
@@ -112,6 +115,7 @@ impl NoticerSpec {
             Self::EarliestAnchor { .. } => EARLIEST_ID,
             Self::Reanchor { .. } => REANCHOR_ID,
             Self::Medium(_) => super::medium::MEDIUM_ID,
+            Self::Learned(_) => super::learned::LEARNED_ID,
         }
     }
 
@@ -131,6 +135,7 @@ impl NoticerSpec {
                 Err("noticer reanchor: min_burst must be at least 2".to_owned())
             }
             Self::Medium(params) => params.validate(),
+            Self::Learned(params) => params.validate(),
             _ => Ok(()),
         }
     }
@@ -627,5 +632,6 @@ pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<
             ))
         }
         NoticerSpec::Medium(params) => super::medium::build(&params, cfg, services),
+        NoticerSpec::Learned(params) => super::learned::build(&params, cfg, services),
     }
 }

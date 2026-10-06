@@ -230,3 +230,82 @@ def energy_proxy(
             f"{watts_cheap:g} W for cheap-rung operations, {watts_reasoner:g} W for a reasoner call"
         ),
     )
+
+
+@dataclass(frozen=True)
+class OutcomeSlope:
+    """The result of `outcome_slope`: the least-squares slope of an incident's outcome against its
+    position in the sequence of incidents seen, in share per 100 incidents seen, with a 90%
+    cluster-bootstrap interval (whole streams resampled), and the incidents it is over."""
+
+    incidents: int
+    slope_per_100: float
+    lower: float
+    higher: float
+
+
+def outcome_slope(
+    outcomes: pd.DataFrame,
+    streams: list,
+    resamples: int = 10_000,
+    seed: int = 0,
+) -> OutcomeSlope:
+    """Improvement per unit experience for a binary outcome: the slope of `y` against position.
+
+    `outcomes` has one row per incident, in the order the incidents were seen (the row order is
+    the position, 1-based), with `stream` (the cluster the incident belongs to) and `y` (1.0 if
+    the incident's outcome was correct, else 0.0). `streams` lists the clusters the window is over,
+    in order, including streams with no incident; incidents of other streams are ignored and the
+    positions are the rows' own, so a window that starts at the first stream starts at position 1.
+
+    The slope is `cov(x, y) / var(x)` over the incidents. The interval resamples whole streams
+    with replacement (10,000 times by default, multinomial counts from
+    `numpy.random.default_rng(seed)`) and keeps every incident's position; it is the 5th and 95th
+    percentiles of the resampled slopes, NaN resamples (no spread in position) dropped. Slopes
+    are NaN when fewer than two incidents have distinct positions.
+    """
+    if "stream" not in outcomes or "y" not in outcomes:
+        raise ValueError("outcomes need the columns 'stream' and 'y'")
+    if not outcomes["y"].isin([0.0, 1.0]).all():
+        raise ValueError("y must be 0 or 1")
+    t = outcomes.reset_index(drop=True)
+    t["x"] = np.arange(1, len(t) + 1, dtype=float)
+    t = t[t["stream"].isin(streams)].copy()
+    t["y"] = t["y"].astype(float)
+    t["xx"] = t["x"] * t["x"]
+    t["xy"] = t["x"] * t["y"]
+    g = t.groupby("stream")
+    sums = np.stack(
+        [
+            g["x"].size().reindex(streams, fill_value=0).to_numpy(dtype=float),
+            g["x"].sum().reindex(streams, fill_value=0.0).to_numpy(dtype=float),
+            g["y"].sum().reindex(streams, fill_value=0.0).to_numpy(dtype=float),
+            g["xx"].sum().reindex(streams, fill_value=0.0).to_numpy(dtype=float),
+            g["xy"].sum().reindex(streams, fill_value=0.0).to_numpy(dtype=float),
+        ]
+    )
+
+    def slopes(w: np.ndarray) -> np.ndarray:
+        n, sx, sy, sxx, sxy = (w @ sums[i] for i in range(5))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            var = sxx - sx * sx / n
+            cov = sxy - sx * sy / n
+            return np.where((n > 1) & (var > 0), cov / var, np.nan)
+
+    k = len(streams)
+    point = float(slopes(np.ones((1, k)))[0])
+    rng = np.random.default_rng(seed)
+    w = rng.multinomial(k, np.full(k, 1.0 / k), size=resamples).astype(float)
+    draws = slopes(w)
+    draws = draws[~np.isnan(draws)]
+    lo, hi = (
+        (float(np.percentile(draws, 5)), float(np.percentile(draws, 95)))
+        if len(draws)
+        else (float("nan"), float("nan"))
+    )
+    return OutcomeSlope(
+        incidents=int(sums[0].sum()),
+        slope_per_100=point * 100,
+        lower=lo * 100,
+        higher=hi * 100,
+    )
