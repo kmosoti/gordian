@@ -30,7 +30,9 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
 | M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | merged |
 | B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | merged |
-| B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | queued |
+| B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | running |
+| M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | queued |
+| L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | queued |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | running |
 
 ## M1 The medium crate (Lab 1)
@@ -206,6 +208,60 @@ checks for any evaluator change; the extended table with intervals; no claim abo
 better. If a public row reaches leak noticed ≥ 0.660 within the budget, the chief re-fixes M2's
 result-2 comparator if M2's held-out runs have not started, and otherwise records the
 supplementary comparison in both reports.
+
+## M3 Sub-tick support, mutation tests, strict precision (Lab 1, after M2)
+
+M2 holds at 100 ms and not at 500 ms or 2 s, and the lookback table shows why: the emitter's
+support is cut at the tick edge, so a stray that shares a burst's tick is cited and moves the
+anchor. M2 also opens more anomalies per incident than the re-anchor (strict precision 0.50
+against 0.67), which costs reasoner calls under the selection oracle.
+
+1. **Sub-tick support pruning** in `crates/gordian-medium`: a support lookback expressed in
+   nanoseconds and applied by `offset_ns` within the tick, so the anchoring rule's floor is no
+   longer the tick. Off by default; the all-off identity with M1b's bytes holds (a test).
+2. **Mutation tests** of the M2 adapters, graph and noticing code (cargo-mutants as Lab 2 does),
+   with every survivor either killed by a test or recorded as equivalent.
+3. **Strict precision as a tuning bound**: the graph retuned on seeds 10000–10099 at each tick
+   length under both bounds, background ≤ 6.82 and strict precision ≥ 0.67 (the re-anchor's),
+   frozen before the held-out run.
+
+**Criterion, fixed by the chief before any M3 code or run (2026-10-06).** M2's two results, same
+comparator (`ReanchorNoticer`, or the B3 row if the chief re-fixes it before M3's held-out
+run), same margins and bounds, plus strict precision ≥ 0.67, at 500 ms and 2 s. "Holds" means
+result 1 holds at both longer ticks; result 2 and 100 ms are reported for continuity. Cost per
+stream, including reasoner calls, beside every row. Feasibility: M2's 500 ms row missed the
+margin by 0.0004 with the tick-edge mechanism identified, and the 2 s row lost 31 incidents to
+it; both outcomes are reachable.
+
+## L1 The learned noticer (Lab 3, after M2)
+
+The first reading of the charter's aim proxy 2 (section 1.1), improvement per unit experience.
+
+1. **The arm.** M2's frozen graph with its tuned constants (the coincidence window, the onset
+   integrator's time constant and threshold, the ramp detector's threshold, the emitter's
+   lookback) replaced by parameters that start from public priors and are adjusted online from
+   the stream's own public history, with no evaluator feedback and no hidden labels: the
+   plasticity adapter, run at the 10 s rhythm's boundaries, updates them from per-cycle
+   summaries (rates of abnormal observations per node, burst spacings observed, ramp slopes
+   observed). The update rule is the PI's and is recorded before any run; it may use nothing
+   the public rules and the stream do not give.
+2. **Controls on the same stream order:** the frozen hand-designed graph (M2's), the
+   re-anchor, and the learned arm with its learning switched off at its priors.
+3. **Measures:** W1's sample-efficiency curve per arm (anchor-correct and leak-noticed decisions
+   per hard incident seen, cumulative over stream order), the slope over the first 50, 100 and
+   200 streams, and the end state's anchor-correct and leak-noticed shares; background and
+   strict-precision bounds as M2.
+
+**Criterion, fixed by the chief before any L1 code or run (2026-10-06).** The learned arm
+counts toward the aim if, at 100 ms on 200 fresh streams (seeds 40000–40199, never used for
+tuning), its anchor-correct share over the last 100 streams is at least the frozen graph's
+over the same streams minus 0.01, with the paired lower bound above −0.03, **and** its slope
+over the first 100 streams is positive with the lower bound above zero, **and** the
+learning-off control's end state is below the frozen graph's by at least 0.02. The three
+clauses are conjunctive; each is reported. Feasibility: the frozen graph is at 0.992 and the
+priors can be set anywhere below it, so a slope is measurable; the first clause asks the
+learner to reach the hand design, not beat it. A learner that matches the hand design from
+weaker priors within 100 streams is the claim; one that does not is a result.
 
 ## M2 The medium as a noticer (Lab 1, after M1 and B1)
 
