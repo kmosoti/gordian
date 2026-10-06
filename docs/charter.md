@@ -482,6 +482,10 @@ supports it.
 | Frémaux and Gerstner | N. Frémaux, W. Gerstner, "Neuromodulated Spike-Timing-Dependent Plasticity, and Theory of Three-Factor Learning Rules," Frontiers in Neural Circuits, 2016. |
 | Kirkpatrick et al. | J. Kirkpatrick et al., "Overcoming catastrophic forgetting in neural networks," PNAS, 2017. |
 | Davies et al. | M. Davies et al., "Loihi: A Neuromorphic Manycore Processor with On-Chip Learning," IEEE Micro, 2018. |
+| Wang (NARS) | P. Wang, "Non-Axiomatic Reasoning System" (the assumption of insufficient knowledge and resources; priority-driven selection with feedback). **To acquire and check:** edition and primary text not yet identified; added 2026-10-06 as mandatory prior art for sections 1 and 4. |
+| Kanerva (VSA) | P. Kanerva, "Hyperdimensional Computing: An Introduction to Computing in Distributed Representation with High-Dimensional Random Vectors," Cognitive Computation 1(2), 2009. **To acquire and check**; a candidate memory representation for EXP-103. |
+| McSherry et al. | F. McSherry, D. Murray, R. Isaacs, M. Isard, "Differential dataflow," CIDR 2013. **To acquire and check**; the incremental-computation adversary of unit C1. |
+| Jaeger | H. Jaeger, "The 'echo state' approach to analysing and training recurrent neural networks," GMD Report 148, 2001. **To acquire and check**; the reservoir comparator of unit L2. |
 
 Citations are to be verified against the primary text before any claim in this repository relies
 on them; a secondary summary is not acquisition.
