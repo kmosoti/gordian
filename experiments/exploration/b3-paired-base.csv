@@ -1,0 +1,118 @@
+new,base,measure,difference,lower,higher
+ramp_over_r3,rung_z3,hard_noticed_share,0.008064516129032251,0.0023923444976076125,0.016216216216216273
+ramp_over_r3,rung_z3,hard_anchor_correct_share,0.0,0.0,0.0
+ramp_over_r3,rung_z3,leak_noticed_share,0.5251798561151079,0.4492753623188406,0.6015037593984962
+ramp_over_r3,rung_z3,leak_anchor_correct_share,0.9712230215827338,0.9454545454545454,0.9927007299270073
+ramp_over_r3,rung_z3,notices_on_background_per_stream,-0.41500000000000004,-0.5049999999999999,-0.33000000000000007
+ramp_over_r3,rung_z3,notice_precision,0.021773274065929216,0.018589544958971693,0.025113461100034318
+ramp_over_r3,rung_z3,strict_precision,0.010081185514679847,0.004598121048810855,0.015663785982412692
+ramp_over_r3,rung_z3,notices_per_incident,0.0720466516177577,0.06569343065693434,0.07877420567775906
+ramp_over_r3,rung_z3,quality,0.0,-0.005780346820809246,0.005698005698005715
+ramp_over_r3,rung_z3,leak_quality,0.6330935251798562,0.5633802816901409,0.7006802721088435
+ramp_over_r3,rung_z3,cost_s_per_stream,0.12110297627999989,0.09610485714499994,0.14757983077500003
+ramp_over_r3,rung_z3,calls_per_stream,0.3999999999999999,0.31999999999999984,0.4849999999999999
+ramp_over_r3,rung_z3,notices_per_stream,1.5,1.3500000000000014,1.6550000000000011
+split_over_r3,rung_z3,hard_noticed_share,0.0026881720430107503,0.0,0.007894736842105288
+split_over_r3,rung_z3,hard_anchor_correct_share,0.005376344086021501,0.0,0.011904761904761862
+split_over_r3,rung_z3,leak_noticed_share,0.0,0.0,0.0
+split_over_r3,rung_z3,leak_anchor_correct_share,0.0,0.0,0.0
+split_over_r3,rung_z3,notices_on_background_per_stream,-0.08499999999999996,-0.125,-0.04999999999999982
+split_over_r3,rung_z3,notice_precision,0.0032139701490572214,0.0019604386291455222,0.004606838832332372
+split_over_r3,rung_z3,strict_precision,0.00548676847337648,0.0038294097968238905,0.0072071361808846435
+split_over_r3,rung_z3,notices_per_incident,0.004138449962377777,0.0026380252496702727,0.005758870518298376
+split_over_r3,rung_z3,quality,0.0026881720430107503,0.0,0.007894736842105288
+split_over_r3,rung_z3,leak_quality,0.0,0.0,0.0
+split_over_r3,rung_z3,cost_s_per_stream,0.0013739322699999335,-1.0388750000256408e-06,0.003599933334999972
+split_over_r3,rung_z3,calls_per_stream,0.004999999999999893,0.0,0.015000000000000124
+split_over_r3,rung_z3,notices_per_stream,0.02499999999999858,0.004999999999999005,0.045000000000001705
+ramp_split_over_r3,rung_z3,hard_noticed_share,0.010752688172043001,0.002732240437158473,0.019718309859154903
+ramp_split_over_r3,rung_z3,hard_anchor_correct_share,0.005376344086021501,0.0,0.011904761904761862
+ramp_split_over_r3,rung_z3,leak_noticed_share,0.5251798561151079,0.4492753623188406,0.6015037593984962
+ramp_split_over_r3,rung_z3,leak_anchor_correct_share,0.9712230215827338,0.9454545454545454,0.9927007299270073
+ramp_split_over_r3,rung_z3,notices_on_background_per_stream,-0.4950000000000001,-0.5899999999999999,-0.4049999999999998
+ramp_split_over_r3,rung_z3,notice_precision,0.024610037602457724,0.0212342154465176,0.02812120416269992
+ramp_split_over_r3,rung_z3,strict_precision,0.015235519495154337,0.009523340822016224,0.021050247678255696
+ramp_split_over_r3,rung_z3,notices_per_incident,0.07580887885628296,0.06927310685139498,0.08271236959761552
+ramp_split_over_r3,rung_z3,quality,0.0026881720430107503,-0.005291005291005291,0.01055408970976257
+ramp_split_over_r3,rung_z3,leak_quality,0.6330935251798562,0.5633802816901409,0.7006802721088435
+ramp_split_over_r3,rung_z3,cost_s_per_stream,0.12247686348999998,0.09719748126999994,0.14900630866999998
+ramp_split_over_r3,rung_z3,calls_per_stream,0.4049999999999998,0.3250000000000002,0.48999999999999977
+ramp_split_over_r3,rung_z3,notices_per_stream,1.5199999999999996,1.370000000000001,1.6799999999999997
+ramp_over_re2,reanchor,hard_noticed_share,0.0026881720430107503,0.0,0.008000000000000007
+ramp_over_re2,reanchor,hard_anchor_correct_share,0.0,0.0,0.0
+ramp_over_re2,reanchor,leak_noticed_share,0.5251798561151079,0.4545454545454546,0.5944055944055944
+ramp_over_re2,reanchor,leak_anchor_correct_share,0.9712230215827338,0.9454545454545454,0.9927007299270073
+ramp_over_re2,reanchor,notices_on_background_per_stream,-0.4500000000000002,-0.5449999999999999,-0.35999999999999943
+ramp_over_re2,reanchor,notice_precision,0.02035056069024721,0.017659242297195843,0.02316940580102489
+ramp_over_re2,reanchor,strict_precision,0.01311778689660914,0.008674602338735293,0.017685932689473827
+ramp_over_re2,reanchor,notices_per_incident,0.07035364936042132,0.06403659233847914,0.07682242990654209
+ramp_over_re2,reanchor,quality,0.0026881720430107503,0.0,0.007957559681697646
+ramp_over_re2,reanchor,leak_quality,0.5971223021582734,0.5324675324675325,0.6618705035971223
+ramp_over_re2,reanchor,cost_s_per_stream,0.12115247834000009,0.09777398950500005,0.14550512625
+ramp_over_re2,reanchor,calls_per_stream,0.395,0.31999999999999984,0.4750000000000001
+ramp_over_re2,reanchor,notices_per_stream,1.4199999999999946,1.2749999999999986,1.5700000000000003
+split_over_re2,reanchor,hard_noticed_share,0.005376344086021501,0.0,0.01210653753026636
+split_over_re2,reanchor,hard_anchor_correct_share,0.021505376344086002,0.010389610389610393,0.03409090909090906
+split_over_re2,reanchor,leak_noticed_share,0.0,0.0,0.0
+split_over_re2,reanchor,leak_anchor_correct_share,0.0,0.0,0.0
+split_over_re2,reanchor,notices_on_background_per_stream,-0.125,-0.17999999999999972,-0.07499999999999929
+split_over_re2,reanchor,notice_precision,0.004045432825662387,0.0025423744434698303,0.00562437628019874
+split_over_re2,reanchor,strict_precision,0.00837887547159144,0.006244320971925843,0.010553187406453501
+split_over_re2,reanchor,notices_per_incident,0.007524454477050524,0.005200594353640398,0.009948345131050251
+split_over_re2,reanchor,quality,0.008064516129032251,0.0,0.01621621621621616
+split_over_re2,reanchor,leak_quality,0.0,0.0,0.0
+split_over_re2,reanchor,cost_s_per_stream,0.0033209380600001115,-0.0003032775050000325,0.007570331169999944
+split_over_re2,reanchor,calls_per_stream,0.015000000000000124,0.004999999999999893,0.03000000000000025
+split_over_re2,reanchor,notices_per_stream,0.07499999999999574,0.03999999999999915,0.11500000000000199
+ramp_split_over_re2,reanchor,hard_noticed_share,0.008064516129032251,0.002409638554216831,0.016129032258064502
+ramp_split_over_re2,reanchor,hard_anchor_correct_share,0.021505376344086002,0.010389610389610393,0.03409090909090906
+ramp_split_over_re2,reanchor,leak_noticed_share,0.5251798561151079,0.4545454545454546,0.5944055944055944
+ramp_split_over_re2,reanchor,leak_anchor_correct_share,0.9712230215827338,0.9454545454545454,0.9927007299270073
+ramp_split_over_re2,reanchor,notices_on_background_per_stream,-0.5800000000000001,-0.6899999999999995,-0.47500000000000053
+ramp_split_over_re2,reanchor,notice_precision,0.02428468756793878,0.02125302140194696,0.027450717123518764
+ramp_split_over_re2,reanchor,strict_precision,0.021192312644226607,0.01628956465936604,0.026146517238220368
+ramp_split_over_re2,reanchor,notices_per_incident,0.07768999247554564,0.07121382938744825,0.08459787556904419
+ramp_split_over_re2,reanchor,quality,0.010752688172043001,0.0026954177897574594,0.02015113350125941
+ramp_split_over_re2,reanchor,leak_quality,0.5971223021582734,0.5324675324675325,0.6618705035971223
+ramp_split_over_re2,reanchor,cost_s_per_stream,0.12447342068500011,0.10056484364999996,0.148933165355
+ramp_split_over_re2,reanchor,calls_per_stream,0.41000000000000014,0.33000000000000007,0.4900000000000002
+ramp_split_over_re2,reanchor,notices_per_stream,1.4849999999999994,1.3350000000000009,1.6400000000000006
+ramp_split_over_re3,reanchor_z3,hard_noticed_share,0.013440860215053752,0.005102040816326481,0.023809523809523725
+ramp_split_over_re3,reanchor_z3,hard_anchor_correct_share,0.016129032258064502,0.005714285714285672,0.02717391304347827
+ramp_split_over_re3,reanchor_z3,leak_noticed_share,0.5251798561151079,0.45517241379310347,0.5966386554621848
+ramp_split_over_re3,reanchor_z3,leak_anchor_correct_share,0.9712230215827338,0.9454545454545454,0.9927007299270073
+ramp_split_over_re3,reanchor_z3,notices_on_background_per_stream,-0.565,-0.6700000000000002,-0.45999999999999996
+ramp_split_over_re3,reanchor_z3,notice_precision,0.02388277129780003,0.020154626753831173,0.02772419080530475
+ramp_split_over_re3,reanchor_z3,strict_precision,0.016919545346033793,0.010714152873349536,0.02310943996087067
+ramp_split_over_re3,reanchor_z3,notices_per_incident,0.07975921745673442,0.0727712637260376,0.0868690563277249
+ramp_split_over_re3,reanchor_z3,quality,0.008064516129032251,0.0,0.018276762402088753
+ramp_split_over_re3,reanchor_z3,leak_quality,0.6402877697841727,0.575,0.7058823529411764
+ramp_split_over_re3,reanchor_z3,cost_s_per_stream,0.13222463221500003,0.10815002912499994,0.15748274410499996
+ramp_split_over_re3,reanchor_z3,calls_per_stream,0.4249999999999998,0.34999999999999964,0.5049999999999999
+ramp_split_over_re3,reanchor_z3,notices_per_stream,1.5549999999999997,1.3999999999999986,1.7199999999999989
+ramp_split_over_re2,interaction over reanchor,hard_noticed_share,0.0,,
+ramp_split_over_re2,interaction over reanchor,hard_anchor_correct_share,0.0,,
+ramp_split_over_re2,interaction over reanchor,leak_noticed_share,0.0,,
+ramp_split_over_re2,interaction over reanchor,leak_anchor_correct_share,0.0,,
+ramp_split_over_re2,interaction over reanchor,notices_on_background_per_stream,-0.004999999999999893,,
+ramp_split_over_re2,interaction over reanchor,notice_precision,-0.00011130594797081894,,
+ramp_split_over_re2,interaction over reanchor,strict_precision,-0.0003043497239739734,,
+ramp_split_over_re2,interaction over reanchor,notices_per_incident,-0.00018811136192620204,,
+ramp_split_over_re2,interaction over reanchor,quality,0.0,,
+ramp_split_over_re2,interaction over reanchor,leak_quality,0.0,,
+ramp_split_over_re2,interaction over reanchor,cost_s_per_stream,4.28499991045328e-09,,
+ramp_split_over_re2,interaction over reanchor,calls_per_stream,0.0,,
+ramp_split_over_re2,interaction over reanchor,notices_per_stream,-0.009999999999990905,,
+ramp_split_over_r3,interaction over rung_z3,hard_noticed_share,0.0,,
+ramp_split_over_r3,interaction over rung_z3,hard_anchor_correct_share,0.0,,
+ramp_split_over_r3,interaction over rung_z3,leak_noticed_share,0.0,,
+ramp_split_over_r3,interaction over rung_z3,leak_anchor_correct_share,0.0,,
+ramp_split_over_r3,interaction over rung_z3,notices_on_background_per_stream,0.004999999999999893,,
+ramp_split_over_r3,interaction over rung_z3,notice_precision,-0.00037720661252871324,,
+ramp_split_over_r3,interaction over rung_z3,strict_precision,-0.00033243449290198956,,
+ramp_split_over_r3,interaction over rung_z3,notices_per_incident,-0.0003762227238525151,,
+ramp_split_over_r3,interaction over rung_z3,quality,0.0,,
+ramp_split_over_r3,interaction over rung_z3,leak_quality,0.0,,
+ramp_split_over_r3,interaction over rung_z3,cost_s_per_stream,-4.505999984250053e-08,,
+ramp_split_over_r3,interaction over rung_z3,calls_per_stream,0.0,,
+ramp_split_over_r3,interaction over rung_z3,notices_per_stream,-0.004999999999999005,,

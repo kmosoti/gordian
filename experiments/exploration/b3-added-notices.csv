@@ -1,0 +1,15 @@
+new,old,side,notices,per_stream,slow leak,hard non-leak,plain,decoy,background,anchor_correct,anchored_on_first_observation,anchored_more_than_5s_after,median_offset_s_of_incident_anchored,on_an_incident_the_base_also_noticed
+ramp_over_r3,rung_z3,"added (in the row, not in its base)",507,2.535,137,11,192,153,14,286,279,191,0.0,276
+ramp_over_r3,rung_z3,"absorbed (in the base, not in the row)",212,1.06,64,1,16,34,97,16,4,98,9.442997204,115
+split_over_r3,rung_z3,"added (in the row, not in its base)",38,0.19,0,2,32,4,0,38,34,0,0.0,17
+split_over_r3,rung_z3,"absorbed (in the base, not in the row)",33,0.165,0,1,15,0,17,3,0,9,7.1397054275,16
+ramp_split_over_r3,rung_z3,"added (in the row, not in its base)",543,2.715,137,13,222,157,14,322,312,191,0.0,292
+ramp_split_over_r3,rung_z3,"absorbed (in the base, not in the row)",244,1.22,64,2,31,34,113,19,4,107,8.779355235,131
+ramp_over_re2,reanchor,"added (in the row, not in its base)",510,2.55,137,11,192,154,16,286,278,192,0.0,299
+ramp_over_re2,reanchor,"absorbed (in the base, not in the row)",232,1.16,64,1,21,40,106,21,2,105,8.4428998265,126
+split_over_re2,reanchor,"added (in the row, not in its base)",95,0.475,0,10,73,6,6,87,78,0,0.0,54
+split_over_re2,reanchor,"absorbed (in the base, not in the row)",80,0.4,0,7,42,0,31,14,4,14,1.432670242,49
+ramp_split_over_re2,reanchor,"added (in the row, not in its base)",603,3.015,137,21,263,160,22,371,355,193,0.0,351
+ramp_split_over_re2,reanchor,"absorbed (in the base, not in the row)",312,1.56,64,8,62,40,138,35,6,119,7.835721152,174
+ramp_split_over_re3,reanchor_z3,"added (in the row, not in its base)",594,2.97,137,17,263,157,20,365,353,193,0.0,322
+ramp_split_over_re3,reanchor_z3,"absorbed (in the base, not in the row)",288,1.44,64,3,59,29,133,32,11,115,8.75062474,155

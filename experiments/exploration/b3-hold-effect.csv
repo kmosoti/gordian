@@ -1,0 +1,12 @@
+config,notices_fixed,notices_held,background_fixed,background_held,hard_anchor_correct_fixed,hard_anchor_correct_held,leak_noticed_fixed,leak_noticed_held,same_notice_and_retirement_records
+rung_z3,5510,5506,799,797,331,331,64,64,False
+rung_z2,6950,6940,1806,1802,340,340,64,64,False
+reanchor,6898,6889,1364,1362,354,354,64,64,False
+ramp_over_r3,5810,5806,716,714,331,331,137,137,False
+split_over_r3,5515,5513,782,780,333,333,64,64,False
+ramp_split_over_r3,5814,5812,700,698,333,333,137,137,False
+ramp_over_re2,7182,7173,1274,1272,354,354,137,137,False
+split_over_re2,6913,6906,1339,1337,362,362,64,64,False
+ramp_split_over_re2,7195,7188,1248,1246,362,362,137,137,False
+reanchor_z3,5506,5502,459,459,349,349,64,64,False
+ramp_split_over_re3,5817,5814,346,346,355,355,137,137,False
