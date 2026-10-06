@@ -126,5 +126,381 @@
       "calls_plain": 2114
     },
     "rule": "most decoy notices retired by the rule before escalation, within the background budget, leaks retired <= tolerance (0), hard quality loss <= 0.005; ties: fewest plain and hard notices retired, larger readings, min_gain, max_fall, horizon (b4_common.py)"
+  },
+  "select": {
+    "rung_z3": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.46733668341708545,
+        "cost_s": 7.530756208260001,
+        "calls": 23.46,
+        "efficiency": 0.062057072423151075,
+        "tied": 1,
+        "grid_best_quality": 0.46733668341708545
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.4824120603015075,
+        "cost_s": 7.42139297974,
+        "calls": 23.69,
+        "efficiency": 0.06500289926951264,
+        "tied": 1,
+        "grid_best_quality": 0.4824120603015075
+      }
+    },
+    "rung_z2": {
+      "thr_t_s": 0,
+      "chg_k": 12,
+      "thr": {
+        "value": 0,
+        "quality": 0.5175879396984925,
+        "cost_s": 7.67392820667,
+        "calls": 25.35,
+        "efficiency": 0.06744758691495407,
+        "tied": 1,
+        "grid_best_quality": 0.5226130653266332
+      },
+      "chg": {
+        "value": 12,
+        "quality": 0.5276381909547738,
+        "cost_s": 7.33172288464,
+        "calls": 24.48,
+        "efficiency": 0.07196646671687207,
+        "tied": 1,
+        "grid_best_quality": 0.5376884422110553
+      }
+    },
+    "reanchor": {
+      "thr_t_s": 1,
+      "chg_k": 12,
+      "thr": {
+        "value": 1,
+        "quality": 0.5628140703517588,
+        "cost_s": 7.693495441810001,
+        "calls": 25.38,
+        "efficiency": 0.07315453354182387,
+        "tied": 1,
+        "grid_best_quality": 0.5628140703517588
+      },
+      "chg": {
+        "value": 12,
+        "quality": 0.5728643216080402,
+        "cost_s": 7.301578005990001,
+        "calls": 24.45,
+        "efficiency": 0.07845760479968565,
+        "tied": 1,
+        "grid_best_quality": 0.5829145728643216
+      }
+    },
+    "ramp_over_r3": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.46733668341708545,
+        "cost_s": 7.7525350154,
+        "calls": 24.25,
+        "efficiency": 0.06028178943903457,
+        "tied": 1,
+        "grid_best_quality": 0.46733668341708545
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.4824120603015075,
+        "cost_s": 7.652575634420001,
+        "calls": 24.57,
+        "efficiency": 0.06303917574256948,
+        "tied": 1,
+        "grid_best_quality": 0.4824120603015075
+      }
+    },
+    "split_over_r3": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.46733668341708545,
+        "cost_s": 7.535905702560001,
+        "calls": 23.49,
+        "efficiency": 0.0620146670967934,
+        "tied": 1,
+        "grid_best_quality": 0.46733668341708545
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.4824120603015075,
+        "cost_s": 7.425942737390001,
+        "calls": 23.71,
+        "efficiency": 0.0649630730213604,
+        "tied": 1,
+        "grid_best_quality": 0.4824120603015075
+      }
+    },
+    "ramp_split_over_r3": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.46733668341708545,
+        "cost_s": 7.757684509720001,
+        "calls": 24.28,
+        "efficiency": 0.06024177482746757,
+        "tied": 1,
+        "grid_best_quality": 0.46733668341708545
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.4824120603015075,
+        "cost_s": 7.65712539209,
+        "calls": 24.59,
+        "efficiency": 0.06300171873897364,
+        "tied": 1,
+        "grid_best_quality": 0.4824120603015075
+      }
+    },
+    "ramp_over_re2": {
+      "thr_t_s": 1,
+      "chg_k": 12,
+      "thr": {
+        "value": 1,
+        "quality": 0.5628140703517588,
+        "cost_s": 7.91601947062,
+        "calls": 26.12,
+        "efficiency": 0.07109811597111672,
+        "tied": 1,
+        "grid_best_quality": 0.5628140703517588
+      },
+      "chg": {
+        "value": 12,
+        "quality": 0.5728643216080402,
+        "cost_s": 7.5003573265200005,
+        "calls": 25.16,
+        "efficiency": 0.07637827061685294,
+        "tied": 1,
+        "grid_best_quality": 0.5829145728643216
+      }
+    },
+    "split_over_re2": {
+      "thr_t_s": 1,
+      "chg_k": 8,
+      "thr": {
+        "value": 1,
+        "quality": 0.5678391959798995,
+        "cost_s": 7.70974069038,
+        "calls": 25.45,
+        "efficiency": 0.07365217830068312,
+        "tied": 1,
+        "grid_best_quality": 0.5678391959798995
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.5829145728643216,
+        "cost_s": 7.4296728639700005,
+        "calls": 25.34,
+        "efficiency": 0.07845763649852609,
+        "tied": 1,
+        "grid_best_quality": 0.5879396984924623
+      }
+    },
+    "ramp_split_over_re2": {
+      "thr_t_s": 1,
+      "chg_k": 12,
+      "thr": {
+        "value": 1,
+        "quality": 0.5678391959798995,
+        "cost_s": 7.932264719220001,
+        "calls": 26.19,
+        "efficiency": 0.07158601182383845,
+        "tied": 1,
+        "grid_best_quality": 0.5678391959798995
+      },
+      "chg": {
+        "value": 12,
+        "quality": 0.5728643216080402,
+        "cost_s": 7.511703085420001,
+        "calls": 25.2,
+        "efficiency": 0.07626290803745336,
+        "tied": 1,
+        "grid_best_quality": 0.5879396984924623
+      }
+    },
+    "reanchor_z3": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.5025125628140703,
+        "cost_s": 7.4939579080700005,
+        "calls": 23.45,
+        "efficiency": 0.06705569593244323,
+        "tied": 1,
+        "grid_best_quality": 0.5025125628140703
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.5226130653266332,
+        "cost_s": 7.365291331090001,
+        "calls": 23.66,
+        "efficiency": 0.07095619736324685,
+        "tied": 1,
+        "grid_best_quality": 0.5226130653266332
+      }
+    },
+    "ramp_split_over_re3": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.5025125628140703,
+        "cost_s": 7.748634255340001,
+        "calls": 24.32,
+        "efficiency": 0.0648517591945654,
+        "tied": 1,
+        "grid_best_quality": 0.5025125628140703
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.5226130653266332,
+        "cost_s": 7.62482116744,
+        "calls": 24.6,
+        "efficiency": 0.06854102592705111,
+        "tied": 1,
+        "grid_best_quality": 0.5226130653266332
+      }
+    },
+    "medium_t100": {
+      "thr_t_s": 1,
+      "chg_k": 12,
+      "thr": {
+        "value": 1,
+        "quality": 0.5829145728643216,
+        "cost_s": 8.706348880490001,
+        "calls": 30.25,
+        "efficiency": 0.06695281579751197,
+        "tied": 1,
+        "grid_best_quality": 0.5829145728643216
+      },
+      "chg": {
+        "value": 12,
+        "quality": 0.5829145728643216,
+        "cost_s": 7.37376270419,
+        "calls": 25.92,
+        "efficiency": 0.07905252667448757,
+        "tied": 1,
+        "grid_best_quality": 0.592964824120603
+      }
+    },
+    "ramp_over_r3_follow": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.46733668341708545,
+        "cost_s": 7.66213506803,
+        "calls": 23.94,
+        "efficiency": 0.060993010338206116,
+        "tied": 1,
+        "grid_best_quality": 0.46733668341708545
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.4824120603015075,
+        "cost_s": 7.574431357130001,
+        "calls": 24.29,
+        "efficiency": 0.06368954150563409,
+        "tied": 1,
+        "grid_best_quality": 0.4824120603015075
+      }
+    },
+    "ramp_split_over_r3_follow": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.46733668341708545,
+        "cost_s": 7.667284562350001,
+        "calls": 23.97,
+        "efficiency": 0.06095204627097447,
+        "tied": 1,
+        "grid_best_quality": 0.46733668341708545
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.4824120603015075,
+        "cost_s": 7.5789811148,
+        "calls": 24.31,
+        "efficiency": 0.06365130787296305,
+        "tied": 1,
+        "grid_best_quality": 0.4824120603015075
+      }
+    },
+    "ramp_over_re2_follow": {
+      "thr_t_s": 1,
+      "chg_k": 12,
+      "thr": {
+        "value": 1,
+        "quality": 0.5628140703517588,
+        "cost_s": 7.849477220840001,
+        "calls": 25.9,
+        "efficiency": 0.07170083491133822,
+        "tied": 1,
+        "grid_best_quality": 0.5628140703517588
+      },
+      "chg": {
+        "value": 12,
+        "quality": 0.5728643216080402,
+        "cost_s": 7.446867598770001,
+        "calls": 24.98,
+        "efficiency": 0.07692688422480617,
+        "tied": 1,
+        "grid_best_quality": 0.5829145728643216
+      }
+    },
+    "ramp_split_over_re2_follow": {
+      "thr_t_s": 1,
+      "chg_k": 12,
+      "thr": {
+        "value": 1,
+        "quality": 0.5678391959798995,
+        "cost_s": 7.86572246944,
+        "calls": 25.97,
+        "efficiency": 0.07219161344505547,
+        "tied": 1,
+        "grid_best_quality": 0.5678391959798995
+      },
+      "chg": {
+        "value": 12,
+        "quality": 0.5728643216080402,
+        "cost_s": 7.45821335765,
+        "calls": 25.02,
+        "efficiency": 0.07680985969923276,
+        "tied": 1,
+        "grid_best_quality": 0.5879396984924623
+      }
+    },
+    "ramp_split_over_re3_follow": {
+      "thr_t_s": 0,
+      "chg_k": 8,
+      "thr": {
+        "value": 0,
+        "quality": 0.5025125628140703,
+        "cost_s": 7.652135411950001,
+        "calls": 23.99,
+        "efficiency": 0.06566958577723529,
+        "tied": 1,
+        "grid_best_quality": 0.5025125628140703
+      },
+      "chg": {
+        "value": 8,
+        "quality": 0.5226130653266332,
+        "cost_s": 7.543427846890001,
+        "calls": 24.31,
+        "efficiency": 0.06928058118062277,
+        "tied": 1,
+        "grid_best_quality": 0.5226130653266332
+      }
+    }
   }
 }
