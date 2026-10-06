@@ -39,6 +39,9 @@ pub mod change;
 pub mod context;
 pub mod contradiction;
 pub mod never;
+pub mod noticer;
+pub mod noticer_change;
+pub mod noticer_rung;
 pub mod periodic;
 pub mod random;
 pub mod rung;
@@ -182,6 +185,18 @@ pub trait StreamPolicy {
 
     /// The arm's own counts.
     fn report(&self) -> ArmReport;
+
+    /// The id of the noticer whose anomalies the arm works on (work item B1); `none` for an arm
+    /// that has no noticer.
+    fn noticer_id(&self) -> &'static str {
+        "none"
+    }
+
+    /// Every notice and retirement so far, in order: public information only. The harness writes
+    /// it to the run output and scores it, beside the arm's declarations.
+    fn notice_log(&self) -> &[noticer::NoticeLogEntry] {
+        &[]
+    }
 }
 
 /// What a rule may see when it makes direct requests (the privileged arms' only).
@@ -538,5 +553,13 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
         ArmReport {
             anomalies_noticed: self.rung.noticed_total(),
         }
+    }
+
+    fn noticer_id(&self) -> &'static str {
+        self.rung.noticer_id()
+    }
+
+    fn notice_log(&self) -> &[noticer::NoticeLogEntry] {
+        self.rung.notice_log()
     }
 }

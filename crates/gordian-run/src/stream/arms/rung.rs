@@ -7,12 +7,15 @@
 //!
 //! It watches the passive observations for **anomalies** with public statistics only: an
 //! abnormal observation is one the first world's public rules call abnormal (a counter at or above
-//! `HIGH`, a catalogue message other than `CheckHealth`, a changed snapshot). Abnormal
-//! observations are grouped by the public graph into candidate anomalies (same service; or a
-//! dependent of the anomaly's site within a short burst window, which is what propagation looks
-//! like), each scored by a z-score of its recent abnormal count against a baseline the rung learns
-//! from its own history of the stream ([`RungConfig`]). A candidate whose score crosses the notice
-//! threshold becomes a **noticed anomaly**. For a noticed anomaly the rung keeps a first-world
+//! `HIGH`, a catalogue message other than `CheckHealth`, a changed snapshot). What is noticed, and
+//! where it is anchored, is the **noticer's** ([`super::noticer::Noticer`], work item B1; the
+//! default is [`super::noticer_rung::RungNoticer`], which is the rung's own noticing as it was
+//! before the seam): abnormal observations are grouped by the public graph into candidate
+//! anomalies (same service; or a dependent of the anomaly's site within a short burst window, which
+//! is what propagation looks like), each scored by a z-score of its recent abnormal count against
+//! a baseline learned from the stream's own history ([`RungConfig`]), and a candidate whose score
+//! crosses the notice threshold becomes a **noticed anomaly**. Everything below is the rung's and
+//! does not depend on which noticer yielded the anomaly. For a noticed anomaly the rung keeps a first-world
 //! [`WorkingState`] over the observations at its site and its dependents, runs the first world's
 //! heuristic, estimator and verifier on it (the memory lookup is never read by the shared rule and
 //! is not run), and lets the shared rule ([`crate::policy::decide::Decider`]) decide: declare,
@@ -38,6 +41,7 @@
 //! call. Declaring is free in the stream's bill, as in the first world's.
 
 use super::context::{self, ContextBuilder, PublicView};
+use super::noticer::{self, NoticeKind, NoticeLogEntry, Noticer, NoticerSpec};
 use super::{Applied, Proposed, Source};
 use crate::policy::decide::{DecideConfig, Decider};
 use crate::stream::meter::{Meter, RuleCall};
@@ -52,7 +56,7 @@ use gordian_stream::{
 };
 use gordian_world::episode::PublicInfo;
 use gordian_world::graph::dependents_mask;
-use gordian_world::physics::{HIGH, SignalText, SymptomTag, signature};
+use gordian_world::physics::{HIGH, SignalText};
 use gordian_world::{Action, Observation, Probe, ProbeResult, ServiceId};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -105,6 +109,12 @@ pub struct RungConfig {
     /// for that arm.
     #[serde(default, skip_serializing_if = "ContextBuilder::is_rung")]
     pub context: ContextBuilder,
+    /// What notices (work item B1): the rung's own noticing unless the manifest names another
+    /// ([`StreamManifest::noticers`](crate::stream::manifest::StreamManifest::noticers) names one
+    /// per arm). The default is not written to a manifest, so a manifest written before the seam
+    /// existed is the same text as one written now.
+    #[serde(default, skip_serializing_if = "NoticerSpec::is_default")]
+    pub noticer: NoticerSpec,
 }
 
 impl Default for RungConfig {
@@ -125,6 +135,7 @@ impl Default for RungConfig {
             context_lookback_ns: 2_000_000_000,
             context_max_refs: 128,
             context: ContextBuilder::Rung,
+            noticer: NoticerSpec::default(),
         }
     }
 }
@@ -147,6 +158,7 @@ impl RungConfig {
         if self.prior_ns == 0 {
             return Err("rung.prior_ns must be positive".to_owned());
         }
+        self.noticer.validate()?;
         Ok(())
     }
 }
@@ -302,32 +314,12 @@ struct Cheap {
     components: Vec<Box<dyn Component>>,
 }
 
-/// One anomaly: a candidate until it is noticed.
-struct Anomaly {
-    id: u32,
-    site: ServiceId,
-    region: Vec<bool>,
-    anchor: ObsId,
-    anchor_at: Instant,
-    /// Abnormal observations attached to it: instant, id, service.
-    attached: Vec<(Instant, ObsId, ServiceId)>,
-    /// For each attached observation, its symptom tags and whether it is a changed snapshot,
-    /// so that the evidence can be rebuilt when the anchor moves.
-    sigs: Vec<(Vec<SymptomTag>, bool)>,
-    /// The symptom tags (counter names and catalogue messages, service forgotten) of what is
-    /// attached, whether a changed snapshot is, and the services it is about: the evidence
-    /// digest's content.
-    tags: BTreeSet<SymptomTag>,
-    snapshot_changed: bool,
-    services: BTreeSet<ServiceId>,
-    last_abnormal_at: Instant,
-    /// When the last abnormal observation at the anomaly's own site was attached.
-    last_site_at: Instant,
-    /// When the current burst began at the site: its first abnormal observation after a silence
-    /// of `burst_gap_ns`. Propagation to dependents is measured from here.
-    burst_open_at: Instant,
-    noticed_at: Option<Instant>,
-    peak_score: f64,
+/// What the rung keeps about one anomaly its noticer tracks, beside what the noticer keeps
+/// ([`noticer::Tracked`]: anchor, site, attached evidence): the working state, once the anomaly is
+/// noticed, and everything that happens to it after, from reviews to declarations. Created when
+/// the noticer first reports the anomaly (a candidate), and dropped when the noticer forgets it or
+/// the rung retires it.
+struct Down {
     cheap: Option<Cheap>,
     dirty: bool,
     patience_reviewed: bool,
@@ -357,6 +349,33 @@ struct Anomaly {
     contradicted_since: Option<Instant>,
 }
 
+impl Down {
+    fn new() -> Self {
+        Self {
+            cheap: None,
+            dirty: false,
+            patience_reviewed: false,
+            patience_rel: 0,
+            last_review: None,
+            not_before: Instant::ZERO,
+            awaiting: BTreeSet::new(),
+            attempts: 0,
+            pending: 0,
+            answered: 0,
+            last_attempt_at: None,
+            last_attempt_digest: None,
+            deferred: None,
+            cheap_done: false,
+            cheap_declared: false,
+            reasoner_declared: false,
+            recognized: Vec::new(),
+            monitor_dirty: false,
+            last_check: None,
+            contradicted_since: None,
+        }
+    }
+}
+
 /// Whether a (benign or abnormal) observation about `service` at `at` belongs in the rung's own
 /// context for an anomaly at `site` (with `region` its dependents) anchored at `anchor_at`:
 /// anything at the site, and at a dependent only within `burst_ns` after the anchor. Propagation
@@ -377,131 +396,6 @@ fn admits_around(
             && at.0 <= anchor_at.0.saturating_add(burst_ns))
 }
 
-impl Anomaly {
-    fn rel(&self, at: Instant) -> Instant {
-        Instant(at.0.saturating_sub(self.anchor_at.0))
-    }
-
-    fn owns(&self, id: ObsId) -> bool {
-        id == self.anchor || self.attached.iter().any(|(_, o, _)| *o == id)
-    }
-
-    fn note_attached(&mut self, held: &Held, service: ServiceId, burst_gap_ns: u64) {
-        let snapshot = matches!(held.obs, Observation::Snapshot { .. });
-        let tags = if snapshot {
-            Vec::new()
-        } else {
-            signature(&[(held.at, held.obs.clone())])
-        };
-        self.attached.push((held.at, held.id, service));
-        self.last_abnormal_at = held.at;
-        if service == self.site {
-            if held.at.0 >= self.last_site_at.0.saturating_add(burst_gap_ns)
-                || self.attached.len() == 1
-            {
-                self.burst_open_at = held.at;
-            }
-            self.last_site_at = held.at;
-        }
-        self.services.insert(service);
-        self.snapshot_changed |= snapshot;
-        self.tags.extend(tags.iter().copied());
-        self.sigs.push((tags, snapshot));
-    }
-
-    /// Move the anchor to the start of the densest burst among the attached observations: the
-    /// attached observation with the most attached observations in the `cluster_ns` from it (the
-    /// earliest on a tie), and make its service the anomaly's site.
-    ///
-    /// An anomaly's first attached observation may be background (an isolated blip or stray at
-    /// the same service, or at a service the site depends on, a moment before the incident
-    /// began). The anchor is what a declaration and a question are *about*, and the site is what
-    /// the region is built from, so both must belong to the thing noticed and not to whatever
-    /// happened to come first. A real incident begins with a burst (several abnormal observations
-    /// within a few hundred milliseconds); a stray is alone. Observations before the new anchor
-    /// are dropped from the anomaly's evidence. Public statistics only.
-    fn reanchor(&mut self, cluster_ns: u64, services: &[gordian_world::Service]) {
-        let density = |k: usize| {
-            let from = self.attached[k].0.0;
-            self.attached[k..]
-                .iter()
-                .take_while(|(t, _, _)| t.0 <= from.saturating_add(cluster_ns))
-                .count()
-        };
-        let mut chosen = 0;
-        let mut best = 0;
-        for k in 0..self.attached.len() {
-            let d = density(k);
-            if d > best {
-                best = d;
-                chosen = k;
-            }
-        }
-        if chosen == 0 {
-            return;
-        }
-        self.attached.drain(..chosen);
-        self.sigs.drain(..chosen);
-        self.tags = self
-            .sigs
-            .iter()
-            .flat_map(|(t, _)| t.iter().copied())
-            .collect();
-        self.snapshot_changed = self.sigs.iter().any(|(_, snap)| *snap);
-        self.services = self.attached.iter().map(|(_, _, s)| *s).collect();
-        self.anchor = self.attached[0].1;
-        self.anchor_at = self.attached[0].0;
-        self.site = self.attached[0].2;
-        self.region = dependents_mask(services, self.site);
-        self.last_site_at = self
-            .attached
-            .iter()
-            .rev()
-            .find(|(_, _, s)| *s == self.site)
-            .map_or(self.anchor_at, |(t, _, _)| *t);
-        self.burst_open_at = self.anchor_at;
-    }
-
-    /// The observation a declaration of `diagnosis` is anchored on: the first attached abnormal
-    /// observation at the diagnosed site if there is one, else the anomaly's anchor. The rule
-    /// names the site from the evidence, and the evidence at that site is what the declaration
-    /// is about.
-    fn anchor_for(&self, diagnosis: &Diagnosis) -> ObsId {
-        diagnosis
-            .and_then(|h| {
-                self.attached
-                    .iter()
-                    .find(|(_, _, s)| *s == h.site)
-                    .map(|(_, o, _)| *o)
-            })
-            .unwrap_or(self.anchor)
-    }
-
-    /// A digest of the evidence about the anomaly: its symptom tags and the number of services
-    /// they are about. FNV-1a over their text, so it is stable. A repeated heartbeat does not
-    /// change it; a new kind of symptom, or a new service, does.
-    fn digest(&self) -> u64 {
-        let mut h = 0xCBF2_9CE4_8422_2325u64;
-        let mut feed = |bytes: &[u8]| {
-            for b in bytes {
-                h = (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01B3);
-            }
-        };
-        for t in &self.tags {
-            feed(format!("{t:?};").as_bytes());
-        }
-        feed(
-            format!(
-                "snapshot={};services={}",
-                self.snapshot_changed,
-                self.services.len()
-            )
-            .as_bytes(),
-        );
-        h
-    }
-}
-
 /// The shared cheap rung. See the module documentation.
 pub struct Rung {
     cfg: RungConfig,
@@ -511,9 +405,10 @@ pub struct Rung {
     delivered: u32,
     /// The instant of the latest step taken in: the instant of a call, for a context builder.
     now: Instant,
-    abnormal_seen: u64,
-    anomalies: Vec<Anomaly>,
-    next_id: u32,
+    /// What notices: tracks the anomalies and yields the noticed ones ([`noticer::Noticer`]).
+    noticer: Box<dyn Noticer>,
+    /// What the rung keeps about each anomaly the noticer tracks, by id.
+    down: BTreeMap<u32, Down>,
     noticed_total: u32,
     /// The last diagnosis declared for each anchor, so an identical answer is not declared twice.
     declared: BTreeMap<ObsId, Diagnosis>,
@@ -521,6 +416,8 @@ pub struct Rung {
     /// rule that escalates on it. False for every arm but `contradiction_escalation`, for which
     /// the rung then does exactly what it did before the field existed.
     monitor: bool,
+    /// Every notice and retirement so far, for the run output.
+    log: Vec<NoticeLogEntry>,
 }
 
 fn map_hypothesis(h: gordian_world::Hypothesis) -> Diagnosis {
@@ -571,21 +468,21 @@ pub fn cheap_component_ids() -> Vec<ComponentId> {
 }
 
 impl Rung {
-    /// A rung over the stream's public information.
+    /// A rung over the stream's public information, noticing as `cfg.noticer` says.
     pub fn new(public: &StreamPublic, cfg: RungConfig) -> Self {
         Self {
             world: public.world_public_info(),
+            noticer: noticer::build(&cfg.noticer, &cfg, &public.services),
             public: public.clone(),
             cfg,
             store: Store::default(),
             delivered: 0,
             now: Instant(0),
-            abnormal_seen: 0,
-            anomalies: Vec::new(),
-            next_id: 0,
+            down: BTreeMap::new(),
             noticed_total: 0,
             declared: BTreeMap::new(),
             monitor: false,
+            log: Vec::new(),
         }
     }
 
@@ -614,40 +511,33 @@ impl Rung {
         self.delivered
     }
 
-    /// Anomalies that crossed the notice threshold so far.
+    /// Anomalies that were noticed so far.
     pub fn noticed_total(&self) -> u32 {
         self.noticed_total
     }
 
+    /// The id of the noticer the rung uses.
+    pub fn noticer_id(&self) -> &'static str {
+        self.noticer.id()
+    }
+
+    /// Every notice and retirement so far, in order: the record the harness writes.
+    pub fn notice_log(&self) -> &[NoticeLogEntry] {
+        &self.log
+    }
+
     /// Anomalies currently noticed and not retired.
     pub fn live(&self) -> usize {
-        self.anomalies
+        self.noticer
+            .anomalies()
             .iter()
             .filter(|a| a.noticed_at.is_some())
             .count()
     }
 
-    /// The expected abnormal observations per service per second, learned from the stream so
-    /// far with the configured prior. Basic IEEE arithmetic only, so it replays bit for bit.
-    fn baseline_hz(&self, now: Instant) -> f64 {
-        let services = self.public.services.len().max(1) as f64;
-        let prior_s = self.cfg.prior_ns as f64 / 1e9;
-        let prior_hz = self.cfg.prior_mhz as f64 / 1000.0;
-        let t_s = now.0 as f64 / 1e9;
-        (self.abnormal_seen as f64 + prior_hz * services * prior_s) / (services * (t_s + prior_s))
-    }
-
-    fn score_of(&self, a: &Anomaly, now: Instant) -> f64 {
-        let window = self.cfg.score_window_ns;
-        let from = now.0.saturating_sub(window);
-        let n = a.attached.iter().filter(|(at, _, _)| at.0 > from).count() as f64;
-        let mu = self.baseline_hz(now) * (window as f64 / 1e9);
-        (n - mu) / (mu + 1.0).sqrt()
-    }
-
-    /// Take in what the step delivered: observations (stored, attached to anomalies, admitted to
-    /// the working states of noticed ones), reasoner answers (returned), probe results (admitted
-    /// to the anomaly that bought them).
+    /// Take in what the step delivered: observations (stored, shown to the noticer, admitted to
+    /// the working states of the noticed anomalies they attach to), reasoner answers (returned),
+    /// probe results (admitted to the anomaly that bought them).
     pub fn absorb(
         &mut self,
         events: &[StreamEvent],
@@ -668,19 +558,20 @@ impl Rung {
                     };
                     self.delivered = self.delivered.max(id.0.saturating_add(1));
                     if abnormal {
-                        self.abnormal_seen += 1;
                         // The evidence about an anomaly is what is attached to it: every
                         // abnormal observation is assigned to one anomaly, so that another
                         // incident's symptoms are not handed to this one's rule as evidence (the
                         // first world's checker reads them as a contradiction). Benign
                         // observations carry no information under the public rules.
-                        if let Some(i) = self.attach(&held) {
-                            let a = &mut self.anomalies[i];
-                            let rel = Instant(at.0.saturating_sub(a.anchor_at.0));
-                            if let Some(cheap) = a.cheap.as_mut() {
+                        if let Some(attached) = self.noticer.observe(&held) {
+                            let down = self.down.entry(attached).or_insert_with(Down::new);
+                            let anchor_at =
+                                self.noticer.tracked(attached).map_or(*at, |t| t.anchor_at);
+                            let rel = Instant(at.0.saturating_sub(anchor_at.0));
+                            if let Some(cheap) = down.cheap.as_mut() {
                                 cheap.state.admit(rel, obs.clone());
-                                a.dirty = true;
-                                a.monitor_dirty = true;
+                                down.dirty = true;
+                                down.monitor_dirty = true;
                             }
                         }
                     }
@@ -693,14 +584,16 @@ impl Rung {
         }
         for (_, ready, obs) in probe_results {
             if let Observation::Probed { probe, .. } = obs {
-                for a in &mut self.anomalies {
-                    if a.awaiting.remove(probe) {
-                        if let Some(cheap) = a.cheap.as_mut() {
-                            let rel = Instant(ready.0.saturating_sub(a.anchor_at.0));
+                for (id, down) in &mut self.down {
+                    if down.awaiting.remove(probe) {
+                        if let Some(cheap) = down.cheap.as_mut() {
+                            let anchor_at =
+                                self.noticer.tracked(*id).map_or(*ready, |t| t.anchor_at);
+                            let rel = Instant(ready.0.saturating_sub(anchor_at.0));
                             cheap.state.admit(rel, obs.clone());
                         }
-                        a.dirty = true;
-                        a.monitor_dirty = true;
+                        down.dirty = true;
+                        down.monitor_dirty = true;
                         break;
                     }
                 }
@@ -710,119 +603,23 @@ impl Rung {
         answers
     }
 
-    fn attach(&mut self, held: &Held) -> Option<usize> {
-        let service = service_of(&held.obs)?;
-        let burst = self.cfg.burst_ns;
-        let gap = self.cfg.burst_gap_ns;
-        // An observation about the site of an anomaly that is still speaking (its last
-        // observation at its site within two burst gaps) is that anomaly's, even if it falls in
-        // another site's burst window: a site's heartbeat is not propagation.
-        // Otherwise, propagation: an observation about a dependent of an anomaly's site, within
-        // the burst window of the burst that began at that site, belongs to that burst; when
-        // several anomalies qualify, the one whose burst began most recently. Last, the same
-        // site's stale anomaly. The orders matter: letting a stale isolated observation at the
-        // dependent swallow the dependent's share of someone else's burst, measuring the window
-        // from an anomaly's first observation, or letting another incident's burst window take a
-        // site's own heartbeat, each fragments incidents and lands declarations on background.
-        let speaking = gap.saturating_mul(2);
-        let found = self
-            .anomalies
-            .iter()
-            .rposition(|a| {
-                a.site == service && held.at.0 <= a.last_site_at.0.saturating_add(speaking)
-            })
-            .or_else(|| {
-                self.anomalies
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, a)| {
-                        a.site != service
-                            && a.region.get(service.index()).copied().unwrap_or(false)
-                            && held.at.0 >= a.burst_open_at.0
-                            && held.at.0 <= a.burst_open_at.0.saturating_add(burst)
-                    })
-                    .max_by_key(|(i, a)| (a.burst_open_at, std::cmp::Reverse(*i)))
-                    .map(|(i, _)| i)
-            })
-            .or_else(|| self.anomalies.iter().rposition(|a| a.site == service));
-        match found {
-            Some(i) => {
-                self.anomalies[i].note_attached(held, service, gap);
-                Some(i)
-            }
-            None => {
-                let id = self.next_id;
-                self.next_id += 1;
-                let region = dependents_mask(&self.public.services, service);
-                let mut anomaly = Anomaly {
-                    id,
-                    site: service,
-                    region,
-                    anchor: held.id,
-                    anchor_at: held.at,
-                    attached: Vec::new(),
-                    sigs: Vec::new(),
-                    tags: BTreeSet::new(),
-                    snapshot_changed: false,
-                    services: BTreeSet::new(),
-                    last_abnormal_at: held.at,
-                    last_site_at: held.at,
-                    burst_open_at: held.at,
-                    noticed_at: None,
-                    peak_score: f64::NEG_INFINITY,
-                    cheap: None,
-                    dirty: false,
-                    patience_reviewed: false,
-                    patience_rel: 0,
-                    last_review: None,
-                    not_before: Instant::ZERO,
-                    awaiting: BTreeSet::new(),
-                    attempts: 0,
-                    pending: 0,
-                    answered: 0,
-                    last_attempt_at: None,
-                    last_attempt_digest: None,
-                    deferred: None,
-                    cheap_done: false,
-                    cheap_declared: false,
-                    reasoner_declared: false,
-                    recognized: Vec::new(),
-                    monitor_dirty: false,
-                    last_check: None,
-                    contradicted_since: None,
-                };
-                anomaly.note_attached(held, service, gap);
-                self.anomalies.push(anomaly);
-                Some(self.anomalies.len() - 1)
-            }
-        }
-    }
-
-    /// Notice the candidates whose score has crossed the threshold, and forget the ones that
-    /// never will.
+    /// Ask the noticer what it notices at `now`, and start working on each noticed anomaly: a
+    /// first-world working state over its attached observations, the first world's heuristic,
+    /// estimator and verifier, and the shared rule. Then drop what the noticer forgot.
     pub fn notice(&mut self, now: Instant) {
-        let mut crossed = Vec::new();
-        for (i, a) in self.anomalies.iter().enumerate() {
-            if a.noticed_at.is_none() && self.score_of(a, now) >= self.cfg.notice_z {
-                crossed.push(i);
-            }
-        }
-        for i in crossed {
-            self.anomalies[i].reanchor(self.cfg.burst_ns, &self.public.services);
+        for notice in self.noticer.notice(now, &self.store) {
             let mut state = WorkingState::new(self.world.clone(), self.cfg.window);
-            let anchor_at = self.anomalies[i].anchor_at;
-            let ids: BTreeSet<ObsId> = self.anomalies[i]
-                .attached
-                .iter()
-                .map(|(_, o, _)| *o)
-                .collect();
+            let ids: BTreeSet<ObsId> = notice.attached.iter().copied().collect();
             for h in self.store.iter().filter(|h| ids.contains(&h.id)) {
-                state.admit(Instant(h.at.0.saturating_sub(anchor_at.0)), h.obs.clone());
+                state.admit(
+                    Instant(h.at.0.saturating_sub(notice.anchor_at.0)),
+                    h.obs.clone(),
+                );
             }
-            let a = &mut self.anomalies[i];
-            let patience_rel = now.0.saturating_sub(a.anchor_at.0) + self.cfg.patience_ns;
-            a.patience_rel = patience_rel;
-            a.cheap = Some(Cheap {
+            let patience_rel = now.0.saturating_sub(notice.anchor_at.0) + self.cfg.patience_ns;
+            let down = self.down.entry(notice.id).or_insert_with(Down::new);
+            down.patience_rel = patience_rel;
+            down.cheap = Some(Cheap {
                 state,
                 decider: Decider::new(DecideConfig {
                     patience_ns: patience_rel,
@@ -833,33 +630,33 @@ impl Rung {
                     Box::new(ConsistencyVerifier::new()),
                 ],
             });
-            a.noticed_at = Some(now);
-            a.dirty = true;
-            a.monitor_dirty = true;
+            down.dirty = true;
+            down.monitor_dirty = true;
             self.noticed_total += 1;
+            self.log.push(NoticeLogEntry {
+                kind: NoticeKind::Notice,
+                noticer: self.noticer.id(),
+                anomaly: notice.id,
+                anchor: notice.anchor,
+                site: notice.site,
+                anchor_at: notice.anchor_at,
+                at: now,
+            });
         }
-        let ttl = self.cfg.score_window_ns;
-        self.anomalies.retain(|a| {
-            a.noticed_at.is_some() || now.0 <= a.last_abnormal_at.0.saturating_add(ttl)
-        });
+        let noticer = &self.noticer;
+        self.down.retain(|id, _| noticer.tracked(*id).is_some());
     }
 
     /// The noticed anomalies, in the order they were noticed (by id), as an escalation rule sees
     /// them. Updates each one's peak score.
     pub fn views(&mut self, now: Instant) -> Vec<AnomalyView> {
-        let scores: Vec<f64> = self
-            .anomalies
-            .iter()
-            .map(|a| self.score_of(a, now))
-            .collect();
+        self.noticer.refresh(now);
         let mut out = Vec::new();
-        for (i, a) in self.anomalies.iter_mut().enumerate() {
-            if a.noticed_at.is_some() {
-                a.peak_score = a.peak_score.max(scores[i]);
-            }
-        }
-        for (i, a) in self.anomalies.iter().enumerate() {
+        for a in self.noticer.anomalies() {
             let Some(noticed_at) = a.noticed_at else {
+                continue;
+            };
+            let Some(down) = self.down.get(&a.id) else {
                 continue;
             };
             out.push(AnomalyView {
@@ -868,24 +665,20 @@ impl Rung {
                 anchor: a.anchor,
                 anchor_at: a.anchor_at,
                 noticed_at,
-                score: scores[i],
+                score: self.noticer.score(a.id, now),
                 peak_score: a.peak_score,
                 digest: a.digest(),
-                attempts: a.attempts,
-                pending: a.pending,
-                answered: a.answered,
-                last_attempt_at: a.last_attempt_at,
-                last_attempt_digest: a.last_attempt_digest,
-                cheap_declared: a.cheap_declared,
+                attempts: down.attempts,
+                pending: down.pending,
+                answered: down.answered,
+                last_attempt_at: down.last_attempt_at,
+                last_attempt_digest: down.last_attempt_digest,
+                cheap_declared: down.cheap_declared,
                 delivered: self.delivered,
-                contradicted_since: a.contradicted_since,
+                contradicted_since: down.contradicted_since,
             });
         }
         out
-    }
-
-    fn index_of(&self, id: u32) -> Option<usize> {
-        self.anomalies.iter().position(|a| a.id == id)
     }
 
     /// The context for a question about anomaly `id`: references to the held observations that
@@ -898,10 +691,9 @@ impl Rung {
     /// only: the observations held, the public graph, the instant of the latest step and the
     /// anomaly's site and anchor.
     pub fn context(&self, id: u32) -> Vec<ObsRef> {
-        let Some(i) = self.index_of(id) else {
+        let Some(a) = self.noticer.tracked(id) else {
             return Vec::new();
         };
-        let a = &self.anomalies[i];
         self.context_around(a.site, a.anchor_at, &a.region)
     }
 
@@ -963,8 +755,7 @@ impl Rung {
 
     /// Record that an escalation was proposed for anomaly `id` at `now`.
     pub fn note_attempt(&mut self, id: u32, now: Instant, digest: u64) {
-        if let Some(i) = self.index_of(id) {
-            let a = &mut self.anomalies[i];
+        if let Some(a) = self.down.get_mut(&id) {
             a.attempts += 1;
             a.pending += 1;
             a.last_attempt_at = Some(now);
@@ -974,17 +765,15 @@ impl Rung {
 
     /// An escalation of anomaly `id` was refused: it is no longer pending.
     pub fn note_refused(&mut self, id: u32) {
-        if let Some(i) = self.index_of(id) {
-            let a = &mut self.anomalies[i];
+        if let Some(a) = self.down.get_mut(&id) {
             a.pending = a.pending.saturating_sub(1);
         }
     }
 
     /// A probe proposed for anomaly `id` was refused.
     pub fn note_probe_refused(&mut self, id: u32, probe: Probe, now: Instant) {
-        if let Some(i) = self.index_of(id) {
-            let review = self.cfg.review_ns;
-            let a = &mut self.anomalies[i];
+        let review = self.cfg.review_ns;
+        if let Some(a) = self.down.get_mut(&id) {
             a.awaiting.remove(&probe);
             a.dirty = true;
             a.not_before = Instant(now.0.saturating_add(review));
@@ -995,7 +784,13 @@ impl Rung {
     /// `diagnosis` should be declared (it differs from the last declaration anchored there), and
     /// marks the anomaly as answered.
     pub fn take_answer(&mut self, focus: ObsId, diagnosis: Diagnosis) -> bool {
-        if let Some(a) = self.anomalies.iter_mut().find(|a| a.owns(focus)) {
+        let owner = self
+            .noticer
+            .anomalies()
+            .iter()
+            .find(|a| a.owns(focus))
+            .map(|a| a.id);
+        if let Some(a) = owner.and_then(|id| self.down.get_mut(&id)) {
             a.pending = a.pending.saturating_sub(1);
             a.answered += 1;
             a.reasoner_declared = true;
@@ -1012,7 +807,7 @@ impl Rung {
     /// the caller; this reports its cheap conclusion if one is waiting and the reasoner has not
     /// declared for it.
     pub fn deferred(&self, id: u32) -> Option<Diagnosis> {
-        let a = &self.anomalies[self.index_of(id)?];
+        let a = self.down.get(&id)?;
         if a.reasoner_declared {
             None
         } else {
@@ -1022,13 +817,12 @@ impl Rung {
 
     /// The deferred conclusion of anomaly `id` is declared now.
     pub fn declare_deferred(&mut self, id: u32) -> Option<Proposed> {
-        let i = self.index_of(id)?;
-        let diagnosis = self.anomalies[i].deferred.take()?;
-        self.declare_cheap(i, diagnosis, 0)
+        let diagnosis = self.down.get_mut(&id)?.deferred.take()?;
+        self.declare_cheap(id, diagnosis, 0)
     }
 
-    fn declare_cheap(&mut self, i: usize, diagnosis: Diagnosis, tag: u64) -> Option<Proposed> {
-        let a = &mut self.anomalies[i];
+    fn declare_cheap(&mut self, id: u32, diagnosis: Diagnosis, tag: u64) -> Option<Proposed> {
+        let a = self.down.get_mut(&id)?;
         a.cheap_done = true;
         // A reasoner's answer outranks the shared rule, and so does a recogniser's conclusion
         // (an arm that revises): once either has declared for this anomaly the rule does not.
@@ -1036,7 +830,7 @@ impl Rung {
             return None;
         }
         a.cheap_declared = true;
-        let anchor = a.anchor_for(&diagnosis);
+        let anchor = self.noticer.tracked(id)?.anchor_for(&diagnosis);
         if self.declared.get(&anchor) == Some(&diagnosis) {
             return None;
         }
@@ -1049,24 +843,24 @@ impl Rung {
     }
 
     /// Defer a conclusion: the cheap rung has one, an escalation rule holds it back.
-    fn defer(&mut self, i: usize, diagnosis: Diagnosis) {
-        let a = &mut self.anomalies[i];
-        a.cheap_done = true;
-        a.deferred = Some(diagnosis);
+    fn defer(&mut self, id: u32, diagnosis: Diagnosis) {
+        if let Some(a) = self.down.get_mut(&id) {
+            a.cheap_done = true;
+            a.deferred = Some(diagnosis);
+        }
     }
 
     /// A conclusion a recognizer reached, declared at once and possibly after the rule's own: at
     /// most once per distinct diagnosis. For an arm that revises (`ablation_hidden_rules`).
     pub fn declare_recognized(&mut self, id: u32, diagnosis: Diagnosis) -> Option<Proposed> {
-        let i = self.index_of(id)?;
-        let a = &mut self.anomalies[i];
+        let a = self.down.get_mut(&id)?;
         if a.reasoner_declared || a.recognized.contains(&diagnosis) {
             return None;
         }
         a.recognized.push(diagnosis);
         a.cheap_done = true;
         a.cheap_declared = true;
-        let anchor = a.anchor_for(&diagnosis);
+        let anchor = self.noticer.tracked(id)?.anchor_for(&diagnosis);
         if self.declared.get(&anchor) == Some(&diagnosis) {
             return None;
         }
@@ -1091,7 +885,10 @@ impl Rung {
     /// patience newly passed).
     pub fn due(&self, now: Instant) -> Vec<u32> {
         let mut out = Vec::new();
-        for a in &self.anomalies {
+        for t in self.noticer.anomalies() {
+            let Some(a) = self.down.get(&t.id) else {
+                continue;
+            };
             if a.cheap.is_none() {
                 continue;
             }
@@ -1099,14 +896,14 @@ impl Rung {
                 continue;
             }
             if a.last_review
-                .is_some_and(|t| now.0 < t.0.saturating_add(self.cfg.review_ns))
+                .is_some_and(|l| now.0 < l.0.saturating_add(self.cfg.review_ns))
             {
                 continue;
             }
-            let rel_now = a.rel(now).0;
+            let rel_now = t.rel(now).0;
             let patience_due = rel_now >= a.patience_rel && !a.patience_reviewed;
             if a.dirty || patience_due {
-                out.push(a.id);
+                out.push(t.id);
             }
         }
         out
@@ -1115,11 +912,11 @@ impl Rung {
     /// Review anomaly `id`: run the cheap components on its working state and let the shared rule
     /// decide, both through the meter. Returns the rule's conclusion, if it reached one.
     pub fn review(&mut self, id: u32, now: Instant, meter: &mut Meter<'_>) -> Option<Conclusion> {
-        let i = self.index_of(id)?;
+        let anchor_at = self.noticer.tracked(id)?.anchor_at;
         let monitor = self.monitor;
-        let a = &mut self.anomalies[i];
+        let a = self.down.get_mut(&id)?;
         let patience = a.patience_rel;
-        let rel_now = Instant(now.0.saturating_sub(a.anchor_at.0));
+        let rel_now = Instant(now.0.saturating_sub(anchor_at.0));
         let cheap = a.cheap.as_mut()?;
         cheap.state.now = cheap.state.now.max(rel_now);
         let mut outputs: Vec<(ComponentId, ComponentOutput)> = Vec::new();
@@ -1165,16 +962,19 @@ impl Rung {
         if !self.monitor {
             return Vec::new();
         }
-        self.anomalies
+        self.noticer
+            .anomalies()
             .iter()
-            .filter(|a| {
-                a.cheap.is_some()
-                    && a.attempts == 0
-                    && a.monitor_dirty
-                    && a.last_check
-                        .is_none_or(|t| now.0 >= t.0.saturating_add(self.cfg.review_ns))
+            .filter(|t| {
+                self.down.get(&t.id).is_some_and(|a| {
+                    a.cheap.is_some()
+                        && a.attempts == 0
+                        && a.monitor_dirty
+                        && a.last_check
+                            .is_none_or(|l| now.0 >= l.0.saturating_add(self.cfg.review_ns))
+                })
             })
-            .map(|a| a.id)
+            .map(|t| t.id)
             .collect()
     }
 
@@ -1185,11 +985,13 @@ impl Rung {
     /// contradiction sees evidence that arrived after the shared rule concluded. A refusal by the
     /// bill leaves the previous verdict in place.
     pub fn check(&mut self, id: u32, now: Instant, meter: &mut Meter<'_>) {
-        let Some(i) = self.index_of(id) else {
+        let Some(anchor_at) = self.noticer.tracked(id).map(|t| t.anchor_at) else {
             return;
         };
-        let a = &mut self.anomalies[i];
-        let rel_now = Instant(now.0.saturating_sub(a.anchor_at.0));
+        let Some(a) = self.down.get_mut(&id) else {
+            return;
+        };
+        let rel_now = Instant(now.0.saturating_sub(anchor_at.0));
         let Some(cheap) = a.cheap.as_mut() else {
             return;
         };
@@ -1217,22 +1019,21 @@ impl Rung {
         held: bool,
         tag: u64,
     ) -> Option<Proposed> {
-        let i = self.index_of(id)?;
         // The rule concludes once per anomaly: a later conclusion is not acted on.
-        if self.anomalies[i].cheap_done {
+        if self.down.get(&id)?.cheap_done {
             return None;
         }
         match conclusion {
             Conclusion::Declare(diagnosis) => {
                 if held {
-                    self.defer(i, diagnosis);
+                    self.defer(id, diagnosis);
                     None
                 } else {
-                    self.declare_cheap(i, diagnosis, tag)
+                    self.declare_cheap(id, diagnosis, tag)
                 }
             }
             Conclusion::Abstain => {
-                self.anomalies[i].cheap_done = true;
+                self.down.get_mut(&id)?.cheap_done = true;
                 None
             }
             Conclusion::Probe(probe) => Some(Proposed {
@@ -1249,22 +1050,21 @@ impl Rung {
     /// The final call for anomaly `id`: the rule at its deadline, whatever the clock says.
     /// Declares what it has unless an answer was declared or the rule already declared.
     pub fn finish_one(&mut self, id: u32, meter: &mut Meter<'_>, tag: u64) -> Option<Proposed> {
-        let i = self.index_of(id)?;
-        if let Some(diagnosis) = self.anomalies[i].deferred.take() {
-            return self.declare_cheap(i, diagnosis, tag);
+        if let Some(diagnosis) = self.down.get_mut(&id)?.deferred.take() {
+            return self.declare_cheap(id, diagnosis, tag);
         }
-        if self.anomalies[i].cheap_done {
+        let a = self.down.get_mut(&id)?;
+        if a.cheap_done {
             return None;
         }
-        let a = &mut self.anomalies[i];
         let cheap = a.cheap.as_mut()?;
         let call = meter.rule_call(&mut cheap.decider, &cheap.state, &[], true);
         match call {
             RuleCall::Ran(Some(Action::Declare { fault })) => {
-                self.declare_cheap(i, map_hypothesis(fault), tag)
+                self.declare_cheap(id, map_hypothesis(fault), tag)
             }
             _ => {
-                self.anomalies[i].cheap_done = true;
+                self.down.get_mut(&id)?.cheap_done = true;
                 None
             }
         }
@@ -1272,44 +1072,65 @@ impl Rung {
 
     /// Ids of the noticed anomalies still undecided by the cheap rung.
     pub fn undecided(&self) -> Vec<u32> {
-        self.anomalies
+        self.noticer
+            .anomalies()
             .iter()
-            .filter(|a| a.noticed_at.is_some() && (!a.cheap_done || a.deferred.is_some()))
-            .map(|a| a.id)
-            .collect()
-    }
-
-    /// The quiet anomalies that are ready to retire: noticed, no abnormal observation for
-    /// `quiet_ns`, nothing pending.
-    pub fn quiet(&self, now: Instant) -> Vec<u32> {
-        self.anomalies
-            .iter()
-            .filter(|a| {
-                a.noticed_at.is_some()
-                    && a.pending == 0
-                    && a.awaiting.is_empty()
-                    && now.0 >= a.last_abnormal_at.0.saturating_add(self.cfg.quiet_ns)
+            .filter(|t| {
+                t.noticed_at.is_some()
+                    && self
+                        .down
+                        .get(&t.id)
+                        .is_some_and(|a| !a.cheap_done || a.deferred.is_some())
             })
-            .map(|a| a.id)
+            .map(|t| t.id)
             .collect()
     }
 
-    /// Retire anomaly `id`: it is forgotten.
+    /// The quiet anomalies that are ready to retire: noticed, no abnormal observation for the
+    /// noticer's quiet time, nothing pending.
+    pub fn quiet(&self, now: Instant) -> Vec<u32> {
+        self.noticer
+            .retirable(now)
+            .into_iter()
+            .filter(|id| {
+                self.down
+                    .get(id)
+                    .is_some_and(|a| a.pending == 0 && a.awaiting.is_empty())
+            })
+            .collect()
+    }
+
+    /// Retire anomaly `id`: it is forgotten, by the rung and by the noticer, and the retirement
+    /// is recorded.
     pub fn retire(&mut self, id: u32) {
-        self.anomalies.retain(|a| a.id != id);
+        if let Some(t) = self.noticer.tracked(id)
+            && t.noticed_at.is_some()
+        {
+            self.log.push(NoticeLogEntry {
+                kind: NoticeKind::Retire,
+                noticer: self.noticer.id(),
+                anomaly: id,
+                anchor: t.anchor,
+                site: t.site,
+                anchor_at: t.anchor_at,
+                at: self.now,
+            });
+        }
+        self.noticer.retire(id);
+        self.down.remove(&id);
     }
 
     /// The attached abnormal observations of anomaly `id`, with their services.
     pub fn attached(&self, id: u32) -> Vec<(Instant, ObsId, ServiceId)> {
-        self.index_of(id)
-            .map(|i| self.anomalies[i].attached.clone())
+        self.noticer
+            .tracked(id)
+            .map(|t| t.attached.clone())
             .unwrap_or_default()
     }
 
     /// Whether anomaly `id` owns observation `obs`.
     pub fn owns(&self, id: u32, obs: ObsId) -> bool {
-        self.index_of(id)
-            .is_some_and(|i| self.anomalies[i].owns(obs))
+        self.noticer.tracked(id).is_some_and(|t| t.owns(obs))
     }
 
     /// Feed back what happened to the proposals of the previous step: a refused probe or
@@ -1367,9 +1188,10 @@ pub fn is_positive(obs: &Observation) -> bool {
 }
 
 impl Rung {
-    /// A one-line summary of every anomaly the rung holds, for diagnostics.
+    /// A one-line summary of every anomaly the rung's noticer tracks, for diagnostics.
     pub fn debug_anomalies(&self) -> Vec<String> {
-        self.anomalies
+        self.noticer
+            .anomalies()
             .iter()
             .map(|a| {
                 format!(
