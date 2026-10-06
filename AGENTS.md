@@ -140,13 +140,23 @@ Work is split into bounded logical units, normally one work item from
 
 ### Labs
 
-Workers are organised as three labs, each with a principal investigator agent and a file territory,
-listed in [`docs/lab-queue.md`](docs/lab-queue.md) with the queue of units and the criterion fixed
-for each before it runs. The chief researcher (the coordinator) designs units, queues them, verifies
-every report independently, merges what survives, and analyses results across units from several
-perspectives (representation, structure, causality, time, environment, failure, objective, meta),
-recording the analysis in [`docs/review-log.md`](docs/review-log.md). A lab edits only its
-territory; a unit that needs a file outside it says so in its report rather than editing it.
+Work is organised as three labs, listed in [`docs/lab-queue.md`](docs/lab-queue.md) with each
+lab's file territory, the queue of units and the criterion fixed for each unit before it runs.
+
+**The agent working in a lab is its principal investigator (PI).** A PI is not a narrow worker: it
+owns the scientific execution of its unit. It reads the brief and the evidence behind it, designs
+within the fixed criterion, decides method where the brief leaves room, may spawn bounded
+sub-workers of its own for mechanical tasks (and is accountable for their output as for its own),
+runs and verifies, and writes the lab report with its own analysis: what the result means, what
+it does not show, what it would test next, and what the chief should examine most carefully. A PI
+does not change a fixed criterion, does not widen its unit, and does not edit outside its
+territory; when it believes the brief is wrong it says so in its report with the resolution it
+chose.
+
+**The chief researcher** (the coordinator) designs units, fixes criteria, queues units to labs,
+verifies every report independently, merges what survives, and analyses results across labs from
+several perspectives (representation, structure, causality, time, environment, failure, objective,
+meta), recording the analysis in [`docs/review-log.md`](docs/review-log.md).
 
 ## The rule that matters most
 

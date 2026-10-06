@@ -1,7 +1,8 @@
 # Labs and the experiment queue
 
-Three labs. Each has a principal investigator (PI), a worker agent that owns one queued unit at a
-time in its own worktree and branch, and reports as AGENTS.md's "Coordinator and workers" says.
+Three labs. The agent working in a lab is its principal investigator (PI), as AGENTS.md's "Labs"
+section defines the role: it owns one queued unit at a time in its own worktree and branch, with
+the scientific execution of that unit, and reports with its own analysis.
 The chief researcher designs the units, fixes each criterion before the unit runs, queues units to
 labs, verifies every report independently, merges what survives, and analyses results across
 units and perspectives (`docs/review-log.md`).
