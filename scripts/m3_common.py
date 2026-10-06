@@ -123,6 +123,9 @@ def subtick_off(noticer):
 # - the frozen M3 medium at each tick length (m3-selected.json);
 # - at each tick length, the control: the same medium with the sub-tick pruning off;
 # - at each tick length, M2's frozen medium (m2-selected.json), for continuity with M2's rows;
+# - B3's two composed rows (added on the chief's instruction before the held-out run, reported
+#   beside and never in the criterion): the ramp and the split over the re-anchor, and the ramp
+#   over the re-anchor, spelled as B3's held-out manifest spells them (B3_ROWS);
 # - at each tick length, labelled sensitivity rows (nothing is chosen from them): the frozen M3
 #   medium with the cluster merge off (if it is on), with arrivals at event resolution off (if
 #   on), and with the sub-tick lookback off but arrivals at event resolution kept (if both on).
@@ -137,6 +140,7 @@ def heldout(stage):
     arms = [("rung_z3", {"noticer": "rung", "notice_z": 3.0}),
             ("rung_z2", {"noticer": "rung", "notice_z": 2.0}),
             ("reanchor", dict(REANCHOR))]
+    arms += [(name, dict(n)) for name, n in B3_ROWS.items()]
     for tick in TICKS_MS:
         frozen = sel[str(tick)]["noticer"]
         arms.append((f"med_t{tick}", frozen))
@@ -149,3 +153,15 @@ def heldout(stage):
             if frozen.get("burst_subtick_ns", 0):
                 arms.append((f"med_t{tick}_cut_off", dict(frozen, burst_subtick_ns=0)))
     return arms, HELDOUT_SEEDS, 13_900, "exploration-m3-heldout"
+
+
+# B3's composed noticers, copied from B3's held-out manifest
+# (/home/user/gordian/artifacts/runs/b3/_manifests/b3-heldout-b5-rho0.7.json, arms
+# sel_ramp_split_over_re2_privileged and sel_ramp_over_re2_privileged).
+B3_RAMP = {"gap_ns": 1_600_000_000, "max_step": 10, "max_drop": 4, "min_readings": 5,
+           "min_rise": 15}
+B3_ROWS = {
+    "ramp_split_over_re2": {"noticer": "composed", "base": dict(REANCHOR), "ramp": dict(B3_RAMP),
+                            "split": {"gap_ns": 3_000_000_000, "min_burst": 3}},
+    "ramp_over_re2": {"noticer": "composed", "base": dict(REANCHOR), "ramp": dict(B3_RAMP)},
+}

@@ -1232,3 +1232,71 @@ fn the_frozen_m2_media_notice_as_they_did_with_sub_tick_pruning_off() {
     assert!(notices > 10, "not vacuous");
     assert_eq!(digest, M2_FROZEN_DIGEST);
 }
+
+/// The frozen M3 media (`experiments/exploration/m3-selected.json`), by tick length in ms.
+fn m3_frozen(tick: &str) -> Option<MediumParams> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../experiments/exploration/m3-selected.json"
+    );
+    let text = std::fs::read_to_string(path).ok()?;
+    let sel: Value = serde_json::from_str(&text).unwrap();
+    let NoticerSpec::Medium(p) =
+        serde_json::from_value(sel["ticks"][tick]["noticer"].clone()).unwrap()
+    else {
+        panic!("not a medium");
+    };
+    Some(p)
+}
+
+/// What the frozen M3 media do on two short streams, pinned at the freeze (commit "Freeze M3's
+/// graph"): a merge of main or any later change must reproduce it. The media and their held-out
+/// variants validate.
+const M3_FROZEN_DIGEST: u64 = 0x3f53_5e09_417a_9165;
+
+#[test]
+fn the_frozen_m3_media_notice_as_they_did_at_the_freeze() {
+    if m3_frozen("100").is_none() {
+        return; // before the freeze
+    }
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut notices = 0;
+    for tick in ["100", "500", "2000"] {
+        let frozen = m3_frozen(tick).unwrap();
+        frozen.validate().unwrap();
+        for variant in [
+            MediumParams {
+                burst_subtick_ns: 0,
+                burst_every_event: false,
+                ..frozen
+            },
+            MediumParams {
+                merge_window_ns: 0,
+                ..frozen
+            },
+            MediumParams {
+                burst_every_event: false,
+                ..frozen
+            },
+            MediumParams {
+                burst_subtick_ns: 0,
+                ..frozen
+            },
+        ] {
+            variant.validate().unwrap();
+        }
+        for seed in [3u64, 5] {
+            let r = medium_arm_record(seed, frozen);
+            notices += r
+                .notice_log
+                .iter()
+                .filter(|e| e.kind == NoticeKind::Notice)
+                .count();
+            fnv(&mut h, &format!("{:?}", r.notice_log));
+            fnv(&mut h, &format!("{:?}", r.trajectory));
+        }
+    }
+    eprintln!("m3 frozen digest {h:#018x}, {notices} notices");
+    assert!(notices > 10, "not vacuous");
+    assert_eq!(h, M3_FROZEN_DIGEST);
+}
