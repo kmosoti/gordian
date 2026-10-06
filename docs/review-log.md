@@ -4,6 +4,53 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Synthesis after W1, M1, B1 (chief; the perspectives of AGENTS.md "Multidimensional analysis")
+
+**Structure.** The three units compose at one point: B1's `Noticer` seam is the rung's noticing,
+M1's effector port emits notices and (M1b) retirements, and W1's tick statistics size the sense
+adapter between them. The medium therefore plugs into the status quo at exactly the place where
+the status quo's measured error lives (mis-anchoring), with everything downstream shared and
+byte-identical. That is the cleanest comparison this program has had.
+
+**Causality.** Mis-anchoring is now identified from three independent sides: R10's ledger
+replay, B1's evaluator instrument (17 of 31 never-noticed incidents have a background notice
+within 1 s before them), and M1's own anchoring rule, which has the mirror-image risk (it prunes
+the starting event and moves the anchor later). The mechanism is: a stray at or near the site
+opens an anomaly a fraction of a second early; the incident's burst attaches to it; the anchor
+never moves. The fix is a later re-anchor, which no public noticer makes (B2 builds one) and
+which the medium's "earliest contributing event" rule makes only if its support keeps the right
+events. M2 is, concretely, a test of two anchoring rules against one measured failure.
+
+**Time.** W1 showed one tick cannot serve burst order (20–150 ms) and the incident horizon
+(6–16 s), and that cost follows events, not ticks. The oscillome (M1b) is the structural answer;
+the all-off identity test keeps it falsifiable.
+
+**Objective.** The aim's proxy 1 is cost in disguise unless its denominator is hard decisions;
+proxy 2 has an instrument and nothing to read until a learner exists; anchor correctness is
+gameable by flooding and is sound only under a background budget. Every M2 number is therefore
+reported under a bound, and the lever the medium is asked to move (anchoring) is one the public
+arms demonstrably cannot.
+
+**Failure.** Four found this round: floods, the earlier-anchor fix degrading with lookback,
+silence not propagating in a sparse medium, and pass-limit latency. Each has a decision on
+record.
+
+**Meta: the assumption all three labs share.** Every instrument and arm defines signal by the
+public rules' "abnormal" verdict: W1 copies the rule, B1's noticers see only abnormal
+observations, and a sense adapter that tags only abnormal events would hand the medium the same
+blindness. The slow leak is benign under that rule until it crosses the alarm line, which is why
+its anchor-correct share is 0.000 for every public noticer and why R10's leak lever (0.75) is
+the largest in the program. **Decision for M2:** the sense adapter delivers every observation
+with its value, benign readings included, so that a `Novelty` or `Integrator` cell can read a
+ramp. If the medium's leak result holds, it holds because it reads what the rules discard; if
+the adapter were abnormal-only, result 2 would be unreachable by construction, which the chief
+would otherwise have discovered after the run.
+
+**Trajectory.** M1b → M2 (with B2 in parallel) → EXP-101 preregistration (noticing first,
+leak as a named secondary, δ sweep, both aim proxies) → the learned noticer against a
+never-learning control, which is the first reading of proxy 2 and the falsification test for
+the cell model's claim to sample efficiency.
+
 ## B1 the Noticer seam, notice measures, public noticing baselines — merged (Lab 2)
 
 **Provenance.** R6's held-out run replays byte-identical for all 62 arms with the seam, twice

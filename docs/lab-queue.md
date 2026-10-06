@@ -150,6 +150,38 @@ with M1 (a test); the conversion table per tick length in the report; the benchm
 the cgroup with the prices of decision 8, every measurement within 0.7–1.4 of its model; the
 workspace gates. `DESIGN.md` records every departure and restates where the analogy breaks.
 
+## B2 Notice precision, a notice-relative selection delay, and a public later re-anchor (Lab 2, after B1)
+
+B1 found the rung's noticing gap is mostly mis-anchoring onto background strays just before an
+incident (17 of 31 never-noticed incidents), that the cheapest public fix (an earlier anchor)
+makes it worse, that anchor correctness is gameable by flooding, and that the quality column is
+confounded by the rung's 6 s retirement under the selection oracle's fixed 16 s delay. B2 closes
+the instrument gaps and builds the strongest public comparator for exactly the failure the
+medium targets.
+
+1. **Evaluator** (`gordian-stream-eval`, rules N13 onward, fixtures and mutation checks as B1):
+   a **site check** (the notice's site equals the incident's site), and **notice precision** per
+   stream (notices anchored on an incident of any tier over all notices) and per tier. The
+   analysis loader gains the columns.
+2. **Selection oracle option** `hold_until_asked`: an anomaly the oracle will ask about stays
+   live until it is asked, so a noticer is not penalised for the rung's retirement. The delay
+   is tuned per noticer on the tuning seeds (10000–10099). Quality is reported both ways (fixed
+   16 s with retirement, as B1; tuned delay with the hold) so that the confound is measured,
+   not assumed. R6's held-out run must still replay byte-identical (the option is off there).
+3. **`ReanchorNoticer`**, public information only: the rung's noticer with a *later* re-anchor.
+   When an anomaly anchored on an isolated abnormal observation (no other abnormal observation
+   at its site within gap `g`) later attaches a burst that begins after the anchor, the anchor
+   moves to that burst's first observation. Parameters `g` and the burst definition are the
+   PI's; they are tuned on the tuning seeds under the background budget (≤ 9.03 background
+   notices per stream, the M2 comparator's), and the PI records every reading.
+
+**Acceptance (fixed 2026-10-06).** Byte identity on R6's held-out run; fixtures with mutation
+checks; the B1 table extended with `ReanchorNoticer`, site-correct, precision, and the two
+quality readings for every row, on the 200 held-out streams with 90% cluster-bootstrap
+intervals. No claim about which noticer is better. If `ReanchorNoticer` reaches 0.944
+anchor-correct within the budget, the chief re-fixes M2's comparator to it before any M2 run,
+and that is recorded as the public status quo closing the gap.
+
 ## M2 The medium as a noticer (Lab 1, after M1 and B1)
 
 A hand-designed noticing graph on the medium (with the oscillome of M1b), fed by the stream sense adapter, emitting notices
