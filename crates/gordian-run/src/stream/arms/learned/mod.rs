@@ -65,18 +65,25 @@
 //! support should end is a structural choice taken from M2's lookback table (a design reading,
 //! not learned); the learned part is the extent.
 //!
-//! **The ramp threshold.** The learner replays the ramp integrator of the graph (its time
-//! constant, jump band and penalty are M2's) on every counter reading, benign ones included,
-//! per counter per service, and records the peak level of each excursion. It replays it again on
-//! the same arrival times with *surrogate* steps: the step to each reading is drawn from the
-//! distribution of steps between readings of one counter at one service at least 6 s apart (a
-//! stand-in for independent readings), by the quantile of the golden-ratio sequence, so that
-//! nothing random is used. Peak levels fall in bins with lower edges 1, 1.5, 2, 2.5, 3, 3.5, 4,
-//! 5, 6. The excursions that stand above what the surrogate gives are the ones with dense,
-//! smooth readings. The estimate `θ*` is the lower edge of the lowest bin from 1.5 up such that
-//! it and every bin above it, with `observed + surrogate >= 10`, is not chance-dominated (as
-//! above, `p`). No estimate before 50 excursions (observed plus surrogate) are in the bins from
-//! 1.5 up. `θ <- (1 - s) θ + s θ*`.
+//! **The ramp threshold.** The learner replays the graph's ramp integrator (its time constant,
+//! jump band and penalty are M2's) on every counter reading, benign ones included, per counter
+//! per service, as the cells take it: the level decays, the reading adds one, and if that carries
+//! it across the threshold it fires and resets to zero; one pass later the penalty for a step
+//! above the jump band is subtracted. It replays eight integrators at once, with thresholds 1.5,
+//! 2, 2.5, 3, 3.5, 4, 5 and 6, and counts each one's firings: the notices the ramp path would
+//! make at that threshold. It replays them again on the same arrival times with *surrogate*
+//! steps: the step to each reading is drawn from the distribution of steps between readings of
+//! one counter at one service at least 6 s apart (a stand-in for independent readings), by the
+//! quantile of the golden-ratio sequence, so that nothing random is used. The firings above what
+//! the surrogate gives are the dense, smooth readings. Lowering the threshold from one candidate
+//! to the next adds that band's firings; a band is chance-dominated as above (`p`, with at least
+//! 10 firings, observed plus surrogate, to say). The estimate `θ*` is the lowest candidate such
+//! that its band and every band above it are not chance-dominated. No estimate before 50
+//! firings (observed plus surrogate) at the lowest candidate. `θ <- (1 - s) θ + s θ*`.
+//!
+//! (Amendment A1, after the first development run: the first form of this statistic counted
+//! excursions of the level by peak, not firings, and its estimate fell to the lowest candidate
+//! while the cells fired several times per excursion; the form above counts what the cells emit.)
 //!
 //! # Carry, and the controls
 //!

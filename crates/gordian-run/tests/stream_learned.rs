@@ -9,7 +9,7 @@ mod stream_common;
 use gordian_core::Instant;
 use gordian_run::stream::arms::learned::carry;
 use gordian_run::stream::arms::learned::learner::{
-    FAR_BINS, GAP_EDGES_S, Learned, NB, NP, PEAK_EDGES, Session, slot_of,
+    FAR_BINS, GAP_EDGES_S, Learned, NB, RAMP_CANDIDATES, Session, slot_of,
 };
 use gordian_run::stream::arms::learned::noticing::{LearnedNoticer, learned_spec};
 use gordian_run::stream::arms::learned::params::round_window;
@@ -154,45 +154,62 @@ fn no_window_estimate_before_enough_events() {
     assert_eq!(l.window_estimate(0.5), None);
 }
 
-#[test]
-fn the_threshold_estimate_is_the_lowest_edge_with_every_bin_above_it_beyond_chance() {
+/// Firings of the replayed integrators, cumulative by candidate (1.5, 2, 2.5, 3, 3.5, 4, 5, 6).
+fn fire_evidence(obs: [f64; 8], nul: [f64; 8]) -> Learned {
     let mut l = Learned::prior(400_000_000, 2.0);
-    // Bins 1 (1.5), 2 (2.0): chance only; bins 3 (2.5) and up: structure.
-    l.peak_obs = [900.0, 40.0, 30.0, 60.0, 50.0, 40.0, 30.0, 20.0, 10.0];
-    l.peak_nul = [800.0, 38.0, 28.0, 3.0, 1.0, 0.0, 0.0, 0.0, 0.0];
-    assert_eq!(l.threshold_estimate(0.5), Some(PEAK_EDGES[3]));
-    // Evidence in bin 1 and 2 beyond chance as well: the threshold falls to the lowest candidate.
-    l.peak_nul[1] = 5.0;
-    l.peak_nul[2] = 5.0;
-    assert_eq!(l.threshold_estimate(0.5), Some(PEAK_EDGES[1]));
-    // A chance-dominated bin high up stops the scan there.
-    l.peak_nul[5] = 40.0;
-    l.peak_obs[5] = 40.0;
-    assert_eq!(l.threshold_estimate(0.5), Some(PEAK_EDGES[6]));
+    l.fire_obs = obs;
+    l.fire_nul = nul;
+    l
+}
+
+#[test]
+fn the_threshold_estimate_is_the_lowest_candidate_with_every_band_above_it_beyond_chance() {
+    // Bands (firings gained by lowering the threshold one candidate), from the top: 5, 15, 60, 70,
+    // 100, 150 with surrogate 0, 0, 0, 0, 1, 4; then 200 with 195 (chance-dominated) and 600 with 600.
+    let obs = [1200.0, 600.0, 400.0, 250.0, 150.0, 80.0, 20.0, 5.0];
+    let nul = [800.0, 200.0, 5.0, 1.0, 0.0, 0.0, 0.0, 0.0];
+    let l = fire_evidence(obs, nul);
+    assert_eq!(l.threshold_estimate(0.5), Some(RAMP_CANDIDATES[2]));
+    // Band 2.0 is beyond chance too (20 surrogate of 200): the threshold falls to 2.
+    let mut m = l.clone();
+    m.fire_nul[1] = 20.0;
+    m.fire_nul[0] = 800.0;
+    assert_eq!(m.threshold_estimate(0.5), Some(RAMP_CANDIDATES[1]));
+    // Every band beyond chance: the lowest candidate.
+    let mut n = l.clone();
+    n.fire_nul = [10.0, 8.0, 5.0, 1.0, 0.0, 0.0, 0.0, 0.0];
+    assert_eq!(n.threshold_estimate(0.5), Some(RAMP_CANDIDATES[0]));
+    // A chance-dominated band high up (3.5: 70 observed, 60 surrogate) stops the scan there.
+    let mut h = l.clone();
+    h.fire_nul[4] = 60.0;
+    assert_eq!(h.threshold_estimate(0.5), Some(RAMP_CANDIDATES[5]));
+    // A higher precision bar: band 2.5 is 150 observed with 4 surrogate, which clears 0.97 and
+    // not 0.99.
+    assert_eq!(l.threshold_estimate(0.97), Some(RAMP_CANDIDATES[2]));
+    assert_eq!(l.threshold_estimate(0.99), Some(RAMP_CANDIDATES[3]));
     // Too little evidence: no estimate.
-    let mut thin = Learned::prior(400_000_000, 2.0);
-    thin.peak_obs[3] = 20.0;
+    let thin = fire_evidence([20.0, 10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0], [10.0; 8]);
     assert_eq!(thin.threshold_estimate(0.5), None);
 }
 
 #[test]
 fn an_update_moves_a_share_of_the_way_in_log_space_for_the_window_and_linearly_for_the_threshold() {
     let mut l = gap_evidence(7, 300.0);
-    l.peak_obs = [900.0, 40.0, 30.0, 60.0, 50.0, 40.0, 30.0, 20.0, 10.0];
-    l.peak_nul = [800.0, 38.0, 28.0, 3.0, 1.0, 0.0, 0.0, 0.0, 0.0];
+    l.fire_obs = [1200.0, 600.0, 400.0, 250.0, 150.0, 80.0, 20.0, 5.0];
+    l.fire_nul = [800.0, 200.0, 5.0, 1.0, 0.0, 0.0, 0.0, 0.0];
     let (w0, t0) = (l.window_ns, l.ramp_threshold);
     assert!(l.update(0.25, 0.5));
     let w_star = GAP_EDGES_S[7] * 1e9;
     let want_w = ((0.75 * w0.ln()) + 0.25 * w_star.ln()).exp();
     assert!((l.window_ns - want_w).abs() < 1e-6 * want_w);
-    let want_t = 0.75 * t0 + 0.25 * PEAK_EDGES[3];
+    let want_t = 0.75 * t0 + 0.25 * RAMP_CANDIDATES[2];
     assert!((l.ramp_threshold - want_t).abs() < 1e-12);
     // Repeated updates converge to the supported values and stop moving them.
     for _ in 0..200 {
         l.update(0.25, 0.5);
     }
     assert!((l.window_ns - w_star).abs() < 1.0);
-    assert!((l.ramp_threshold - PEAK_EDGES[3]).abs() < 1e-9);
+    assert!((l.ramp_threshold - RAMP_CANDIDATES[2]).abs() < 1e-9);
     assert_eq!(l.boundaries, 201);
     // A step of 1 jumps.
     let mut j = gap_evidence(7, 300.0);
@@ -273,7 +290,7 @@ fn nothing_after_the_boundary_is_absorbed_before_it() {
 }
 
 #[test]
-fn smooth_dense_readings_peak_above_what_surrogate_steps_give() {
+fn smooth_dense_readings_fire_a_replayed_integrator_where_surrogate_steps_do_not() {
     let services = services_of(0);
     let mut s = Session::new(services.len(), 4.0, 10.0, 3.0, 100, 30.0);
     let mut l = Learned::prior(400_000_000, 2.0);
@@ -310,12 +327,13 @@ fn smooth_dense_readings_peak_above_what_surrogate_steps_give() {
     s.process_until(&mut l, 1.0e4);
     assert!(l.far.iter().sum::<f64>() > 100.0, "far steps were counted");
     assert_eq!(l.far.len(), FAR_BINS);
-    // The ramp's excursion peaked at about 4 readings (tau 4 s, a reading a second).
-    let high: f64 = l.peak_obs[3..].iter().sum();
-    assert!(high >= 1.0, "peaks {:?}", l.peak_obs);
-    let surrogate_high: f64 = l.peak_nul[3..].iter().sum();
-    assert_eq!(surrogate_high, 0.0, "surrogate {:?}", l.peak_nul);
-    assert_eq!(l.peak_obs.len(), NP);
+    // The ramp (a reading a second, steps of 4, tau 4 s) takes the integrator across 2.5 and 3
+    // within five readings, so the replay fires at those thresholds; surrogate steps (broad, far
+    // beyond the jump band) never get it there.
+    assert!(l.fire_obs[2] >= 1.0, "firings {:?}", l.fire_obs);
+    assert!(l.fire_obs[3] >= 1.0, "firings {:?}", l.fire_obs);
+    assert_eq!(l.fire_nul[2], 0.0, "surrogate {:?}", l.fire_nul);
+    assert_eq!(l.fire_nul[3], 0.0, "surrogate {:?}", l.fire_nul);
 }
 
 // ---- the transplant
@@ -571,7 +589,7 @@ fn learned_trajectory() {
     };
     carry::reset(p.state_key);
     let mut text = String::from(
-        "seed,notices,window_ms,ramp_threshold,boundaries,window_updates,threshold_updates,swaps,swap_errors,learner_ops,gap_obs_top,gap_nul_top,peak_obs_hi,peak_nul_hi,window_estimate_ms,threshold_estimate\n",
+        "seed,notices,ramp_proposals,burst_proposals,window_ms,ramp_threshold,boundaries,window_updates,threshold_updates,swaps,swap_errors,learner_ops,gap_obs_top,gap_nul_top,fire_obs_25,fire_nul_25,window_estimate_ms,threshold_estimate\n",
     );
     for seed in first..first + count {
         let sp = gordian_stream::StreamParams::new(seed);
@@ -582,8 +600,10 @@ fn learned_trajectory() {
         let st = n.stats();
         writeln!(
             text,
-            "{seed},{},{:.4},{:.4},{},{},{},{},{},{},{},{:.1},{},{:.1},{},{}",
+            "{seed},{},{},{},{:.4},{:.4},{},{},{},{},{},{},{},{:.1},{},{:.1},{},{}",
             notices.len(),
+            st.ramp_proposals,
+            st.notice_proposals - st.ramp_proposals,
             l.window_ns / 1e6,
             l.ramp_threshold,
             l.boundaries,
@@ -594,8 +614,8 @@ fn learned_trajectory() {
             n.learner_ops_total(),
             l.gap_obs[NB - 1],
             l.gap_nul[NB - 1],
-            l.peak_obs[3..].iter().sum::<f64>(),
-            l.peak_nul[3..].iter().sum::<f64>(),
+            l.fire_obs[2],
+            l.fire_nul[2],
             l.window_estimate(f64::from(p.min_precision))
                 .map_or(String::new(), |w| format!("{:.1}", w * 1e3)),
             l.threshold_estimate(f64::from(p.min_precision))

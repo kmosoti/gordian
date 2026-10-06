@@ -61,6 +61,8 @@ pub struct LearnedStats {
     pub duplicate_notices: u64,
     /// Of those, the ones whose anchor was no longer held.
     pub lost_anchors: u64,
+    /// Of the notice proposals, the ones made by a ramp emitter.
+    pub ramp_proposals: u64,
     /// Proposals of kind retire.
     pub retire_proposals: u64,
     /// Ticks the medium refused (a defect: should be none).
@@ -346,6 +348,9 @@ impl LearnedNoticer {
             match p.kind {
                 KIND_NOTICE => {
                     self.stats.notice_proposals += 1;
+                    if self.layout.ramp_notice.contains(&p.cell) {
+                        self.stats.ramp_proposals += 1;
+                    }
                     let anchor = ObsId(p.anchor.seq);
                     if self.anomalies.iter().any(|a| a.anchor == anchor) {
                         self.stats.duplicate_notices += 1;

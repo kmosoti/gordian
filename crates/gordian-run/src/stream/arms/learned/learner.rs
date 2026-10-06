@@ -37,10 +37,10 @@ pub const GAP_EDGES_NS: [u64; NB] = [
 ];
 /// Number of gap bins.
 pub const NB: usize = 18;
-/// Lower edges of the peak-level bins of the ramp statistic, in readings; the last bin is open.
-pub const PEAK_EDGES: [f64; NP] = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0];
-/// Number of peak-level bins.
-pub const NP: usize = 9;
+/// The candidate ramp thresholds, in readings, lowest first.
+pub const RAMP_CANDIDATES: [f64; NC] = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0];
+/// Number of candidate thresholds.
+pub const NC: usize = 8;
 /// Number of bins of the step distribution of readings far apart in time (whole units 0 to 100).
 pub const FAR_BINS: usize = 101;
 /// Two readings of one counter at one service at least this far apart (seconds) are read as
@@ -50,11 +50,10 @@ pub const FAR_GAP_S: f64 = 6.0;
 pub const MIN_GAP_EVIDENCE: f64 = 200.0;
 /// Fewest observed plus expected events in a bin for its test to be decisive.
 pub const MIN_GAP_BIN: f64 = 20.0;
-/// Least peak-level episodes (observed plus expected, from the second bin up) before the
-/// threshold moves.
-pub const MIN_PEAK_EVIDENCE: f64 = 50.0;
-/// Fewest observed plus expected episodes in a peak bin for its test to be decisive.
-pub const MIN_PEAK_BIN: f64 = 10.0;
+/// Least firings (observed plus surrogate) at the lowest candidate before the threshold moves.
+pub const MIN_RAMP_EVIDENCE: f64 = 50.0;
+/// Fewest observed plus surrogate firings in a candidate's band for its test to be decisive.
+pub const MIN_RAMP_BIN: f64 = 10.0;
 /// The floor of the replayed integrator's level.
 const LEVEL_FLOOR: f64 = -50.0;
 /// The golden ratio's fractional part, the step of the low-discrepancy sequence that draws the
@@ -98,10 +97,10 @@ pub struct Learned {
     /// Step sizes between consecutive readings of one counter at one service at least
     /// `FAR_GAP_S` apart.
     pub far: [f64; FAR_BINS],
-    /// Ramp-integrator excursions by peak level.
-    pub peak_obs: [f64; NP],
+    /// Firings of a replayed ramp integrator with threshold `RAMP_CANDIDATES[c]`, reset on firing.
+    pub fire_obs: [f64; NC],
     /// The same on surrogate steps drawn from `far`.
-    pub peak_nul: [f64; NP],
+    pub fire_nul: [f64; NC],
     /// Boundaries seen.
     pub boundaries: u64,
     /// Segments begun.
@@ -123,8 +122,8 @@ impl Learned {
             slot_events: [0.0; 4],
             node_seconds: 0.0,
             far: [0.0; FAR_BINS],
-            peak_obs: [0.0; NP],
-            peak_nul: [0.0; NP],
+            fire_obs: [0.0; NC],
+            fire_nul: [0.0; NC],
             boundaries: 0,
             segments: 0,
             window_updates: 0,
@@ -154,21 +153,27 @@ impl Learned {
         Some(GAP_EDGES_S[last])
     }
 
-    /// The ramp threshold the evidence supports: the lower edge of the lowest peak bin such that
-    /// that bin and every bin above it, with enough episodes to say, has more than `min_precision`
-    /// of its episodes beyond what surrogate steps give. `None` before enough evidence.
+    /// The ramp threshold the evidence supports. The firings at candidate `c` are those of a
+    /// replayed integrator with that threshold; lowering the threshold from candidate `c + 1` to
+    /// `c` adds the band's firings, `fire[c] - fire[c + 1]` (the top candidate's band is all its
+    /// firings). The estimate is the lowest candidate such that its band and every band above it,
+    /// with enough firings to say, has more than `min_precision` of its firings beyond what
+    /// surrogate steps give. `None` before enough evidence.
     pub fn threshold_estimate(&self, min_precision: f64) -> Option<f64> {
-        let total: f64 = (1..NP).map(|i| self.peak_obs[i] + self.peak_nul[i]).sum();
-        if total < MIN_PEAK_EVIDENCE {
+        if self.fire_obs[0] + self.fire_nul[0] < MIN_RAMP_EVIDENCE {
             return None;
         }
-        let mut th = PEAK_EDGES[NP - 1];
-        for i in (1..NP).rev() {
-            let (o, n) = (self.peak_obs[i], self.peak_nul[i]);
-            if o + n >= MIN_PEAK_BIN && n > (1.0 - min_precision) * o {
+        let mut th = RAMP_CANDIDATES[NC - 1];
+        for c in (0..NC).rev() {
+            let (mut o, mut n) = (self.fire_obs[c], self.fire_nul[c]);
+            if c + 1 < NC {
+                o -= self.fire_obs[c + 1];
+                n -= self.fire_nul[c + 1];
+            }
+            if o + n >= MIN_RAMP_BIN && n > (1.0 - min_precision) * o {
                 break;
             }
-            th = PEAK_EDGES[i];
+            th = RAMP_CANDIDATES[c];
         }
         Some(th)
     }
@@ -209,17 +214,15 @@ struct Item {
     abnormal_slot: Option<usize>,
 }
 
-/// One counter at one service: the last reading and the replayed ramp integrator (and its
-/// surrogate).
+/// One counter at one service: the last reading and the replayed ramp integrators (one per
+/// candidate threshold, and the same on surrogate steps).
 #[derive(Debug, Clone, Copy, Default)]
 struct Series {
     seen: bool,
     last_t: f64,
     last_v: f64,
-    level: f64,
-    peak: f64,
-    s_level: f64,
-    s_peak: f64,
+    level: [f64; NC],
+    s_level: [f64; NC],
     s_idx: u64,
 }
 
@@ -309,7 +312,7 @@ impl Session {
                 self.absorb(learned, item);
             }
         }
-        self.ops += (NB + NP + FAR_BINS) as u64;
+        self.ops += (NB + NC + FAR_BINS) as u64;
     }
 
     fn refresh_cdf(&mut self, learned: &Learned) {
@@ -347,7 +350,7 @@ impl Session {
     }
 
     fn ramp(&mut self, st: &mut Learned, node: usize, c: usize, t: f64, v: f64) {
-        self.ops += 12;
+        self.ops += (4 * NC) as u64;
         let (tau, jump, pen) = (self.tau_s, self.jump, self.penalty_per_unit);
         let mut s = self.series[node][c];
         let (decay, dev, sdev) = if s.seen {
@@ -362,24 +365,8 @@ impl Session {
         } else {
             (0.0, 0.0, 0.0)
         };
-        step_level(
-            &mut s.level,
-            &mut s.peak,
-            &mut st.peak_obs,
-            decay,
-            dev,
-            jump,
-            pen,
-        );
-        step_level(
-            &mut s.s_level,
-            &mut s.s_peak,
-            &mut st.peak_nul,
-            decay,
-            sdev,
-            jump,
-            pen,
-        );
+        step_levels(&mut s.level, &mut st.fire_obs, decay, dev, jump, pen);
+        step_levels(&mut s.s_level, &mut st.fire_nul, decay, sdev, jump, pen);
         s.seen = true;
         s.last_t = t;
         s.last_v = v;
@@ -430,41 +417,29 @@ impl Session {
     }
 }
 
-/// One reading of a replayed integrator: decay, close an excursion that has fallen away, add the
-/// reading, subtract the penalty for a large step, record the peak of an excursion that has
-/// ended.
-fn step_level(
-    level: &mut f64,
-    peak: &mut f64,
-    hist: &mut [f64; NP],
+/// One reading of the replayed integrators, as the graph's cells take it: the level decays, the
+/// reading adds one and the integrator fires if that carries it across its threshold (and then
+/// resets to zero), and only afterwards, one pass later in the graph, the penalty for a large
+/// step is subtracted.
+fn step_levels(
+    levels: &mut [f64; NC],
+    fires: &mut [f64; NC],
     decay: f64,
     dev: f64,
     jump: f64,
     penalty_per_unit: f64,
 ) {
-    *level *= decay;
-    if *level < 0.5 && *peak > 0.0 {
-        record(hist, *peak);
-        *peak = 0.0;
+    for (c, level) in levels.iter_mut().enumerate() {
+        let decayed = *level * decay;
+        let raised = decayed + 1.0;
+        *level = if decayed < RAMP_CANDIDATES[c] && raised >= RAMP_CANDIDATES[c] {
+            fires[c] += 1.0;
+            0.0
+        } else {
+            raised
+        };
+        if dev > jump {
+            *level = (*level - penalty_per_unit * dev).max(LEVEL_FLOOR);
+        }
     }
-    *level += 1.0;
-    if dev > jump {
-        *level -= penalty_per_unit * dev;
-    }
-    *level = level.max(LEVEL_FLOOR);
-    if *level > *peak {
-        *peak = *level;
-    }
-    if *level < 0.5 && *peak > 0.0 {
-        record(hist, *peak);
-        *peak = 0.0;
-    }
-}
-
-fn record(hist: &mut [f64; NP], peak: f64) {
-    if peak < PEAK_EDGES[0] {
-        return;
-    }
-    let i = PEAK_EDGES.iter().rposition(|e| *e <= peak).unwrap_or(0);
-    hist[i] += 1.0;
 }
