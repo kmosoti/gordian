@@ -159,7 +159,10 @@ fn every_error_says_what_it_is_and_where() {
         anomaly: 7,
     }
     .to_string();
-    assert!(text.contains('4') && text.contains('7') && text.contains("retirement"), "{text}");
+    assert!(
+        text.contains('4') && text.contains('7') && text.contains("retirement"),
+        "{text}"
+    );
 }
 
 #[test]

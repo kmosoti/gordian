@@ -146,7 +146,10 @@ fn the_default_noticer_is_the_rungs_and_is_never_written_to_a_manifest() {
     assert_eq!(back, m);
     // A rung built from it notices as the rung does.
     let public = public_of(&params(0, 150));
-    assert_eq!(Rung::new(&public, RungConfig::default()).noticer_id(), "rung");
+    assert_eq!(
+        Rung::new(&public, RungConfig::default()).noticer_id(),
+        "rung"
+    );
 }
 
 #[test]
@@ -182,7 +185,8 @@ fn a_noticer_is_written_and_read_as_an_object_tagged_by_its_name() {
 }
 
 #[test]
-fn a_manifest_gives_a_noticer_to_an_arm_that_exists_and_each_arms_own_manifest_keeps_only_its_own() {
+fn a_manifest_gives_a_noticer_to_an_arm_that_exists_and_each_arms_own_manifest_keeps_only_its_own()
+{
     let mut m = all_arms("noticer-map", 1, 150, 0);
     m.noticers
         .insert("never_escalate".to_owned(), spec_change(8));
@@ -197,10 +201,14 @@ fn a_manifest_gives_a_noticer_to_an_arm_that_exists_and_each_arms_own_manifest_k
     // The arm's own manifest carries its noticer, another arm's carries none.
     assert_eq!(m.single_arm(0).noticers.len(), 1);
     assert!(m.single_arm(1).noticers.is_empty());
-    assert_eq!(m.single_arm(0).rung_for(&m.single_arm(0).arms[0]).noticer, spec_change(8));
+    assert_eq!(
+        m.single_arm(0).rung_for(&m.single_arm(0).arms[0]).noticer,
+        spec_change(8)
+    );
     // An arm that is not in the manifest, or a noticer with a bad parameter, is refused.
     let mut bad = m.clone();
-    bad.noticers.insert("no_such_arm".to_owned(), spec_change(8));
+    bad.noticers
+        .insert("no_such_arm".to_owned(), spec_change(8));
     assert!(bad.validate().unwrap_err().contains("not an arm"));
     let mut bad = m.clone();
     bad.noticers.insert(
@@ -221,11 +229,24 @@ fn the_rung_noticer_at_a_lower_threshold_notices_a_smaller_burst() {
     let four = &burst(site, 9_800)[..4];
     let mut default = Feed::new(&public, NoticerSpec::default());
     default.step(10 * S, four);
-    assert!(default.notices().is_empty(), "four observations are below z = 3");
-    let mut z2 = Feed::new(&public, NoticerSpec::Rung { notice_z: Some(2.0) });
+    assert!(
+        default.notices().is_empty(),
+        "four observations are below z = 3"
+    );
+    let mut z2 = Feed::new(
+        &public,
+        NoticerSpec::Rung {
+            notice_z: Some(2.0),
+        },
+    );
     z2.step(10 * S, four);
     assert_eq!(z2.notices().len(), 1, "four observations cross z = 2");
-    let mut z3 = Feed::new(&public, NoticerSpec::Rung { notice_z: Some(3.0) });
+    let mut z3 = Feed::new(
+        &public,
+        NoticerSpec::Rung {
+            notice_z: Some(3.0),
+        },
+    );
     z3.step(10 * S, four);
     assert!(z3.notices().is_empty(), "an explicit 3.0 is the default");
     assert_eq!(z2.rung.noticer_id(), "rung");
@@ -249,12 +270,20 @@ fn change_triggered_notices_the_first_abnormal_observation_at_a_quiet_node_and_a
     assert_eq!(notices.len(), 1, "{notices:?}");
     assert_eq!(notices[0].1, ids[0], "anchored on the first");
     assert_eq!(notices[0].2, at(S));
-    assert_eq!(notices[0].3, at(2 * S), "noticed at the step that delivered it");
+    assert_eq!(
+        notices[0].3,
+        at(2 * S),
+        "noticed at the step that delivered it"
+    );
     let views = feed.rung.views(at(2 * S));
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].site, site);
     assert_eq!(views[0].anchor, ids[0]);
-    assert_eq!(feed.rung.attached(views[0].id).len(), 2, "the second joined it");
+    assert_eq!(
+        feed.rung.attached(views[0].id).len(),
+        2,
+        "the second joined it"
+    );
     assert_eq!(feed.rung.noticer_id(), "change_triggered");
 }
 
@@ -271,10 +300,21 @@ fn change_triggered_needs_a_benign_observation_to_be_ignored_and_the_quiet_perio
     // One millisecond short of the quiet period since the last abnormal observation (at 1 s):
     // not a notice.
     feed.step(11 * S, &[(10_999, counter(site, CounterName::Latency, 90))]);
-    assert_eq!(feed.notices().len(), 1, "10.999 s after the last is not quiet enough");
+    assert_eq!(
+        feed.notices().len(),
+        1,
+        "10.999 s after the last is not quiet enough"
+    );
     // Exactly the quiet period after the last abnormal observation (at 10.999 s): a notice.
-    feed.step(22 * S, &[(20_999, counter(site, CounterName::Saturation, 90))]);
-    assert_eq!(feed.notices().len(), 2, "a quiet period of exactly q is quiet");
+    feed.step(
+        22 * S,
+        &[(20_999, counter(site, CounterName::Saturation, 90))],
+    );
+    assert_eq!(
+        feed.notices().len(),
+        2,
+        "a quiet period of exactly q is quiet"
+    );
     let n = feed.notices();
     assert_eq!(n[1].2, at(20_999));
 }
@@ -306,7 +346,11 @@ fn change_triggered_retires_a_quiet_anomaly_and_records_it() {
     feed.step(2 * S, &[(S, counter(site, CounterName::ErrorRate, 90))]);
     let id = feed.rung.views(at(2 * S))[0].id;
     assert!(feed.rung.quiet(at(6 * S)).is_empty());
-    assert_eq!(feed.rung.quiet(at(7 * S)), vec![id], "6 s after its last abnormal observation");
+    assert_eq!(
+        feed.rung.quiet(at(7 * S)),
+        vec![id],
+        "6 s after its last abnormal observation"
+    );
     feed.rung.retire(id);
     let log = feed.rung.notice_log();
     assert_eq!(log.len(), 2);
@@ -336,13 +380,19 @@ fn earliest_anchor_moves_the_anchor_to_the_earliest_abnormal_observation_at_the_
     let ids = stray_then_burst(&mut early, site, 8_300);
     let n = early.notices();
     assert_eq!(n.len(), 1);
-    assert_eq!(n[0].1, ids[0], "anchored on the earlier observation at the site");
+    assert_eq!(
+        n[0].1, ids[0],
+        "anchored on the earlier observation at the site"
+    );
     assert_eq!(n[0].2, at(8_300));
     let view = early.rung.views(at(10 * S)).remove(0);
     assert_eq!(view.anchor, ids[0]);
     assert_eq!(view.site, site);
     let attached = early.rung.attached(view.id);
-    assert_eq!(attached[0].1, ids[0], "the anchor is the first attached observation");
+    assert_eq!(
+        attached[0].1, ids[0],
+        "the anchor is the first attached observation"
+    );
     assert_eq!(attached.len(), 6, "the stray and the five of the burst");
     assert_eq!(early.rung.noticer_id(), "earliest_anchor");
 }
@@ -386,7 +436,10 @@ fn earliest_anchor_only_moves_to_abnormal_observations_at_the_site() {
     let ids = feed.step(10 * S, &obs);
     let n = feed.notices();
     assert_eq!(n.len(), 1);
-    assert_eq!(n[0].1, ids[2], "the burst's first observation stays the anchor");
+    assert_eq!(
+        n[0].1, ids[2],
+        "the burst's first observation stays the anchor"
+    );
 }
 
 // ---- the record, in whole segments
@@ -419,14 +472,19 @@ fn a_segment_records_every_notice_and_the_evaluator_scores_them() {
             t.notices
         );
         assert_eq!(record.notices.per_notice.len(), notices);
-        assert_eq!(record.notices.per_incident.len(), record.verdict.per_incident.len());
         assert_eq!(
-            t.retirements as usize,
-            record.notice_log.len() - notices
+            record.notices.per_incident.len(),
+            record.verdict.per_incident.len()
         );
+        assert_eq!(t.retirements as usize, record.notice_log.len() - notices);
         assert!(record.notice_log.iter().all(|e| e.noticer == noticer.id()));
         // The evaluator's tier of each incident is the stream verdict's.
-        for (n, v) in record.notices.per_incident.iter().zip(&record.verdict.per_incident) {
+        for (n, v) in record
+            .notices
+            .per_incident
+            .iter()
+            .zip(&record.verdict.per_incident)
+        {
             assert_eq!((n.id, n.tier), (v.id, v.tier));
         }
     }
@@ -442,10 +500,15 @@ fn a_noticer_changes_what_is_noticed_and_nothing_the_record_does_not_hold() {
         &p,
         &spec,
         &l,
-        &rung_with(NoticerSpec::Rung { notice_z: Some(3.0) }),
+        &rung_with(NoticerSpec::Rung {
+            notice_z: Some(3.0),
+        }),
     )
     .unwrap();
-    assert_eq!(rung.notice_log, explicit.notice_log, "an explicit default is the default");
+    assert_eq!(
+        rung.notice_log, explicit.notice_log,
+        "an explicit default is the default"
+    );
     assert_eq!(rung.verdict, explicit.verdict);
     let change = play_with_rung(&p, &spec, &l, &rung_with(spec_change(2))).unwrap();
     assert!(
@@ -492,7 +555,10 @@ fn run(m: &StreamManifest, name: &str) -> std::path::PathBuf {
 fn the_run_writes_the_notice_files_beside_files_the_noticer_does_not_touch() {
     let mut m = manifest(
         "noticer-files",
-        &[("never_escalate", "never_escalate"), ("always_escalate", "always_escalate")],
+        &[
+            ("never_escalate", "never_escalate"),
+            ("always_escalate", "always_escalate"),
+        ],
         2,
         200,
         3,
@@ -527,7 +593,10 @@ fn the_run_writes_the_notice_files_beside_files_the_noticer_does_not_touch() {
     assert_eq!(cell(&b, 0, "noticer"), "change_triggered");
     let arm_manifest: Value =
         serde_json::from_str(&read(&with.join("never_escalate"), "manifest.json")).unwrap();
-    assert_eq!(arm_manifest["noticers"]["never_escalate"]["noticer"], "change_triggered");
+    assert_eq!(
+        arm_manifest["noticers"]["never_escalate"]["noticer"],
+        "change_triggered"
+    );
     // The files of the arm's declarations are the arm's, whatever it noticed with: the columns of
     // results.csv are the old ones.
     let header = read(&with.join("never_escalate"), "results.csv");
@@ -538,7 +607,13 @@ fn the_run_writes_the_notice_files_beside_files_the_noticer_does_not_touch() {
 
 #[test]
 fn the_notice_files_have_their_columns_and_add_up() {
-    let m = manifest("noticer-cols", &[("never_escalate", "never_escalate")], 3, 200, 5);
+    let m = manifest(
+        "noticer-cols",
+        &[("never_escalate", "never_escalate")],
+        3,
+        200,
+        5,
+    );
     let out = run(&m, "noticer-cols");
     let dir = out.join("never_escalate");
     let notices = read(&dir, "notices.csv");
@@ -554,7 +629,11 @@ fn the_notice_files_have_their_columns_and_add_up() {
     // One row per incident, keyed as incidents.csv is.
     assert_eq!(incidents.lines().count(), inc_all.lines().count());
     let key = |csv: &str, i: usize| -> (String, String, String) {
-        (cell(csv, i, "seed"), cell(csv, i, "incident"), cell(csv, i, "tier"))
+        (
+            cell(csv, i, "seed"),
+            cell(csv, i, "incident"),
+            cell(csv, i, "tier"),
+        )
     };
     for i in 0..incidents.lines().count() - 1 {
         assert_eq!(key(&incidents, i), key(&inc_all, i));
@@ -573,15 +652,22 @@ fn the_notice_files_have_their_columns_and_add_up() {
         let noticed = |tier: &str| {
             mine.iter()
                 .filter(|i| {
-                    cell(&incidents, **i, "tier") == tier && cell(&incidents, **i, "noticed") == "true"
+                    cell(&incidents, **i, "tier") == tier
+                        && cell(&incidents, **i, "noticed") == "true"
                 })
                 .count() as u32
         };
         let total: u32 = cell(&notices, s, "notices").parse().unwrap();
         let bg: u32 = cell(&notices, s, "notices_on_background").parse().unwrap();
         assert_eq!(sum("notices") + bg, total);
-        assert_eq!(noticed("hard"), cell(&notices, s, "noticed_hard").parse::<u32>().unwrap());
-        assert_eq!(noticed("plain"), cell(&notices, s, "noticed_plain").parse::<u32>().unwrap());
+        assert_eq!(
+            noticed("hard"),
+            cell(&notices, s, "noticed_hard").parse::<u32>().unwrap()
+        );
+        assert_eq!(
+            noticed("plain"),
+            cell(&notices, s, "noticed_plain").parse::<u32>().unwrap()
+        );
         assert_eq!(
             cell(&notices, s, "notices"),
             cell(&results, s, "anomalies_noticed"),
@@ -619,14 +705,21 @@ fn the_notice_files_have_their_columns_and_add_up() {
             _ => assert!(incident.is_empty() && correct.is_empty()),
         }
     }
-    assert!(with_incident > 0, "a 200 s stream has an incident the rung notices");
+    assert!(
+        with_incident > 0,
+        "a 200 s stream has an incident the rung notices"
+    );
 }
 
 #[test]
 fn the_notice_files_are_byte_identical_on_replay() {
     let mut m = manifest(
         "noticer-replay",
-        &[("a", "never_escalate"), ("b", "never_escalate"), ("c", "never_escalate")],
+        &[
+            ("a", "never_escalate"),
+            ("b", "never_escalate"),
+            ("c", "never_escalate"),
+        ],
         2,
         200,
         9,
@@ -645,7 +738,4 @@ fn the_notice_files_are_byte_identical_on_replay() {
     // Arms that differ only in noticer have the same stream and different records.
     assert_ne!(by_noticer["a"], by_noticer["b"]);
     assert_ne!(by_noticer["a"], by_noticer["c"]);
-    for file in ["results.csv"] {
-        let _ = file; // results.csv differs only in what the noticer changes, which the gate pins.
-    }
 }

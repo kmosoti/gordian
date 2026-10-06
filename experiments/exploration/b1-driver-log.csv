@@ -1,0 +1,5 @@
+run_id,driver_exit,wall_s,waits
+xcheck-r6-heldout-b5-rho0.7,0,252,0
+b1-tune-b5-rho0.7,0,60,0
+b1-heldout-b5-rho0.7,13,0,4
+b1-heldout-b5-rho0.7,0,121,4
