@@ -33,7 +33,7 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | running |
 | M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | queued |
 | L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | queued |
-| M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | running |
+| M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 
 ## M1 The medium crate (Lab 1)
 

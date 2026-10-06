@@ -4,6 +4,96 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## M2 the medium as a noticer — merged (Lab 1); both results hold at 100 ms, not at 500 ms or 2 s
+
+**Provenance.** The graph was frozen at `c5bcb11` before any held-out run; the comparator
+re-fix reached the lab after two tuning stages and before any held-out run, and the lab retuned
+to the new budget. R6's held-out run replays byte-identical for all 62 arms with the medium
+wired in (chief's hashes). `ReanchorNoticer`, rerun in the lab's held-out run, reproduces B2
+exactly. The medium's bill charge equals an exact replay at every tick length. One driver
+refusal (a wrong manifest path), nothing ran. Gates on exit codes on the merged tree: fmt,
+clippy `--locked`, 731 Rust tests, the oracle guard, 389 analysis tests. Outputs in
+`artifacts/runs/m2/` (ignored).
+
+**Re-verified from the per-incident notice files, all 17 arms, paired against the re-anchor**
+(chief's own cluster bootstrap):
+
+| Tick | Result 1: anchor-correct | Result 2: leak noticed | Background / stream (bound 6.82) |
+|---|---|---|---|
+| 100 ms | 0.992 vs 0.952, +0.040 [+0.021, +0.060], holds | 0.993 vs 0.460, +0.532 [+0.462, +0.603], holds | 5.44 |
+| 500 ms | +0.030 [+0.010, +0.050], not shown (0.0004 under the margin) | +0.525, holds | 5.33 |
+| 2 s | −0.043 [−0.075, −0.011], worse | +0.540, holds | 4.29 |
+
+All match the lab's report. **Verdict as written: both results hold at the best tick length,
+100 ms, with the sweep shown.** At 100 ms the medium anchors correctly all 18 incidents the
+re-anchor misses and misses 3 the re-anchor gets right; none is wrong for both.
+
+**Adversarial reading, and what survived it.**
+
+- **Hidden knowledge.** `graph.rs` and `noticing.rs` name no family, vocabulary or hidden
+  timing; the guard passes; the lab did not read the hidden record and designed from public
+  dumps of the tuning streams and the evaluator's notice files on them. The constants (a 20 ms
+  coincidence, 100 ms ticks) were tuned against evaluator measures on tuning streams, the same
+  route B2's gap took. Accepted, stated.
+- **Edge of the tuning budget.** The 100 ms selection sat at 5.58 against a tuning budget of
+  5.6, with a tie-break reading added after the tuning tables. On the held-out streams it sits
+  at 5.44 against 6.82, well inside. Accepted.
+- **Hooks outside the territory**: a `Medium` variant in the seam, passthroughs, and a billing
+  hook, all inert for other noticers (the byte identity shows it). Accepted.
+- **Not done:** mutation testing of the M2 code. Queued into the next medium unit.
+
+**What it means (mechanism, failure, time, objective).**
+
+- **The medium wins by reading inside the tick.** The rung family scores an 8 s window and then
+  re-anchors; the medium fires on two or three kinds of abnormal observation at one service
+  within 20 ms, read from `offset_ns` by the ordered coincidence, with a lookback of zero that
+  cuts its support at the tick edge. A stray just before a burst stays out unless it shares the
+  burst's tick: rare at 100 ms (it wins), common at 2 s (it loses 31 incidents). The lookback
+  table is the same mechanism in one variable: 0.992 at 0, 0.930 at 1 s. **The anchoring rule
+  M1 built works when the support is short, and the tick is the support's floor.** Sub-tick
+  pruning of the support is the obvious next medium unit (M3).
+- **The ordered coincidence earned its place at every tick length**, as the M1b PI predicted:
+  it buys background, not recall (the sliding form anchors as well but breaks the bound: 14.7,
+  30.3, 22.7 per stream). The binned-by-rhythm form lost (0.976 at 8.59). Phase gates and
+  oscillators found no role in this world; the result says nothing about them.
+- **The leak.** The medium notices 0.993 of leaks (comparator 0.460) and anchors 0.554 of them
+  at their start (every public noticer: 0.000), with a median latency of 9.8 s against 14.2 s.
+- **The chief's synthesis premise was wrong, and the control shows it.** I wrote that an
+  abnormal-only sense adapter would make result 2 unreachable by construction. The
+  abnormal-only medium notices 1.000 of leaks: the ramp continues above the alarm line as dense,
+  smooth readings, and the detector finds it there. Reading benign values buys anchoring the leak
+  at its start and about 9 s of latency, not noticing. Result 2 tests the ramp detector, not the
+  reading of benign values. Recorded as a coordinator error of reasoning (the fifth): I
+  deduced a construction from the rules without checking what the rules leave above the line.
+- **The cost column cuts the other way.** The medium's own operations are 3.9–16.7 ms per
+  stream, under 1% of the arm's cost. But the medium opens more anomalies per incident (1.65
+  against 1.04; strict precision 0.50 against 0.67), and under the selection oracle each one is
+  a reasoner call, so the arm's total cost is 1.8–3.8 s per stream against 0.67 s. Better
+  anchoring, bought with more escalations. EXP-101 must read noticing and cost together, and the
+  medium's next unit must bring strict precision to the re-anchor's level or show why not.
+
+**For the aim.** The first positive medium result: on the one lever the status quo could not
+close with a tuned rule, the medium closes it at the short tick, and it does so with a
+mechanism the rung does not have (event order inside a tick). Hand-designed, one world, one
+setting, more reasoner calls. It is a mechanism, not yet an intelligence, and it has not yet
+learned anything.
+
+**Decided.**
+
+1. **M3 (Lab 1):** support pruned below tick resolution, so the 100 ms behaviour survives at
+   500 ms and 2 s; mutation testing of the M2 code; strict precision as a tuning constraint
+   alongside the background bound. Criterion: result 1 at 500 ms and 2 s under M2's margins,
+   with strict precision ≥ 0.67 (the re-anchor's) as a bound.
+2. **EXP-101 preregistration** is drafted now, on the stream world at the primary setting with
+   the δ sweep: noticing as the primary function (anchor-correct and leak noticed against the
+   best public noticer from B3, under the background and strict-precision bounds), selection
+   and cost as the secondary measures, critical misses and plain accuracy bounded, both aim
+   proxies per arm. The draft comes to the user before the freeze.
+3. **The learned noticer (Lab 3)** is queued: the medium's graph with its tuned constants
+   replaced by parameters learned online from the stream's public history, against the frozen
+   hand-designed graph and the re-anchor on the same stream order. First reading of aim
+   proxy 2.
+
 ## B2 the public later re-anchor — merged (Lab 2); the status quo closes most of the anchoring gap
 
 **Provenance.** R6's held-out run replays byte-identical for all 62 arms, twice (chief's hashes).
