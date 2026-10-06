@@ -2,10 +2,10 @@
 binary under its own run id (only `source_revision` changed), writes `results.csv` and
 `incidents.csv` whose SHA-256 equals R6's recorded ones, for all 62 arms.
 
-Usage:
-  m2_gate.py manifest   write the manifest (R6's, `source_revision` replaced by HEAD, run id kept)
+Usage (TAG empty for the first replay, "2" for the replay with the final tree's binary):
+  m2_gate.py manifest [TAG]   write the manifest (R6's, `source_revision` replaced by HEAD, run id kept)
                         to artifacts/runs/_manifests/m2-xcheck-r6-heldout-b5-rho0.7.json
-  m2_gate.py check      compare artifacts/runs/m2-xcheck-r6-heldout-b5-rho0.7 with
+  m2_gate.py check [TAG]      compare artifacts/runs/m2-xcheck-r6-heldout-b5-rho0.7 with
                         experiments/exploration/r6-results-sha256.csv; write
                         experiments/exploration/m2-regression.csv; exit 1 unless 62 of 62 match
 """
@@ -20,7 +20,8 @@ import pandas as pd
 import m2_common as C
 
 RID = f"r6-heldout-{C.setting_id(*C.PRIMARY)}"
-NAME = f"m2-xcheck-{RID}"
+TAG = sys.argv[2] if len(sys.argv) > 2 else ""
+NAME = f"m2-xcheck{TAG}-{RID}"
 
 
 def sha(path):
@@ -56,7 +57,7 @@ def check():
             "incidents_identical": sha(d / a / "incidents.csv") == want.loc[a, "incidents_sha256"],
         })
     reg = pd.DataFrame(rows)
-    reg.to_csv(C.OUT / "m2-regression.csv", index=False)
+    reg.to_csv(C.OUT / f"m2-regression{('-final' if TAG else '')}.csv", index=False)
     print(f"{RID}: {len(reg)} arms replayed; results identical {int(reg.results_identical.sum())}, "
           f"incidents identical {int(reg.incidents_identical.sum())}; arms in the record {len(want)}")
     ok = (set(arms) == set(want.index) and reg.results_identical.all()
