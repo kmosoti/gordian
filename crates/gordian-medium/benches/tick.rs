@@ -151,7 +151,7 @@ impl Sense for Handoff {
 
 fn bench_workload(c: &mut Criterion, name: &str, n: u32, build: fn(u32) -> Workload) {
     let Workload { mut medium, events } = build(n);
-    let field = ConstantField(Field { scalars: [0.0; 4] });
+    let field = ConstantField(Field::default());
     let mut clock = StepClock::new(START, 100_000_000);
     let mut effector = DiscardingEffector::default();
     let mut ledger = CountingLedger::default();

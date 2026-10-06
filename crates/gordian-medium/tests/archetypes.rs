@@ -207,6 +207,7 @@ fn gate_follows_its_field_scalar() {
     let (mut m, x) = harness(1, |b| b.gate(0, 0.5, true));
     let open = Field {
         scalars: [1.0, 0.0, 0.0, 0.0],
+        ..Field::default()
     };
     let (acts, _) = drive_with(&mut m, x, &[&[(0, 2.0)], &[(0, 3.0)]], open);
     assert_eq!(acts, vec![2.0, 3.0]);

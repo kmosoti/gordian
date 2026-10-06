@@ -7,7 +7,7 @@ mod common;
 use common::{Rig, at, ev};
 use gordian_medium::{
     Address, Archetype, CellId, CellSpec, Event, Field, Gate, Limits, Medium, MediumBuilder,
-    MediumSpec, P, Pattern, Prices, SenseMode, SynapseSpec, Tag, TraceItem,
+    MediumSpec, Oscillome, P, Pattern, Prices, SenseMode, SynapseSpec, Tag, TraceItem,
 };
 use proptest::prelude::*;
 
@@ -50,6 +50,11 @@ fn params_for(archetype: Archetype, raw: [u8; P]) -> [f32; P] {
             p[1] = f(1);
             p[2] = f32::from(raw[2] % 20);
             p[3] = f32::from(raw[3] % 4);
+        }
+        Archetype::Oscillator => {
+            p[0] = f(0) / 64.0 + 0.25;
+            p[1] = f(1) / 128.0;
+            p[2] = f32::from(1 + raw[2] % 4);
         }
     }
     p
@@ -132,6 +137,7 @@ fn arb_spec() -> impl Strategy<Value = MediumSpec> {
                         ..Limits::default()
                     },
                     prices: Prices::DECLARED,
+                    oscillome: Oscillome::default(),
                 }
             },
         )
@@ -188,7 +194,7 @@ proptest! {
             return Ok(());
         };
         let mut rig = Rig::new(50, events_of(&script, 50));
-        rig.field.0 = Field { scalars: field };
+        rig.field.0 = Field { scalars: field, ..Field::default() };
         let mut previous = *m.totals();
         for _ in 0..script.len() + 8 {
             let s = rig.step(&mut m).unwrap();

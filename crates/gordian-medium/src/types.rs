@@ -10,6 +10,9 @@ pub const P: usize = 8;
 pub const S: usize = 8;
 /// Number of field scalars.
 pub const F: usize = 4;
+/// Most rhythms an oscillome lists, and so the number of phases the field carries (docs/medium-ports.md
+/// section 4b; the base tick, the fastest oscillation, is not listed and has no phase).
+pub const R: usize = 3;
 
 /// Public structure of the world: where an event came from. The medium attaches no meaning to the
 /// three numbers; an adapter does.
@@ -84,8 +87,9 @@ pub struct SynapseId(pub u32);
 ///
 /// A cell gate is active when the gate cell ran in the current tick and its latest activation in
 /// the tick is greater than zero; a field gate is active when the field scalar is greater than
-/// zero. The gate is read when the synapse is traversed, after the pass in which its source ran.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// zero; a phase gate is active while the rhythm's phase lies in its window. The gate is read when
+/// the synapse is traversed, after the pass in which its source ran.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Gate {
     /// Always carries.
     None,
@@ -93,6 +97,29 @@ pub enum Gate {
     Cell(CellId),
     /// Carries while this field scalar is positive. Reading it counts as one field read.
     Field(u8),
+    /// Carries while the phase of oscillome rhythm `rhythm` lies in `[from, to)`, or, when
+    /// `from > to`, in `[from, 1)` or `[0, to)` (a window across the wrap). Both bounds are in
+    /// `[0, 1]` and differ. Reading the phase counts as one field read (section 4b, phase gates).
+    Phase {
+        /// Index of the rhythm in the spec's oscillome.
+        rhythm: u8,
+        /// Start of the window (inclusive).
+        from: f32,
+        /// End of the window (exclusive).
+        to: f32,
+    },
+}
+
+impl Gate {
+    /// Whether `phase` lies in the window `[from, to)` of a phase gate (across the wrap when
+    /// `from > to`).
+    pub fn phase_window_contains(from: f32, to: f32, phase: f32) -> bool {
+        if from <= to {
+            phase >= from && phase < to
+        } else {
+            phase >= from || phase < to
+        }
+    }
 }
 
 /// The broadcast scalars, supplied once per tick by the field adapter and read-only within it.
@@ -100,6 +127,12 @@ pub enum Gate {
 pub struct Field {
     /// The scalars. Must be finite.
     pub scalars: [f32; F],
+    /// The phases of the oscillome's rhythms, in `[0, 1)`, in the spec's order; zero past the
+    /// rhythms listed and when there are none. Written by the medium from the tick index and the
+    /// tick length at the start of every tick: whatever the field adapter puts here is replaced
+    /// (section 4b: a phase is a pure function of the tick, not an input).
+    #[serde(default)]
+    pub phases: [f32; R],
 }
 
 /// What an emitter cell proposes.
@@ -196,9 +229,21 @@ pub struct Prices {
 }
 
 impl Prices {
-    /// The first guess of section 7: 20 ns per cell update, 5 ns per synapse traversal, 10 ns per
-    /// event routing, 2 ns per field read, nothing per proposal.
+    /// The declared prices, calibrated by M1's benchmark (docs/review-log.md, M1; M1b decision
+    /// 8): 200 ns per cell update, 25 ns per synapse traversal, 40 ns per event routing, 2 ns per
+    /// field read, nothing per proposal.
     pub const DECLARED: Prices = Prices {
+        cell_update_ps: 200_000,
+        synapse_traversal_ps: 25_000,
+        event_routing_ps: 40_000,
+        field_read_ps: 2_000,
+        proposal_ps: 0,
+    };
+
+    /// Section 7's first guess, the declared prices until M1b: 20 ns per cell update, 5 ns per
+    /// synapse traversal, 10 ns per event routing, 2 ns per field read. Kept so that a spec
+    /// written against M1 can state the prices it was run with.
+    pub const FIRST_GUESS: Prices = Prices {
         cell_update_ps: 20_000,
         synapse_traversal_ps: 5_000,
         event_routing_ps: 10_000,
@@ -288,13 +333,46 @@ mod tests {
         };
         assert_eq!(counts.ops(), 18);
         assert_eq!(
-            counts.modelled_ps(&Prices::DECLARED),
+            counts.modelled_ps(&Prices::FIRST_GUESS),
             3 * 20_000 + 4 * 5_000 + 5 * 10_000 + 6 * 2_000
         );
         assert_eq!(
-            counts.compute_charge_ps(&Prices::DECLARED),
+            counts.compute_charge_ps(&Prices::FIRST_GUESS),
             Charge::new(CoreResource::Compute, 142_000)
         );
+        // At the declared prices: 3 * 200 + 4 * 25 + 5 * 40 + 6 * 2 = 912 ns.
+        assert_eq!(counts.modelled_ps(&Prices::DECLARED), 912_000);
+    }
+
+    /// M1b decision 8: the declared prices are M1's calibration, 200 / 25 / 40 / 2 ns.
+    #[test]
+    fn declared_prices_are_the_m1_calibration() {
+        assert_eq!(
+            Prices::DECLARED,
+            Prices {
+                cell_update_ps: 200_000,
+                synapse_traversal_ps: 25_000,
+                event_routing_ps: 40_000,
+                field_read_ps: 2_000,
+                proposal_ps: 0,
+            }
+        );
+        assert_eq!(Prices::default(), Prices::DECLARED);
+        assert_eq!(Prices::FIRST_GUESS.cell_update_ps, 20_000);
+    }
+
+    #[test]
+    fn phase_windows_and_the_wrap() {
+        assert!(Gate::phase_window_contains(0.25, 0.5, 0.25));
+        assert!(!Gate::phase_window_contains(0.25, 0.5, 0.5));
+        assert!(!Gate::phase_window_contains(0.25, 0.5, 0.1));
+        // Across the wrap: [0.9, 1) and [0, 0.1).
+        assert!(Gate::phase_window_contains(0.9, 0.1, 0.95));
+        assert!(Gate::phase_window_contains(0.9, 0.1, 0.0));
+        assert!(!Gate::phase_window_contains(0.9, 0.1, 0.1));
+        assert!(!Gate::phase_window_contains(0.9, 0.1, 0.5));
+        // The whole cycle.
+        assert!(Gate::phase_window_contains(0.0, 1.0, 0.999_999_9));
     }
 
     #[test]
