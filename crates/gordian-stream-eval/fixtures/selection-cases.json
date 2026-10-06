@@ -1,0 +1,228 @@
+[
+ {
+  "name": "classes/every-class-is-asked-about-once-and-costs-what-it-declared",
+  "rules": ["E1","E2","E3","E6","E7"],
+  "note": "Five observations: 0 background, 1 a plain incident's, 2 a hard (non-leak) incident's, 3 a slow leak's, 4 a decoy's. One notice anchored on each, and one escalation about each (the plain one twice). Calls, tokens and modelled nanoseconds are counted by the class of the focus, and each escalation is about the notice anchored on its focus; the five classes are all different, so a class mixed up with another shows.",
+  "truth": {"duration_ns":600000000000,"incidents":[
+   {"tier":"Plain","critical":false,"onset_ns":10000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+   {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}},
+   {"tier":"Hard","critical":false,"onset_ns":10000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3},"hard_kind":"SlowLeak"},
+   {"tier":"Decoy","critical":false,"onset_ns":10000000000,"deadline_ns":null,"truth":null}
+  ],"labels":[null,0,1,2,3]},
+  "trace": {
+   "notices":[
+    {"anomaly":0,"anchor":1,"at":12000000000},
+    {"anomaly":1,"anchor":2,"at":12000000000},
+    {"anomaly":2,"anchor":3,"at":12000000000},
+    {"anomaly":3,"anchor":4,"at":12000000000},
+    {"anomaly":4,"anchor":0,"at":12000000000}],
+   "retirements":[],
+   "escalations":[
+    {"at":20000000000,"focus":1,"tokens":500,"modelled_ns":125000000},
+    {"at":20000000000,"focus":2,"tokens":600,"modelled_ns":150000000},
+    {"at":21000000000,"focus":3,"tokens":700,"modelled_ns":175000000},
+    {"at":22000000000,"focus":4,"tokens":800,"modelled_ns":200000000},
+    {"at":23000000000,"focus":0,"tokens":900,"modelled_ns":225000000},
+    {"at":24000000000,"focus":1,"tokens":500,"modelled_ns":125000000}]
+  },
+  "expected": {"Verdict": {
+   "per_notice": [
+    {"anomaly":0,"incident":0,"class":"Plain","escalations":2,"first_escalation_at":20000000000,"retired_at":null,"followup":false,"retired_before_escalation":false},
+    {"anomaly":1,"incident":1,"class":"Hard","escalations":1,"first_escalation_at":20000000000,"retired_at":null,"followup":false,"retired_before_escalation":false},
+    {"anomaly":2,"incident":2,"class":"Leak","escalations":1,"first_escalation_at":21000000000,"retired_at":null,"followup":false,"retired_before_escalation":false},
+    {"anomaly":3,"incident":3,"class":"Decoy","escalations":1,"first_escalation_at":22000000000,"retired_at":null,"followup":false,"retired_before_escalation":false},
+    {"anomaly":4,"incident":null,"class":"Background","escalations":1,"first_escalation_at":23000000000,"retired_at":null,"followup":false,"retired_before_escalation":false}],
+   "escalations": {
+    "calls":{"background":1,"plain":2,"hard":1,"leak":1,"decoy":1},
+    "tokens":{"background":900,"plain":1000,"hard":600,"leak":700,"decoy":800},
+    "modelled_ns":{"background":225000000,"plain":250000000,"hard":150000000,"leak":175000000,"decoy":200000000},
+    "unattributed":0},
+   "notices": {
+    "notices":{"background":1,"plain":1,"hard":1,"leak":1,"decoy":1},
+    "escalated":{"background":1,"plain":1,"hard":1,"leak":1,"decoy":1},
+    "retired_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_retired":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0}}
+  }}
+ },
+ {
+  "name": "attribution/the-latest-live-notice-at-the-focus-is-the-one-asked-about",
+  "rules": ["E1","E2","E3"],
+  "note": "A plain incident's observation 0 is the anchor of two notices: anomaly 0 (noticed at 10 s, retired at 12 s) and anomaly 1 (noticed at 14 s, never retired). The escalation at 11 s is about anomaly 0 (live then). The one at 13 s is about neither: anomaly 0 is retired and anomaly 1 is not yet noticed, so it is unattributed (and still a plain call, by its focus). The one at 15 s is about anomaly 1, the latest notice at that anchor.",
+  "truth": {"duration_ns":600000000000,"incidents":[{"tier":"Plain","critical":false,"onset_ns":5000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}],"labels":[0,0]},
+  "trace": {
+   "notices":[{"anomaly":0,"anchor":0,"at":10000000000},{"anomaly":1,"anchor":0,"at":14000000000}],
+   "retirements":[{"anomaly":0,"at":12000000000,"followup":false}],
+   "escalations":[
+    {"at":11000000000,"focus":0,"tokens":100,"modelled_ns":25000000},
+    {"at":13000000000,"focus":0,"tokens":100,"modelled_ns":25000000},
+    {"at":15000000000,"focus":0,"tokens":100,"modelled_ns":25000000}]
+  },
+  "expected": {"Verdict": {
+   "per_notice": [
+    {"anomaly":0,"incident":0,"class":"Plain","escalations":1,"first_escalation_at":11000000000,"retired_at":12000000000,"followup":false,"retired_before_escalation":false},
+    {"anomaly":1,"incident":0,"class":"Plain","escalations":1,"first_escalation_at":15000000000,"retired_at":null,"followup":false,"retired_before_escalation":false}],
+   "escalations": {
+    "calls":{"background":0,"plain":3,"hard":0,"leak":0,"decoy":0},
+    "tokens":{"background":0,"plain":300,"hard":0,"leak":0,"decoy":0},
+    "modelled_ns":{"background":0,"plain":75000000,"hard":0,"leak":0,"decoy":0},
+    "unattributed":1},
+   "notices": {
+    "notices":{"background":0,"plain":2,"hard":0,"leak":0,"decoy":0},
+    "escalated":{"background":0,"plain":2,"hard":0,"leak":0,"decoy":0},
+    "retired_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_retired":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0}}
+  }}
+ },
+ {
+  "name": "attribution/a-call-before-the-notice-is-unattributed",
+  "rules": ["E1","E2"],
+  "note": "An escalation at 9 s about observation 0, whose notice is made at 10 s: no notice had been made, so the call is about none. It is a decoy call by its focus. The notice is never asked about.",
+  "truth": {"duration_ns":600000000000,"incidents":[{"tier":"Decoy","critical":false,"onset_ns":5000000000,"deadline_ns":null,"truth":null}],"labels":[0]},
+  "trace": {
+   "notices":[{"anomaly":0,"anchor":0,"at":10000000000}],
+   "retirements":[],
+   "escalations":[{"at":9000000000,"focus":0,"tokens":400,"modelled_ns":100000000}]
+  },
+  "expected": {"Verdict": {
+   "per_notice": [
+    {"anomaly":0,"incident":0,"class":"Decoy","escalations":0,"first_escalation_at":null,"retired_at":null,"followup":false,"retired_before_escalation":false}],
+   "escalations": {
+    "calls":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":1},
+    "tokens":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":400},
+    "modelled_ns":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":100000000},
+    "unattributed":1},
+   "notices": {
+    "notices":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":1},
+    "escalated":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "retired_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_retired":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0}}
+  }}
+ },
+ {
+  "name": "retirement/at-the-calls-own-instant-is-after-the-call",
+  "rules": ["E1","E4"],
+  "note": "Two notices on a plain incident's observations 0 and 1, both noticed at 10 s and both retired at 20 s. An escalation at 20 s is about observation 0's notice: the rung asks before it retires within a step, so a retirement at the call's own instant does not come first, and that notice is not retired before escalation. The notice on observation 1 is retired and never asked about.",
+  "truth": {"duration_ns":600000000000,"incidents":[{"tier":"Plain","critical":false,"onset_ns":5000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}],"labels":[0,0]},
+  "trace": {
+   "notices":[{"anomaly":0,"anchor":0,"at":10000000000},{"anomaly":1,"anchor":1,"at":10000000000}],
+   "retirements":[{"anomaly":0,"at":20000000000,"followup":false},{"anomaly":1,"at":20000000000,"followup":false}],
+   "escalations":[{"at":20000000000,"focus":0,"tokens":100,"modelled_ns":25000000}]
+  },
+  "expected": {"Verdict": {
+   "per_notice": [
+    {"anomaly":0,"incident":0,"class":"Plain","escalations":1,"first_escalation_at":20000000000,"retired_at":20000000000,"followup":false,"retired_before_escalation":false},
+    {"anomaly":1,"incident":0,"class":"Plain","escalations":0,"first_escalation_at":null,"retired_at":20000000000,"followup":false,"retired_before_escalation":true}],
+   "escalations": {
+    "calls":{"background":0,"plain":1,"hard":0,"leak":0,"decoy":0},
+    "tokens":{"background":0,"plain":100,"hard":0,"leak":0,"decoy":0},
+    "modelled_ns":{"background":0,"plain":25000000,"hard":0,"leak":0,"decoy":0},
+    "unattributed":0},
+   "notices": {
+    "notices":{"background":0,"plain":2,"hard":0,"leak":0,"decoy":0},
+    "escalated":{"background":0,"plain":1,"hard":0,"leak":0,"decoy":0},
+    "retired_before_escalation":{"background":0,"plain":1,"hard":0,"leak":0,"decoy":0},
+    "followup_retired":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0}}
+  }}
+ },
+ {
+  "name": "followup/retirements-by-the-rule-are-counted-by-class-and-by-escalation",
+  "rules": ["E3","E4","E5","E7"],
+  "note": "Observations: 0 a slow leak's, 1 and 2 two decoys', 3 a plain incident's, 4 background. Anomaly 0 (the leak) and 1 (a decoy) are retired by the follow-up rule at 15 s and never asked about: a leak wrongly retired and a decoy retired before escalation. Anomaly 2 (a decoy) is retired at 16 s because it went quiet: retired before escalation, not by the rule. Anomaly 3 (plain) is asked about at 14 s and then retired by the rule at 15 s: by the rule, not before escalation. Anomaly 4 (background) is never retired.",
+  "truth": {"duration_ns":600000000000,"incidents":[
+   {"tier":"Hard","critical":false,"onset_ns":5000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3},"hard_kind":"SlowLeak"},
+   {"tier":"Decoy","critical":false,"onset_ns":5000000000,"deadline_ns":null,"truth":null},
+   {"tier":"Decoy","critical":false,"onset_ns":5000000000,"deadline_ns":null,"truth":null},
+   {"tier":"Plain","critical":false,"onset_ns":5000000000,"deadline_ns":60000000000,"truth":{"kind":{"Known":"ConfigDrift"},"site":3}}
+  ],"labels":[0,1,2,3,null]},
+  "trace": {
+   "notices":[
+    {"anomaly":0,"anchor":0,"at":10000000000},
+    {"anomaly":1,"anchor":1,"at":10000000000},
+    {"anomaly":2,"anchor":2,"at":10000000000},
+    {"anomaly":3,"anchor":3,"at":10000000000},
+    {"anomaly":4,"anchor":4,"at":10000000000}],
+   "retirements":[
+    {"anomaly":0,"at":15000000000,"followup":true},
+    {"anomaly":1,"at":15000000000,"followup":true},
+    {"anomaly":3,"at":15000000000,"followup":true},
+    {"anomaly":2,"at":16000000000,"followup":false}],
+   "escalations":[{"at":14000000000,"focus":3,"tokens":100,"modelled_ns":25000000}]
+  },
+  "expected": {"Verdict": {
+   "per_notice": [
+    {"anomaly":0,"incident":0,"class":"Leak","escalations":0,"first_escalation_at":null,"retired_at":15000000000,"followup":true,"retired_before_escalation":true},
+    {"anomaly":1,"incident":1,"class":"Decoy","escalations":0,"first_escalation_at":null,"retired_at":15000000000,"followup":true,"retired_before_escalation":true},
+    {"anomaly":2,"incident":2,"class":"Decoy","escalations":0,"first_escalation_at":null,"retired_at":16000000000,"followup":false,"retired_before_escalation":true},
+    {"anomaly":3,"incident":3,"class":"Plain","escalations":1,"first_escalation_at":14000000000,"retired_at":15000000000,"followup":true,"retired_before_escalation":false},
+    {"anomaly":4,"incident":null,"class":"Background","escalations":0,"first_escalation_at":null,"retired_at":null,"followup":false,"retired_before_escalation":false}],
+   "escalations": {
+    "calls":{"background":0,"plain":1,"hard":0,"leak":0,"decoy":0},
+    "tokens":{"background":0,"plain":100,"hard":0,"leak":0,"decoy":0},
+    "modelled_ns":{"background":0,"plain":25000000,"hard":0,"leak":0,"decoy":0},
+    "unattributed":0},
+   "notices": {
+    "notices":{"background":1,"plain":1,"hard":0,"leak":1,"decoy":2},
+    "escalated":{"background":0,"plain":1,"hard":0,"leak":0,"decoy":0},
+    "retired_before_escalation":{"background":0,"plain":0,"hard":0,"leak":1,"decoy":2},
+    "followup_retired":{"background":0,"plain":1,"hard":0,"leak":1,"decoy":1},
+    "followup_before_escalation":{"background":0,"plain":0,"hard":0,"leak":1,"decoy":1}}
+  }}
+ },
+ {
+  "name": "record/a-stream-with-nothing-recorded-is-all-zero",
+  "rules": ["E3","E7"],
+  "note": "No notice, no retirement, no escalation: no outcomes and every count zero, whatever the truth holds.",
+  "truth": {"duration_ns":600000000000,"incidents":[{"tier":"Decoy","critical":false,"onset_ns":5000000000,"deadline_ns":null,"truth":null}],"labels":[0]},
+  "trace": {"notices":[],"retirements":[],"escalations":[]},
+  "expected": {"Verdict": {
+   "per_notice": [],
+   "escalations": {
+    "calls":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "tokens":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "modelled_ns":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "unattributed":0},
+   "notices": {
+    "notices":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "escalated":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "retired_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_retired":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0},
+    "followup_before_escalation":{"background":0,"plain":0,"hard":0,"leak":0,"decoy":0}}
+  }}
+ },
+ {
+  "name": "error/an-escalation-about-no-observation",
+  "rules": ["E8"],
+  "note": "An escalation whose focus is observation 7 of a stream of two observations.",
+  "truth": {"duration_ns":600000000000,"incidents":[],"labels":[null,null]},
+  "trace": {"notices":[],"retirements":[],"escalations":[{"at":20000000000,"focus":7,"tokens":1,"modelled_ns":1}]},
+  "expected": {"Error": {"UnknownObservation":{"obs":7}}}
+ },
+ {
+  "name": "error/a-notice-anchored-on-no-observation",
+  "rules": ["E8"],
+  "note": "A notice whose anchor is observation 5 of a stream of two observations.",
+  "truth": {"duration_ns":600000000000,"incidents":[],"labels":[null,null]},
+  "trace": {"notices":[{"anomaly":0,"anchor":5,"at":10000000000}],"retirements":[],"escalations":[]},
+  "expected": {"Error": {"UnknownObservation":{"obs":5}}}
+ },
+ {
+  "name": "error/a-retirement-of-an-anomaly-never-noticed",
+  "rules": ["E8"],
+  "note": "A retirement of anomaly 3, of which no notice was recorded.",
+  "truth": {"duration_ns":600000000000,"incidents":[],"labels":[null]},
+  "trace": {"notices":[{"anomaly":0,"anchor":0,"at":10000000000}],"retirements":[{"anomaly":3,"at":12000000000,"followup":false}],"escalations":[]},
+  "expected": {"Error": {"RetirementWithoutNotice":{"anomaly":3}}}
+ },
+ {
+  "name": "error/an-anomaly-retired-twice",
+  "rules": ["E8"],
+  "note": "Anomaly 0 is noticed once and retired twice.",
+  "truth": {"duration_ns":600000000000,"incidents":[],"labels":[null]},
+  "trace": {"notices":[{"anomaly":0,"anchor":0,"at":10000000000}],"retirements":[{"anomaly":0,"at":12000000000,"followup":false},{"anomaly":0,"at":13000000000,"followup":true}],"escalations":[]},
+  "expected": {"Error": {"RetirementWithoutNotice":{"anomaly":0}}}
+ }
+]
