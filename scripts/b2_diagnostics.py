@@ -2,7 +2,7 @@
 
 Usage: b2_diagnostics.py   (after the held-out run; writes experiments/exploration/
                             b2-transitions.csv, b2-residual.csv, b2-offsets.csv, b2-lifetimes.csv,
-                            b2-hold-effect.csv, b2-gaming.csv, b2-vs-ceiling.csv and, when the
+                            b2-hold-effect.csv, b2-gaming.csv, b2-vs-ceiling.csv, b2-paired-pure.csv and, when the
                             supplementary run exists, b2-flood-hold.csv)
 
 Exploration (nothing here tests a hypothesis). All of it reads the held-out run's notice files.
@@ -25,12 +25,14 @@ Exploration (nothing here tests a hypothesis). All of it reads the held-out run'
 * vs ceiling: each table noticer's quality, both readings, minus R10's injected-notice ceiling on the
   same streams (paired over the same resamples).
 * flood hold: the flood-like noticers' quality with the retirement and with the hold at 16 s.
+* paired pure: the re-anchor's own effect, the stage 1 choice at the rung's threshold against the rung.
 """
 
 import numpy as np
 import pandas as pd
 
 import b2_common as C
+import b2_stats as B
 import r6_stats as S
 from gordian_analysis.load import load_stream_run
 
@@ -225,6 +227,27 @@ def flood_hold(run):
     return pd.DataFrame(rows)
 
 
+PURE_MEASURES = [
+    "hard_noticed_share", "hard_anchor_correct_share", "hard_site_correct_share",
+    "hard_anchor_site_correct_share", "leak_noticed_share", "notices_on_background_per_stream",
+    "notice_precision", "strict_precision", "quality",
+]
+
+
+def paired_pure(run, sel):
+    """The re-anchor's own effect: the stage 1 choice at the rung's default threshold against the
+    rung at that threshold, over the same resamples as the table's paired differences."""
+    s1 = sel["stage1"]["chosen"]
+    new = C.arm_name(C.reanchor_name(s1["isolation"], s1["gap_ms"], s1["burst"]))
+    old = C.arm_name("rung_z3")
+    m = B.Measures(run, arms=[new, old])
+    rows = []
+    for measure in PURE_MEASURES:
+        d, lo, hi = m.paired_difference(measure, new, old, C.BOOT_SEED, C.N_RESAMPLES)
+        rows.append({"new": new, "old": old, "measure": measure, "difference": d, "lower": lo, "higher": hi})
+    return pd.DataFrame(rows)
+
+
 def gaming():
     sens = pd.read_csv(C.OUT / "b2-noticers-sensitivity.csv")
     keep = ["config", "hard_anchor_correct_share", "hard_site_correct_share", "hard_anchor_site_correct_share",
@@ -238,7 +261,8 @@ def main():
     run = load_stream_run(C.RUNS / C.run_id("heldout"))
     parts = [("transitions", transitions(run, sel)), ("residual", residual(run)),
              ("offsets", offsets(run)), ("lifetimes", lifetimes(run, sel)),
-             ("hold-effect", hold_effect(run)), ("gaming", gaming()), ("vs-ceiling", vs_ceiling(run, sel))]
+             ("hold-effect", hold_effect(run)), ("gaming", gaming()), ("vs-ceiling", vs_ceiling(run, sel)),
+             ("paired-pure", paired_pure(run, sel))]
     if (C.RUNS / C.run_id("supp")).exists():
         parts.append(("flood-hold", flood_hold(run)))
     for name, df in parts:

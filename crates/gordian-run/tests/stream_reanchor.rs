@@ -515,6 +515,17 @@ fn a_burst_with_no_stray_is_anchored_as_the_rung_anchors_it() {
     let (a, b) = (rung.rung.views(at(10 * S)), re.rung.views(at(10 * S)));
     assert_eq!((a[0].anchor, a[0].digest), (b[0].anchor, b[0].digest));
     assert_eq!(rung.rung.attached(a[0].id), re.rung.attached(b[0].id));
+    // The score a rule may read and the peak it has had are the rung's: a number above the
+    // threshold now, the same number later, when the burst has left the score window and the
+    // score has fallen below the peak.
+    assert!(a[0].score >= 3.0, "{}", a[0].score);
+    assert_eq!(a[0].score, b[0].score);
+    assert_eq!(a[0].peak_score, b[0].peak_score);
+    assert!(a[0].peak_score >= 3.0);
+    let (a, b) = (rung.rung.views(at(20 * S)), re.rung.views(at(20 * S)));
+    assert_eq!(a[0].score, b[0].score);
+    assert_eq!(a[0].peak_score, b[0].peak_score);
+    assert!(a[0].score < a[0].peak_score);
 }
 
 #[test]

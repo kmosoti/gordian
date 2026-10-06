@@ -56,34 +56,64 @@ fn one_per_incident(
     }
 }
 
+/// Check, for the stream of `seed` at the default parameters, that the first occupied service is the
+/// site of the true diagnosis of every plain and hard incident and that a decoy occupies a service;
+/// returns the plain, hard and decoy incidents checked.
+fn check_sites(seed: u64) -> (u32, u32, u32) {
+    let stream = generate(&StreamParams::new(seed));
+    let truth = truth_from_stream(&stream);
+    let (mut plain, mut hard, mut decoy) = (0, 0, 0);
+    for inc in &truth.incidents {
+        let occupied = inc
+            .occupies
+            .first()
+            .unwrap_or_else(|| panic!("seed {seed}: incident {} occupies nothing", inc.id));
+        match (inc.tier, inc.truth) {
+            (Tier::Decoy, None) => decoy += 1,
+            (Tier::Plain, Some(h)) => {
+                assert_eq!(h.site, *occupied, "seed {seed}: plain incident {}", inc.id);
+                plain += 1;
+            }
+            (Tier::Hard, Some(h)) => {
+                assert_eq!(h.site, *occupied, "seed {seed}: hard incident {}", inc.id);
+                hard += 1;
+            }
+            (tier, truth) => panic!("seed {seed}: {tier:?} incident with truth {truth:?}"),
+        }
+    }
+    (plain, hard, decoy)
+}
+
 #[test]
 fn the_first_occupied_service_is_the_site_of_the_true_diagnosis() {
-    let (mut checked_plain, mut checked_hard, mut checked_decoy) = (0, 0, 0);
-    for (seed, stream) in streams() {
-        let truth = truth_from_stream(&stream);
-        for inc in &truth.incidents {
-            let occupied = inc
-                .occupies
-                .first()
-                .unwrap_or_else(|| panic!("seed {seed}: incident {} occupies nothing", inc.id));
-            match (inc.tier, inc.truth) {
-                (Tier::Decoy, None) => checked_decoy += 1,
-                (Tier::Plain, Some(h)) => {
-                    assert_eq!(h.site, *occupied, "seed {seed}: plain incident {}", inc.id);
-                    checked_plain += 1;
-                }
-                (Tier::Hard, Some(h)) => {
-                    assert_eq!(h.site, *occupied, "seed {seed}: hard incident {}", inc.id);
-                    checked_hard += 1;
-                }
-                (tier, truth) => panic!("seed {seed}: {tier:?} incident with truth {truth:?}"),
-            }
-        }
+    let mut total = (0, 0, 0);
+    for seed in 0..SEEDS {
+        let (p, h, d) = check_sites(seed);
+        total = (total.0 + p, total.1 + h, total.2 + d);
     }
     // The assertions above would pass vacuously on streams without these.
     assert!(
-        checked_plain > 0 && checked_hard > 0 && checked_decoy > 0,
-        "{checked_plain} {checked_hard} {checked_decoy}"
+        total.0 > 0 && total.1 > 0 && total.2 > 0,
+        "{} {} {}",
+        total.0,
+        total.1,
+        total.2
+    );
+}
+
+/// The streams B2's tuning and held-out runs play (seeds 10000-10099 and 20000-20199, the defaults
+/// but for the reasoner's parameters, which do not touch the incidents): N13's reading of the site
+/// holds on every incident the unit scored, not only on the 30 streams above.
+#[test]
+fn the_first_occupied_service_is_the_site_on_every_stream_the_unit_played() {
+    let mut total = (0, 0, 0);
+    for seed in (10_000..10_100).chain(20_000..20_200) {
+        let (p, h, d) = check_sites(seed);
+        total = (total.0 + p, total.1 + h, total.2 + d);
+    }
+    assert!(
+        total.0 > 1_000 && total.1 > 500 && total.2 > 500,
+        "{total:?}"
     );
 }
 
