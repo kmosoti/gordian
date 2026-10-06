@@ -1,0 +1,11 @@
+config,reading,delay_s,notices_on_hard,live_when_the_delay_passes,retired_before_the_delay
+rung_z3,fixed,16.0,451,421,30
+rung_z3,held,16.0,449,449,0
+rung_z2,fixed,16.0,513,432,81
+rung_z2,held,16.0,511,511,0
+change_q128,fixed,16.0,24,9,15
+change_q128,held,30.0,24,24,0
+earliest_l0.25,fixed,16.0,451,421,30
+earliest_l0.25,held,16.0,449,449,0
+reanchor,fixed,16.0,543,447,96
+reanchor,held,16.0,541,541,0

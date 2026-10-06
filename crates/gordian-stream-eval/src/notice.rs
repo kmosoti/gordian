@@ -1,7 +1,8 @@
 //! Scoring what a noticer noticed against hidden truth (work item B1).
 //!
-//! The rules are in `RULES.md`, section "Notices", one numbered row each (N1 to N12); the
-//! comments below cite them. [`score_notices`] is a pure function of its arguments, as
+//! The rules are in `RULES.md`, section "Notices", one numbered row each (N1 to N16); the
+//! comments below cite them. N1 to N12 are work item B1's; N13 to N16 (the site check and notice
+//! precision) are work item B2's. [`score_notices`] is a pure function of its arguments, as
 //! [`crate::score_stream`] is. It scores the **record of notices and retirements** a harness kept,
 //! not a trajectory: a notice is not an action the stream answers, so it has no place in a
 //! [`crate::StreamStep`], and noticing is measured without replaying a ledger.
@@ -12,7 +13,7 @@
 
 use crate::timeserde;
 use gordian_core::Instant;
-use gordian_stream::oracle::{ObsLabel, StreamTruth};
+use gordian_stream::oracle::{IncidentTruth, ObsLabel, StreamTruth};
 use gordian_stream::{ObsId, Tier};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -22,7 +23,7 @@ use std::fmt;
 pub const ANCHOR_WINDOW_NS: u64 = 1_000_000_000;
 
 /// One notice, as a harness records it: which anomaly, anchored on which observation, at which
-/// instant (the instant of the step that yielded it).
+/// instant (the instant of the step that yielded it), and the service it is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoticeEntry {
     /// The anomaly's id, unique within a noticer's record.
@@ -32,6 +33,11 @@ pub struct NoticeEntry {
     /// When it was noticed.
     #[serde(with = "timeserde::instant")]
     pub at: Instant,
+    /// The service the notice is about, as the index `ServiceId.0`: its site. `None` when the
+    /// record does not give one (a hand-written record that does not exercise N13 to N16); a
+    /// notice without a site is never site-correct (N14). The harness always gives one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site: Option<u32>,
 }
 
 /// One retirement: the anomaly the harness stopped working on, and when.
@@ -74,6 +80,13 @@ pub struct IncidentNotices {
     pub notice_latency_ns: Option<u64>,
     /// A notice about it whose anchor is within [`ANCHOR_WINDOW_NS`] of its first observation (N5).
     pub anchor_correct: bool,
+    /// A notice about it whose site is the incident's site (N13, N14).
+    #[serde(default)]
+    pub site_correct: bool,
+    /// One notice about it that is both anchor-correct and site-correct (N15): the same notice,
+    /// not one of each.
+    #[serde(default)]
+    pub anchor_site_correct: bool,
 }
 
 /// The score of one notice (N7).
@@ -89,6 +102,12 @@ pub struct NoticeScore {
     /// The anchor belongs to an incident and is within [`ANCHOR_WINDOW_NS`] of its first
     /// observation (N5, N7).
     pub anchor_correct: bool,
+    /// The notice is about an incident, has a site, and the site is the incident's (N13, N14).
+    #[serde(default)]
+    pub site_correct: bool,
+    /// The notice is anchor-correct and site-correct (N15).
+    #[serde(default)]
+    pub anchor_site_correct: bool,
 }
 
 pub use crate::verdict::TierCounts;
@@ -112,6 +131,53 @@ pub struct NoticeTotals {
     pub anchor_correct: TierCounts,
     /// Retirements recorded (N10).
     pub retirements: u32,
+    /// Notices that are site-correct (N14), over every tier.
+    #[serde(default)]
+    pub notices_site_correct: u32,
+    /// Notices that are both anchor-correct and site-correct (N15), over every tier.
+    #[serde(default)]
+    pub notices_anchor_site_correct: u32,
+    /// Incidents with a site-correct notice, by tier (N14).
+    #[serde(default)]
+    pub site_correct: TierCounts,
+    /// Incidents with a notice that is both anchor-correct and site-correct, by tier (N15).
+    #[serde(default)]
+    pub anchor_site_correct: TierCounts,
+}
+
+impl NoticeTotals {
+    /// Notices anchored on an incident of any tier (N8, N16).
+    pub fn on_incidents(&self) -> u32 {
+        self.on_plain + self.on_hard + self.on_decoy
+    }
+
+    /// Notice precision (N16): the share of this stream's notices anchored on an incident of any
+    /// tier. `None` when the stream has no notice. A per-stream ratio for reading one stream;
+    /// across streams the analysis pools the counts (N9).
+    pub fn precision(&self) -> Option<f64> {
+        ratio(self.on_incidents(), self.notices)
+    }
+
+    /// Notice precision in one tier (N16): the share of this stream's notices anchored on an
+    /// incident of `tier`. `None` when the stream has no notice.
+    pub fn precision_in(&self, tier: Tier) -> Option<f64> {
+        let on = match tier {
+            Tier::Plain => self.on_plain,
+            Tier::Hard => self.on_hard,
+            Tier::Decoy => self.on_decoy,
+        };
+        ratio(on, self.notices)
+    }
+
+    /// Strict notice precision (N16): the share of this stream's notices that are both
+    /// anchor-correct and site-correct (N15). `None` when the stream has no notice.
+    pub fn strict_precision(&self) -> Option<f64> {
+        ratio(self.notices_anchor_site_correct, self.notices)
+    }
+}
+
+fn ratio(num: u32, den: u32) -> Option<f64> {
+    (den > 0).then(|| f64::from(num) / f64::from(den))
 }
 
 /// The score of one stream's notices: every incident, every notice, and the totals.
@@ -240,6 +306,11 @@ impl fmt::Display for NoticeEvalError {
 
 impl std::error::Error for NoticeEvalError {}
 
+/// The incident's site (N13): the first service it occupies, `None` when it occupies none.
+fn incident_site(inc: &IncidentTruth) -> Option<u32> {
+    inc.occupies.first().map(|s| s.0)
+}
+
 fn bump(counts: &mut TierCounts, tier: Tier) {
     match tier {
         Tier::Plain => counts.plain += 1,
@@ -349,6 +420,8 @@ pub fn score_notices(
             first_notice_at: None,
             notice_latency_ns: None,
             anchor_correct: false,
+            site_correct: false,
+            anchor_site_correct: false,
         })
         .collect();
 
@@ -368,6 +441,8 @@ pub fn score_notices(
                 tier: None,
                 anchor_offset_ns: None,
                 anchor_correct: false,
+                site_correct: false,
+                anchor_site_correct: false,
             });
             continue;
         };
@@ -388,11 +463,24 @@ pub fn score_notices(
             .map(|first| anchor_at.0.abs_diff(first.0));
         let correct = offset.is_some_and(|o| o <= ANCHOR_WINDOW_NS);
         inc.anchor_correct |= correct;
+        // N13, N14: the notice's site is the incident's site; neither may be missing.
+        let site_correct = match (n.site, incident_site(&truth.incidents[id as usize])) {
+            (Some(notice), Some(incident)) => notice == incident,
+            _ => false,
+        };
+        inc.site_correct |= site_correct;
+        // N15: one notice that is both.
+        let both = correct && site_correct;
+        inc.anchor_site_correct |= both;
+        totals.notices_site_correct += u32::from(site_correct);
+        totals.notices_anchor_site_correct += u32::from(both);
         per_notice.push(NoticeScore {
             incident: Some(id),
             tier: Some(inc.tier),
             anchor_offset_ns: offset,
             anchor_correct: correct,
+            site_correct,
+            anchor_site_correct: both,
         });
     }
     for inc in &mut per_incident {
@@ -405,6 +493,12 @@ pub fn score_notices(
         }
         if inc.anchor_correct {
             bump(&mut totals.anchor_correct, inc.tier);
+        }
+        if inc.site_correct {
+            bump(&mut totals.site_correct, inc.tier);
+        }
+        if inc.anchor_site_correct {
+            bump(&mut totals.anchor_site_correct, inc.tier);
         }
     }
     Ok(NoticeVerdict {

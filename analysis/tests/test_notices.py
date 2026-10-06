@@ -186,6 +186,100 @@ def test_an_incident_cannot_be_anchor_correct_without_being_noticed(tmp_path):
         load_stream_arm(path)
 
 
+def test_an_incident_cannot_be_site_correct_without_being_noticed(tmp_path):
+    path = arm_dir(tmp_path)
+
+    def flip(rows):
+        h = rows[0]
+        for r in rows[1:]:
+            if r[h.index("noticed")] == "false":
+                r[h.index("site_correct")] = "true"
+                break
+        return rows
+
+    edit(path, "notice_incidents.csv", flip)
+    with pytest.raises(LoadError, match="site-correct but not noticed"):
+        load_stream_arm(path)
+
+
+def test_one_notice_that_is_both_needs_the_incident_to_be_both_anchor_and_site_correct(tmp_path):
+    path = arm_dir(tmp_path)
+
+    def flip(rows):
+        h = rows[0]
+        for r in rows[1:]:
+            # a noticed incident that is site-correct but whose anchor is late
+            if r[h.index("noticed")] == "true" and r[h.index("anchor_correct")] == "false":
+                r[h.index("site_correct")] = "true"
+                r[h.index("anchor_site_correct")] = "true"
+                break
+        return rows
+
+    edit(path, "notice_incidents.csv", flip)
+    with pytest.raises(LoadError, match="anchor-and-site-correct but not both"):
+        load_stream_arm(path)
+
+
+def test_the_stream_row_must_agree_with_the_incident_rows_on_the_site_check(tmp_path):
+    for column in ("site_correct_hard", "anchor_site_correct_plain"):
+        path = arm_dir(tmp_path, name=column)
+
+        def bump(rows, column=column):
+            col = rows[0].index(column)
+            rows[2][col] = str(int(rows[2][col]) + 1)
+            return rows
+
+        edit(path, "notices.csv", bump)
+        with pytest.raises(LoadError, match=column):
+            load_stream_arm(path)
+
+
+def test_the_stream_counts_of_site_correct_notices_must_nest(tmp_path):
+    path = arm_dir(tmp_path)
+
+    def bump(rows):
+        col = rows[0].index("notices_anchor_site_correct")
+        rows[1][col] = str(int(rows[1][col]) + 5)
+        return rows
+
+    edit(path, "notices.csv", bump)
+    with pytest.raises(LoadError, match="notices_anchor_site_correct <= notices_site_correct"):
+        load_stream_arm(path)
+
+
+def test_the_event_rows_must_agree_with_the_site_counts(tmp_path):
+    path = arm_dir(tmp_path)
+
+    def clear(rows):
+        h = rows[0]
+        for r in rows[1:]:
+            if r[h.index("site_correct")] == "true":
+                r[h.index("site_correct")] = "false"
+                r[h.index("anchor_site_correct")] = "false"
+                break
+        return rows
+
+    edit(path, "notice_events.csv", clear)
+    with pytest.raises(LoadError, match="notices_site_correct"):
+        load_stream_arm(path)
+
+
+def test_an_event_flag_for_both_must_be_the_conjunction(tmp_path):
+    path = arm_dir(tmp_path)
+
+    def flip(rows):
+        h = rows[0]
+        for r in rows[1:]:
+            if r[h.index("event")] == "notice" and r[h.index("anchor_correct")] == "false":
+                r[h.index("anchor_site_correct")] = "true"
+                break
+        return rows
+
+    edit(path, "notice_events.csv", flip)
+    with pytest.raises(LoadError, match="anchor_site_correct is not"):
+        load_stream_arm(path)
+
+
 def test_noticed_first_notice_and_latency_must_agree(tmp_path):
     path = arm_dir(tmp_path)
 
@@ -241,6 +335,20 @@ def test_an_event_is_a_notice_or_a_retirement_and_a_retirement_has_no_verdict(tm
     edit(path, "notice_events.csv", verdict_on_retirement)
     with pytest.raises(LoadError, match="empty exactly on retirements"):
         load_stream_arm(path)
+    for flag in ("site_correct", "anchor_site_correct"):
+        path = arm_dir(tmp_path, name=f"third-{flag}")
+
+        def on_retirement(rows, flag=flag):
+            h = rows[0]
+            for r in rows[1:]:
+                if r[h.index("event")] == "retire":
+                    r[h.index(flag)] = "true"
+                    break
+            return rows
+
+        edit(path, "notice_events.csv", on_retirement)
+        with pytest.raises(LoadError, match=f"{flag} is empty exactly on retirements"):
+            load_stream_arm(path)
 
 
 # ---- the measures ----------------------------------------------------------------------------
@@ -266,6 +374,20 @@ def test_per_stream_numerators_and_denominators_match_a_hand_count(tmp_path):
     assert t["notices_on_incidents"].tolist() == [2, 4, 5]
     assert t["incidents"].tolist() == [3, 3, 4]
     assert t["retirements"].tolist() == [1, 2, 0]
+    # The site check (N14, N15), counted by hand from `noticing_streams()`: stream 1's plain
+    # incident is site-correct and both; its decoy is anchor-correct at the wrong service. Stream
+    # 2's plain incident is both and its hard one is site-correct with a late anchor. Stream 3's
+    # leak is neither, its split brain and its plain incident are both.
+    assert t["hard_site"].tolist() == [0, 1, 1]
+    assert t["hard_both"].tolist() == [0, 0, 1]
+    assert t["leak_site"].tolist() == [0, 0, 0]
+    assert t["leak_both"].tolist() == [0, 0, 0]
+    assert t["plain_site"].tolist() == [1, 1, 1]
+    assert t["plain_both"].tolist() == [1, 1, 1]
+    assert t["decoy_site"].tolist() == [0, 0, 0]
+    assert t["decoy_both"].tolist() == [0, 0, 0]
+    assert t["notices_site"].tolist() == [1, 2, 2]
+    assert t["notices_both"].tolist() == [1, 1, 2]
 
 
 def test_the_pooled_measures_are_ratios_of_sums_not_means_of_ratios(tmp_path):
@@ -286,6 +408,21 @@ def test_the_pooled_measures_are_ratios_of_sums_not_means_of_ratios(tmp_path):
     assert p["notices_on_decoy_per_stream"] == pytest.approx(1 / 3)
     assert p["notices_per_incident"] == pytest.approx(11 / 10)
     assert p["retirements_per_stream"] == pytest.approx(1.0)
+    # The site check and precision (N14 to N16), counted by hand: 14 notices, 11 on incidents (6 on
+    # plain, 4 on hard, 1 on decoys), 5 site-correct, 4 anchor-correct and site-correct.
+    assert p["hard_site_correct_share"] == pytest.approx(2 / 3)
+    assert p["hard_anchor_site_correct_share"] == pytest.approx(1 / 3)
+    assert p["leak_site_correct_share"] == 0.0
+    assert p["leak_anchor_site_correct_share"] == 0.0
+    assert p["notice_precision"] == pytest.approx(11 / 14)
+    assert p["precision_plain"] == pytest.approx(6 / 14)
+    assert p["precision_hard"] == pytest.approx(4 / 14)
+    assert p["precision_decoy"] == pytest.approx(1 / 14)
+    assert p["precision_plain"] + p["precision_hard"] + p["precision_decoy"] == pytest.approx(
+        p["notice_precision"]
+    )
+    assert p["strict_precision"] == pytest.approx(4 / 14)
+    assert p["site_correct_notice_share"] == pytest.approx(5 / 14)
     # A mean of per-stream shares would give another number: stream 2 has one hard incident and
     # stream 3 has two, and stream 1 has none (its share is undefined, not zero).
     per_stream = notice_per_stream(load_stream_arm(arm_dir(tmp_path, name="again")))

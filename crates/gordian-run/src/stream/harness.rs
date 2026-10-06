@@ -879,6 +879,7 @@ fn play(
                 anomaly: e.anomaly,
                 anchor: e.anchor,
                 at: e.at,
+                site: Some(e.site.0),
             })
             .collect(),
         retirements: notice_log

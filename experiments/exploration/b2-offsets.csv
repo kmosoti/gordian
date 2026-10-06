@@ -1,0 +1,6 @@
+config,notices_on_hard,not_anchor_correct,offset_1_to_2_s,offset_2_to_5_s,offset_5_to_10_s,offset_10_to_30_s,offset_30_to_inf_s
+rung_z3,451,91,4,0,33,45,9
+rung_z2,513,112,8,2,48,48,6
+change_q128,24,0,0,0,0,0,0
+earliest_l0.25,451,91,4,0,33,45,9
+reanchor,543,116,4,1,51,53,7

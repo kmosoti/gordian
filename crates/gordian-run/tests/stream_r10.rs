@@ -61,7 +61,10 @@ fn notice(delay_ns: u64) -> StreamPolicySpec {
 }
 
 fn selection(delay_ns: u64) -> StreamPolicySpec {
-    StreamPolicySpec::OracleSelection { delay_ns }
+    StreamPolicySpec::OracleSelection {
+        delay_ns,
+        hold_until_asked: false,
+    }
 }
 
 // ---- The manifest spelling

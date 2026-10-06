@@ -32,6 +32,7 @@
 //! | `rung` ([`super::noticer_rung::RungNoticer`]) | the rung's own noticing, unchanged: candidates grouped by the public graph, each scored by a z-score of its recent abnormal count against a baseline learned from the stream so far, noticed when the score crosses `notice_z`, then re-anchored on the densest burst |
 //! | `change_triggered` ([`super::noticer_change::ChangeTriggered`]) | a notice on the first abnormal observation at a node after `quiet_ns` without one there, anchored on it |
 //! | `earliest_anchor` ([`super::noticer_rung::EarliestAnchor`]) | the rung's noticer with its anchor moved to the earliest abnormal observation at the anomaly's site within `lookback_ns` before the rung's anchor |
+//! | `reanchor` ([`super::noticer_reanchor::ReanchorNoticer`], work item B2) | the rung's noticer with a later re-anchor: an anomaly anchored on an isolated abnormal observation (none other at its site within `gap_ns`) whose attached evidence holds a burst that begins after the anchor is re-anchored on that burst's first observation, at the moment of notice |
 //!
 //! # The record
 //!
@@ -71,6 +72,20 @@ pub enum NoticerSpec {
         /// How far before the rung's anchor an abnormal observation at the site may be, nanoseconds.
         lookback_ns: u64,
     },
+    /// The rung's noticer with a later re-anchor (work item B2). Every parameter is written.
+    Reanchor {
+        /// The z-score at which a candidate anomaly is noticed, if not the rung's (as for `Rung`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice_z: Option<f64>,
+        /// The gap `g`: the anchor is isolated when no other attached observation (of the service
+        /// `isolation` says) falls strictly before its instant plus this, nanoseconds.
+        gap_ns: u64,
+        /// The fewest attached observations, the first included, in the rung's `burst_ns` that make
+        /// a burst. At least 2.
+        min_burst: u32,
+        /// Which attached observations make the anchor non-isolated.
+        isolation: super::noticer_reanchor::Isolation,
+    },
 }
 
 impl Default for NoticerSpec {
@@ -91,6 +106,7 @@ impl NoticerSpec {
             Self::Rung { .. } => RUNG_ID,
             Self::ChangeTriggered { .. } => CHANGE_ID,
             Self::EarliestAnchor { .. } => EARLIEST_ID,
+            Self::Reanchor { .. } => REANCHOR_ID,
         }
     }
 
@@ -100,6 +116,15 @@ impl NoticerSpec {
             Self::Rung {
                 notice_z: Some(z), ..
             } if !z.is_finite() => Err("noticer rung: notice_z must be finite".to_owned()),
+            Self::Reanchor {
+                notice_z: Some(z), ..
+            } if !z.is_finite() => Err("noticer reanchor: notice_z must be finite".to_owned()),
+            Self::Reanchor { gap_ns: 0, .. } => {
+                Err("noticer reanchor: gap_ns must be at least 1".to_owned())
+            }
+            Self::Reanchor { min_burst, .. } if *min_burst < 2 => {
+                Err("noticer reanchor: min_burst must be at least 2".to_owned())
+            }
             _ => Ok(()),
         }
     }
@@ -111,6 +136,8 @@ pub const RUNG_ID: &str = "rung";
 pub const CHANGE_ID: &str = "change_triggered";
 /// The id of the earliest-anchor noticer.
 pub const EARLIEST_ID: &str = "earliest_anchor";
+/// The id of the later re-anchor noticer (work item B2).
+pub const REANCHOR_ID: &str = "reanchor";
 
 /// A noticed anomaly, as a noticer yields it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -351,11 +378,20 @@ impl Tracked {
                 chosen = k;
             }
         }
-        if chosen == 0 {
+        self.move_anchor_to(chosen, services);
+    }
+
+    /// Move the anchor to attached observation `k` (an index into `attached`; 0 is the anchor now,
+    /// and an index past the end is nothing: neither moves it): the observations before it leave
+    /// the anomaly's evidence, its service becomes the site, and the region and the burst timing
+    /// follow from it. The one move [`Tracked::reanchor`] and the later re-anchor of
+    /// [`super::noticer_reanchor`] make.
+    pub fn move_anchor_to(&mut self, k: usize, services: &[Service]) {
+        if k == 0 || k >= self.attached.len() {
             return;
         }
-        self.attached.drain(..chosen);
-        self.sigs.drain(..chosen);
+        self.attached.drain(..k);
+        self.sigs.drain(..k);
         self.rebuild();
         self.anchor = self.attached[0].1;
         self.anchor_at = self.attached[0].0;
@@ -531,6 +567,7 @@ impl Scorer {
 /// parameters `cfg`.
 pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<dyn Noticer> {
     use super::noticer_change::ChangeTriggered;
+    use super::noticer_reanchor::ReanchorNoticer;
     use super::noticer_rung::{EarliestAnchor, RungNoticer};
     match *spec {
         NoticerSpec::Rung { notice_z } => {
@@ -547,5 +584,19 @@ pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<
             RungNoticer::new(cfg.clone(), services),
             lookback_ns,
         )),
+        NoticerSpec::Reanchor {
+            notice_z,
+            gap_ns,
+            min_burst,
+            isolation,
+        } => {
+            let mut cfg = cfg.clone();
+            if let Some(z) = notice_z {
+                cfg.notice_z = z;
+            }
+            Box::new(ReanchorNoticer::new(
+                cfg, services, gap_ns, min_burst, isolation,
+            ))
+        }
     }
 }

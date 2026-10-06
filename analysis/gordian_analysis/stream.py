@@ -188,9 +188,10 @@ def format_summary(summary: dict) -> str:
 
 
 # ---------------------------------------------------------------------------------------------
-# Notices (work item B1). The measures are the evaluator's (crates/gordian-stream-eval/RULES.md,
-# N1 to N12), read from the notice files the harness writes beside results.csv and incidents.csv.
-# Every ratio is pooled from counts over streams, as above; a per-stream ratio is never taken.
+# Notices (work items B1 and B2). The measures are the evaluator's (crates/gordian-stream-eval/
+# RULES.md, N1 to N16), read from the notice files the harness writes beside results.csv and
+# incidents.csv. Every ratio is pooled from counts over streams, as above; a per-stream ratio is
+# never taken.
 # ---------------------------------------------------------------------------------------------
 
 LEAK_FAMILY = "slow_leak"
@@ -208,10 +209,12 @@ def notice_per_stream(arm: StreamArm) -> pd.DataFrame:
     ascending), for pooling and for resampling whole streams.
 
     Columns: for hard incidents outside the slow-leak family (`hard`), the slow leak (`leak`), plain
-    incidents and decoys: the incidents (`_n`), those noticed (`_noticed`: N2) and those with an
-    anchor-correct notice (`_correct`: N5); then `notices`, the notices on background, plain
-    incidents, hard incidents and decoys (N8), `notices_on_incidents`, `incidents` (every tier) and
-    `retirements`.
+    incidents and decoys: the incidents (`_n`), those noticed (`_noticed`: N2), those with an
+    anchor-correct notice (`_correct`: N5), those with a site-correct notice (`_site`: N14) and those
+    with one notice that is both (`_both`: N15); then `notices`, the notices on background, plain
+    incidents, hard incidents and decoys (N8), `notices_on_incidents`, `incidents` (every tier),
+    `retirements`, and the notices that are site-correct (`notices_site`: N14) and both
+    anchor-correct and site-correct (`notices_both`: N15).
     """
     _need_notices(arm)
     ni = arm.notice_incidents
@@ -228,7 +231,11 @@ def notice_per_stream(arm: StreamArm) -> pd.DataFrame:
         out[f"{name}_n"] = g.size().reindex(seeds, fill_value=0).to_numpy()
         out[f"{name}_noticed"] = g["noticed"].sum().reindex(seeds, fill_value=0).to_numpy()
         out[f"{name}_correct"] = g["anchor_correct"].sum().reindex(seeds, fill_value=0).to_numpy()
+        out[f"{name}_site"] = g["site_correct"].sum().reindex(seeds, fill_value=0).to_numpy()
+        out[f"{name}_both"] = g["anchor_site_correct"].sum().reindex(seeds, fill_value=0).to_numpy()
     n = arm.notices.set_index("seed")
+    out["notices_site"] = n["notices_site_correct"].to_numpy()
+    out["notices_both"] = n["notices_anchor_site_correct"].to_numpy()
     out["notices"] = n["notices"].to_numpy()
     out["notices_background"] = n["notices_on_background"].to_numpy()
     out["notices_plain"] = n["notices_on_plain"].to_numpy()
@@ -246,8 +253,14 @@ def notice_points(arm: StreamArm) -> dict:
     `hard_noticed_share`, `hard_anchor_correct_share`: hard non-leak incidents noticed, and noticed
     with an anchor within 1 s of their first observation. `leak_noticed_share`,
     `leak_anchor_correct_share`: the same for the slow leak. `*_per_stream` are means over streams;
-    `notices_per_incident` is the pooled count of notices anchored on incidents over incidents. A
-    share is NaN when its denominator is zero.
+    `notices_per_incident` is the pooled count of notices anchored on incidents over incidents.
+    `hard_site_correct_share` and `hard_anchor_site_correct_share` (and the leak's): hard non-leak
+    incidents with a notice about their site (N14), and with one notice that is anchor-correct and
+    about their site (N15). `notice_precision` is the pooled share of notices anchored on an
+    incident of any tier (N16); `precision_plain`, `precision_hard` and `precision_decoy` the pooled
+    share anchored on that tier (they add to it); `strict_precision` the pooled share that are
+    anchor-correct and site-correct; `site_correct_notice_share` the pooled share that are
+    site-correct. A share is NaN when its denominator is zero.
     """
     t = notice_per_stream(arm)
     return {
@@ -261,6 +274,16 @@ def notice_points(arm: StreamArm) -> dict:
         "leak_noticed_share": pooled_ratio(t["leak_noticed"], t["leak_n"]),
         "leak_anchor_correct_share": pooled_ratio(t["leak_correct"], t["leak_n"]),
         "plain_noticed_share": pooled_ratio(t["plain_noticed"], t["plain_n"]),
+        "hard_site_correct_share": pooled_ratio(t["hard_site"], t["hard_n"]),
+        "hard_anchor_site_correct_share": pooled_ratio(t["hard_both"], t["hard_n"]),
+        "leak_site_correct_share": pooled_ratio(t["leak_site"], t["leak_n"]),
+        "leak_anchor_site_correct_share": pooled_ratio(t["leak_both"], t["leak_n"]),
+        "notice_precision": pooled_ratio(t["notices_on_incidents"], t["notices"]),
+        "precision_plain": pooled_ratio(t["notices_plain"], t["notices"]),
+        "precision_hard": pooled_ratio(t["notices_hard"], t["notices"]),
+        "precision_decoy": pooled_ratio(t["notices_decoy"], t["notices"]),
+        "strict_precision": pooled_ratio(t["notices_both"], t["notices"]),
+        "site_correct_notice_share": pooled_ratio(t["notices_site"], t["notices"]),
         "notices_per_stream": float(t["notices"].mean()),
         "notices_on_background_per_stream": float(t["notices_background"].mean()),
         "notices_on_plain_per_stream": float(t["notices_plain"].mean()),
