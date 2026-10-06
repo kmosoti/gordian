@@ -359,11 +359,12 @@ def selection_per_stream(arm: StreamArm) -> pd.DataFrame:
     """
     _need_selection(arm)
     sel = arm.selection.set_index("seed").sort_index()
-    out = pd.DataFrame(index=sel.index)
-    for field in STREAM_SELECTION_FIELDS:
-        for c in STREAM_SELECTION_CLASSES:
-            out[f"{field}_{c}"] = sel[f"{field}_{c}"]
-    out["escalations_unattributed"] = sel["escalations_unattributed"]
+    cols = {
+        f"{field}_{c}": sel[f"{field}_{c}"]
+        for field in STREAM_SELECTION_FIELDS
+        for c in STREAM_SELECTION_CLASSES
+    }
+    cols["escalations_unattributed"] = sel["escalations_unattributed"]
     sn = arm.selection_notices
     for name, cls in (("leak", "leak"), ("decoy", "decoy")):
         mine = sn[sn["class"] == cls].copy()
@@ -372,8 +373,8 @@ def selection_per_stream(arm: StreamArm) -> pd.DataFrame:
         g = mine.groupby(["seed", "incident"])
         per = pd.DataFrame({"hit": g["hit"].any(), "asked": g["asked"].any()})
         hit = per[per["hit"]].groupby("seed").size()
-        out[f"{name}_followup_hit"] = hit.reindex(sel.index, fill_value=0).astype("int64")
+        cols[f"{name}_followup_hit"] = hit.reindex(sel.index, fill_value=0).astype("int64")
         if name == "leak":
             lost = per[per["hit"] & ~per["asked"]].groupby("seed").size()
-            out["leak_lost"] = lost.reindex(sel.index, fill_value=0).astype("int64")
-    return out.astype("int64")
+            cols["leak_lost"] = lost.reindex(sel.index, fill_value=0).astype("int64")
+    return pd.DataFrame(cols, index=sel.index).astype("int64")

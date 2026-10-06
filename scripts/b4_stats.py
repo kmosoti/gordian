@@ -24,6 +24,7 @@ all pooled as ratios of sums over streams and never as means of per-stream ratio
 """
 
 import numpy as np
+import pandas as pd
 
 import b2_common  # noqa: F401  (puts the exploration scripts and this worktree's analysis on the path)
 import b2_stats
@@ -62,12 +63,16 @@ def per_stream(arm):
     """One arm's per-stream numerators and denominators, B2's and the selection's, on `seed`."""
     t = S.per_stream(arm).join(notice_per_stream(arm), how="inner").join(
         selection_per_stream(arm).add_prefix("s_"), how="inner")
-    t["one"] = 1
-    t["substrate_ns"] = arm.results.set_index("seed")["substrate_ns"]
-    t["critical_incidents"] = arm.results.set_index("seed")["critical_incidents"].astype("int64")
-    t["esc_calls"] = sum(t[f"s_calls_{c}"] for c in CLASSES)
-    t["esc_tokens"] = sum(t[f"s_tokens_{c}"] for c in CLASSES)
-    return t
+    t = t.copy()  # consolidate the joined frame before the few columns added below
+    results = arm.results.set_index("seed")
+    extra = {
+        "one": 1,
+        "substrate_ns": results["substrate_ns"],
+        "critical_incidents": results["critical_incidents"].astype("int64"),
+        "esc_calls": sum(t[f"s_calls_{c}"] for c in CLASSES),
+        "esc_tokens": sum(t[f"s_tokens_{c}"] for c in CLASSES),
+    }
+    return pd.concat([t, pd.DataFrame(extra, index=t.index)], axis=1)
 
 
 class Measures:

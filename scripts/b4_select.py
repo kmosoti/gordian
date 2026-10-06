@@ -72,6 +72,35 @@ def counts(arm):
     }
 
 
+def choose_follow(df, tolerance):
+    """The follow-up rule's choice from a tuning table `df` (one row per configuration, with the columns
+    `follow_stage` writes) at `tolerance` slow-leak notices the rule may retire: the row, how many were
+    feasible and how many tied at the best. The rule is the module docstring's."""
+    ok = df[(df["background_per_stream"] <= C.BACKGROUND_BUDGET + 1e-12)
+            & (df["leak_retired"] <= tolerance)
+            & (df["quality_loss"] <= C.QUALITY_LOSS_TOLERANCE + 1e-12)]
+    feasible = len(ok)
+    if feasible == 0:
+        ok = df[df["leak_retired"] == df["leak_retired"].min()]
+    top = ok[ok["decoy_retired_before"] == ok["decoy_retired_before"].max()]
+    top = top.sort_values(["collateral", "p_readings", "p_min_gain", "fall_rank", "p_horizon_s"],
+                          ascending=[True, False, False, False, False], kind="stable")
+    return top.iloc[0], feasible, len(top)
+
+
+def choose_selector(gd):
+    """One (row, selector) choice from its grid `gd` (columns `value`, `quality`, `cost_s`, `calls`):
+    among the configurations whose quality is at least 0.9 of the grid's best, the highest quality per
+    modelled second; ties the fewer calls, then the larger value (the more selective). Returns the row
+    (with `efficiency`) and the number tied."""
+    gd = gd.copy()
+    gd["efficiency"] = gd["quality"] / gd["cost_s"]
+    ok = gd[gd["quality"] >= C.QUALITY_FLOOR * gd["quality"].max() - 1e-12]
+    best = ok[ok["efficiency"] == ok["efficiency"].max()]
+    best = best.sort_values(["calls", "value"], ascending=[True, False], kind="stable")
+    return best.iloc[0], len(best)
+
+
 def follow_stage():
     run = load_run("tunefollow")
     control = counts(run.arms["fol_none"])
@@ -89,20 +118,11 @@ def follow_stage():
     sel = load_sel()
     chosen = {}
     for tol in [0, *C.FOLLOW_TOLERANCES]:
-        ok = df[(df["background_per_stream"] <= C.BACKGROUND_BUDGET + 1e-12)
-                & (df["leak_retired"] <= tol)
-                & (df["quality_loss"] <= C.QUALITY_LOSS_TOLERANCE + 1e-12)]
-        feasible = len(ok)
-        if feasible == 0:
-            ok = df[(df["leak_retired"] == df["leak_retired"].min())]
-        top = ok[ok["decoy_retired_before"] == ok["decoy_retired_before"].max()]
-        top = top.sort_values(["collateral", "p_readings", "p_min_gain", "fall_rank", "p_horizon_s"],
-                              ascending=[True, False, False, False, False], kind="stable")
-        pick = top.iloc[0]
+        pick, feasible, tied = choose_follow(df, tol)
         p = C.follow_params(int(pick["p_readings"]), int(pick["p_horizon_s"]), int(pick["p_min_gain"]),
                             None if pick["p_max_fall"] == "x" else int(pick["p_max_fall"]))
         chosen[tol] = {
-            "params": p, "json": C.follow_json(p), "feasible": int(feasible), "tied_at_the_best": int(len(top)),
+            "params": p, "json": C.follow_json(p), "feasible": int(feasible), "tied_at_the_best": int(tied),
             **{k: (float(pick[k]) if isinstance(pick[k], float) else int(pick[k])) for k in
                ("quality", "background_per_stream", "leak_retired", "decoy_retired_before", "collateral",
                 "plain_retired", "hard_retired", "decoy_notices", "calls_decoy", "calls_plain")},
@@ -145,14 +165,10 @@ def select_stage():
                 g.append(r)
                 rows.append(r)
             gd = pd.DataFrame(g)
-            gd["efficiency"] = gd["quality"] / gd["cost_s"]
-            ok = gd[gd["quality"] >= C.QUALITY_FLOOR * gd["quality"].max() - 1e-12]
-            best = ok[ok["efficiency"] == ok["efficiency"].max()]
-            best = best.sort_values(["calls", "value"], ascending=[True, False], kind="stable")
-            pick = best.iloc[0]
+            pick, tied = choose_selector(gd)
             chosen[fam] = {"value": pick["value"].item(), "quality": float(pick["quality"]),
                            "cost_s": float(pick["cost_s"]), "calls": float(pick["calls"]),
-                           "efficiency": float(pick["efficiency"]), "tied": int(len(best)),
+                           "efficiency": float(pick["efficiency"]), "tied": int(tied),
                            "grid_best_quality": float(gd["quality"].max())}
         for ref, arm in (("oracle", C.oracle_arm(stem)), ("never", C.never_arm(stem)),
                          ("always", C.always_arm(stem))):
