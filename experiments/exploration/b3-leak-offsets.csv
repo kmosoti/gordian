@@ -1,0 +1,12 @@
+config,notices_on_leaks,anchor_correct,offset_before,offset_exactly_0,offset_after_0_to_1_s,offset_after_1_to_2_s,offset_after_2_to_5_s,offset_after_5_to_10_s,offset_after_10_to_inf_s
+rung_z3,64,0,0,0,0,0,0,27,37
+rung_z2,64,0,0,0,0,0,0,39,25
+reanchor,64,0,0,0,0,0,0,39,25
+ramp_over_r3,137,135,0,135,0,1,1,0,0
+split_over_r3,64,0,0,0,0,0,0,27,37
+ramp_split_over_r3,137,135,0,135,0,1,1,0,0
+ramp_over_re2,137,135,0,135,0,1,1,0,0
+split_over_re2,64,0,0,0,0,0,0,39,25
+ramp_split_over_re2,137,135,0,135,0,1,1,0,0
+reanchor_z3,64,0,0,0,0,0,0,27,37
+ramp_split_over_re3,137,135,0,135,0,1,1,0,0

@@ -30,9 +30,12 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
 | M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | merged |
 | B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | merged |
-| B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | running |
-| M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | queued |
-| L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | queued |
+| B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | merged |
+| B4 | 2 | A non-privileged selector; decoy-notice accounting; leak-versus-decoy separation | B3 | running |
+| M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | running |
+| L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | running |
+| C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | queued |
+| L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | queued |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 
 ## M1 The medium crate (Lab 1)
@@ -262,6 +265,93 @@ clauses are conjunctive; each is reported. Feasibility: the frozen graph is at 0
 priors can be set anywhere below it, so a slope is measurable; the first clause asks the
 learner to reach the hand design, not beat it. A learner that matches the hand design from
 weaker priors within 100 streams is the claim; one that does not is a result.
+
+## B4 A non-privileged selector, decoy accounting, leak-versus-decoy (Lab 2, after B3)
+
+B3 showed that the background budget is blind to notices anchored on decoys and late plain
+incidents (of the 510 notices the ramp adds per 200 streams, 154 are decoys and 192 late
+plain), and that the selection oracle hides their cost because it never asks about them. The
+reframed EXP-101 charges every notice through a public selector. B4 builds that instrument.
+
+1. **Non-privileged selectors** as `EscalationRule`s over any noticer's anomalies: a public
+   threshold rule (escalate when the rung's conclusion is contradictory or silent for `t`
+   seconds after notice) and a change-triggered rule (escalate once per anomaly when its
+   attached evidence grows by `k` observations after notice), each tuned on seeds 10000–10099
+   for hard-incident quality per unit cost, with the rung's context and R5's delay. The
+   selection oracle stays as the labelled ceiling.
+2. **Evaluator columns**: notices on decoys per stream and per decoy, escalations on decoys and
+   on plain incidents per stream, and their cost share; fixtures and mutation checks as before.
+3. **Leak versus decoy**: a public follow-up rule on a ramp-noticed anomaly, from readings
+   after the first five (a decoy's readings turn benign; a leak's keep rising), that retires
+   the anomaly or keeps it; tuned under the same budget; reported as decoy notices retired
+   before escalation and leaks wrongly retired.
+4. **Table**: every B3 row and M2's medium at 100 ms (read from `artifacts/runs/m2`) under each
+   public selector: hard-incident quality, critical misses, plain accuracy, calls per stream,
+   cost per stream, escalations on decoys and plain, with 90% cluster-bootstrap intervals and
+   paired differences against ramp + split over the re-anchor.
+
+**Acceptance (fixed 2026-10-06).** Byte identity on R6's held-out run; fixtures and mutation
+checks; the table above; no claim about which arm is better. This table is EXP-101's
+feasibility check: its numbers set EXP-101's margins before the freeze.
+
+## C1 An incremental-dataflow noticer (Lab 2, after B4)
+
+The medium's one structural claim is sparse, event-driven computation: cells run only with
+input, and messages travel only where synapses carry them. The public noticers that matched or
+beat it (re-anchor, ramp, split) are hand-written incremental rules. The fair adversary for the
+structural claim is the same rules expressed on a general incremental engine, so that what is
+measured is the mechanism's generality and hand-design burden, not one author's code.
+
+1. **Engine.** Timely/differential dataflow (Rust) or a hand-written incremental relational
+   core, chosen under the dependency rule: the stated requirement is incremental maintenance of
+   joins and windows over persistent facts; the simpler alternative is the rung's existing
+   hand-written incrementality; the cost is the crate's size and determinism obligations. The PI
+   records the choice and reason before building. Determinism is absolute: the noticer must be
+   a pure function of the public stream; no threads inside the arm, no hash iteration order in
+   any output.
+2. **The noticer.** `DataflowNoticer`: B3's ramp + split over the re-anchor expressed as
+   incremental relations (facts: observations; derived: bursts, isolated anchors, chains,
+   splits, notices, retirements), producing notices through the `Noticer` seam. It must
+   reproduce the B3 row's notice record on the 200 held-out streams exactly (a test), or the
+   report lists every difference and why.
+3. **Measured beside the medium at 100 ms** (M2's arm) on the same streams: anchor-correct,
+   leak noticed, leak anchor-correct, background notices, strict precision, the noticer's own
+   cost per stream (counted operations priced like the medium's, with a declared price table
+   calibrated by a micro-benchmark under the cgroup as M1 was), measured wall time, and lines
+   of rule code against lines of graph code.
+
+**Criterion, fixed by the chief before any C1 code or run (2026-10-06).** C1 is an instrument
+and a baseline; its criterion is reproduction and cost. It passes if the dataflow noticer's
+notice record equals the B3 row's on the held-out streams (or every difference is explained)
+and its own cost per stream is reported beside the medium's with calibrated prices. No claim
+about which is better; the comparison enters EXP-101's table as a labelled row.
+
+## L2 A self-supervised reservoir noticer (Lab 3, after L1)
+
+The learned public comparator for the learning claim. L1 asks whether the medium's constants
+can be learned online from public history; L2 asks whether a generic cheap temporal learner
+does as well with no hand-designed graph at all.
+
+1. **The arm.** An echo state network per node (or one shared reservoir with node inputs):
+   fixed sparse random recurrent weights from a seed in the manifest, inputs are the node's
+   public readings at each tick (values, abnormal-kind tags), and a linear readout trained
+   online by recursive least squares to predict the next tick's readings. The stream carries no
+   labels, so the readout is self-supervised; the noticing signal is the prediction residual,
+   thresholded and anchored at the earliest tick of a residual run. Reservoir size, leak rate,
+   spectral radius and the residual threshold are tuned on seeds 10000–10099 under the
+   background bound (≤ 6.82) and strict-precision bound (≥ 0.67); the update rule and priors
+   are written before any run.
+2. **Controls on the same stream order** (seeds 40000–40199, as L1): L1's learned medium, M2's
+   frozen graph, ramp + split over the re-anchor, and the ESN with learning off (readout at
+   its initial weights).
+3. **Measures:** L1's (sample-efficiency curves, slopes over the first 50, 100 and 200 streams,
+   end states over the last 100), with the ESN's own cost per stream counted and priced.
+
+**Criterion, fixed by the chief before any L2 code or run (2026-10-06).** L1's three clauses,
+applied to the ESN against the frozen graph; and a fourth, reported separately: the ESN's end
+state against L1's learned medium, paired. Feasibility: a reservoir's residual on this world's
+bursts and ramps is a plausible noticing signal and an implausible anchoring signal at 100 ms
+resolution; both outcomes are reachable, and an ESN that notices but mis-anchors is a result.
 
 ## M2 The medium as a noticer (Lab 1, after M1 and B1)
 
