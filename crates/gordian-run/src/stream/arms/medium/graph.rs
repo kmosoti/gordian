@@ -1,42 +1,45 @@
 //! The hand-designed noticing graph (work item M2, build item 4) and its parameters.
 //!
 //! Public information only: the public graph (which services depend on which), the public rules'
-//! verdict on each observation, its value and its time. Nothing about tiers, families, incidents
-//! or the hidden rules is encoded here; every number below is a parameter in the manifest, chosen
-//! on the tuning streams (10000-10099), and its meaning is stated where it is used.
+//! verdict on each observation, its kind, its value and its time. Nothing about tiers, families,
+//! incidents or the hidden rules is encoded here; every number below is a parameter in the
+//! manifest, chosen on the tuning streams (10000-10099), and its meaning is stated where it is used.
 //!
-//! # The graph, per service `n` (structure fixed; the parameters are [`MediumParams`])
+//! # The graph, per service `n` (the parameters are [`MediumParams`]; each path can be switched off)
 //!
 //! | Cell | Archetype | Inputs | What it is for |
 //! |---|---|---|---|
 //! | `abn[n]` | `Sense`, count | abnormal observations about `n` | the public alarm signal at `n` |
-//! | `onset[n]` | `Integrator`, leak from `onset_tau_ns`, threshold `onset_threshold`, reset, lookback `lookback_ns` | `abn[n]` (1), `abn[d]` for each dependent `d` of `n` (`dependent_weight`) | a burst at `n` and the services that depend on it: what an incident's start looks like and a lone stray does not |
-//! | `dep[n]` | `Integrator`, no memory, threshold 1/2, lookback 0 | `abn[d]` for each dependent `d` | relays "a dependent of `n` alarmed in this tick" (only with a coincidence) |
-//! | `prop[n]` | `Coincidence` (sliding, binned or ordered by event time, `coincidence`), n = 2, consumed, lookback `lookback_ns` | `abn[n]` (slot 0), `dep[n]` (slot 1) | propagation: an alarm at `n` and one at a dependent within `coincidence_window_ns` (ordered: `n` first, public rule 1) |
-//! | `notice[n]` | `Emit`, kind notice, lookback `lookback_ns`, refractory `refractory_ns` | `onset[n]`, `prop[n]` | the notice; its anchor is the earliest event in the support that reaches it |
-//! | `arrived[n, c]`, `value[n, c]` | `Sense`, presence and sum | counter `c` at `n`, benign or not | that a reading came, and the reading itself (five counters) |
-//! | `jump[n, c]` | `Novelty`, rate 1 (its estimate is the last reading), band `ramp_jump`, one reading of warm-up | `value[n, c]` | the reading jumped from the last one by more than `ramp_jump` |
-//! | `smooth[n, c]` | `Integrator`, leak from `ramp_tau_ns`, threshold `ramp_threshold`, reset, lookback `ramp_lookback_ns` | `arrived[n, c]` (+1), `jump[n, c]` (minus `ramp_penalty` per `ramp_jump` of jump) | readings of one counter that come often and move little: a ramp, which noise (readings far apart, each drawn afresh) is not |
-//! | `rampnotice[n]` | `Emit`, kind notice, lookback `ramp_lookback_ns`, refractory `refractory_ns` | `smooth[n, c]` | the notice of a ramp |
+//! | `notice[n]` | `Emit`, kind notice, lookback the larger of `lookback_ns` and `burst_lookback_ns`, refractory `refractory_ns` | `onset[n]`, `burst[n]`, `prop[n]` | the notice; its anchor is the earliest event in the support that reaches it |
+//! | `onset[n]` (`onset`) | `Integrator`, leak from `onset_tau_ns`, threshold `onset_threshold`, reset, lookback `lookback_ns` | `abn[n]` (1), `abn[d]` for each dependent `d` of `n` (`dependent_weight`) | several alarms at `n` (and its dependents) within a short time |
+//! | `kind[n, k]` (`burst`) | `Sense`, count | abnormal observations about `n` of kind `k`: error rate, latency, a message | one input per kind |
+//! | `other[n]` (`burst`) | `Integrator`, no memory, threshold 1/2, lookback 0 | `Sense` cells of the other kinds (saturation, authentication failures, restarts, a snapshot) | the fourth kind, relayed |
+//! | `burst[n]` (`burst`) | `Coincidence` (form `coincidence`), n = `burst_n`, consumed, window `burst_window_ns`, lookback `burst_lookback_ns` | `kind[n, *]`, `other[n]` | abnormal observations of `burst_n` distinct kinds at `n` within the window: in the ordered form, by their time inside the tick (`offset_ns`) |
+//! | `dep[n]`, `prop[n]` (`propagation`) | relay; `Coincidence` (form `coincidence`), n = 2, lead, window `coincidence_window_ns` | `abn[n]` (slot 0), `abn[d]` of the dependents | an alarm at `n` and then one at a dependent (public rule 1) |
+//! | `arrived[n, c]`, `value[n, c]` (`ramp`) | `Sense`, presence and sum | counter `c` at `n`, benign or not | that a reading came, and the reading itself (five counters) |
+//! | `jump[n, c]` (`ramp`) | `Novelty`, rate 1 (its estimate is the last reading), band `ramp_jump`, one reading of warm-up | `value[n, c]` | the reading jumped from the last one by more than `ramp_jump` |
+//! | `smooth[n, c]` (`ramp`) | `Integrator`, leak from `ramp_tau_ns`, threshold `ramp_threshold`, reset, lookback `ramp_lookback_ns` | `arrived[n, c]` (+1), `jump[n, c]` (minus `ramp_penalty` per `ramp_jump` of jump) | readings of one counter that come often and move little: a ramp, which noise (readings far apart, each drawn afresh) is not |
+//! | `rampnotice[n]` (`ramp`) | `Emit`, kind notice, lookback `ramp_lookback_ns`, refractory `refractory_ns` | `smooth[n, c]` | the notice of a ramp |
 //! | `hold[n]` | `Latch`, retiring, hold `hold_ns` | `notice[n]`, `rampnotice[n]`, and `abn[n]` while it holds | an open anomaly at `n`; it proposes `retire` when `n` has been quiet for the hold |
 //!
-//! The ramp cells exist only when `ramp` is on; `dep` and `prop` only with a coincidence and only
-//! for a service that has a dependent. Times are given in nanoseconds and converted by the
-//! medium at build time for the tick length (the oscillome's `seconds`), so a change of tick does
-//! not change the program except by rounding (the conversion table is in the report).
+//! Times are given in nanoseconds and converted by the medium at build time for the tick length
+//! (the oscillome's `seconds`), so a change of tick does not change the program except by rounding
+//! (the conversion table is in the report). The ordered coincidence's window is microseconds and
+//! does not depend on the tick; the sliding one's is ticks (rounded up); the binned one's is a bin
+//! of the 10 s rhythm, at least a tick.
 //!
 //! # The anchoring rule, as used here
 //!
 //! The emitter's anchor is the earliest event in its support; its support is the support of the
 //! cell that fired it, which an `Integrator` or a `Coincidence` prunes to its lookback in ticks.
-//! So `lookback_ns` is set on the integrator, the coincidence and the emitter alike: it is "the
-//! emitter's lookback" of the brief, the parameter anchor correctness is reported against. A
-//! lookback of 0 cites only the tick that crossed the threshold.
+//! So the lookback of a path is set on its integrator or coincidence and on the emitter alike: it
+//! is "the emitter's lookback" of the brief, the parameter anchor correctness is reported against.
+//! A lookback of 0 cites only the tick that fired.
 
-use super::adapters::{CH_COUNTER, DOMAIN, TAG_ABNORMAL, counter_tag};
+use super::adapters::{ABNORMAL_KIND, CH_COUNTER, DOMAIN, TAG_ABNORMAL, counter_tag};
 use gordian_medium::{
     CellId, Gate, Limits, MediumBuilder, MediumSpec, Oscillome, Pattern, Prices, SenseMode,
-    SynapseSpec, TimeTarget,
+    SynapseSpec, Tag, TimeTarget,
 };
 use gordian_world::graph::dependents_mask;
 use gordian_world::{CounterName, Service};
@@ -51,17 +54,17 @@ pub const KIND_RETIRE: u16 = 2;
 /// The periods of the oscillome's rhythms when they are on: 10 s and 100 s (M1b's first set).
 pub const RHYTHMS_NS: [u64; 2] = [10_000_000_000, 100_000_000_000];
 
-/// Which form of `Coincidence` detects propagation, if any.
+/// Which form of `Coincidence` the burst and propagation cells use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoincidenceForm {
-    /// No propagation cells.
+    /// None (neither the burst nor the propagation cells may exist).
     Off,
     /// M1's sliding window, in ticks.
     Sliding,
-    /// Binned by the 10 s rhythm (needs rhythms): bins of `coincidence_window_ns`.
+    /// Binned by the 10 s rhythm (needs rhythms): bins of the window, at least a tick.
     Binned,
-    /// Ordered by event time (`offset_ns`), the site first.
+    /// Ordered by event time (`offset_ns`), microseconds.
     Ordered,
 }
 
@@ -77,6 +80,9 @@ pub struct MediumParams {
     /// public rules call abnormal.
     #[serde(default)]
     pub abnormal_only: bool,
+    /// Whether the onset integrator path exists.
+    #[serde(default = "yes")]
+    pub onset: bool,
     /// Time constant of the onset integrator's leak, nanoseconds.
     pub onset_tau_ns: u64,
     /// The onset integrator's threshold, in abnormal observations (a dependent's weighted).
@@ -87,14 +93,29 @@ pub struct MediumParams {
     /// `depends_on`) rather than every service that depends on `n`, directly or not.
     #[serde(default)]
     pub direct_dependents: bool,
-    /// The anchor lookback (integrator, coincidence and emitter), nanoseconds.
+    /// The onset path's anchor lookback (integrator, propagation coincidence), nanoseconds.
     pub lookback_ns: u64,
     /// Fewest nanoseconds between two notices of one emitter.
     pub refractory_ns: u64,
-    /// The propagation coincidence's form.
+    /// The form of the burst and propagation coincidences.
     pub coincidence: CoincidenceForm,
-    /// Its window, nanoseconds (ticks when sliding, bins when binned, microseconds when ordered).
+    /// The propagation coincidence's window, nanoseconds.
     pub coincidence_window_ns: u64,
+    /// Whether the burst cells exist.
+    #[serde(default)]
+    pub burst: bool,
+    /// Distinct kinds of abnormal observation at one service that make a burst (2 to 4).
+    #[serde(default = "two")]
+    pub burst_n: u8,
+    /// The burst coincidence's window, nanoseconds.
+    #[serde(default)]
+    pub burst_window_ns: u64,
+    /// The burst path's anchor lookback, nanoseconds.
+    #[serde(default)]
+    pub burst_lookback_ns: u64,
+    /// Whether the propagation cells exist.
+    #[serde(default)]
+    pub propagation: bool,
     /// Whether the ramp cells exist.
     pub ramp: bool,
     /// The step between two readings of one counter above which it is a jump, counter units.
@@ -115,13 +136,22 @@ pub struct MediumParams {
     pub rhythms: bool,
 }
 
+fn yes() -> bool {
+    true
+}
+
+fn two() -> u8 {
+    2
+}
+
 impl Default for MediumParams {
     /// A starting point, not a tuned value: 100 ms ticks; an onset of three alarms within about
-    /// 300 ms; the ramp path on.
+    /// 300 ms; the ramp path on; no burst or propagation cells.
     fn default() -> Self {
         Self {
             tick_ns: 100_000_000,
             abnormal_only: false,
+            onset: true,
             onset_tau_ns: 300_000_000,
             onset_threshold: 3.0,
             dependent_weight: 1.0,
@@ -130,6 +160,11 @@ impl Default for MediumParams {
             refractory_ns: 6_000_000_000,
             coincidence: CoincidenceForm::Off,
             coincidence_window_ns: 300_000_000,
+            burst: false,
+            burst_n: 2,
+            burst_window_ns: 25_000_000,
+            burst_lookback_ns: 0,
+            propagation: false,
             ramp: true,
             ramp_jump: 8.0,
             ramp_penalty: 3.0,
@@ -147,11 +182,9 @@ impl MediumParams {
     pub fn validate(&self) -> Result<(), String> {
         let t = self.tick_ns;
         if t == 0 || t > u64::from(u32::MAX) || !t.is_multiple_of(1_000) {
-            return Err(
-                "noticer medium: tick_ns must be a positive whole number of microseconds \
-                        of at most u32::MAX"
-                    .to_owned(),
-            );
+            return Err("noticer medium: tick_ns must be a positive whole number of \
+                        microseconds of at most u32::MAX"
+                .to_owned());
         }
         let finite = [
             self.onset_threshold,
@@ -161,14 +194,21 @@ impl MediumParams {
             self.ramp_threshold,
         ];
         if finite.iter().any(|x| !x.is_finite() || *x < 0.0) {
-            return Err(
-                "noticer medium: thresholds, weights and rates must be finite and \
+            return Err("noticer medium: thresholds, weights and rates must be finite and \
                         non-negative"
-                    .to_owned(),
-            );
+                .to_owned());
         }
         if self.onset_threshold <= 0.0 || (self.ramp && self.ramp_threshold <= 0.0) {
             return Err("noticer medium: thresholds must be positive".to_owned());
+        }
+        if (self.burst || self.propagation) && self.coincidence == CoincidenceForm::Off {
+            return Err(
+                "noticer medium: the burst and propagation cells need a coincidence form"
+                    .to_owned(),
+            );
+        }
+        if self.burst && !(2..=4).contains(&self.burst_n) {
+            return Err("noticer medium: burst_n must be 2 to 4".to_owned());
         }
         if self.coincidence == CoincidenceForm::Binned && !self.rhythms {
             return Err("noticer medium: a binned coincidence needs the rhythms".to_owned());
@@ -201,7 +241,7 @@ fn probe_graph() -> Vec<Service> {
 pub struct Layout {
     /// The service each retiring latch watches, by cell.
     pub latches: BTreeMap<CellId, u32>,
-    /// The onset emitter of each service.
+    /// The notice emitter of each service.
     pub notice: Vec<CellId>,
     /// The ramp emitter of each service, when the ramp cells exist.
     pub ramp_notice: Vec<CellId>,
@@ -218,6 +258,41 @@ impl Layout {
     }
 }
 
+/// Set parameter `index` of `cell` in time.
+fn timed(b: &mut MediumBuilder, cell: CellId, index: u8, ns: u64) {
+    b.timed(TimeTarget::Param { cell, index }, ns);
+}
+
+/// A coincidence of `n` sources in the form `params.coincidence`, consumed on firing, with
+/// `window_ns` and `lookback_ns` given in time; `lead` (ordered form only): the first source first.
+fn coincidence(
+    b: &mut MediumBuilder,
+    params: &MediumParams,
+    n: u8,
+    window_ns: u64,
+    lookback_ns: u64,
+    lead: bool,
+) -> CellId {
+    let c = match params.coincidence {
+        CoincidenceForm::Sliding => {
+            let c = b.coincidence(n, 0, true, 0);
+            timed(b, c, 1, window_ns);
+            c
+        }
+        CoincidenceForm::Binned => {
+            let bins = (RHYTHMS_NS[0] / window_ns.max(params.tick_ns)).max(1) as u32;
+            b.coincidence_binned(n, 0, bins, 0, true, 0)
+        }
+        CoincidenceForm::Ordered | CoincidenceForm::Off => {
+            let c = b.coincidence_ordered(n, 0, lead, true, 0);
+            timed(b, c, 1, window_ns);
+            c
+        }
+    };
+    timed(b, c, 3, lookback_ns);
+    c
+}
+
 /// The medium's spec for the public graph `services`, and what its cells are.
 pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, Layout), String> {
     let n = services.len();
@@ -230,18 +305,14 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
     let mut layout = Layout::default();
 
     let node = |i: usize| u16::try_from(i).unwrap_or(u16::MAX);
+    let at = |i: usize, channel: Option<u16>, tag: Tag| Pattern {
+        domain: Some(DOMAIN),
+        node: Some(node(i)),
+        channel,
+        tag: Some(tag),
+    };
     let abn: Vec<CellId> = (0..n)
-        .map(|i| {
-            b.sense(
-                Pattern {
-                    domain: Some(DOMAIN),
-                    node: Some(node(i)),
-                    channel: None,
-                    tag: Some(TAG_ABNORMAL),
-                },
-                SenseMode::Count,
-            )
-        })
+        .map(|i| b.sense(at(i, None, TAG_ABNORMAL), SenseMode::Count))
         .collect();
     let dependents: Vec<Vec<usize>> = (0..n)
         .map(|i| {
@@ -257,82 +328,72 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
         .collect();
 
     for i in 0..n {
-        // The onset integrator.
-        let onset = b.integrator(0.0, params.onset_threshold, true, 0);
-        b.timed(
-            TimeTarget::Param {
-                cell: onset,
-                index: 0,
-            },
-            params.onset_tau_ns,
-        );
-        b.timed(
-            TimeTarget::Param {
-                cell: onset,
-                index: 3,
-            },
-            params.lookback_ns,
-        );
-        b.synapse(abn[i], onset, 1.0, 0);
-        if params.dependent_weight > 0.0 {
-            for &d in &dependents[i] {
-                b.synapse(abn[d], onset, params.dependent_weight, 0);
-            }
-        }
         // The emitter: fires whenever a cell feeding it fires (their activations are positive).
         let notice = b.emit(f32::MIN_POSITIVE, KIND_NOTICE, 0, 0);
-        b.timed(
-            TimeTarget::Param {
-                cell: notice,
-                index: 2,
-            },
-            params.lookback_ns,
+        timed(
+            &mut b,
+            notice,
+            2,
+            params.lookback_ns.max(params.burst_lookback_ns),
         );
-        b.timed(
-            TimeTarget::Param {
-                cell: notice,
-                index: 3,
-            },
-            params.refractory_ns,
-        );
-        b.synapse(onset, notice, 1.0, 0);
+        timed(&mut b, notice, 3, params.refractory_ns);
         layout.notice.push(notice);
 
-        // Propagation, when a coincidence is asked for and the service has a dependent.
-        if params.coincidence != CoincidenceForm::Off && !dependents[i].is_empty() {
+        // Several alarms at the service (and, weighted, its dependents) within a short time.
+        if params.onset {
+            let onset = b.integrator(0.0, params.onset_threshold, true, 0);
+            timed(&mut b, onset, 0, params.onset_tau_ns);
+            timed(&mut b, onset, 3, params.lookback_ns);
+            b.synapse(abn[i], onset, 1.0, 0);
+            if params.dependent_weight > 0.0 {
+                for &d in &dependents[i] {
+                    b.synapse(abn[d], onset, params.dependent_weight, 0);
+                }
+            }
+            b.synapse(onset, notice, 1.0, 0);
+        }
+
+        // A burst: abnormal observations of `burst_n` distinct kinds at the service within the
+        // window. Kinds: error rate (0), latency (1), a message (5), and the others (2, 3, 4: the
+        // other counters; 6: a snapshot) through a relay with no memory.
+        if params.burst {
+            let kinds: Vec<CellId> = [0u32, 1, 5]
+                .iter()
+                .map(|k| b.sense(at(i, None, Tag(ABNORMAL_KIND + k)), SenseMode::Count))
+                .collect();
+            let other = b.integrator(0.0, 0.5, true, 0);
+            for k in [2u32, 3, 4, 6] {
+                let s = b.sense(at(i, None, Tag(ABNORMAL_KIND + k)), SenseMode::Count);
+                b.synapse(s, other, 1.0, 0);
+            }
+            let burst = coincidence(
+                &mut b,
+                params,
+                params.burst_n,
+                params.burst_window_ns,
+                params.burst_lookback_ns,
+                false,
+            );
+            for s in kinds {
+                b.synapse(s, burst, 1.0, 0);
+            }
+            b.synapse(other, burst, 1.0, 0);
+            b.synapse(burst, notice, 1.0, 0);
+        }
+
+        // Propagation: an alarm at the service, then one at a dependent (public rule 1).
+        if params.propagation && !dependents[i].is_empty() {
             let dep = b.integrator(0.0, 0.5, true, 0);
             for &d in &dependents[i] {
                 b.synapse(abn[d], dep, 1.0, 0);
             }
-            let prop = match params.coincidence {
-                CoincidenceForm::Sliding => {
-                    let c = b.coincidence(2, 0, true, 0);
-                    b.timed(
-                        TimeTarget::Param { cell: c, index: 1 },
-                        params.coincidence_window_ns,
-                    );
-                    c
-                }
-                CoincidenceForm::Binned => {
-                    let bins = (RHYTHMS_NS[0] / params.coincidence_window_ns.max(params.tick_ns))
-                        .max(1) as u32;
-                    b.coincidence_binned(2, 0, bins, 0, true, 0)
-                }
-                CoincidenceForm::Ordered | CoincidenceForm::Off => {
-                    let c = b.coincidence_ordered(2, 0, true, true, 0);
-                    b.timed(
-                        TimeTarget::Param { cell: c, index: 1 },
-                        params.coincidence_window_ns,
-                    );
-                    c
-                }
-            };
-            b.timed(
-                TimeTarget::Param {
-                    cell: prop,
-                    index: 3,
-                },
+            let prop = coincidence(
+                &mut b,
+                params,
+                2,
+                params.coincidence_window_ns,
                 params.lookback_ns,
+                true,
             );
             // Slot 0 is the first incoming synapse by id: the site's own alarms.
             b.synapse(abn[i], prop, 1.0, 0);
@@ -345,49 +406,22 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
         let mut ramp_notice = None;
         if params.ramp {
             let rn = b.emit(f32::MIN_POSITIVE, KIND_NOTICE, 0, 0);
-            b.timed(
-                TimeTarget::Param { cell: rn, index: 2 },
-                params.ramp_lookback_ns,
-            );
-            b.timed(
-                TimeTarget::Param { cell: rn, index: 3 },
-                params.refractory_ns,
-            );
+            timed(&mut b, rn, 2, params.ramp_lookback_ns);
+            timed(&mut b, rn, 3, params.refractory_ns);
             for name in CounterName::ALL {
-                let pattern = Pattern {
-                    domain: Some(DOMAIN),
-                    node: Some(node(i)),
-                    channel: Some(CH_COUNTER),
-                    tag: Some(counter_tag(name)),
-                };
+                let pattern = at(i, Some(CH_COUNTER), counter_tag(name));
                 let arrived = b.sense(pattern, SenseMode::Presence);
                 let value = b.sense(pattern, SenseMode::Sum);
                 // Rate 1: the running estimate is the last reading, so the deviation is the
                 // step from it; band = the floor, `ramp_jump`; one reading of warm-up.
                 let jump = b.novelty(1.0, 0.0, params.ramp_jump, 1, false);
                 let smooth = b.integrator(0.0, params.ramp_threshold, true, 0);
-                b.timed(
-                    TimeTarget::Param {
-                        cell: smooth,
-                        index: 0,
-                    },
-                    params.ramp_tau_ns,
-                );
-                b.timed(
-                    TimeTarget::Param {
-                        cell: smooth,
-                        index: 3,
-                    },
-                    params.ramp_lookback_ns,
-                );
+                timed(&mut b, smooth, 0, params.ramp_tau_ns);
+                timed(&mut b, smooth, 3, params.ramp_lookback_ns);
                 b.synapse(value, jump, 1.0, 0);
                 b.synapse(arrived, smooth, 1.0, 0);
-                b.synapse(
-                    jump,
-                    smooth,
-                    -params.ramp_penalty / params.ramp_jump.max(1.0),
-                    0,
-                );
+                let penalty = -params.ramp_penalty / params.ramp_jump.max(1.0);
+                b.synapse(jump, smooth, penalty, 0);
                 b.synapse(smooth, rn, 1.0, 0);
             }
             layout.ramp_notice.push(rn);
@@ -397,13 +431,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
         // Retirement: a latch opened by a notice, kept open by alarms at the service while it
         // holds, proposing `retire` when the service has been quiet for the hold.
         let hold = b.latch_retiring(f32::MIN_POSITIVE, 0, KIND_RETIRE);
-        b.timed(
-            TimeTarget::Param {
-                cell: hold,
-                index: 1,
-            },
-            params.hold_ns,
-        );
+        timed(&mut b, hold, 1, params.hold_ns);
         b.synapse(notice, hold, 1.0, 0);
         if let Some(rn) = ramp_notice {
             b.synapse(rn, hold, 1.0, 0);
@@ -428,8 +456,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
     if params.rhythms {
         o.periods_ns = RHYTHMS_NS.to_vec();
     }
-    let b = b.oscillome(o);
-    let spec = b.into_spec();
+    let spec = b.oscillome(o).into_spec();
     let (resolved, _) = spec.resolved().map_err(|e| format!("{e:?}"))?;
     Ok((resolved, layout))
 }

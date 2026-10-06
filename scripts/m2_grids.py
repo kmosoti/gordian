@@ -28,7 +28,17 @@ BASE = {
     "ramp_lookback_ns": 3 * S,
     "hold_ns": 6 * S,
     "rhythms": False,
+    "onset": True,
+    "burst": False,
+    "burst_n": 2,
+    "burst_window_ns": 25 * MS,
+    "burst_lookback_ns": 0,
+    "propagation": False,
 }
+
+# The ramp path as tune-b left it (leak noticed 1.000 at 0.12 background notices per stream).
+RAMP = {"ramp": True, "ramp_jump": 10.0, "ramp_penalty": 3.0, "ramp_tau_ns": 4 * S,
+        "ramp_threshold": 3.0, "ramp_lookback_ns": 10 * S}
 
 # An onset threshold no burst reaches: the onset path is there and never fires (ramp-only arms).
 NEVER = 1.0e6
@@ -93,4 +103,26 @@ def stage(name):
                     onset_threshold=NEVER, ramp_jump=jump, ramp_tau_ns=4 * S, ramp_threshold=3.0,
                     ramp_lookback_ns=lb * S)))
         return arms, seeds, 12_200, "exploration-m2-tuning"
+    if name == "tune-c":
+        # After the re-fix (comparator: reanchor, bound 6.82): tune-b showed the medium's onset
+        # misses and the re-anchor's misses disjoint on the tuning streams, the medium's being
+        # strays shortly before a burst, and threshold 2 too noisy (24 background notices). The
+        # burst cells: abnormal observations of distinct kinds at one service within a window read
+        # from the offsets (ordered coincidence), alone or beside the onset integrator at
+        # threshold 3, at every tick length; the sliding form beside it.
+        for tick in (100, 500, 2000):
+            for win in (10, 20, 30, 50):
+                for onset in ("off", "th3"):
+                    over = dict(RAMP, tick_ns=tick * MS, burst=True, coincidence="ordered",
+                                burst_window_ns=win * MS, refractory_ns=1 * S,
+                                dependent_weight=0.0, onset_tau_ns=150 * MS, onset_threshold=3.0,
+                                onset=(onset == "th3"))
+                    arms.append((f"b2_w{win}_{onset}_t{tick}", medium(**over)))
+            over = dict(RAMP, tick_ns=tick * MS, burst=True, coincidence="ordered", burst_n=3,
+                        burst_window_ns=30 * MS, refractory_ns=1 * S, onset=False)
+            arms.append((f"b3_w30_off_t{tick}", medium(**over)))
+            over = dict(RAMP, tick_ns=tick * MS, burst=True, coincidence="sliding",
+                        burst_window_ns=25 * MS, refractory_ns=1 * S, onset=False)
+            arms.append((f"b2_sliding_off_t{tick}", medium(**over)))
+        return arms, seeds, 12_300, "exploration-m2-tuning"
     raise SystemExit(f"unknown stage {name!r}")

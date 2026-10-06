@@ -9,8 +9,8 @@ mod stream_common;
 use gordian_core::{Instant, Phase, Resource};
 use gordian_medium::{Prices, Tag};
 use gordian_run::stream::arms::medium::adapters::{
-    CH_COUNTER, CH_MESSAGE, CH_SNAPSHOT, TAG_ABNORMAL, TAG_BENIGN, TICK_PRICE_NS, TickClock,
-    counter_tag, encode, message_tag, severity_tag,
+    ABNORMAL_KIND, CH_COUNTER, CH_MESSAGE, CH_SNAPSHOT, TAG_ABNORMAL, TAG_BENIGN, TICK_PRICE_NS,
+    TickClock, abnormal_kind_tag, counter_tag, encode, message_tag, severity_tag,
 };
 use gordian_run::stream::arms::medium::{
     CoincidenceForm, MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumParams,
@@ -156,6 +156,9 @@ fn every_observation_becomes_an_event_with_its_value_benign_readings_included() 
     let e = encode(&alarm, tick).unwrap();
     assert_eq!(e.value, HIGH as f32);
     assert_eq!(e.tags[0], TAG_ABNORMAL);
+    // An abnormal reading carries its kind; a benign one does not.
+    assert_eq!(e.tags[2], abnormal_kind_tag(&alarm.obs));
+    assert_eq!(e.tags[2], Tag(ABNORMAL_KIND));
 
     let m = held(9, 2_000, message(1, SignalText::OutOfResource), &p);
     let e = encode(&m, tick).unwrap();
@@ -166,7 +169,8 @@ fn every_observation_becomes_an_event_with_its_value_benign_readings_included() 
         vec![
             TAG_ABNORMAL,
             message_tag(SignalText::OutOfResource.text_id()),
-            severity_tag(Severity::High)
+            severity_tag(Severity::High),
+            Tag(ABNORMAL_KIND + 5)
         ]
     );
     let health = held(10, 2_000, message(1, SignalText::CheckHealth), &p);
@@ -417,6 +421,7 @@ fn every_coincidence_form_builds_and_propagation_can_notice() {
     ] {
         let params = MediumParams {
             coincidence: form,
+            propagation: true,
             rhythms: form == CoincidenceForm::Binned,
             onset_threshold: 5.0,
             ..onset_only()
@@ -435,6 +440,7 @@ fn every_coincidence_form_builds_and_propagation_can_notice() {
     let mut d = Drive::new(
         MediumParams {
             coincidence: CoincidenceForm::Ordered,
+            propagation: true,
             onset_threshold: 5.0,
             ..onset_only()
         },
@@ -442,6 +448,59 @@ fn every_coincidence_form_builds_and_propagation_can_notice() {
     );
     d.play(&reversed, 3_000, &p);
     assert!(d.notices.iter().all(|(_, n)| n.site != ServiceId(site)));
+}
+
+#[test]
+fn a_burst_is_two_kinds_within_the_window_read_from_the_offsets() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let burst_only = |tick_ms: u64, form: CoincidenceForm| MediumParams {
+        tick_ns: tick_ms * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: form,
+        burst_window_ns: 25 * MS,
+        ..MediumParams::default()
+    };
+    // A stray 160 ms before; then an error rate and a message 12 ms apart.
+    let tight = vec![
+        (2_150, counter(site, CounterName::Latency, 70)),
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    // Two kinds 60 ms apart; two error-rate alarms 5 ms apart (one kind).
+    let loose = vec![
+        (2_010, counter(site, CounterName::ErrorRate, 80)),
+        (2_070, message(site, SignalText::OutOfResource)),
+    ];
+    let same = vec![
+        (2_010, counter(site, CounterName::ErrorRate, 80)),
+        (2_015, counter(site, CounterName::ErrorRate, 90)),
+    ];
+    for tick in [100, 500, 2_000] {
+        let mut d = Drive::new(burst_only(tick, CoincidenceForm::Ordered), &p);
+        d.play(&tight, 6_000, &p);
+        assert_eq!(d.notices.len(), 1, "tick {tick}");
+        let anchor = d.notices[0].1.anchor;
+        // At 100 ms the stray is in an earlier tick and pruned (lookback 0); at 500 ms and 2 s it
+        // shares the burst's tick and is the earliest event cited: the rule's limit, stated.
+        if tick == 100 {
+            assert_eq!(anchor, ObsId(1));
+        } else {
+            assert_eq!(anchor, ObsId(0), "tick {tick}");
+        }
+        for (name, obs) in [("loose", &loose), ("same", &same)] {
+            let mut d = Drive::new(burst_only(tick, CoincidenceForm::Ordered), &p);
+            d.play(obs, 6_000, &p);
+            assert!(d.notices.is_empty(), "{name} at tick {tick}");
+        }
+    }
+    // The sliding form counts ticks, not offsets: two kinds 60 ms apart in one 500 ms tick are a
+    // burst for it.
+    let mut d = Drive::new(burst_only(500, CoincidenceForm::Sliding), &p);
+    d.play(&loose, 6_000, &p);
+    assert_eq!(d.notices.len(), 1);
 }
 
 // ---- the manifest

@@ -10,11 +10,13 @@
 //!
 //! | Observation | address `(domain, node, channel)` | value | tags |
 //! |---|---|---|---|
-//! | `Counter { service, name, value }` | `(0, service, CH_COUNTER)` | the reading | verdict, counter name |
-//! | `Message { service, text_id, severity }` | `(0, service, CH_MESSAGE)` | 1 | verdict, message id (folded), severity |
-//! | `Snapshot { service, config_hash }` | `(0, service, CH_SNAPSHOT)` | 1 | verdict |
+//! | `Counter { service, name, value }` | `(0, service, CH_COUNTER)` | the reading | verdict, counter name, (abnormal) kind |
+//! | `Message { service, text_id, severity }` | `(0, service, CH_MESSAGE)` | 1 | verdict, message id (folded), severity, (abnormal) kind |
+//! | `Snapshot { service, config_hash }` | `(0, service, CH_SNAPSHOT)` | 1 | verdict, (abnormal) kind |
 //! | `Probed`, `Correction` | none: not delivered through the noticing seam | | |
 //!
+//! - An abnormal observation also carries its **kind** ([`abnormal_kind_tag`]: which counter, a
+//!   message, a snapshot), so that a sense cell can select abnormal readings of one kind.
 //! - The **verdict** tag is the public rules' ([`super::super::rung::is_abnormal`], carried in
 //!   [`Held::abnormal`]): [`TAG_ABNORMAL`] or [`TAG_BENIGN`].
 //! - The **node** is the service's index; the **channel** says which kind of observation it is
@@ -96,6 +98,24 @@ pub fn severity_tag(severity: Severity) -> Tag {
         })
 }
 
+/// The kind of an abnormal observation, as a tag: the five counters by name, a message, a
+/// snapshot (`ABNORMAL_KIND + 0` to `+ 6`). Carried by abnormal observations only, so that one sense
+/// cell's pattern (which holds one tag) can select "an abnormal reading of this kind".
+pub fn abnormal_kind_tag(obs: &Observation) -> Tag {
+    let kind = match obs {
+        Observation::Counter { name, .. } => CounterName::ALL
+            .iter()
+            .position(|n| n == name)
+            .unwrap_or(0) as u32,
+        Observation::Message { .. } => 5,
+        _ => 6,
+    };
+    Tag(ABNORMAL_KIND + kind)
+}
+
+/// The first abnormal-kind tag (see [`abnormal_kind_tag`]).
+pub const ABNORMAL_KIND: u32 = 0x100;
+
 /// A message id folded into a tag. See the module documentation for the collision rule.
 pub fn message_tag(text_id: u64) -> Tag {
     if text_id < CATALOGUE_LIMIT {
@@ -115,7 +135,7 @@ pub fn encode(held: &Held, tick_ns: u64) -> Option<Event> {
     } else {
         TAG_BENIGN
     };
-    let (service, channel, value, tags) = match &held.obs {
+    let (service, channel, value, mut tags) = match &held.obs {
         Observation::Counter {
             service,
             name,
@@ -139,6 +159,9 @@ pub fn encode(held: &Held, tick_ns: u64) -> Option<Event> {
         Observation::Snapshot { service, .. } => (*service, CH_SNAPSHOT, 1.0, vec![verdict]),
         Observation::Probed { .. } | Observation::Correction { .. } => return None,
     };
+    if held.abnormal {
+        tags.push(abnormal_kind_tag(&held.obs));
+    }
     Some(Event {
         tick: held.at.0 / tick_ns,
         offset_ns: u32::try_from(held.at.0 % tick_ns).unwrap_or(u32::MAX),
