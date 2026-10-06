@@ -3,8 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::archetype::{Archetype, ParamError};
+use crate::archetype::{Archetype, ORDERED_SLOTS, ParamError};
 use crate::medium::Medium;
+use crate::oscillome::{Conversion, Oscillome, TimeTarget, Timed};
 use crate::types::{CellId, F, Gate, Limits, P, Pattern, Prices, S, SynapseId};
 
 /// One cell of a spec. Its id is its position in [`MediumSpec::cells`].
@@ -37,7 +38,7 @@ pub struct SynapseSpec {
     pub plastic: bool,
 }
 
-/// A whole medium: cells, synapses, limits and prices.
+/// A whole medium: cells, synapses, limits, prices and the oscillome.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct MediumSpec {
@@ -49,6 +50,10 @@ pub struct MediumSpec {
     pub limits: Limits,
     /// Declared prices.
     pub prices: Prices,
+    /// The oscillome (M1b). Off by default, and then absent from the JSON, so that an M1 spec
+    /// reads and writes the same text.
+    #[serde(default, skip_serializing_if = "Oscillome::is_off")]
+    pub oscillome: Oscillome,
 }
 
 /// Why a spec was refused.
@@ -101,11 +106,64 @@ pub enum SpecError {
         /// Its incoming synapses.
         inputs: usize,
     },
+    /// The oscillome's own structure (M1b).
+    BadOscillome(&'static str),
+    /// A quantity given in time (M1b): its position in `oscillome.seconds`.
+    BadTimed {
+        /// Position of the entry.
+        index: usize,
+        /// What is wrong.
+        reason: &'static str,
+    },
+    /// A phase gate names no rhythm, or its window is not two distinct bounds in `[0, 1]`.
+    BadPhaseGate(SynapseId),
+    /// A cell's oscillome form does not fit the oscillome or its synapses (M1b).
+    BadForm {
+        /// The cell.
+        cell: CellId,
+        /// What is wrong.
+        reason: &'static str,
+    },
 }
 
 impl MediumSpec {
-    /// Check the spec against its own limits and the archetypes' rules.
+    /// Check the spec against its own limits, the archetypes' rules and its oscillome.
     pub fn validate(&self) -> Result<(), SpecError> {
+        self.resolved().map(|_| ())
+    }
+
+    /// The spec with every quantity given in time converted for its tick length (decision 2),
+    /// validated, and the conversions done, in the order of `oscillome.seconds`. A medium is
+    /// built from the resolved spec; resolving a resolved spec changes nothing.
+    pub fn resolved(&self) -> Result<(MediumSpec, Vec<Conversion>), SpecError> {
+        self.oscillome.validate()?;
+        let mut spec = self.clone();
+        let conversions = self.oscillome.apply(&mut spec.cells, &mut spec.synapses)?;
+        spec.validate_structure()?;
+        Ok((spec, conversions))
+    }
+
+    /// The conversion table of this spec at its tick length.
+    pub fn conversions(&self) -> Result<Vec<Conversion>, SpecError> {
+        self.resolved().map(|(_, c)| c)
+    }
+
+    /// Whether the spec uses any element of the oscillome: an oscillome that is not off, a phase
+    /// gate, or an oscillome form of a cell. A spec that uses none is an M1 spec, and its medium
+    /// persists in M1's encoding (decision 9).
+    pub fn uses_oscillome(&self) -> bool {
+        !self.oscillome.is_off()
+            || self
+                .cells
+                .iter()
+                .any(|c| c.archetype.uses_oscillome(&c.params))
+            || self
+                .synapses
+                .iter()
+                .any(|s| matches!(s.gate, Gate::Phase { .. }))
+    }
+
+    fn validate_structure(&self) -> Result<(), SpecError> {
         let l = &self.limits;
         if self.cells.len() > l.max_cells as usize {
             return Err(SpecError::TooManyCells {
@@ -138,7 +196,9 @@ impl MediumSpec {
                 _ => {}
             }
         }
+        let rhythms = self.oscillome.periods_ns.len();
         let mut incoming = vec![0usize; self.cells.len()];
+        let mut self_loops: Vec<Vec<SynapseId>> = vec![Vec::new(); self.cells.len()];
         for (i, syn) in self.synapses.iter().enumerate() {
             let id = SynapseId(i as u32);
             for cell in [syn.from, syn.to] {
@@ -160,9 +220,18 @@ impl MediumSpec {
                         cell: c,
                     });
                 }
+                Gate::Phase { rhythm, from, to } => {
+                    let bound = |x: f32| (0.0..=1.0).contains(&x);
+                    if usize::from(rhythm) >= rhythms || !bound(from) || !bound(to) || from == to {
+                        return Err(SpecError::BadPhaseGate(id));
+                    }
+                }
                 _ => {}
             }
             incoming[syn.to.0 as usize] += 1;
+            if syn.from == syn.to {
+                self_loops[syn.to.0 as usize].push(id);
+            }
         }
         for (i, cell) in self.cells.iter().enumerate() {
             if cell.archetype == Archetype::Coincidence && incoming[i] > S {
@@ -171,6 +240,62 @@ impl MediumSpec {
                     inputs: incoming[i],
                 });
             }
+        }
+        for (i, cell) in self.cells.iter().enumerate() {
+            self.validate_form(CellId(i as u32), cell, incoming[i], &self_loops[i])?;
+        }
+        Ok(())
+    }
+
+    /// The oscillome forms' requirements on the oscillome and on a cell's synapses.
+    fn validate_form(
+        &self,
+        id: CellId,
+        cell: &CellSpec,
+        incoming: usize,
+        self_loops: &[SynapseId],
+    ) -> Result<(), SpecError> {
+        let o = &self.oscillome;
+        let bad = |reason| Err(SpecError::BadForm { cell: id, reason });
+        let p = &cell.params;
+        match cell.archetype {
+            Archetype::Coincidence if p[4] == 1.0 => {
+                let r = p[5] as usize;
+                let Some(&period) = o.periods_ns.get(r) else {
+                    return bad("a binned coincidence names no rhythm");
+                };
+                // A bin may not be shorter than the tick.
+                if u128::from(period) < u128::from(o.tick_len_ns) * (p[6] as u128) {
+                    return bad("bins shorter than the tick");
+                }
+            }
+            Archetype::Coincidence if p[4] == 2.0 => {
+                if o.tick_len_ns == 0 || !o.tick_len_ns.is_multiple_of(1_000) {
+                    return bad("an ordered coincidence needs a tick length in whole microseconds");
+                }
+                if incoming > ORDERED_SLOTS {
+                    return Err(SpecError::TooManyInputs {
+                        cell: id,
+                        inputs: incoming,
+                    });
+                }
+            }
+            Archetype::Oscillator => {
+                let [sid] = self_loops else {
+                    return bad("an oscillator needs exactly one self-synapse");
+                };
+                let s = &self.synapses[sid.0 as usize];
+                if s.gate != Gate::None || s.plastic || s.delay_ticks == 0 {
+                    return bad("an oscillator's self-synapse is ungated, fixed, with a delay");
+                }
+                if !(s.weight > 0.0 && s.weight <= 1.0) {
+                    return bad("an oscillator's decay per cycle (self weight) outside (0, 1]");
+                }
+                if p[2] == 0.0 && !(s.weight < 1.0 && p[1] > 0.0) {
+                    return bad("an oscillator must stop: a cycle limit, or decay to a floor");
+                }
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -215,6 +340,21 @@ impl MediumBuilder {
     pub fn prices(mut self, prices: Prices) -> Self {
         self.spec.prices = prices;
         self
+    }
+
+    /// Set the oscillome (its `seconds` entries are kept, and [`MediumBuilder::timed`] adds to
+    /// them).
+    pub fn oscillome(mut self, oscillome: Oscillome) -> Self {
+        let seconds = std::mem::take(&mut self.spec.oscillome.seconds);
+        self.spec.oscillome = oscillome;
+        self.spec.oscillome.seconds.splice(0..0, seconds);
+        self
+    }
+
+    /// Give `target` in time: `ns` nanoseconds (a duration, or a time constant for a decay or a
+    /// rate), converted when the medium is built.
+    pub fn timed(&mut self, target: TimeTarget, ns: u64) {
+        self.spec.oscillome.seconds.push(Timed { target, ns });
     }
 
     /// Add a cell with raw parameters. Validation happens in [`MediumBuilder::build`].
@@ -278,6 +418,82 @@ impl MediumBuilder {
             params(&[f32::from(n), window as f32, c, lookback as f32]),
             None,
         )
+    }
+
+    /// A coincidence binned by rhythm `rhythm` cut into `bins_per_cycle` bins: arrivals coincide
+    /// when at most `window` bins apart (0: in the same bin).
+    pub fn coincidence_binned(
+        &mut self,
+        n: u8,
+        rhythm: u8,
+        bins_per_cycle: u32,
+        window: u32,
+        consume: bool,
+        lookback: u32,
+    ) -> CellId {
+        let c = if consume { 1.0 } else { 0.0 };
+        self.cell(
+            Archetype::Coincidence,
+            params(&[
+                f32::from(n),
+                window as f32,
+                c,
+                lookback as f32,
+                1.0,
+                f32::from(rhythm),
+                bins_per_cycle as f32,
+            ]),
+            None,
+        )
+    }
+
+    /// A coincidence ordered by event time: arrivals coincide when the events they cite are at
+    /// most `window_us` microseconds apart; with `lead`, the source on its first incoming synapse
+    /// must be the earliest. At most four incoming synapses.
+    pub fn coincidence_ordered(
+        &mut self,
+        n: u8,
+        window_us: u32,
+        lead: bool,
+        consume: bool,
+        lookback: u32,
+    ) -> CellId {
+        let c = if consume { 1.0 } else { 0.0 };
+        let l = if lead { 1.0 } else { 0.0 };
+        self.cell(
+            Archetype::Coincidence,
+            params(&[f32::from(n), window_us as f32, c, lookback as f32, 2.0, l]),
+            None,
+        )
+    }
+
+    /// A latch that proposes `retire` (of `kind`) when its hold expires.
+    pub fn latch_retiring(&mut self, threshold: f32, hold: u32, kind: u16) -> CellId {
+        self.cell(
+            Archetype::Latch,
+            params(&[threshold, hold as f32, 1.0, f32::from(kind)]),
+            None,
+        )
+    }
+
+    /// An oscillator and its self-synapse (its clock): period `period_ticks`, amplitude
+    /// multiplied by `decay` each cycle, stopping below `floor` or after `cycles` cycles (0: no
+    /// limit). Give the period in time with [`MediumBuilder::timed`] on the returned synapse.
+    pub fn oscillator(
+        &mut self,
+        threshold: f32,
+        floor: f32,
+        cycles: u32,
+        decay: f32,
+        period_ticks: u8,
+    ) -> (CellId, SynapseId) {
+        let id = self.cell(
+            Archetype::Oscillator,
+            params(&[threshold, floor, cycles as f32]),
+            None,
+        );
+        let clock = self.synapse(id, id, decay, period_ticks);
+        (id, clock)
     }
 
     /// A gate on field scalar `index`. `open_above`: open while the scalar is at or above the

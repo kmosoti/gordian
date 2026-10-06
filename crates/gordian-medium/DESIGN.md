@@ -1,6 +1,7 @@
 # gordian-medium: what was built, and where it departs from the design
 
-Work item M1 (`docs/lab-queue.md`), built from `docs/medium-ports.md` (the design). This file
+Work items M1 and M1b (`docs/lab-queue.md`), built from `docs/medium-ports.md` (the design). M1b,
+the oscillome (section 4b), is recorded in its own section below, with departures 34 to 52. This file
 records every place the build departs from the design or fills a gap in it, and why. The tick's
 total order is in `src/medium.rs`'s module documentation; the archetypes' parameters and state are
 in the table in `src/archetype.rs`.
@@ -21,6 +22,7 @@ dev-dependencies. No world adapter, no noticer, no learning.
 | Persistence: deterministic bytes | `src/persist.rs` |
 | Section 10 tests | `tests/determinism.rs`, `tests/archetypes.rs`, `tests/properties.rs` |
 | Cost micro-benchmark | `benches/tick.rs`, results below |
+| Section 4b, the oscillome (M1b) | `src/oscillome.rs` and the section "The oscillome (M1b)" below |
 
 ## Departures from the design
 
@@ -45,9 +47,10 @@ Each is a choice where the design was silent, underspecified, or (in two cases) 
 5. **A sense cell's address pattern is a typed `Pattern`** (domain, node, channel, each optional,
    plus an optional required `Tag`), not part of `params`. Addresses are structure, not tunable
    scalars, and a `u32` tag is not exact in `f32`.
-6. **Prices are in picoseconds** (`Prices::DECLARED` = 20 000, 5 000, 10 000, 2 000), as in
-   `gordian-components`, so a calibrated price below 1 ns keeps its precision. Section 7 declares
-   no price for a proposal; it is 0.
+6. **Prices are in picoseconds** (in M1, `Prices::DECLARED` = 20 000, 5 000, 10 000, 2 000; M1b
+   moved it to the calibration, M1b decision 8), as in `gordian-components`, so a
+   calibrated price below 1 ns keeps its precision. Section 7 declares no price for a proposal;
+   it is 0.
 
 ### The tick (section 4)
 
@@ -154,7 +157,9 @@ Each is a choice where the design was silent, underspecified, or (in two cases) 
   notices; with this design, retiring a notice needs either a heartbeat event per tick from the
   clock or sense adapter (one routing and one update per tick, priced like any other) or a
   time-out in the effector adapter. Neither is in section 6. This is a consequence of the
-  sparsity rule, not a bug, and M2 has to choose.
+  sparsity rule, not a bug, and M2 has to choose. (M1b: a retiring latch now proposes `retire`
+  when its hold expires, at the cost of one more update per hold, departure 45. An integrator
+  leaking below its threshold still tells nobody.)
 - **Values are `f32`.** A stream counter is a `u64` and a configuration hash does not fit at all;
   a message id is a `u64` and a `Tag` is a `u32`. The sense adapter must say what it maps to a
   value, what to a tag, and how it folds a `u64` id into a `u32` tag (and what collisions do).
@@ -190,7 +195,7 @@ Each is a choice where the design was silent, underspecified, or (in two cases) 
     `serde_json` (dev only, the spec's JSON round trip) and `criterion` (dev only, the benchmark
     M1 asks for). Neither adds anything to `Cargo.lock`.
 
-## Rhythms (section 4b, added during M1): not absorbed; proposed as M1b
+## Rhythms (section 4b, added during M1): not absorbed; proposed as M1b (M1's text, kept)
 
 Section 4b (nested rhythms) arrived after this crate was built and its tests passed. M1 is
 delivered as specified, and the rhythms are proposed as a bounded follow-up, M1b. Names for M1b,
@@ -263,7 +268,234 @@ a rhythm boundary and mid-cycle; each 4b element switchable off in the spec, so 
 with rhythms removed" is the M1 tick with identical bytes (a test); the seconds-to-ticks
 conversion table per tick length in its report; the benchmark rerun.
 
+## The oscillome (M1b): what was built, and where it departs
+
+Work item M1b (`docs/lab-queue.md`), built from `docs/medium-ports.md` section 4b with the
+chief's nine decisions. Module `oscillome` (`Oscillome`, `OscillomeEngine`, `CycleSummary`,
+the conversions), with changes in `types.rs`, `archetype.rs`, `spec.rs`, `medium.rs`,
+`persist.rs` and `ports.rs`. Tests: `tests/oscillome.rs` (the acceptance and a hand-worked example
+per element), `tests/m1_identity.rs` (the all-off identity), unit tests in `src/oscillome.rs` and
+`src/types.rs`. Departures continue M1's numbering.
+
+### The nine decisions, as built
+
+| Decision | Built | Tests |
+|---|---|---|
+| 1. The tick is the fastest oscillation; slower periods only; an offset-aware `Coincidence` | `Oscillome::periods_ns` (each longer than the tick, at most `R` = 3); `Coincidence` mode 2 (ordered by event time) | `the_ordered_coincidence_reads_order_inside_a_long_tick`, `the_ordered_spec_kind_appears_at_every_tick_length` |
+| 2. Seconds to ticks; delays nearest with a minimum of one, lookbacks and holds up, decays by a pinned `exp` in `f64` | `Oscillome::seconds` (`Timed` entries), `MediumSpec::resolved`, `delay_ticks`, `span_ticks`, `decay_per_tick`, `rate_per_tick`, `exp_det` | `the_conversion_table_per_tick_length`, `delays_round_to_the_nearest_tick_with_a_minimum_of_one`, `spans_round_up`, `exp_det_agrees_with_the_platform_and_returns_pinned_bits` |
+| 3. Phases in integer nanoseconds, divided once; boundaries where the cycle index changes; unevenness reported | `phase_of`, `cycle_index`, `OscillomeEngine::is_boundary`, `ticks_per_cycle` | `phases_are_a_pure_function_of_tick_index_and_tick_length` (property, 2,000 cases, against an independent integer reference), `the_field_carries_the_engines_phases_from_any_start`, `boundaries_fall_unevenly_when_the_period_is_not_a_multiple`, `a_phase_is_never_rounded_up_to_one` |
+| 4. Binding by phase and the sliding window both modes of `Coincidence` | `Coincidence` mode 0 (M1's window) and mode 1 (binned by a rhythm, `bins` per cycle) share one rule with ages in ticks or in bins | `bins_and_windows_disagree_at_the_edges` |
+| 5. `Oscillator` wakes itself by a delayed self-message, cost per cycle | `Archetype::Oscillator`, its period the delay of its one self-synapse | `the_oscillator_runs_once_per_cycle_and_decays`, `a_reset_mid_cycle_restarts_the_phase_and_ends_the_old_chain`, `a_reset_with_its_own_message_cites_only_the_new_event` |
+| 6. Per-cycle summary handed to plasticity at the named boundary | `CycleSummary`, `TickSummary::completed`, `Plasticity::end_of_cycle`, `Oscillome::plasticity_rhythm`; trace sampling at `Oscillome::trace_rhythm` boundaries | `cycle_summaries_reach_plasticity_at_the_named_boundaries_only`, `the_trace_rhythm_samples_only_boundary_ticks` |
+| 7. A latch whose hold expires proposes `retire` citing its anchor | `Latch` parameters 2 (retire) and 3 (kind) | `a_retiring_latch_proposes_retire_when_its_hold_expires` |
+| 8. `Prices::DECLARED` = 200 / 25 / 40 / 2 ns | `Prices::DECLARED`; the old values kept as `Prices::FIRST_GUESS` | `declared_prices_are_the_m1_calibration`, `prices_in_specs_are_the_declared_ones_unless_stated` |
+| 9. Every element switchable off; all off gives M1's bytes | `Oscillome::default()` is off; `MediumSpec::uses_oscillome`; version 1 encoding unless an element is used | `with_every_oscillome_element_off_the_bytes_are_m1s` (digests M1's own code produced), `each_element_switches_on_and_off_independently` |
+
+Acceptance beyond the decisions: `snapshot_and_restore_at_a_boundary_and_mid_cycle_give_identical_bytes`
+(100 ms, 500 ms and 2 s, snapshots after a 10 s boundary, after a tick that ends both cycles, mid
+both, and after tick 1), `no_panic_with_the_oscillome_and_bytes_restore` (property),
+`oscillome_runs_are_deterministic_order_independent_and_counted`,
+`oscillome_bytes_reject_corruption_without_panicking`, `malformed_oscillome_specs_are_refused`.
+
+**The previous prices, recorded (decision 8).** Until M1b, `Prices::DECLARED` was section 7's
+first guess: 20 ns per cell update, 5 per synapse traversal, 10 per event routing, 2 per field
+read, 0 per proposal (in picoseconds 20 000 / 5 000 / 10 000 / 2 000 / 0). It is kept as
+`Prices::FIRST_GUESS`.
+
+### How the all-off identity is established
+
+`tests/m1_identity.rs` was committed first on the branch (commit `a232cf5`), on the merged M1
+crate and before any M1b change, and run there: it hashes (FNV-1a 64) the persisted bytes after
+every tick, the counts, truncations, proposals and trace items of the rich spec under 10 event
+and limit settings and of 300 generated M1 specs, 30 ticks each, and pins the two digests M1's
+code produced. The M1b code reproduces both. The specs state M1's prices explicitly: decision 8
+moves `Prices::DECLARED`, so "the same spec" means the same prices. A spec that takes the
+default prices differs from M1's bytes in its 40 bytes of prices and nowhere else in the
+encoding; the behaviour does not depend on prices (`the_new_default_prices_change_only_the_price_bytes`).
+
+### Departures and choices where the decisions left room
+
+34. **A phase is a 24-bit fixed-point fraction.** Decision 3 says the remainder is "divided once
+    into `f32`". Dividing `f32(rem)` by `f32(P)` rounds three times and can round the last
+    nanoseconds of a 100 s cycle up to 1.0. Built: `q = floor(rem * 2^24 / P)` in integers and
+    `phase = q / 2^24`, which is exact in `f32`. So the phase lies in `[0, 1 - 2^-24]`, is at most
+    `2^-24` below the exact fraction, and has one integer definition the property test checks
+    against an independently written reference (binary long division). Resolution: 0.6 ns at
+    10 s, 6 ns at 100 s.
+35. **Which tick is the boundary.** "The tick in which the cycle index changes" is built as the
+    last tick whose start lies in the cycle (`cycle(t + 1) != cycle(t)`, with `cycle(t) =
+    floor(t * L / P)`): the cycle changes during that tick. Boundary work happens at the end of
+    it, so a cycle summary covers exactly the ticks whose start lies in the cycle, including the
+    boundary tick's own work. Phase 0 is instant 0 of the world's clock (tick 0), not the
+    medium's first tick: the phase is a function of the tick index alone, so a medium started or
+    restored at tick 500 has the same phases as one that ran from 0, and its first cycle summary
+    is partial (`first_tick` says where it started).
+36. **Rhythms: strictly slower than the tick, at most `R` = 3.** Section 4b's `R` was 3 with the
+    0.1 s rhythm; under decision 1 the first set (10 s, 100 s) uses two and one is spare. With a
+    100 ms tick, 10 s and 100 s are 100 and 1,000 ticks; at 500 ms, 20 and 200; at 2 s, 5 and 50.
+    All are whole multiples, so the sweep has no unevenness; a period that is not a multiple
+    gives cycles of `floor(P / L)` and `ceil(P / L)` ticks (10 s on 300 ms: 34, 33, 33, 34, ...).
+37. **How quantities in time are given.** Not new seconds-valued fields on every cell and synapse
+    (that would change M1's types and their JSON), but a list on the oscillome,
+    `seconds: Vec<Timed>`, each entry naming a target (a cell parameter, or a synapse delay) and a
+    duration or time constant in **integer nanoseconds** (exact; `secs(f64)` converts). The
+    target's kind of conversion is fixed by the target, not chosen by the entry
+    (`time_kind`): integrator leak (decay), integrator lookback, novelty rate (rate), coincidence
+    window (ticks in mode 0, microseconds in mode 2, not a time in mode 1 where it counts bins),
+    coincidence lookback, latch hold, emitter lookback and refractory (all rounded up), synapse
+    delay (nearest). At build (`MediumSpec::resolved`) the converted value replaces whatever the
+    spec held there; `Medium::spec()` returns the converted values with the entries; resolving is
+    idempotent; decoding refuses stored values that differ from their conversion (departure 51).
+38. **Rounding at the edges.** A delay is rounded half up (`150 ms` is 2 ticks at 100 ms). A delay
+    over 255 ticks does not fit `delay_ticks: u8` and the spec is refused, not saturated: at
+    100 ms a synapse cannot delay more than 25.5 s, at 500 ms 127.5 s, at 2 s 510 s. Waits on the
+    retention scale (100 to 200 s) at short ticks need an oscillator or a latch, not a delay. A
+    span over `2^24` ticks is refused. A time constant of 0 gives a leak of 0 and a rate of 1.
+39. **Very short time constants give subnormal leaks at long ticks.** `exp(-2 s / 20 ms)` is
+    `3.8e-44` in `f32`, a subnormal (bits `0x0000001b`). IEEE arithmetic on subnormals is exact
+    and deterministic; it can be slow on some CPUs. Not flushed to zero: flushing would be a
+    second rounding rule. The conversion table shows where it happens.
+40. **The novelty rate's conversion assumes "gaps are zeros".** `1 - exp(-L / tau)` is a rate per
+    tick. A novelty cell that ignores gaps updates per run, not per tick, and there the
+    conversion is not meaningful; the binding is refused for it (`time_kind` returns a rate only
+    in the gaps-as-zeros mode).
+41. **Oscillome forms take parameters M1 documented as unused.** `Coincidence` parameters 4 to 6
+    (mode, rhythm or lead, bins) and `Latch` parameters 2 and 3 (retire, kind) were "unused, must
+    be finite, ignored" in M1. An M1 spec that put non-zero values there now means something else
+    or is refused. Every builder call and every test wrote zeros there; the identity test's
+    generated specs do too. The alternative (new fields on `CellSpec`) would have changed M1's
+    JSON for every cell.
+42. **The ordered coincidence (mode 2).** At most four sources (each needs an age and an offset
+    in the eight state slots), `n <= 4`, a tick that is a whole number of microseconds. The time
+    of an arrival is the time of the **earliest event its message cites** (the message's anchor),
+    kept as ticks since that event and its offset in microseconds (exact integers in `f32`),
+    compared in `i64` microseconds. A message citing nothing takes the current tick at offset 0.
+    A slot counts when its time is within the window of the newest slot's time; a slot whose time
+    is more than the window before the current tick's start expires; a new message on a slot
+    replaces its time even if the time is older. With a lead, slot 0 (the first incoming synapse)
+    must count and be no later than any counted slot (ties allowed). The window is in
+    microseconds, independent of the tick, so a burst 100 ms apart across a tick edge is still
+    seen (`the_ordered_coincidence_reads_order_inside_a_long_tick`).
+43. **The binned coincidence (mode 1).** Bins are `floor(t * L * bins / P)`: `bins` equal parts of
+    a cycle of the named rhythm, counted from instant 0. A bin may not be shorter than the tick.
+    The rule is M1's sliding window with ages counted in bins instead of ticks; window 0 is
+    "shares a bin". A binned coincidence reads its rhythm's phase: one field read per run.
+44. **The `Oscillator` is an archetype of its own** (tag 7), the phase-reset form of `Latch` in
+    behaviour, not a `Latch` parameter: its parameters and state share nothing with the latch's.
+    Its **period is the delay of its one self-synapse** (required: ungated, not plastic, delay at
+    least 1, so at most 255 ticks), and its **decay per cycle is that synapse's weight** (in
+    `(0, 1]`). The "delayed self-message" of decision 5 is therefore an ordinary message on the
+    pending map, counted as one synapse traversal per cycle, and a period in seconds is a `Timed`
+    delay on that synapse. It must stop: a cycle limit, or a decay below 1 with a positive floor.
+    An external input at or above the threshold resets it (amplitude = that input, age 0) and it
+    fires at once, which is what starts the chain; downstream sees the reset firing as well as
+    each cycle. A message of an earlier phase (its age is not a whole number of periods, because a
+    reset came in between) is ignored and its chain ends; that costs one update. An oscillator
+    that runs `m` cycles costs `m + 2` updates (reset, `m` cycles, the run that stops it) and
+    `m + 1` self traversals, whatever the tick count in between. Its support is the reset's
+    events, kept while it runs, so everything it drives cites the event that reset it. A reset
+    absorbs the old phase only when the resetting input and its own message arrive in the same
+    pass: its own message, sent with a delay, arrives in pass 1, while an input over a zero-delay
+    synapse arrives in pass 2; then the oscillator runs in both passes (as M1's cells do), first
+    completing the old cycle and then resetting, and downstream sees both firings. Both phases'
+    messages are then due on the same tick and merge into one run there, so no second chain
+    survives. An input over a delayed synapse arrives in pass 1 and is absorbed
+    (`a_reset_with_its_own_message_cites_only_the_new_event`).
+45. **Retirement (decision 7).** A retiring latch wakes on every held tick including the last, so
+    it runs once more than M1's latch per hold, on the tick after the hold, and then proposes
+    `retire`: anchor the earliest event of its held support, `refs` the whole held support (no
+    lookback), strength the held value. To make the retirement cite the event the notice cited,
+    a retiring latch **merges** its support when it re-fires within a hold, where M1's latch
+    replaces it; so its anchor is the start of the unbroken hold. A firing on the tick the hold
+    expires continues the hold (no retirement). If truncation drops the waking tick, the
+    retirement comes at the latch's next run, late. An empty held support gives no proposal
+    (counted as unanchored).
+46. **Cycle summaries are bookkeeping, not counted operations.** Adding a tick's summary to each
+    rhythm's cycle and computing each rhythm's phase every tick are the engine's work, like the
+    ledger adapter's sums and the field adapter's supply of the field in M1: not section 7
+    operations, not priced. The benchmark measures this per-tick cost (`idle_osc - idle`). The
+    summary keeps sums of the tick summaries; it does not keep the distinct cells active in the
+    cycle (a plasticity adapter can read each cell's `last_active`).
+47. **Plasticity on a rhythm replaces plasticity every tick.** With `plasticity_rhythm` set,
+    `end_of_tick` is never called; `end_of_cycle` (a new trait method, empty by default) is called
+    at the end of each boundary tick of that rhythm with its completed summary. It requires
+    `cycle_summary`. With it unset, M1's `end_of_tick` every tick.
+48. **Trace sampling on a rhythm** asks the trace port's `wants` only on boundary ticks of the
+    named rhythm.
+49. **The medium knows its tick length when the oscillome is on.** `Oscillome::tick_len_ns`
+    (at most `u32::MAX`, the range of `offset_ns`) is required by rhythms, quantities in time and
+    the ordered coincidence; a step whose clock reports another length is refused
+    (`StepError::TickLength`) and changes nothing. With it 0, the clock's length is not read.
+50. **The field gains `phases: [f32; R]`**, written by the medium from the tick index at the
+    start of every tick, replacing whatever the field adapter supplied (zeros without rhythms).
+    A phase gate or a binned coincidence reading a phase is one field read.
+51. **Persisted encoding version 2.** Version 1 (M1's, unchanged) for every medium that uses no
+    oscillome element; version 2 otherwise: version 1's layout with archetype tag 7 and gate tag 3
+    allowed, then the oscillome section and the cycle summaries in progress. Each version is
+    refused for the other kind of medium, and stored converted values must equal their
+    conversions, so whatever decodes re-encodes to the same bytes (checked over every single-byte
+    corruption of a version-2 medium).
+52. **Not built: "memory decay counted in slow cycles"** (section 4b, schedules). Nothing in the
+    medium decays memory yet (no learning); the cycle summaries and indices are what such a rule
+    would count with.
+
+### Where the analogy breaks (restated for what was built)
+
+- The rhythms are imposed clocks, a human prior like the archetypes, not something the medium's
+  dynamics produce; phase 0 is instant 0 of the world's clock.
+- Nothing in the world is periodic. A global phase carries no information about the world, only
+  about when the medium samples, integrates or emits. Binding by a global bin makes two events
+  coincide by the clock's edges: two alarms 1 ms apart across a bin edge do not coincide; two
+  almost a bin apart inside one do.
+- The fast band is not an oscillation. At 500 ms and 2 s the burst scale (20 to 150 ms) lives
+  only in `offset_ns`, read by one archetype (the ordered coincidence) and by the anchoring rule;
+  no rhythm, gate or schedule sees it. The nesting has the tick, 10 s and 100 s, three levels,
+  of which only the tick drives computation.
+- The `Oscillator` is a timer that restarts, with a geometric amplitude; "phase reset" is a
+  restart. It does not entrain, synchronise, or interact with other oscillators.
+- A phase gate opens by the clock, not by the activity of other cells; a cycle summary is a sum,
+  not consolidation.
+
 ## Mutation checks
+
+### M1b
+
+Twenty-three mutations of the M1b source, one at a time, each against the crate's whole test suite
+(`cargo test -p gordian-medium --no-fail-fast`). Twenty-two are caught. Two were not caught at
+first, and two tests were added: no test made an oscillator's reset coincide with its own message
+(now `a_reset_with_its_own_message_cites_only_the_new_event`), and the mutation of cycle-summary
+persistence first named the wrong file. One is not caught, and cannot be here: computing the
+decay through `f32::exp` instead of the `f64` series gives the same bits for every pinned input on
+this machine (glibc's `expf` rounds correctly), so the mutant is equivalent on this platform; the
+pinned bits are what would catch a platform whose library differed.
+
+| Mutation | Caught by |
+|---|---|
+| phase rounded to nearest instead of floor | `phases_are_a_pure_function_of_tick_index_and_tick_length`, `the_field_carries_the_engines_phases_from_any_start` |
+| boundary at the first tick of a cycle instead of the last | the two boundary unit tests, the phase property, `cycle_summaries_reach_plasticity_at_the_named_boundaries_only`, the snapshot test, `the_trace_rhythm_samples_only_boundary_ticks` |
+| delays rounded up | `delays_round_to_the_nearest_tick_with_a_minimum_of_one`, `the_conversion_table_per_tick_length` |
+| no one-tick minimum on delays | the same two |
+| spans rounded to nearest | `spans_round_up`, `the_conversion_table_per_tick_length` |
+| decay through `f32::exp` | not caught (equivalent here, above) |
+| phase window inclusive at its end | `a_phase_gate_carries_only_inside_its_window_and_counts_a_field_read`, `the_field_carries_the_engines_phases_from_any_start`, `phase_windows_and_the_wrap` |
+| phase-gate read not counted | `a_phase_gate_carries_only_inside_its_window_and_counts_a_field_read` |
+| binned-coincidence read not counted | `bins_and_windows_disagree_at_the_edges` |
+| field phases left as the adapter supplied them | `a_phase_gate_carries_...`, `the_field_carries_the_engines_phases_from_any_start` |
+| no tick-length check | `a_clock_of_another_tick_length_is_refused_and_changes_nothing` |
+| oscillator accepts messages of an earlier phase | `a_reset_mid_cycle_restarts_the_phase_and_ends_the_old_chain` |
+| oscillator ignores its cycle limit | the same |
+| oscillator reset cites its own message's events | `a_reset_with_its_own_message_cites_only_the_new_event` (added) |
+| retiring latch replaces its support on re-firing | `a_retiring_latch_proposes_retire_when_its_hold_expires` |
+| retiring latch never retires | the same, `cycle_summaries_reach_plasticity_at_the_named_boundaries_only` |
+| binned coincidence ages in ticks | `bins_and_windows_disagree_at_the_edges` |
+| ordered coincidence ignores offsets | `the_ordered_coincidence_reads_order_inside_a_long_tick` |
+| ordered coincidence ignores its lead | the same |
+| cycle summaries not restored | the snapshot test, `no_panic_with_the_oscillome_and_bytes_restore`, `oscillome_bytes_reject_corruption_without_panicking` |
+| plasticity also every tick | `cycle_summaries_reach_plasticity_at_the_named_boundaries_only` |
+| trace rhythm ignored | `the_trace_rhythm_samples_only_boundary_ticks` |
+| version 2 written always (the all-off identity) | `with_every_oscillome_element_off_the_bytes_are_m1s`, `each_element_switches_on_and_off_independently`, M1's snapshot, round-trip and corruption tests |
+
+### M1
 
 Eight mutations of the source, each run against the whole test suite. All are caught. Two were not
 at first: removing the event sort and removing the input sort passed every test, because the
@@ -282,7 +514,91 @@ event density were changed, and two hand-worked tests were added that make the o
 | `cells_not_run` not recorded | `the_operation_limit_truncates...` |
 | no support pruning | `an_accumulating_cell_prunes_its_support_to_its_lookback` |
 
-## Benchmark: measured cost per operation against the declared prices
+## Benchmark (M1b): the calibrated prices, and the oscillome's workloads
+
+`benches/tick.rs` now holds M1's five workloads, unchanged (oscillome off; the acceptance), and
+five with the oscillome on (100 ms tick, rhythms of 10 s and 100 s, cycle summaries, plasticity at
+the 10 s boundaries): `mixed_osc`, `phasegate`, `oscillator`, and `idle` / `idle_osc` (no
+counted operation; their difference is the engine's per-tick work). The module documentation
+says what each does; `bench_prices.py` reads the runs. Release profile (thin LTO, one codegen
+unit), criterion medians, 60 samples, 3 s measurement. Every run went through
+`scripts/cgroup-run.sh --cpus 0-2 --cpu-quota 300 --memory 2G`, started only when no
+`gordian-run`, `cargo` or `rustc` process existed on the machine, and was checked again at its
+end. Data in `artifacts/runs/m1b/` (ignored).
+
+| run | code | cgroup | wall | CPU | peak memory | OOM | other labs' processes |
+|---|---|---|---|---|---|---|---|
+| 1 | before the step extraction (`98c9b82`) | v1, cores 0-2, 300%, 2 GB | 136.5 s | 134.5 s | 120.9 MB | 0 | none at start or end |
+| 2 | the same | the same | 136.4 s | 132.7 s | 120.6 MB | 0 | **a Lab 2 `cargo test` running at the end**: its later (1,000-cell) points may be contaminated |
+| 3 | the same | the same | 136.3 s | 134.3 s | 120.5 MB | 0 | none at start or end (waited 30 s) |
+| 4 | final (`ca00d37`) | the same | 137.8 s | 135.8 s | 129.2 MB | 0 | none at start or end (waited 270 s for a Lab 2 `gordian-run`) |
+| 5 | final | the same | 138.2 s | 135.8 s | 120.5 MB | 0 | none at start or end |
+
+**The acceptance, on the final code (runs 4 and 5), at the declared prices 200 / 25 / 40 / 2 ns.**
+
+| workload | n | run 4 measured / modelled | run 5 |
+|---|---|---|---|
+| mixed (headline) | 10 / 100 / 1,000 | 0.90 / 1.01 / 1.22 | 0.89 / 1.07 / 1.09 |
+| unmatched | 10 / 100 / 1,000 | **1.42** / 1.29 / 1.15 | **1.43** / 1.31 / 1.14 |
+| sense | 10 / 100 / 1,000 | 0.91 / 1.08 / 1.23 | 0.90 / 1.09 / 1.22 |
+| fanout | 10 / 100 / 1,000 | 0.81 / 1.05 / 1.16 | 0.91 / 1.05 / 1.19 |
+| fieldgate | 10 / 100 / 1,000 | 0.86 / 1.02 / 1.15 | 0.85 / 0.99 / 1.13 |
+| mixed_osc | 10 / 100 / 1,000 | 1.00 / 1.04 / 1.14 | 1.05 / 1.08 / 1.12 |
+| phasegate | 10 / 100 / 1,000 | 0.95 / 1.03 / 1.17 | 0.94 / 1.06 / 1.15 |
+| oscillator | 10 / 100 / 1,000 | 1.27 / 0.80 / 0.72 | 1.02 / 0.80 / 0.74 |
+
+28 of M1's 30 measurements and all 18 of the oscillome's are within 0.7 to 1.4; **`unmatched/10`
+is outside in both runs (1.42, 1.43), and was in runs 1 and 3 (1.40, 1.43)**. The acceptance
+("every measurement within 0.7–1.4 of its model") is therefore not met at that one point. Least
+squares over the final runs: 199.4 ns per update, 21.8 per traversal, 50.8 per routing, 0.4 per
+field read (M1's workloads; worst relative residual 0.22); with the oscillome's workloads, 189.2,
+21.0, 51.8, 6.7.
+
+**Why `unmatched/10` misses.** Two costs the model does not have. First, a tick has a fixed cost
+the prices do not model: an idle tick (`idle`, no counted operation) measures 84 to 91 ns, which
+is a fifth of the 400 ns modelled for ten routings. Second, routing costs 46 to 57 ns per event
+here against the declared 40, and more than M1's own code. An A/B on the same machine, M1's
+binary (built from the commit before any M1b change) alternated with M1b's under the same
+cgroup, on `unmatched`, `sense` and `mixed` (`artifacts/runs/m1b/ab/`), measured M1b's off path
+slower on routing in every round: in the two rounds clear of other labs at both ends of both
+legs (1 and 3), `unmatched/100` 4,056 against 4,805 ns and 3,997 against 4,788 (M1b / M1 = 1.18,
+1.20), `unmatched/10` 472 against 511 and 497 against 543 (1.08, 1.09); rounds 2 and 4 had another
+lab's `cargo` running at the end of a leg and agree in direction (1.04 to 1.48). With M1's code
+`unmatched/10` measured 472 to 519 ns, 1.18 to 1.30 of its model, inside the band. The bytes are
+M1's; the time is not. Moving the oscillome's per-tick work out of `step` into non-inlined
+helpers (`begin_rhythms`, `end_rhythms`, commit `ca00d37`) brought `mixed` and `sense` back to
+parity with M1 (round 3: 0.95 to 1.06), but not routing (1.09 to 1.23). The routing code itself
+did not change, and `route` is inlined into `step` in both binaries; `step` grew from 22.2 KB to
+26.3 KB, because the new archetype code is inlined into it through `run_pass`. My hypothesis is a
+code-layout effect on the routing loop. It is not tested: no profile was taken. Options for the
+chief: accept the point with this explanation; give the tick a fixed price (about 85 ns, and
+about 105 ns more with the oscillome on, below); or have the routing path optimised against this
+implementation as its oracle in a later unit.
+
+**What the oscillome itself costs (final runs).**
+
+| quantity | 10 | 100 | 1,000 | how |
+|---|---|---|---|---|
+| engine per tick, unpriced (ns) | 110, 106 | 103, 117 | 101, 106 | `idle_osc - idle`: phases of two rhythms and the cycle summaries; flat in the number of cells |
+| idle tick, oscillome off (ns) | 84, 91 | 84, 88 | 85, 86 | `idle` |
+| oscillator run (ns, its self traversal at 25 removed) | 262, 204 | 156, 156 | 138, 142 | `oscillator / n - 25`; priced at 200 as a cell update |
+| phase-gate read (ns) | 14.0, 3.9 | 0.5, 3.2 | 3.1, -1.6 | `(phasegate - fanout) / 4n`, priced at 2 as a field read; within noise of M1's field read |
+
+An oscillator's run costs about what a cell update is priced at (0.72 to 1.27 of the model with
+its traversal), and a phase-gate read about what a field read is. The engine's per-tick work is
+real and flat: about 0.1 us per tick, which is 0.6 ms per 600 s stream at a 100 ms tick, 0.12 ms
+at 500 ms, 0.03 ms at 2 s; with the idle tick's 85 ns it is about 1 ms per stream at 100 ms that
+the prices do not charge, against roughly 2 ms or more of priced event-driven work for a stream's
+4,497 events. It is not in M2's criterion; it should be in M2's cost column if the chief decides
+ticks are priced.
+
+What these numbers are and are not: they price this reference implementation, on this VM, with
+criterion medians (stolen time included). Runs 1 to 3 measured the code before the step
+extraction; the acceptance table uses only runs 4 and 5. The oscillome workloads run only at a
+100 ms tick; the engine's per-tick cost does not depend on the tick length, but its cost per
+second of stream does.
+
+## Benchmark (M1): measured cost per operation against the declared prices of that time
 
 `benches/tick.rs` (five steady-state workloads, its module documentation says what each does),
 release profile (thin LTO, one codegen unit), run twice on 2026-10-06 through

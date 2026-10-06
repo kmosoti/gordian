@@ -13,6 +13,7 @@ use std::collections::BTreeMap;
 use gordian_core::Instant;
 
 use crate::medium::{Medium, TickSummary, TickTrace, Truncation};
+use crate::oscillome::CycleSummary;
 use crate::types::{Event, EventRef, Field, OpCounts, Proposal};
 
 /// Names the tick and knows its length (in).
@@ -105,10 +106,15 @@ pub trait Trace {
     fn record(&mut self, trace: TickTrace);
 }
 
-/// Runs once at the end of every tick with the tick's summary (in).
+/// Runs once at the end of every tick with the tick's summary, or, when the oscillome names a
+/// plasticity rhythm, once at the end of each of that rhythm's boundary ticks with the summary of
+/// the cycle just completed (in).
 pub trait Plasticity {
     /// May change the weights of plastic synapses through [`Medium::set_weight`].
     fn end_of_tick(&mut self, medium: &mut Medium, summary: &TickSummary);
+    /// The same, at a cycle boundary of the plasticity rhythm (M1b decision 6). Does nothing
+    /// unless the adapter says otherwise.
+    fn end_of_cycle(&mut self, _medium: &mut Medium, _cycle: &CycleSummary) {}
 }
 
 /// The ports one tick uses. The resource and persistence ports are not called during a tick.

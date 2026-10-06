@@ -5,8 +5,9 @@
 //! For tick `T`:
 //!
 //! 1. **Clock and field.** `clock.now()` names `T`, which must be the tick after the last one
-//!    run (the first tick may be any value). `field.field(T)` supplies the field; every scalar
-//!    must be finite.
+//!    run (the first tick may be any value); when the oscillome gives a tick length, the clock's
+//!    must equal it. `field.field(T)` supplies the field; every scalar must be finite. The
+//!    medium writes the oscillome's phases at `T` into the field (zeros when it has no rhythm).
 //! 2. **Sense and routing.** `sense.events(T)` supplies the events. Each must belong to `T`, have
 //!    a finite value and a `seq` not repeated within `T`; otherwise the tick is refused with a
 //!    [`StepError`] and the medium is unchanged. The events are sorted by
@@ -27,9 +28,14 @@
 //!    pass, that pass runs (step 4 again) and propagates (step 5 again).
 //! 6. **Proposals.** Emitters that fired during the passes made proposals, in (pass, cell id)
 //!    order; the effector receives them.
-//! 7. **Plasticity** runs once with the tick's summary.
+//! 7. **Cycles and plasticity.** When the oscillome keeps cycle summaries, the tick's summary is
+//!    added to every rhythm's cycle, and the cycles whose boundary `T` is are completed (in
+//!    [`TickSummary::completed`]). Plasticity then runs: once with the tick's summary, or, when
+//!    the oscillome names a plasticity rhythm, only at that rhythm's boundaries, with its
+//!    completed cycle's summary.
 //! 8. **Ledger and trace.** The ledger receives the counts and the truncation record, if any;
-//!    the trace receives the tick's trace if it asked for this tick.
+//!    the trace receives the tick's trace if it asked for this tick (when the oscillome names a
+//!    trace rhythm, it is asked only on that rhythm's boundary ticks).
 //!
 //! # Limits
 //!
@@ -45,11 +51,12 @@ use std::collections::BTreeMap;
 use std::mem;
 use std::sync::Arc;
 
-use crate::archetype::{self, Archetype, Input, Origin, Refs, SupportRule, sane};
+use crate::archetype::{self, Archetype, Ctx, Emission, Input, Origin, Refs, SupportRule, sane};
+use crate::oscillome::{CycleSummary, Oscillome, OscillomeEngine};
 use crate::ports::{Persist, Ports};
 use crate::spec::{CellSpec, MediumSpec, SpecError, SynapseSpec};
 use crate::types::{
-    CellId, Event, EventRef, F, Field, Gate, Limits, OpCounts, P, Pattern, Prices, Proposal, S,
+    CellId, Event, EventRef, F, Field, Gate, Limits, OpCounts, P, Pattern, Prices, Proposal, R, S,
     SynapseId,
 };
 
@@ -159,6 +166,9 @@ pub struct TickSummary {
     pub refs_dropped: u64,
     /// Emitter firings that made no proposal because they cited no event.
     pub unanchored: u64,
+    /// The cycles completed at this tick, one per rhythm whose boundary it is, in rhythm order,
+    /// when the oscillome keeps cycle summaries (M1b decision 6); else empty.
+    pub completed: Vec<CycleSummary>,
 }
 
 /// One item of a tick's trace.
@@ -261,6 +271,13 @@ pub enum StepError {
         /// Its index.
         index: usize,
     },
+    /// The clock's tick length is not the one the oscillome was built for.
+    TickLength {
+        /// The oscillome's.
+        spec: u64,
+        /// The clock's.
+        clock: u64,
+    },
 }
 
 /// Why [`Medium::set_weight`] refused.
@@ -297,7 +314,13 @@ pub struct Medium {
     pub(crate) wake_next: Vec<CellId>,
     pub(crate) last_tick: Option<u64>,
     pub(crate) totals: OpCounts,
+    /// The oscillome's spec (M1b), as given (with its quantities in time).
+    pub(crate) oscillome: Oscillome,
+    /// The Oscillome Engine; its cycle summaries are persisted.
+    pub(crate) engine: OscillomeEngine,
     // Derived from cells and synapses; rebuilt on restore, never persisted.
+    /// Per cell: an oscillator's period (its self-synapse's delay), else 0.
+    period: Vec<u64>,
     out_edges: Vec<Vec<SynapseId>>,
     index: BTreeMap<IndexKey, Vec<CellId>>,
     // Scratch; empty between ticks.
@@ -353,9 +376,11 @@ fn sorted_events(events: &mut [Event]) {
 }
 
 impl Medium {
-    /// Build a medium from a spec, after validating it.
+    /// Build a medium from a spec, after validating it and converting its quantities in time
+    /// ([`MediumSpec::resolved`]).
     pub fn from_spec(spec: &MediumSpec) -> Result<Medium, SpecError> {
-        spec.validate()?;
+        let (spec, _) = spec.resolved()?;
+        let spec = &spec;
         let cells = spec
             .cells
             .iter()
@@ -400,6 +425,9 @@ impl Medium {
             wake_next: Vec::new(),
             last_tick: None,
             totals: OpCounts::default(),
+            oscillome: spec.oscillome.clone(),
+            engine: OscillomeEngine::new(&spec.oscillome),
+            period: Vec::new(),
             out_edges: Vec::new(),
             index: BTreeMap::new(),
             inbox: Vec::new(),
@@ -412,8 +440,12 @@ impl Medium {
     /// synapses, in id order.
     fn derive(&mut self) {
         self.out_edges = vec![Vec::new(); self.cells.len()];
+        self.period = vec![0; self.cells.len()];
         for s in &self.synapses {
             self.out_edges[s.from.0 as usize].push(s.id);
+            if s.from == s.to && self.cells[s.from.0 as usize].archetype == Archetype::Oscillator {
+                self.period[s.from.0 as usize] = u64::from(s.delay_ticks);
+            }
         }
         self.index = BTreeMap::new();
         for c in &self.cells {
@@ -453,7 +485,26 @@ impl Medium {
                 .collect(),
             limits: self.limits,
             prices: self.prices,
+            oscillome: self.oscillome.clone(),
         }
+    }
+
+    /// The Oscillome Engine (phases, cycles, boundaries, and the cycle summaries in progress).
+    pub fn engine(&self) -> &OscillomeEngine {
+        &self.engine
+    }
+
+    /// Whether the medium uses any element of the oscillome (as [`MediumSpec::uses_oscillome`]).
+    pub fn uses_oscillome(&self) -> bool {
+        !self.oscillome.is_off()
+            || self
+                .cells
+                .iter()
+                .any(|c| c.archetype.uses_oscillome(&c.params))
+            || self
+                .synapses
+                .iter()
+                .any(|s| matches!(s.gate, Gate::Phase { .. }))
     }
 
     /// The cells, in id order.
@@ -526,8 +577,10 @@ impl Medium {
         wake_next: Vec<CellId>,
         last_tick: Option<u64>,
         totals: OpCounts,
+        summaries: Option<Vec<CycleSummary>>,
     ) -> Result<Medium, SpecError> {
         let mut m = Medium::from_spec(spec)?;
+        m.engine.summaries = summaries;
         for (cell, (last_active, state, activation, support)) in
             m.cells.iter_mut().zip(cells_dynamic)
         {
@@ -564,7 +617,13 @@ impl Medium {
         out.sort_unstable();
     }
 
-    fn validate_inputs(&self, tick: u64, field: &Field, events: &[Event]) -> Result<(), StepError> {
+    fn validate_inputs(
+        &self,
+        tick: u64,
+        tick_len_ns: u64,
+        field: &Field,
+        events: &[Event],
+    ) -> Result<(), StepError> {
         let expected = match self.last_tick {
             None => None,
             Some(t) => Some(t.checked_add(1).ok_or(StepError::TickOutOfOrder {
@@ -576,6 +635,13 @@ impl Medium {
             return Err(StepError::TickOutOfOrder {
                 expected,
                 got: tick,
+            });
+        }
+        let spec_len = self.oscillome.tick_len_ns;
+        if spec_len != 0 && spec_len != tick_len_ns {
+            return Err(StepError::TickLength {
+                spec: spec_len,
+                clock: tick_len_ns,
             });
         }
         for (index, x) in field.scalars.iter().enumerate() {
@@ -615,11 +681,17 @@ impl Medium {
     pub fn step(&mut self, ports: &mut Ports<'_>) -> Result<TickSummary, StepError> {
         // 1. Clock and field. 2. Events, validated before anything changes.
         let tick = ports.clock.now();
-        let field = ports.field.field(tick);
+        let mut field = ports.field.field(tick);
         let mut events = ports.sense.events(tick);
-        self.validate_inputs(tick, &field, &events)?;
+        let tick_len_ns = if self.oscillome.tick_len_ns == 0 {
+            0
+        } else {
+            ports.clock.tick_len_ns()
+        };
+        self.validate_inputs(tick, tick_len_ns, &field, &events)?;
         sorted_events(&mut events);
         self.last_tick = Some(tick);
+        let traced = self.begin_rhythms(ports, tick, &mut field);
 
         let mut run = TickRun {
             tick,
@@ -628,7 +700,7 @@ impl Medium {
             counts: OpCounts::default(),
             truncation: Truncation::default(),
             stopped: false,
-            trace: ports.trace.wants(tick).then(Vec::new),
+            trace: traced.then(Vec::new),
             refs_dropped: 0,
             unanchored: 0,
             carried: 0,
@@ -675,14 +747,15 @@ impl Medium {
         // 3. Delivery of messages due now, and wakes.
         if let Some(messages) = self.pending.remove(&tick) {
             for m in messages {
-                let slot = self.synapses[m.synapse.0 as usize].slot;
+                let syn = &self.synapses[m.synapse.0 as usize];
                 let input = Input {
                     value: m.value,
                     origin: Origin::Synapse {
                         sent_tick: m.sent_tick,
                         sent_pass: m.sent_pass,
                         synapse: m.synapse,
-                        slot,
+                        slot: syn.slot,
+                        self_loop: syn.from == syn.to,
                     },
                     refs: Refs::Many(m.refs),
                 };
@@ -714,7 +787,7 @@ impl Medium {
         ports.effector.consume(tick, proposals);
 
         let truncation = (run.truncation != Truncation::default()).then_some(run.truncation);
-        let summary = TickSummary {
+        let mut summary = TickSummary {
             tick,
             counts: run.counts,
             truncation,
@@ -723,11 +796,12 @@ impl Medium {
             carried: run.carried,
             refs_dropped: run.refs_dropped,
             unanchored: run.unanchored,
+            completed: Vec::new(),
         };
         self.totals.accumulate(&run.counts);
 
-        // 7. Plasticity.
-        ports.plasticity.end_of_tick(self, &summary);
+        // 7. Cycles, then plasticity.
+        self.end_rhythms(ports, &mut summary);
 
         // 8. Ledger and trace.
         ports
@@ -737,6 +811,39 @@ impl Medium {
             ports.trace.record(TickTrace { tick, items });
         }
         Ok(summary)
+    }
+
+    /// Step 1's oscillome part: write the phases of `tick` into `field` (a pure function of the
+    /// tick, section 4b), and say whether the tick is traced (only on the trace rhythm's boundary
+    /// ticks when the oscillome names one). Kept out of `step` (not inlined) so that the M1 path
+    /// through `step` keeps its shape; see DESIGN.md, the M1b benchmark.
+    #[inline(never)]
+    fn begin_rhythms(&self, ports: &mut Ports<'_>, tick: u64, field: &mut Field) -> bool {
+        field.phases = if self.engine.rhythms() == 0 {
+            [0.0; R]
+        } else {
+            self.engine.phases(tick)
+        };
+        match self.oscillome.trace_rhythm {
+            None => ports.trace.wants(tick),
+            Some(r) => self.engine.is_boundary(usize::from(r), tick) && ports.trace.wants(tick),
+        }
+    }
+
+    /// Step 7: add the tick to every rhythm's cycle, then run plasticity, every tick or at the
+    /// boundaries of the plasticity rhythm with that rhythm's completed cycle. Not inlined, as
+    /// `begin_rhythms`.
+    #[inline(never)]
+    fn end_rhythms(&mut self, ports: &mut Ports<'_>, summary: &mut TickSummary) {
+        summary.completed = self.engine.record(summary.tick, summary);
+        match self.oscillome.plasticity_rhythm {
+            None => ports.plasticity.end_of_tick(self, summary),
+            Some(r) => {
+                if let Some(cycle) = summary.completed.iter().find(|c| c.rhythm == r) {
+                    ports.plasticity.end_of_cycle(self, cycle);
+                }
+            }
+        }
     }
 
     /// Step 4: run every cell of `cells` (ascending) once. Returns the cells whose activation is
@@ -758,8 +865,9 @@ impl Medium {
             if inputs.is_empty() {
                 continue;
             }
+            let ctx = self.ctx(id, tick);
             let cell = &mut self.cells[i];
-            let field_reads = cell.archetype.field_reads();
+            let field_reads = cell.archetype.field_reads(&cell.params);
             if !run.allow(1 + field_reads, pass) {
                 run.truncation.cells_not_run += 1;
                 run.trace(|| TraceItem::NotRun { cell: id, pass });
@@ -771,14 +879,13 @@ impl Medium {
                 run.active_cells += 1;
             }
             inputs.sort_by_key(Input::order_key);
-            let dt = cell.last_active.map_or(0, |t| tick.saturating_sub(t));
             let out = archetype::run(
                 cell.archetype,
                 &cell.params,
                 &mut cell.state,
                 &inputs,
                 field,
-                dt,
+                &ctx,
             );
             cell.activation = out.activation;
             cell.last_active = Some(tick);
@@ -786,13 +893,24 @@ impl Medium {
             // The support this run cites.
             let mut support: Vec<EventRef> = match out.support {
                 SupportRule::Keep => mem::take(&mut cell.support),
-                SupportRule::Replace | SupportRule::Merge => {
+                SupportRule::Replace | SupportRule::Merge | SupportRule::ReplaceExternal => {
                     let mut s = if out.support == SupportRule::Merge {
                         mem::take(&mut cell.support)
                     } else {
                         Vec::new()
                     };
                     for input in &inputs {
+                        if out.support == SupportRule::ReplaceExternal
+                            && matches!(
+                                input.origin,
+                                Origin::Synapse {
+                                    self_loop: true,
+                                    ..
+                                }
+                            )
+                        {
+                            continue;
+                        }
                         s.extend_from_slice(input.refs.as_slice());
                     }
                     s.sort_unstable();
@@ -816,26 +934,35 @@ impl Medium {
                 activation: out.activation,
             });
 
-            if out.emit {
+            if let Some(emission) = out.emit {
                 if let Some(&anchor) = support.first() {
                     if proposals.len() >= self.limits.max_proposals_per_tick as usize {
                         run.truncation.proposal_limit = true;
                         run.truncation.proposals_dropped += 1;
                         run.trace(|| TraceItem::ProposalDropped { cell: id });
                     } else {
-                        let lookback = cell.params[2] as u64;
-                        let refs = support
-                            .iter()
-                            .copied()
-                            .filter(|r| tick.saturating_sub(r.tick) <= lookback)
-                            .collect();
+                        let (kind, refs, strength) = match emission {
+                            Emission::Notice => {
+                                let lookback = cell.params[2] as u64;
+                                let refs = support
+                                    .iter()
+                                    .copied()
+                                    .filter(|r| tick.saturating_sub(r.tick) <= lookback)
+                                    .collect();
+                                (cell.params[1] as u16, refs, out.activation)
+                            }
+                            // A retirement cites the whole support the latch held.
+                            Emission::Retire { kind, strength } => {
+                                (kind, support.clone(), strength)
+                            }
+                        };
                         run.counts.proposals += 1;
                         run.trace(|| TraceItem::Proposed { cell: id, anchor });
                         proposals.push(Proposal {
-                            kind: cell.params[1] as u16,
+                            kind,
                             anchor,
                             refs,
-                            strength: out.activation,
+                            strength,
                             cell: id,
                         });
                     }
@@ -861,6 +988,28 @@ impl Medium {
         fired
     }
 
+    /// What a run of `id` at `tick` knows besides its inputs (before the run changes the cell).
+    fn ctx(&self, id: CellId, tick: u64) -> Ctx {
+        let cell = &self.cells[id.0 as usize];
+        let dt = cell.last_active.map_or(0, |t| tick.saturating_sub(t));
+        let mut ctx = Ctx {
+            tick,
+            dt,
+            tick_len_ns: self.engine.tick_len_ns(),
+            bins_elapsed: 0,
+            period: self.period[id.0 as usize],
+        };
+        if cell.archetype == Archetype::Coincidence && cell.params[4] == 1.0 {
+            let (r, bins) = (cell.params[5] as usize, cell.params[6] as u64);
+            ctx.bins_elapsed = cell.last_active.map_or(0, |t| {
+                self.engine
+                    .bin(r, bins, tick)
+                    .saturating_sub(self.engine.bin(r, bins, t))
+            });
+        }
+        ctx
+    }
+
     /// Step 5: traverse the outgoing synapses of the cells that fired in `pass`.
     fn propagate(
         &mut self,
@@ -875,7 +1024,7 @@ impl Medium {
             for k in 0..self.out_edges[id.0 as usize].len() {
                 let sid = self.out_edges[id.0 as usize][k];
                 let syn = self.synapses[sid.0 as usize];
-                let field_read = matches!(syn.gate, Gate::Field(_));
+                let field_read = matches!(syn.gate, Gate::Field(_) | Gate::Phase { .. });
                 if !run.allow(1 + u64::from(field_read), pass) {
                     run.truncation.messages_not_sent += 1;
                     continue;
@@ -886,6 +1035,11 @@ impl Medium {
                     Gate::None => true,
                     Gate::Cell(c) => self.cells[c.0 as usize].activation_at(tick) > 0.0,
                     Gate::Field(k) => field.scalars[usize::from(k).min(F - 1)] > 0.0,
+                    Gate::Phase { rhythm, from, to } => Gate::phase_window_contains(
+                        from,
+                        to,
+                        field.phases[usize::from(rhythm).min(R - 1)],
+                    ),
                 };
                 run.trace(|| TraceItem::Traversed {
                     synapse: sid,
@@ -912,6 +1066,7 @@ impl Medium {
                             sent_pass: pass,
                             synapse: sid,
                             slot: syn.slot,
+                            self_loop: syn.from == syn.to,
                         },
                         refs: Refs::Many(message.refs),
                     };

@@ -9,6 +9,11 @@
 //!   trivial adapters ([`ports`]), operation counting with hard limits and [`Truncation`]
 //!   records, declared prices (section 7), [`MediumSpec`] and [`MediumBuilder`] ([`spec`]), and
 //!   deterministic persisted bytes ([`persist`]).
+//! - The oscillome of section 4b (work item M1b, [`oscillome`]): slower rhythms whose phases are
+//!   broadcast in the field, phase gates, coincidence binned by a rhythm or ordered by event
+//!   time, the `Oscillator` archetype, latch retirement, quantities given in time and converted
+//!   at build, per-cycle summaries, and plasticity and trace sampling at rhythm boundaries. Every
+//!   element is switchable off, and with all off the medium is M1's, byte for byte.
 //!
 //! # What is not built
 //!
@@ -26,6 +31,7 @@
 
 pub mod archetype;
 pub mod medium;
+pub mod oscillome;
 pub mod persist;
 pub mod ports;
 pub mod spec;
@@ -34,6 +40,9 @@ pub mod types;
 pub use archetype::{Archetype, ParamError};
 pub use medium::{
     Cell, Medium, StepError, Synapse, TickSummary, TickTrace, TraceItem, Truncation, WeightError,
+};
+pub use oscillome::{
+    Conversion, CycleSummary, Oscillome, OscillomeEngine, TimeKind, TimeTarget, Timed, secs,
 };
 pub use persist::DecodeError;
 pub use ports::{
@@ -45,5 +54,5 @@ pub use ports::{
 pub use spec::{CellSpec, MediumBuilder, MediumSpec, SenseMode, SpecError, SynapseSpec};
 pub use types::{
     Address, CellId, Event, EventRef, F, Field, Gate, Limits, OpCounts, P, Pattern, Prices,
-    Proposal, S, SynapseId, Tag,
+    Proposal, R, S, SynapseId, Tag,
 };

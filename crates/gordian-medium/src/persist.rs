@@ -1,12 +1,19 @@
 //! Deterministic bytes of the whole medium (the persistence port's payload).
 //!
-//! # Encoding, version 1
+//! # Encoding, versions 1 and 2
 //!
 //! Little-endian, no padding. `f32` values are written as their bit patterns, so a restore is
 //! exact. Tags are explicit and never derived from enum order.
 //!
+//! Version 1 is M1's encoding, unchanged, and is written for every medium that uses no element of
+//! the oscillome ([`MediumSpec::uses_oscillome`]): that is what makes the all-off medium M1's,
+//! byte for byte (M1b decision 9). Version 2 is written for every other medium: version 1's
+//! layout, in which an archetype tag may be 7 (`Oscillator`) and a gate tag 3 (phase), followed
+//! by the oscillome section. Each version is refused for the other kind of medium, so a medium has
+//! one encoding.
+//!
 //! ```text
-//! magic "GMED", version u8 = 1
+//! magic "GMED", version u8 (1 or 2)
 //! limits:  max_cells u32, max_synapses u32, max_ops_per_tick u64, max_proposals_per_tick u32,
 //!          max_refs u16, max_passes u8
 //! prices:  cell_update, synapse_traversal, event_routing, field_read, proposal (u64 ps each)
@@ -18,10 +25,17 @@
 //!            tag opt u32), support refs
 //! synapses: count u32, then per synapse:
 //!            from u32, to u32, weight u32 bits, delay u8, gate (tag u8: 0 none, 1 cell + u32,
-//!            2 field + u8), plastic u8
+//!            2 field + u8, 3 phase + rhythm u8 + from u32 bits + to u32 bits), plastic u8
 //! pending: count of due ticks u32, then per due tick (ascending): tick u64, count u32, then per
 //!            message: target u32, synapse u32, sent_tick u64, sent_pass u8, value u32 bits, refs
 //! wake_next: count u32, cell ids u32 (ascending)
+//! version 2 only, the oscillome:
+//!          tick_len_ns u64, periods (count u8, then u64 each), seconds (count u32, then per entry:
+//!          target (tag u8: 0 param + cell u32 + index u8, 1 delay + synapse u32), ns u64),
+//!          cycle_summary u8, plasticity_rhythm opt u8, trace_rhythm opt u8,
+//!          then, if cycle_summary, per rhythm in order: cycle u64, first_tick opt u64, ticks u64,
+//!          counts (5 u64), passes, active_cell_ticks, truncated_ticks, carried, refs_dropped,
+//!          unanchored (u64 each)
 //! refs = count u16, then per ref: tick u64, offset_ns u32, seq u32
 //! ```
 //!
@@ -34,13 +48,17 @@ use std::sync::Arc;
 
 use crate::archetype::Archetype;
 use crate::medium::{Medium, Message};
+use crate::oscillome::{CycleSummary, Oscillome, TimeTarget, Timed};
 use crate::spec::{CellSpec, MediumSpec, SpecError, SynapseSpec};
 use crate::types::{
     CellId, EventRef, Gate, Limits, OpCounts, P, Pattern, Prices, S, SynapseId, Tag,
 };
 
 const MAGIC: &[u8; 4] = b"GMED";
-const VERSION: u8 = 1;
+/// M1's encoding: a medium that uses nothing of the oscillome.
+const VERSION_M1: u8 = 1;
+/// A medium that uses the oscillome.
+const VERSION_OSCILLOME: u8 = 2;
 
 /// Why persisted bytes could not be decoded.
 #[derive(Debug, Clone, PartialEq)]
@@ -98,6 +116,56 @@ impl Writer {
                 self.u8(1);
                 self.u16(x);
             }
+        }
+    }
+    fn opt_u8(&mut self, v: Option<u8>) {
+        match v {
+            None => self.u8(0),
+            Some(x) => {
+                self.u8(1);
+                self.u8(x);
+            }
+        }
+    }
+    fn oscillome(&mut self, o: &Oscillome) {
+        self.u64(o.tick_len_ns);
+        self.u8(u8::try_from(o.periods_ns.len()).unwrap_or(u8::MAX));
+        for p in &o.periods_ns {
+            self.u64(*p);
+        }
+        self.len32(o.seconds.len());
+        for t in &o.seconds {
+            match t.target {
+                TimeTarget::Param { cell, index } => {
+                    self.u8(0);
+                    self.u32(cell.0);
+                    self.u8(index);
+                }
+                TimeTarget::Delay { synapse } => {
+                    self.u8(1);
+                    self.u32(synapse.0);
+                }
+            }
+            self.u64(t.ns);
+        }
+        self.u8(u8::from(o.cycle_summary));
+        self.opt_u8(o.plasticity_rhythm);
+        self.opt_u8(o.trace_rhythm);
+    }
+    fn cycle(&mut self, c: &CycleSummary) {
+        self.u64(c.cycle);
+        self.opt_u64(c.first_tick);
+        self.u64(c.ticks);
+        self.counts(&c.counts);
+        for v in [
+            c.passes,
+            c.active_cell_ticks,
+            c.truncated_ticks,
+            c.carried,
+            c.refs_dropped,
+            c.unanchored,
+        ] {
+            self.u64(v);
         }
     }
     fn refs(&mut self, refs: &[EventRef]) {
@@ -171,6 +239,62 @@ impl Reader<'_> {
             None
         })
     }
+    fn opt_u8(&mut self) -> Result<Option<u8>, DecodeError> {
+        Ok(if self.flag()? { Some(self.u8()?) } else { None })
+    }
+    fn oscillome(&mut self) -> Result<Oscillome, DecodeError> {
+        let tick_len_ns = self.u64()?;
+        let n = usize::from(self.u8()?);
+        if n.saturating_mul(8) > self.rest.len() {
+            return Err(DecodeError::Truncated);
+        }
+        let periods_ns = (0..n).map(|_| self.u64()).collect::<Result<_, _>>()?;
+        let n = self.count(1 + 4 + 8)?;
+        let mut seconds = Vec::with_capacity(n);
+        for _ in 0..n {
+            let target = match self.u8()? {
+                0 => TimeTarget::Param {
+                    cell: CellId(self.u32()?),
+                    index: self.u8()?,
+                },
+                1 => TimeTarget::Delay {
+                    synapse: SynapseId(self.u32()?),
+                },
+                t => return Err(DecodeError::BadTag(t)),
+            };
+            seconds.push(Timed {
+                target,
+                ns: self.u64()?,
+            });
+        }
+        Ok(Oscillome {
+            tick_len_ns,
+            periods_ns,
+            seconds,
+            cycle_summary: self.flag()?,
+            plasticity_rhythm: self.opt_u8()?,
+            trace_rhythm: self.opt_u8()?,
+        })
+    }
+    fn cycle(&mut self, rhythm: u8) -> Result<CycleSummary, DecodeError> {
+        let cycle = self.u64()?;
+        let first_tick = self.opt_u64()?;
+        let ticks = self.u64()?;
+        let counts = self.counts()?;
+        Ok(CycleSummary {
+            rhythm,
+            cycle,
+            first_tick,
+            ticks,
+            counts,
+            passes: self.u64()?,
+            active_cell_ticks: self.u64()?,
+            truncated_ticks: self.u64()?,
+            carried: self.u64()?,
+            refs_dropped: self.u64()?,
+            unanchored: self.u64()?,
+        })
+    }
     /// A count of items each at least `min_len` bytes long, checked against the bytes left so a
     /// hostile count cannot demand a huge allocation.
     fn count(&mut self, min_len: usize) -> Result<usize, DecodeError> {
@@ -211,8 +335,13 @@ impl Medium {
     /// the last tick and the running totals). Equal media give equal bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut w = Writer(Vec::new());
+        let oscillome = self.uses_oscillome();
         w.0.extend_from_slice(MAGIC);
-        w.u8(VERSION);
+        w.u8(if oscillome {
+            VERSION_OSCILLOME
+        } else {
+            VERSION_M1
+        });
         let l = &self.limits;
         w.u32(l.max_cells);
         w.u32(l.max_synapses);
@@ -277,6 +406,12 @@ impl Medium {
                     w.u8(2);
                     w.u8(k);
                 }
+                Gate::Phase { rhythm, from, to } => {
+                    w.u8(3);
+                    w.u8(rhythm);
+                    w.f32(from);
+                    w.f32(to);
+                }
             }
             w.u8(u8::from(s.plastic));
         }
@@ -297,6 +432,12 @@ impl Medium {
         for c in &self.wake_next {
             w.u32(c.0);
         }
+        if oscillome {
+            w.oscillome(&self.oscillome);
+            for c in self.engine.summaries().unwrap_or(&[]) {
+                w.cycle(c);
+            }
+        }
         w.0
     }
 
@@ -307,7 +448,7 @@ impl Medium {
             return Err(DecodeError::BadMagic);
         }
         let version = r.u8()?;
-        if version != VERSION {
+        if version != VERSION_M1 && version != VERSION_OSCILLOME {
             return Err(DecodeError::UnsupportedVersion(version));
         }
         let limits = Limits {
@@ -381,6 +522,11 @@ impl Medium {
                 0 => Gate::None,
                 1 => Gate::Cell(CellId(r.u32()?)),
                 2 => Gate::Field(r.u8()?),
+                3 => Gate::Phase {
+                    rhythm: r.u8()?,
+                    from: r.f32()?,
+                    to: r.f32()?,
+                },
                 t => return Err(DecodeError::BadTag(t)),
             };
             let plastic = r.flag()?;
@@ -393,14 +539,8 @@ impl Medium {
                 plastic,
             });
         }
-        let spec = MediumSpec {
-            cells,
-            synapses,
-            limits,
-            prices,
-        };
-        spec.validate().map_err(DecodeError::Spec)?;
-
+        // The structure is complete only after the oscillome section (version 2), at the end;
+        // the dynamic state between is read first and checked against the structure afterwards.
         let n_due = r.count(12)?;
         let mut pending: BTreeMap<u64, Vec<Message>> = BTreeMap::new();
         let mut previous_due = None;
@@ -419,8 +559,7 @@ impl Medium {
                 let sent_pass = r.u8()?;
                 let value = r.f32()?;
                 let refs = r.refs()?;
-                let ok = spec
-                    .synapses
+                let ok = synapses
                     .get(synapse.0 as usize)
                     .is_some_and(|s| s.to == target);
                 if !ok || value.is_nan() {
@@ -441,15 +580,68 @@ impl Medium {
         let mut wake_next = Vec::with_capacity(n_wake);
         for _ in 0..n_wake {
             let c = CellId(r.u32()?);
-            if c.0 as usize >= spec.cells.len() || wake_next.last().is_some_and(|l| *l >= c) {
+            if c.0 as usize >= cells.len() || wake_next.last().is_some_and(|l| *l >= c) {
                 return Err(DecodeError::Inconsistent("wake list"));
             }
             wake_next.push(c);
         }
+        let (oscillome, summaries) = if version == VERSION_OSCILLOME {
+            let o = r.oscillome()?;
+            let summaries = if o.cycle_summary {
+                let mut sums = Vec::with_capacity(o.periods_ns.len());
+                for rhythm in 0..o.periods_ns.len() {
+                    let c = r.cycle(rhythm as u8)?;
+                    let consistent = c.first_tick.is_some() == (c.ticks > 0)
+                        && c.first_tick
+                            .is_none_or(|f| last_tick.is_some_and(|l| f <= l));
+                    if !consistent {
+                        return Err(DecodeError::Inconsistent("cycle summary"));
+                    }
+                    sums.push(c);
+                }
+                Some(sums)
+            } else {
+                None
+            };
+            (o, summaries)
+        } else {
+            (Oscillome::default(), None)
+        };
         if !r.rest.is_empty() {
             return Err(DecodeError::TrailingBytes);
         }
-        Medium::from_parts(&spec, dynamic, pending, wake_next, last_tick, totals)
-            .map_err(DecodeError::Spec)
+        let spec = MediumSpec {
+            cells,
+            synapses,
+            limits,
+            prices,
+            oscillome,
+        };
+        let (resolved, _) = spec.resolved().map_err(DecodeError::Spec)?;
+        if spec.uses_oscillome() != (version == VERSION_OSCILLOME) {
+            return Err(DecodeError::Inconsistent("encoding version"));
+        }
+        // A medium stores the converted values of its quantities in time; bytes whose stored
+        // value differs from the conversion are refused, not repaired (compared by bits).
+        let same_params = spec.cells.iter().zip(&resolved.cells).all(|(a, b)| {
+            a.params
+                .iter()
+                .zip(&b.params)
+                .all(|(x, y)| x.to_bits() == y.to_bits())
+        });
+        let same_delays = spec
+            .synapses
+            .iter()
+            .zip(&resolved.synapses)
+            .all(|(a, b)| a.delay_ticks == b.delay_ticks);
+        if !(same_params && same_delays) {
+            return Err(DecodeError::Inconsistent(
+                "a stored value differs from its conversion",
+            ));
+        }
+        Medium::from_parts(
+            &spec, dynamic, pending, wake_next, last_tick, totals, summaries,
+        )
+        .map_err(DecodeError::Spec)
     }
 }
