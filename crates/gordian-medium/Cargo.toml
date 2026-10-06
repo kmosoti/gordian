@@ -1,0 +1,49 @@
+[package]
+name = "gordian-medium"
+version = "0.1.0"
+description = "The medium: a sparse, tick-based substrate of cells, synapses and a broadcast field, with ports, counted operations and hard limits"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# The medium is an arm: it sees only what its sense port carries. It depends on no world crate,
+# so no hidden-state feature can reach it through this manifest (docs/medium-ports.md, section 2).
+
+[dependencies]
+# Requirement: `Instant` (the clock port maps a logical instant to a tick) and `Charge` and
+# `Resource` (operation counts become a compute charge that a ledger adapter can put on a `Bill`).
+# Simpler alternative: local copies of those types; rejected, they would drift from core and the
+# medium's cost must be billed in the same vocabulary as every component.
+gordian-core = { path = "../gordian-core" }
+# Requirement: `MediumSpec` is written into and read from run manifests (docs/medium-ports.md,
+# section 9), so the spec and the types it holds derive Serialize/Deserialize.
+# Simpler alternative: a hand-written text format; rejected, the manifest is JSON everywhere else
+# and a second format would need its own parser and tests. The persisted state is not serde: it is
+# a fixed little-endian encoding in `persist.rs`, so its bytes do not depend on a library.
+# Cost: already in Cargo.lock at this version; nothing new is compiled.
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+# Requirement: the property tests of docs/medium-ports.md section 10 (no panic on any spec within
+# the limits; counts monotone in events delivered) over generated specs and event sequences.
+# Simpler alternative: loops over fixed seeds; kept as unit tests, but they give no shrinking.
+# Cost: dev builds only; the same version and features as gordian-core, nothing new in Cargo.lock.
+proptest = { version = "1", default-features = false, features = ["std"] }
+# Requirement: the spec round-trips through JSON exactly, which is what a manifest does with it.
+# Simpler alternative: none that tests the serde derives. Cost: dev builds only; already locked.
+serde_json = "1.0.151"
+# Requirement: the cost micro-benchmark of one tick at 10, 100 and 1,000 active cells (work item
+# M1), reported as measured ns per operation beside the declared prices.
+# Simpler alternative: a hand-rolled timing loop; rejected, it would reimplement warm-up, outlier
+# handling and the estimates that gordian-components' calibration already reads from criterion.
+# Cost: dev builds only; the same version and features as gordian-components and gordian-world,
+# nothing new in Cargo.lock.
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "tick"
+harness = false
+
+[lints]
+workspace = true
