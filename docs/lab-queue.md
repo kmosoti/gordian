@@ -28,7 +28,8 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | M1 | 1 | The medium crate: types, tick, archetypes, ports, determinism | — | merged |
 | B1 | 2 | The `Noticer` seam, notice measures in the evaluator, public noticing baselines | — | running |
 | W1 | 3 | Event statistics per tick length; sample-efficiency and energy-proxy measures | — | merged |
-| M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1, B1 | queued |
+| M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | queued |
+| M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | queued |
 
 ## M1 The medium crate (Lab 1)
 
@@ -106,9 +107,51 @@ Two small studies, analysis-side, for the medium's design and the charter's aim.
 functions with tests; a report `experiments/exploration/w1-tick-and-measures.md` that states what
 is measured and what is assumed.
 
+## M1b The oscillome (Lab 1, after M1)
+
+Build `docs/medium-ports.md` section 4b into `crates/gordian-medium`, as the M1 PI proposed in
+`crates/gordian-medium/DESIGN.md` ("Rhythms"), with the open questions it listed decided here.
+Names: module `oscillome`, types `Oscillome` and `OscillomeEngine`.
+
+**Decisions (chief, 2026-10-06).**
+
+1. **The fastest oscillation is the base tick, whatever its length.** The `Oscillome` lists the
+   slower periods only (first set: 10 s, 100 s). The claim "the fastest rhythm is 0.1 s" is
+   dropped; at ticks of 500 ms and 2 s, burst order lives in `offset_ns`, and the `Coincidence`
+   archetype gains an offset-aware form that orders events within a tick by `offset_ns`.
+2. **Seconds to ticks.** Delays round to the nearest tick with a minimum of one tick (a delay of
+   zero ticks, "next pass", is never produced by conversion). Lookbacks and holds round up.
+   Decays given as time constants are converted once at build time: `exp(−tick/τ)` by a pinned
+   series in `f64`, rounded to `f32`, with pinned-bit tests. The report carries the conversion
+   table per tick length and lists every delay that collapses to one tick.
+3. **Phases** are computed in integer nanoseconds, `(tick × tick_len_ns) mod period_ns`, and
+   divided once into `f32`. Periods need not be multiples of the tick; a boundary is the tick in
+   which the cycle index changes, and the unevenness is reported.
+4. **Binding by phase and the sliding window both exist** as modes of `Coincidence`, so the
+   ablation can compare bins with windows.
+5. **The `Oscillator`** (phase-reset form of `Latch`) schedules its own next wake by a delayed
+   self-message; it never runs every tick. Its cost is per cycle and counted.
+6. **The engine keeps a per-cycle summary** (counts and activity since the last boundary of each
+   oscillation) and hands it to the plasticity adapter at the boundary named in the spec.
+7. **Retirement.** A `Latch` whose hold expires emits a proposal of kind `retire` citing its
+   anchor, so that the end of an anomaly can reach the effector without a heartbeat. This is the
+   medium-side answer to M1's "silence never propagates"; M2 may still add a heartbeat event if
+   it needs one, priced like any event.
+8. **Prices.** `Prices::DECLARED` becomes 200 / 25 / 40 / 2 ns (update, traversal, routing,
+   field read), the M1 calibration, with a test, and the old values recorded in `DESIGN.md`.
+9. **Every 4b element is switchable off in the spec**, and with all off the medium produces
+   bytes identical to M1's for the same spec and events.
+
+**Acceptance (fixed 2026-10-06).** The M1 PI's proposed acceptance: phases as a pure function
+of tick index and tick length (a property test against an integer-arithmetic reference);
+identical bytes after snapshot and restore at a boundary and mid-cycle; the all-off identity
+with M1 (a test); the conversion table per tick length in the report; the benchmark rerun under
+the cgroup with the prices of decision 8, every measurement within 0.7–1.4 of its model; the
+workspace gates. `DESIGN.md` records every departure and restates where the analogy breaks.
+
 ## M2 The medium as a noticer (Lab 1, after M1 and B1)
 
-A hand-designed noticing graph on the medium, fed by the stream sense adapter, emitting notices
+A hand-designed noticing graph on the medium (with the oscillome of M1b), fed by the stream sense adapter, emitting notices
 into B1's `Noticer` seam, compared with B1's public noticers on the same held-out streams with
 the selection oracle and the rung's context.
 
