@@ -432,6 +432,50 @@ mod tests {
     }
 
     #[test]
+    fn the_boundaries_of_the_split_the_retime_and_the_later_burst_are_exact() {
+        let rows = [
+            r(0, 0),
+            r(100, 0),
+            r(200, 0),
+            r(10_000, 3),
+            r(10_100, 4),
+            r(10_200, 3),
+        ];
+        // The silence from the earlier burst's last row to the first foreign row is 9,800 ms: a gap
+        // of exactly that does not split (it must be exceeded), one ms less does.
+        assert_eq!(
+            split_rule(&rows, 0, 9_800 * MS, 3, 400 * MS, 99_000 * MS),
+            (None, None)
+        );
+        assert_eq!(
+            split_rule(&rows, 0, 9_799 * MS, 3, 400 * MS, 99_000 * MS).0,
+            Some(vec![3, 4, 5])
+        );
+        // The later burst completes 400 ms after its last row: at that instant it is not complete,
+        // one ns later it is.
+        assert_eq!(
+            split_rule(&rows, 0, 3_000 * MS, 3, 400 * MS, 10_600 * MS),
+            (None, Some(10_600 * MS))
+        );
+        assert_eq!(
+            split_rule(&rows, 0, 3_000 * MS, 3, 400 * MS, 10_600 * MS + 1).0,
+            Some(vec![3, 4, 5])
+        );
+        // A burst at the site opens again exactly one gap after the last row there.
+        let at_gap = [r(0, 1), r(2_000, 1)];
+        let t = Timing::retime(&at_gap, 1, 0, 2_000 * MS);
+        assert_eq!(t.burst_open, 2_000 * MS);
+        let inside = [r(0, 1), r(1_999, 1)];
+        assert_eq!(Timing::retime(&inside, 1, 0, 2_000 * MS).burst_open, 0);
+        // A burst "begins after the anchor": a row at the anchor's own instant does not.
+        let same = [r(0, 1), r(0, 2), r(100, 2)];
+        assert_eq!(
+            later_burst_start(&same, 20 * MS, 2, 400 * MS, Isolation::Site),
+            None
+        );
+    }
+
+    #[test]
     fn chains_continue_cross_and_are_evicted_as_the_rule_says() {
         assert!(continues(10, 20, 4, 10) && !continues(10, 21, 4, 10));
         assert!(continues(10, 6, 4, 10) && !continues(10, 5, 4, 10));

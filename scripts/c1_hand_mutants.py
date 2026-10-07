@@ -4,8 +4,8 @@ Usage: python3 -I scripts/c1_hand_mutants.py WAIT_SCRIPT OUT.csv
 
 For each mutant (one textual change to one rule or one piece of the relations' upkeep) the script
 applies it, runs `cargo test -p gordian-run --test stream_dataflow` (everything but the 200-stream
-held-out reproduction, which the other tests make redundant here) under the build runner after the
-core-sharing wait (`WAIT_SCRIPT LABEL -- COMMAND`), records whether any test failed, and restores the
+held-out reproduction, which the other tests make redundant here) and, if that passes, the unit tests
+of the module (`--lib dataflow`), under the build runner after the core-sharing wait (`WAIT_SCRIPT LABEL -- COMMAND`), records whether any test failed, and restores the
 file with `git checkout -- FILE`. A mutant that no test fails is reported as missed, with no
 conclusion drawn about whether it is equivalent. The tree is checked clean at the end.
 """
@@ -60,6 +60,13 @@ def main(wait, out):
                "stream_dataflow", "--", "--skip", "held_out"]
         r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True,
                            env={**__import__("os").environ, "CARGO_BUILD_JOBS": "3", "CARGO_PROFILE_DEV_DEBUG": "0"})
+        if r.returncode == 0:
+            unit = [wait, f"mutant{n}-unit", "--", "scripts/cgroup-run.sh", "--name", "lab2-build", "--cpus",
+                    "0-2", "--memory", "3G", "--", "cargo", "test", "--offline", "-p", "gordian-run",
+                    "--lib", "dataflow"]
+            r = subprocess.run(unit, cwd=ROOT, capture_output=True, text=True,
+                               env={**__import__("os").environ, "CARGO_BUILD_JOBS": "3",
+                                    "CARGO_PROFILE_DEV_DEBUG": "0"})
         failed = [l.split()[1] for l in (r.stdout + r.stderr).splitlines() if l.startswith("test ") and l.endswith("FAILED")]
         compiled = "could not compile" not in r.stderr
         subprocess.run(["git", "checkout", "--", file], cwd=ROOT, check=True)
