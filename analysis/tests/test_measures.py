@@ -15,8 +15,10 @@ from gordian_analysis.measures import (
     PLACEHOLDER_LABEL,
     PLACEHOLDER_WATTS_CHEAP,
     PLACEHOLDER_WATTS_REASONER,
+    block_curve,
     energy_proxy,
     outcome_slope,
+    paired_window_difference,
     sample_efficiency,
 )
 
@@ -305,3 +307,88 @@ def test_two_arms_compare_on_cost_per_correct_decision_not_on_cost():
     b = frame([{"total_cost_ns": 200, "reasoner_cost_ns": 100, "correct_hard": 4, "incidents_hard": 4}])
     assert energy_proxy(a, "hard").ns_per_correct == pytest.approx(100.0)
     assert energy_proxy(b, "hard").ns_per_correct == pytest.approx(50.0)
+
+
+# ---- a measure against streams seen (L2) ---------------------------------------------------
+
+
+def per_stream(seeds, bg, notices=None):
+    cols = {"seed": seeds, "bg": bg}
+    if notices is not None:
+        cols["notices"] = notices
+    return pd.DataFrame(cols)
+
+
+def test_block_curve_by_hand_in_stream_order_with_a_short_last_block():
+    # Rows given out of order; stream order is by seed. Blocks of 2 streams:
+    #   seeds 1,2: bg 30+30 over 2 streams; seeds 3,4: 10+6; seed 5: 4 (a block of one).
+    df = per_stream([3, 1, 5, 2, 4], [10, 30, 4, 30, 6])
+    c = block_curve(df, "bg", block=2)
+    assert list(c["block"]) == [1, 2, 3]
+    assert list(c["first"]) == [1, 3, 5] and list(c["last"]) == [2, 4, 5]
+    assert list(c["streams"]) == [2, 2, 1]
+    assert list(c["numerator"]) == [60.0, 16.0, 4.0]
+    # The mean per stream when no denominator is named: 30, 8, 4.
+    assert list(c["value"]) == [30.0, 8.0, 4.0]
+
+
+def test_block_curve_pools_a_ratio_and_marks_an_empty_denominator():
+    # strict-precision-like: ratio of sums, not the mean of per-stream ratios.
+    #   block 1: (1 + 3) / (2 + 6) = 0.5   (the mean of 0.5 and 0.5 would agree; block 2 shows it)
+    #   block 2: (0 + 4) / (1 + 7) = 0.5   (the mean of 0 and 4/7 is 0.2857)
+    df = per_stream([1, 2, 3, 4], [1, 3, 0, 4], [2, 6, 1, 7])
+    c = block_curve(df, "bg", "notices", block=2)
+    assert c["value"].tolist() == pytest.approx([0.5, 0.5])
+    empty = block_curve(per_stream([1, 2], [0, 0], [0, 0]), "bg", "notices", block=2)
+    assert math.isnan(empty["value"].iloc[0])
+
+
+def test_block_curve_refuses_bad_input():
+    with pytest.raises(ValueError, match="block must be"):
+        block_curve(per_stream([1], [1]), "bg", block=0)
+    with pytest.raises(ValueError, match="uniquely"):
+        block_curve(per_stream([1, 1], [1, 2]), "bg")
+    with pytest.raises(ValueError, match="lack the columns"):
+        block_curve(per_stream([1, 2], [1, 2]), "missing")
+    with pytest.raises(ValueError, match="negative"):
+        block_curve(per_stream([1, 2], [1, -2]), "bg")
+
+
+def test_paired_window_difference_point_window_and_pairing_by_hand():
+    # Streams 1..6. Arm a: 5 5 9 9 9 9; arm b: 5 5 20 20 20 20. Window 3..6: a 9, b 20, a - b = -11.
+    a = per_stream(range(1, 7), [5, 5, 9, 9, 9, 9])
+    b = per_stream(range(1, 7), [5, 5, 20, 20, 20, 20])
+    r = paired_window_difference(a, b, "bg", first=3, last=6, resamples=2000, seed=1)
+    assert (r.first, r.last) == (3, 6)
+    assert (r.a, r.b, r.point) == (9.0, 20.0, -11.0)
+    # Every resample of four streams has the same -11 difference: the pairing cancels the
+    # resampling entirely, so the interval is a point.
+    assert r.lower == pytest.approx(-11.0) and r.higher == pytest.approx(-11.0)
+    # The whole window by default.
+    whole = paired_window_difference(a, b, "bg", resamples=500, seed=1)
+    assert whole.point == pytest.approx(46 / 6 - 90 / 6)  # (5+5+36)/6 against (5+5+80)/6
+
+
+def test_paired_window_difference_interval_widens_with_stream_to_stream_spread():
+    # Differences by stream: -1, -3, -1, -3, ... mean -2, resampled means are within [-3, -1].
+    a = per_stream(range(1, 41), [10] * 40)
+    b = per_stream(range(1, 41), [11, 13] * 20)
+    r = paired_window_difference(a, b, "bg", resamples=4000, seed=3)
+    assert r.point == pytest.approx(-2.0)
+    assert -3.0 <= r.lower < -2.0 < r.higher <= -1.0
+    again = paired_window_difference(a, b, "bg", resamples=4000, seed=3)
+    assert again == r  # a function of the seed
+
+
+def test_paired_window_difference_with_a_denominator_and_refusals():
+    a = per_stream([1, 2], [1, 3], [2, 4])  # pooled 4/6
+    b = per_stream([1, 2], [2, 2], [2, 2])  # pooled 4/4
+    r = paired_window_difference(a, b, "bg", "notices", resamples=200, seed=0)
+    assert r.a == pytest.approx(4 / 6) and r.b == pytest.approx(1.0)
+    assert r.point == pytest.approx(4 / 6 - 1.0)
+    with pytest.raises(ValueError, match="same streams"):
+        paired_window_difference(a, per_stream([1, 3], [2, 2], [2, 2]), "bg", "notices")
+    with pytest.raises(ValueError, match="window"):
+        paired_window_difference(a, b, "bg", first=2, last=5)
+    with pytest.raises(ValueError, match="window"):
+        paired_window_difference(a, b, "bg", first=0)

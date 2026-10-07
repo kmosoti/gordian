@@ -61,6 +61,7 @@ pub mod periodic;
 pub mod public_change;
 pub mod public_threshold;
 pub mod random;
+pub mod reservoir;
 pub mod rung;
 pub mod threshold;
 
