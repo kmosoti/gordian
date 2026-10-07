@@ -133,13 +133,15 @@ def main():
         row["verdict_flips"] = "; ".join(f for f in flips_all if f.endswith(":verdict") or ":verdict" in f) or ""
         row["clause_or_node_flips"] = len(flips_all)
         row["caught"] = bool(tot_changed or flips_all)
+        if mid == "M2":
+            row["note"] = "changes only specifications that use a window (L1's); M2, B3 and M3 have none, so those three are unchanged by it"
         if mid == "M6":
             res2 = evaluate_all(pkg, args.scratch / "out", mid + "b")
             again = sum(diff(numbers(res[u]), numbers(res2[u]))["numbers_changed"] for u in BT.UNITS)
             row["note"] = f"two runs of the mutant differ in {again} numbers; the unmutated script's two runs are identical"
         rows.append(row)
         print(row, flush=True)
-    fields = list(rows[0])
+    fields = list(rows[0]) + ["note"]
     with open(ROOT / "experiments/exploration/v1-mutants.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
