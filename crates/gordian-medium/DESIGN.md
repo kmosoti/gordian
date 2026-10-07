@@ -539,6 +539,39 @@ table): the cut moves the anchor, not the time of the notice.
 
 ## Mutation checks
 
+### M3 (cargo-mutants 27.1.0; the M2 arm and the M3 sub-tick code)
+
+Two fresh runs on the frozen tree after every test was added (one row per mutant in
+`experiments/exploration/m3-mutants.csv`), each under the cgroup runner, in place:
+
+- **The medium arm in `gordian-run`** (`adapters.rs`, `graph.rs`, `noticing.rs`, `mod.rs` of
+  `src/stream/arms/medium/`), against `cargo test -p gordian-run --test stream_medium`, 120 s
+  timeout: 294 mutants, **267 caught, 17 unviable, 3 timeouts, 7 missed**. Five earlier runs
+  (the first stopped at 212 of 294 by its time limit; the others iterated) left 45, 35, 20, 8
+  and 7 survivors and drove the tests added in commits `01507e1`, `e43caa9` and `55c0228`.
+- **The M3 diff of `gordian-medium/src`** (`archetype.rs`, `medium.rs`, `oscillome.rs`,
+  `spec.rs`, as `--in-diff`), against `cargo test -p gordian-medium`, 180 s timeout: 94 mutants,
+  **85 caught, 8 unviable, 1 missed**. The first run left 15 survivors (the sub-tick lookback in
+  `uses_oscillome`, and arrivals at event resolution); seven tests in `tests/subtick.rs` kill 14.
+
+The three timeouts make the tick loop run without end or over about 10^8 ticks
+(`complete_before`'s `/` made `%` or `*`; `run_ticks`'s `&&` made `||`); the test does not finish
+in 120 s against a baseline of about 1 s, so they are detected, not missed. The eight missed
+mutants are equivalent, each for a reason that holds for every input the code can receive:
+
+| Mutant | Why it is equivalent |
+|---|---|
+| `message_tag`, `0x4000_0000 \| id` to `^` | a catalogue id is below 2^16; the bits are disjoint |
+| `message_tag`, `0x8000_0000 \| folded` to `^` | `folded` is masked to `0x7FFF_FFFF`; the bits are disjoint |
+| `MediumParams::validate`, `t > u32::MAX` to `>=` | `u32::MAX` is not a whole number of microseconds, so the next clause refuses it with the same message |
+| `effect`, the second `lost_anchors += 1` to `-=` or `*=` | unreachable: an anchor is an event's `seq`, the `held.id` of an observation `encode` accepted, and `encode` refuses the only observations without a service (probes and corrections) |
+| `reoffer`, `h.id > first_anchor` to `>=` | at equality the anomaly anchored there owns `h.id`, so nothing joins either way |
+| `reoffer`, `anchor < h.id` to `<=` | an anomaly anchored at `h.id` owns it, which the guard before excludes |
+| `ordered_every_event`, `slot < ORDERED_SLOTS` to `<=` | `slot` is the cell's incoming-synapse index, and `MediumSpec::resolved` (through which every medium is built) refuses an ordered coincidence with more than `ORDERED_SLOTS` inputs |
+
+The `gordian-run` runs used only `stream_medium`'s tests, so a mutant other test files would
+catch is counted as missed there; the tally is conservative in that direction.
+
 ### M1b
 
 Twenty-three mutations of the M1b source, one at a time, each against the crate's whole test suite

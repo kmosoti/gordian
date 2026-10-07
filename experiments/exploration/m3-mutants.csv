@@ -1,0 +1,389 @@
+run,tests,file,line,column,function,mutation,outcome,disposition
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/mod.rs,39,5,build,replace build -> Box<dyn Noticer> with Box::new(Default::default()),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,83,5,counter_tag,replace counter_tag -> Tag with Default::default(),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,85,26,counter_tag,replace == with != in counter_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,87,14,counter_tag,replace + with - in counter_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,87,14,counter_tag,replace + with * in counter_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,92,5,severity_tag,replace severity_tag -> Tag with Default::default(),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,93,9,severity_tag,replace + with - in severity_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,93,9,severity_tag,replace + with * in severity_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,105,5,abnormal_kind_tag,replace abnormal_kind_tag -> Tag with Default::default(),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,106,9,abnormal_kind_tag,"delete match arm Observation::Counter{name, ..} in abnormal_kind_tag",caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,109,9,abnormal_kind_tag,delete match arm Observation::Message{..} in abnormal_kind_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,107,52,abnormal_kind_tag,replace == with != in abnormal_kind_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,112,23,abnormal_kind_tag,replace + with - in abnormal_kind_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,112,23,abnormal_kind_tag,replace + with * in abnormal_kind_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,120,5,message_tag,replace message_tag -> Tag with Default::default(),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,120,16,message_tag,replace < with == in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,120,16,message_tag,replace < with > in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,120,16,message_tag,replace < with <= in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,121,25,message_tag,replace | with & in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,121,25,message_tag,replace | with ^ in message_tag,missed,"equivalent: a catalogue id is below 2^16 and 0x4000_0000 has no bit in common with it, so | and ^ agree"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,123,59,message_tag,replace & with | in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,123,59,message_tag,replace & with ^ in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,123,32,message_tag,replace ^ with | in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,123,32,message_tag,replace ^ with & in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,123,43,message_tag,replace >> with << in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,124,25,message_tag,replace | with & in message_tag,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,124,25,message_tag,replace | with ^ in message_tag,missed,"equivalent: folded is masked to 0x7FFF_FFFF, disjoint from 0x8000_0000, so | and ^ agree"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,131,5,encode,replace encode -> Option<Event> with None,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,131,5,encode,replace encode -> Option<Event> with Some(Default::default()),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,165,25,encode,replace / with % in encode,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,165,25,encode,replace / with * in encode,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,166,44,encode,replace % with / in encode,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,166,44,encode,replace % with + in encode,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,191,9,TickClock::complete_before,replace TickClock::complete_before -> u64 with 0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,191,9,TickClock::complete_before,replace TickClock::complete_before -> u64 with 1,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,191,15,TickClock::complete_before,replace / with % in TickClock::complete_before,timeout,"detected by timeout: complete_before no longer counts complete ticks, so run_ticks runs about now % tick or now * tick ticks (10^8 or more) and the test does not finish in 120 s (baseline about 1 s)"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,191,15,TickClock::complete_before,replace / with * in TickClock::complete_before,timeout,"detected by timeout: complete_before no longer counts complete ticks, so run_ticks runs about now % tick or now * tick ticks (10^8 or more) and the test does not finish in 120 s (baseline about 1 s)"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,197,9,<impl Clock for TickClock>::now,replace <impl Clock for TickClock>::now -> u64 with 0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,197,9,<impl Clock for TickClock>::now,replace <impl Clock for TickClock>::now -> u64 with 1,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,201,9,<impl Clock for TickClock>::tick_len_ns,replace <impl Clock for TickClock>::tick_len_ns -> u64 with 0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,201,9,<impl Clock for TickClock>::tick_len_ns,replace <impl Clock for TickClock>::tick_len_ns -> u64 with 1,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,214,9,DeliveredSense::push,replace DeliveredSense::push with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,219,9,DeliveredSense::len,replace DeliveredSense::len -> usize with 0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,219,9,DeliveredSense::len,replace DeliveredSense::len -> usize with 1,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,224,9,DeliveredSense::is_empty,replace DeliveredSense::is_empty -> bool with true,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,224,9,DeliveredSense::is_empty,replace DeliveredSense::is_empty -> bool with false,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,233,9,<impl Sense for DeliveredSense>::events,replace <impl Sense for DeliveredSense>::events -> Vec<Event> with vec![],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,233,9,<impl Sense for DeliveredSense>::events,replace <impl Sense for DeliveredSense>::events -> Vec<Event> with vec![Default::default()],unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,234,59,<impl Sense for DeliveredSense>::events,replace <= with > in <impl Sense for DeliveredSense>::events,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,260,9,<impl MediumLedger for TickLedger>::record,replace <impl MediumLedger for TickLedger>::record with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,260,20,<impl MediumLedger for TickLedger>::record,replace += with -= in <impl MediumLedger for TickLedger>::record,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,260,20,<impl MediumLedger for TickLedger>::record,replace += with *= in <impl MediumLedger for TickLedger>::record,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,261,26,<impl MediumLedger for TickLedger>::record,replace += with -= in <impl MediumLedger for TickLedger>::record,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,261,26,<impl MediumLedger for TickLedger>::record,replace += with *= in <impl MediumLedger for TickLedger>::record,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,265,34,<impl MediumLedger for TickLedger>::record,replace += with -= in <impl MediumLedger for TickLedger>::record,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,265,34,<impl MediumLedger for TickLedger>::record,replace += with *= in <impl MediumLedger for TickLedger>::record,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,274,9,TickLedger::take_ns,replace TickLedger::take_ns -> Option<u64> with None,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,274,9,TickLedger::take_ns,replace TickLedger::take_ns -> Option<u64> with Some(0),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,274,9,TickLedger::take_ns,replace TickLedger::take_ns -> Option<u64> with Some(1),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,274,23,TickLedger::take_ns,replace == with != in TickLedger::take_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,277,58,TickLedger::take_ns,replace + with - in TickLedger::take_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,277,58,TickLedger::take_ns,replace + with * in TickLedger::take_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,277,50,TickLedger::take_ns,replace / with % in TickLedger::take_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,277,50,TickLedger::take_ns,replace / with * in TickLedger::take_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,277,74,TickLedger::take_ns,replace * with + in TickLedger::take_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,277,74,TickLedger::take_ns,replace * with / in TickLedger::take_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,9,TickLedger::total_ns,replace TickLedger::total_ns -> u64 with 0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,9,TickLedger::total_ns,replace TickLedger::total_ns -> u64 with 1,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,55,TickLedger::total_ns,replace + with - in TickLedger::total_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,55,TickLedger::total_ns,replace + with * in TickLedger::total_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,47,TickLedger::total_ns,replace / with % in TickLedger::total_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,47,TickLedger::total_ns,replace / with * in TickLedger::total_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,71,TickLedger::total_ns,replace * with + in TickLedger::total_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/adapters.rs,285,71,TickLedger::total_ns,replace * with / in TickLedger::total_ns,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,203,5,yes,replace yes -> bool with false,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,207,5,two,replace two -> u8 with 0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,207,5,two,replace two -> u8 with 1,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,211,5,no_confirm,replace no_confirm -> Confirm with Default::default(),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,261,9,MediumParams::validate,"replace MediumParams::validate -> Result<(), String> with Ok(())",caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,262,46,MediumParams::validate,replace || with && in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,262,19,MediumParams::validate,replace || with && in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,262,14,MediumParams::validate,replace == with != in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,262,24,MediumParams::validate,replace > with == in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,262,24,MediumParams::validate,replace > with < in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,262,24,MediumParams::validate,replace > with >= in MediumParams::validate,missed,"equivalent: t = u32::MAX (the only value where > and >= differ) is not a multiple of 1,000, so the third clause refuses it with the same message"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,262,49,MediumParams::validate,delete ! in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,276,49,MediumParams::validate,replace || with && in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,276,34,MediumParams::validate,delete ! in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,276,55,MediumParams::validate,replace < with == in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,276,55,MediumParams::validate,replace < with > in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,276,55,MediumParams::validate,replace < with <= in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,283,40,MediumParams::validate,replace || with && in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,283,33,MediumParams::validate,replace <= with > in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,283,54,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,283,77,MediumParams::validate,replace <= with > in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,286,45,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,286,24,MediumParams::validate,replace || with && in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,286,65,MediumParams::validate,replace == with != in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,292,48,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,292,31,MediumParams::validate,replace != with == in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,292,76,MediumParams::validate,replace == with != in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,295,23,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,295,26,MediumParams::validate,delete ! in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,299,13,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,298,35,MediumParams::validate,replace > with == in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,298,35,MediumParams::validate,replace > with < in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,298,35,MediumParams::validate,replace > with >= in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,299,53,MediumParams::validate,replace || with && in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,299,36,MediumParams::validate,replace == with != in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,299,73,MediumParams::validate,replace != with == in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,307,37,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,307,33,MediumParams::validate,replace > with == in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,307,33,MediumParams::validate,replace > with < in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,307,33,MediumParams::validate,replace > with >= in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,307,40,MediumParams::validate,delete ! in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,310,35,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,310,55,MediumParams::validate,replace != with == in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,316,56,MediumParams::validate,replace && with || in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,316,29,MediumParams::validate,replace == with != in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,316,59,MediumParams::validate,delete ! in MediumParams::validate,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,328,5,probe_graph,replace probe_graph -> Vec<Service> with vec![],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,328,5,probe_graph,replace probe_graph -> Vec<Service> with vec![Default::default()],unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,356,9,Layout::emitter_node,replace Layout::emitter_node -> Option<u32> with None,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,356,9,Layout::emitter_node,replace Layout::emitter_node -> Option<u32> with Some(0),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,356,9,Layout::emitter_node,replace Layout::emitter_node -> Option<u32> with Some(1),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,358,30,Layout::emitter_node,replace == with != in Layout::emitter_node,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,359,65,Layout::emitter_node,replace == with != in Layout::emitter_node,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,366,5,confirmers,replace confirmers -> Option<Vec<usize>> with None,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,366,5,confirmers,replace confirmers -> Option<Vec<usize>> with Some(vec![]),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,366,5,confirmers,replace confirmers -> Option<Vec<usize>> with Some(vec![0]),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,366,5,confirmers,replace confirmers -> Option<Vec<usize>> with Some(vec![1]),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,369,66,confirmers,replace != with == in confirmers,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,375,5,timed,replace timed with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,388,5,coincidence,replace coincidence -> CellId with Default::default(),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,395,39,coincidence,replace / with % in coincidence,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,395,39,coincidence,replace / with * in coincidence,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,412,5,sub_tick,replace sub_tick with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,412,32,sub_tick,replace > with == in sub_tick,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,412,32,sub_tick,replace > with < in sub_tick,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,412,32,sub_tick,replace > with >= in sub_tick,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,415,33,sub_tick,replace && with || in sub_tick,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,415,55,sub_tick,replace == with != in sub_tick,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,430,5,three_kinds,replace three_kinds with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,430,32,three_kinds,replace == with != in three_kinds,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,453,5,spec,"replace spec -> Result<(MediumSpec, Layout), String> with Ok((Default::default(), Default::default()))",caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,459,13,spec,delete field max_passes from struct Limits expression in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,459,51,spec,replace > with == in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,459,51,spec,replace > with < in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,459,51,spec,replace > with >= in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,461,52,spec,replace || with && in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,461,48,spec,replace > with == in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,461,48,spec,replace > with < in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,461,48,spec,replace > with >= in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,489,43,spec,replace && with || in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,489,38,spec,replace != with == in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,497,32,spec,replace && with || in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,497,58,spec,replace > with == in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,497,58,spec,replace > with < in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,497,58,spec,replace > with >= in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,504,53,spec,replace == with != in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,507,51,spec,replace * with + in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,507,51,spec,replace * with / in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,515,47,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,515,47,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,526,40,spec,replace > with == in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,526,40,spec,replace > with < in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,526,40,spec,replace > with >= in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,540,64,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,540,64,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,544,63,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,544,63,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,568,57,spec,replace == with != in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,576,57,spec,replace * with + in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,576,57,spec,replace * with / in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,576,52,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,576,52,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,581,50,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,581,50,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,581,64,spec,replace * with + in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,581,64,spec,replace * with / in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,581,59,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,581,59,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,597,31,spec,replace match guard params.confirm_window_ns > 0 with true in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,597,31,spec,replace match guard params.confirm_window_ns > 0 with false in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,597,56,spec,replace > with == in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,597,56,spec,replace > with < in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,597,56,spec,replace > with >= in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,609,50,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,609,50,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,641,29,spec,replace + with - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,641,29,spec,replace + with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,641,69,spec,replace * with + in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,641,69,spec,replace * with / in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,658,31,spec,replace && with || in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,658,34,spec,delete ! in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,713,52,spec,replace / with % in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,713,52,spec,replace / with * in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,713,31,spec,delete - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,748,32,spec,delete - in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/graph.rs,762,9,spec,delete field tick_len_ns from struct Oscillome expression in spec,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,110,9,<impl std::fmt::Debug for MediumNoticer>::fmt,replace <impl std::fmt::Debug for MediumNoticer>::fmt -> std::fmt::Result with Ok(Default::default()),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,154,9,MediumNoticer::medium,replace MediumNoticer::medium -> &Medium with Box::leak(Box::new(Default::default())),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,159,9,MediumNoticer::ledger,replace MediumNoticer::ledger -> &TickLedger with Box::leak(Box::new(Default::default())),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,164,9,MediumNoticer::stats,replace MediumNoticer::stats -> &MediumStats with Box::leak(Box::new(Default::default())),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,170,9,MediumNoticer::total_ns,replace MediumNoticer::total_ns -> u64 with 0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,170,9,MediumNoticer::total_ns,replace MediumNoticer::total_ns -> u64 with 1,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,175,9,MediumNoticer::ingest,replace MediumNoticer::ingest with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,178,36,MediumNoticer::ingest,replace >= with < in MediumNoticer::ingest,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,183,17,MediumNoticer::ingest,replace && with || in MediumNoticer::ingest,unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,182,28,MediumNoticer::ingest,replace || with && in MediumNoticer::ingest,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,182,31,MediumNoticer::ingest,delete ! in MediumNoticer::ingest,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,193,9,MediumNoticer::run_ticks,replace MediumNoticer::run_ticks with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,197,41,MediumNoticer::run_ticks,replace && with || in MediumNoticer::run_ticks,timeout,detected by timeout: the tick loop's && made || never ends while the medium is not stopped
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,197,30,MediumNoticer::run_ticks,replace < with == in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,197,30,MediumNoticer::run_ticks,replace < with > in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,197,30,MediumNoticer::run_ticks,replace < with <= in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,197,44,MediumNoticer::run_ticks,delete ! in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,214,40,MediumNoticer::run_ticks,replace += with -= in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,214,40,MediumNoticer::run_ticks,replace += with *= in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,217,28,MediumNoticer::run_ticks,replace += with -= in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,217,28,MediumNoticer::run_ticks,replace += with *= in MediumNoticer::run_ticks,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,222,9,MediumNoticer::held,replace MediumNoticer::held -> Option<&Held> with None,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,222,9,MediumNoticer::held,replace MediumNoticer::held -> Option<&Held> with Some(Box::leak(Box::new(Default::default()))),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,222,56,MediumNoticer::held,replace < with == in MediumNoticer::held,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,222,56,MediumNoticer::held,replace < with > in MediumNoticer::held,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,222,56,MediumNoticer::held,replace < with <= in MediumNoticer::held,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,223,46,MediumNoticer::held,replace == with != in MediumNoticer::held,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,228,9,MediumNoticer::effect,replace MediumNoticer::effect -> Vec<usize> with vec![],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,228,9,MediumNoticer::effect,replace MediumNoticer::effect -> Vec<usize> with vec![0],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,228,9,MediumNoticer::effect,replace MediumNoticer::effect -> Vec<usize> with vec![1],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,231,17,MediumNoticer::effect,delete match arm KIND_NOTICE in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,274,17,MediumNoticer::effect,delete match arm KIND_RETIRE in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,232,49,MediumNoticer::effect,replace += with -= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,232,49,MediumNoticer::effect,replace += with *= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,234,63,MediumNoticer::effect,replace == with != in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,235,54,MediumNoticer::effect,replace += with -= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,235,54,MediumNoticer::effect,replace += with *= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,239,49,MediumNoticer::effect,replace += with -= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,239,49,MediumNoticer::effect,replace += with *= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,243,49,MediumNoticer::effect,replace += with -= in MediumNoticer::effect,missed,"equivalent: unreachable counter; an anchor is an event's seq, which is held.id of an observation the sense adapter encoded, and encode() returns None for the only observations without a service (Probed, Correction)"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,243,49,MediumNoticer::effect,replace += with *= in MediumNoticer::effect,missed,"equivalent: unreachable counter; an anchor is an event's seq, which is held.id of an observation the sense adapter encoded, and encode() returns None for the only observations without a service (Probed, Correction)"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,257,42,MediumNoticer::effect,replace > with == in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,257,42,MediumNoticer::effect,replace > with < in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,257,42,MediumNoticer::effect,replace > with >= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,261,29,MediumNoticer::effect,replace && with || in MediumNoticer::effect,unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,270,34,MediumNoticer::effect,replace += with -= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,270,34,MediumNoticer::effect,replace += with *= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,272,55,MediumNoticer::effect,replace - with + in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,272,55,MediumNoticer::effect,replace - with / in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,275,49,MediumNoticer::effect,replace += with -= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,275,49,MediumNoticer::effect,replace += with *= in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,278,49,MediumNoticer::effect,replace || with && in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,278,41,MediumNoticer::effect,replace == with != in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,278,75,MediumNoticer::effect,replace == with != in MediumNoticer::effect,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,292,9,MediumNoticer::reoffer,replace MediumNoticer::reoffer with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,302,49,MediumNoticer::reoffer,replace && with || in MediumNoticer::reoffer,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,302,34,MediumNoticer::reoffer,replace > with == in MediumNoticer::reoffer,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,302,34,MediumNoticer::reoffer,replace > with < in MediumNoticer::reoffer,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,302,34,MediumNoticer::reoffer,replace > with >= in MediumNoticer::reoffer,missed,"equivalent: at h.id == first_anchor the anomaly anchored there owns h.id, so !owns is false and nothing joins, as with >"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,302,52,MediumNoticer::reoffer,delete ! in MediumNoticer::reoffer,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,311,53,MediumNoticer::reoffer,replace && with || in MediumNoticer::reoffer,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,311,82,MediumNoticer::reoffer,replace < with == in MediumNoticer::reoffer,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,311,82,MediumNoticer::reoffer,replace < with > in MediumNoticer::reoffer,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,311,82,MediumNoticer::reoffer,replace < with <= in MediumNoticer::reoffer,missed,"equivalent: an anomaly whose anchor equals h.id owns h.id, which the guard before excludes, so < and <= select the same anomalies"
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,327,9,MediumNoticer::prune,replace MediumNoticer::prune with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,331,58,MediumNoticer::prune,replace < with == in MediumNoticer::prune,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,331,58,MediumNoticer::prune,replace < with > in MediumNoticer::prune,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,331,58,MediumNoticer::prune,replace < with <= in MediumNoticer::prune,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,338,64,MediumNoticer::prune,replace < with == in MediumNoticer::prune,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,338,64,MediumNoticer::prune,replace < with > in MediumNoticer::prune,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,338,64,MediumNoticer::prune,replace < with <= in MediumNoticer::prune,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,347,9,<impl Noticer for MediumNoticer>::id,"replace <impl Noticer for MediumNoticer>::id -> &'static str with """"",caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,347,9,<impl Noticer for MediumNoticer>::id,"replace <impl Noticer for MediumNoticer>::id -> &'static str with ""xyzzy""",caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,351,9,<impl Noticer for MediumNoticer>::observe,replace <impl Noticer for MediumNoticer>::observe -> Option<u32> with None,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,351,9,<impl Noticer for MediumNoticer>::observe,replace <impl Noticer for MediumNoticer>::observe -> Option<u32> with Some(0),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,351,9,<impl Noticer for MediumNoticer>::observe,replace <impl Noticer for MediumNoticer>::observe -> Option<u32> with Some(1),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,351,12,<impl Noticer for MediumNoticer>::observe,delete ! in <impl Noticer for MediumNoticer>::observe,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,375,9,<impl Noticer for MediumNoticer>::notice,replace <impl Noticer for MediumNoticer>::notice -> Vec<Notice> with vec![],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,375,9,<impl Noticer for MediumNoticer>::notice,replace <impl Noticer for MediumNoticer>::notice -> Vec<Notice> with vec![Default::default()],unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,376,12,<impl Noticer for MediumNoticer>::notice,delete ! in <impl Noticer for MediumNoticer>::notice,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,397,9,<impl Noticer for MediumNoticer>::anomalies,replace <impl Noticer for MediumNoticer>::anomalies -> &[Tracked] with Vec::leak(Vec::new()),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,397,9,<impl Noticer for MediumNoticer>::anomalies,replace <impl Noticer for MediumNoticer>::anomalies -> &[Tracked] with Vec::leak(vec![Default::default()]),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,401,9,<impl Noticer for MediumNoticer>::score,replace <impl Noticer for MediumNoticer>::score -> f64 with 0.0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,401,9,<impl Noticer for MediumNoticer>::score,replace <impl Noticer for MediumNoticer>::score -> f64 with 1.0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,401,9,<impl Noticer for MediumNoticer>::score,replace <impl Noticer for MediumNoticer>::score -> f64 with -1.0,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,406,9,<impl Noticer for MediumNoticer>::refresh,replace <impl Noticer for MediumNoticer>::refresh with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,414,9,<impl Noticer for MediumNoticer>::retirable,replace <impl Noticer for MediumNoticer>::retirable -> Vec<u32> with vec![],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,414,9,<impl Noticer for MediumNoticer>::retirable,replace <impl Noticer for MediumNoticer>::retirable -> Vec<u32> with vec![0],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,414,9,<impl Noticer for MediumNoticer>::retirable,replace <impl Noticer for MediumNoticer>::retirable -> Vec<u32> with vec![1],caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,422,9,<impl Noticer for MediumNoticer>::retire,replace <impl Noticer for MediumNoticer>::retire with (),caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,422,40,<impl Noticer for MediumNoticer>::retire,replace != with == in <impl Noticer for MediumNoticer>::retire,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,428,9,<impl Noticer for MediumNoticer>::take_cost,replace <impl Noticer for MediumNoticer>::take_cost -> Option<NoticerCost> with None,caught,killed
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,428,9,<impl Noticer for MediumNoticer>::take_cost,replace <impl Noticer for MediumNoticer>::take_cost -> Option<NoticerCost> with Some(Default::default()),unviable,does not build
+mutants-run6,cargo test -p gordian-run --test stream_medium,crates/gordian-run/src/stream/arms/medium/noticing.rs,437,9,<impl Noticer for MediumNoticer>::refused,replace <impl Noticer for MediumNoticer>::refused with (),caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,134,9,Archetype::uses_oscillome,replace Archetype::uses_oscillome -> bool with true,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,134,9,Archetype::uses_oscillome,replace Archetype::uses_oscillome -> bool with false,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,136,13,Archetype::uses_oscillome,delete match arm Archetype::Integrator in Archetype::uses_oscillome,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,137,13,Archetype::uses_oscillome,delete match arm Archetype::Coincidence in Archetype::uses_oscillome,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,136,48,Archetype::uses_oscillome,replace != with == in Archetype::uses_oscillome,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,137,56,Archetype::uses_oscillome,replace || with && in Archetype::uses_oscillome,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,137,49,Archetype::uses_oscillome,replace != with == in Archetype::uses_oscillome,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,137,69,Archetype::uses_oscillome,replace != with == in Archetype::uses_oscillome,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,157,9,Archetype::sub_tick_lookback_us,replace Archetype::sub_tick_lookback_us -> Option<u64> with None,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,157,9,Archetype::sub_tick_lookback_us,replace Archetype::sub_tick_lookback_us -> Option<u64> with Some(0),caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,157,9,Archetype::sub_tick_lookback_us,replace Archetype::sub_tick_lookback_us -> Option<u64> with Some(1),caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,158,63,Archetype::sub_tick_lookback_us,replace match guard params[7] > 0.0 with true in Archetype::sub_tick_lookback_us,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,158,63,Archetype::sub_tick_lookback_us,replace match guard params[7] > 0.0 with false in Archetype::sub_tick_lookback_us,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,158,73,Archetype::sub_tick_lookback_us,replace > with == in Archetype::sub_tick_lookback_us,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,158,73,Archetype::sub_tick_lookback_us,replace > with < in Archetype::sub_tick_lookback_us,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,158,73,Archetype::sub_tick_lookback_us,replace > with >= in Archetype::sub_tick_lookback_us,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,167,9,Archetype::validate,"replace Archetype::validate -> Result<(), ParamError> with Ok(())",caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,226,21,Archetype::validate,delete match arm 2 in Archetype::validate,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,443,5,quiet,replace quiet -> RunOut with Default::default(),unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,639,5,ordered_coincidence,replace ordered_coincidence -> RunOut with Default::default(),unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,653,18,ordered_coincidence,replace == with != in ordered_coincidence,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,704,9,ordered_coincidence,delete field at_us from struct RunOut expression in ordered_coincidence,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,727,5,ordered_every_event,replace ordered_every_event -> RunOut with Default::default(),unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,730,19,ordered_every_event,replace == with != in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,731,19,ordered_every_event,replace == with != in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,734,35,ordered_every_event,replace / with % in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,734,35,ordered_every_event,replace / with * in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,737,48,ordered_every_event,replace - with + in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,737,48,ordered_every_event,replace - with / in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,737,61,ordered_every_event,replace * with + in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,737,61,ordered_every_event,replace * with / in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,739,16,ordered_every_event,replace >= with < in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,740,43,ordered_every_event,replace + with - in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,740,43,ordered_every_event,replace + with * in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,740,66,ordered_every_event,replace + with - in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,740,66,ordered_every_event,replace + with * in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,746,13,ordered_every_event,replace && with || in ordered_every_event,unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,745,13,ordered_every_event,replace && with || in ordered_every_event,unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,745,28,ordered_every_event,replace > with == in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,745,28,ordered_every_event,replace > with < in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,745,28,ordered_every_event,replace > with >= in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,746,32,ordered_every_event,replace < with == in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,746,32,ordered_every_event,replace < with > in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,746,32,ordered_every_event,replace < with <= in ordered_every_event,missed,"equivalent: slot is the cell's incoming-synapse index (medium.rs, from_spec), and every medium is built through MediumSpec::resolved, which refuses an ordered coincidence with more than ORDERED_SLOTS inputs, so slot == ORDERED_SLOTS cannot occur"
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,754,40,ordered_every_event,replace / with % in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,754,40,ordered_every_event,replace / with * in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,759,32,ordered_every_event,replace <= with > in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,759,29,ordered_every_event,delete - in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,765,63,ordered_every_event,replace && with || in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,765,56,ordered_every_event,replace <= with > in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,765,76,ordered_every_event,replace <= with > in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,765,70,ordered_every_event,replace - with + in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,765,70,ordered_every_event,replace - with / in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,771,25,ordered_every_event,replace || with && in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,771,19,ordered_every_event,delete ! in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,771,90,ordered_every_event,replace <= with > in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,772,23,ordered_every_event,replace && with || in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,772,18,ordered_every_event,replace >= with < in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,777,24,ordered_every_event,replace && with || in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,778,19,ordered_every_event,delete - in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,782,24,ordered_every_event,delete - in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,783,21,ordered_every_event,replace + with - in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,783,21,ordered_every_event,replace + with * in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,787,21,ordered_every_event,replace + with - in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,787,21,ordered_every_event,replace + with * in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,791,9,ordered_every_event,delete field activation from struct RunOut expression in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,792,9,ordered_every_event,delete field clear_support from struct RunOut expression in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,793,9,ordered_every_event,delete field at_us from struct RunOut expression in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/archetype.rs,792,40,ordered_every_event,replace && with || in ordered_every_event,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,76,5,cut_below_tick,replace cut_below_tick with (),caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,78,70,cut_below_tick,replace + with - in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,78,70,cut_below_tick,replace + with * in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,78,64,cut_below_tick,replace * with + in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,78,64,cut_below_tick,replace * with / in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,78,44,cut_below_tick,replace - with + in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,78,44,cut_below_tick,replace - with / in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,80,36,cut_below_tick,replace * with + in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,80,36,cut_below_tick,replace * with / in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,86,20,cut_below_tick,replace - with + in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,86,20,cut_below_tick,replace - with / in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,86,41,cut_below_tick,replace * with + in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,86,41,cut_below_tick,replace * with / in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,87,32,cut_below_tick,replace >= with < in cut_below_tick,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,886,9,Medium::run_pass,replace Medium::run_pass -> Vec<Fired> with vec![],caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,886,9,Medium::run_pass,replace Medium::run_pass -> Vec<Fired> with vec![Default::default()],unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,949,25,Medium::run_pass,replace && with || in Medium::run_pass,unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/medium.rs,948,39,Medium::run_pass,replace != with == in Medium::run_pass,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/oscillome.rs,167,5,time_kind,replace time_kind -> Option<TimeKind> with None,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/oscillome.rs,167,5,time_kind,replace time_kind -> Option<TimeKind> with Some(Default::default()),unviable,does not build
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/oscillome.rs,171,9,time_kind,"delete match arm (Archetype::Integrator | Archetype::Coincidence, 7) in time_kind",caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/spec.rs,258,9,MediumSpec::validate_form,"replace MediumSpec::validate_form -> Result<(), SpecError> with Ok(())",caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/spec.rs,262,61,MediumSpec::validate_form,replace && with || in MediumSpec::validate_form,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/spec.rs,262,78,MediumSpec::validate_form,replace == with != in MediumSpec::validate_form,caught,killed
+mutants-medium2,cargo test -p gordian-medium,crates/gordian-medium/src/spec.rs,480,9,MediumBuilder::set_param,replace MediumBuilder::set_param with (),caught,killed
