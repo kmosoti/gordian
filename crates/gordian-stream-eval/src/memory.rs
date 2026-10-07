@@ -374,12 +374,10 @@ pub fn score_memory(
                         obs: *anchor,
                     });
                 }
-                let incident = truth.incident_of(*anchor);
-                let correct = match incident {
-                    Some(id) => *diagnosis == truth.incidents[id as usize].truth,
-                    None => diagnosis.is_none(),
-                };
-                if let Some(id) = incident {
+                // A declaration about background belongs to no incident and is counted by no flag
+                // here (S18; K7 counts the recalls among them).
+                if let Some(id) = truth.incident_of(*anchor) {
+                    let correct = *diagnosis == truth.incidents[id as usize].truth;
                     let a = &mut acc[id as usize];
                     if correct {
                         a.correct += 1;

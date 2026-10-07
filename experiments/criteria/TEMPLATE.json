@@ -27,6 +27,20 @@
               "where": [{"column": "tier", "op": "eq", "value": "hard"}]},
       "scale": 1.0
     },
+    "<per-stream quantile>": {
+      "kind": "quantile",
+      "q": 0.9,
+      "num": {"file": "memory.csv", "agg": "sum", "columns": {"recalls_wrong_source_right": 1}},
+      "den": {"per_stream": 1}
+    },
+    "<a join of two arms by incident>": {
+      "kind": "ratio",
+      "num": {"file": "memory_incidents.csv", "agg": "count",
+              "where": [{"column": "recurrence_of", "op": "notnull"},
+                        {"column": "unasked_wrong@<other arm>", "op": "eq", "value": false}],
+              "join": {"arm": "<other arm>", "on": ["seed", "incident"]}},
+      "den": {"per_stream": 1}
+    },
     "<per-stream mean>": {
       "kind": "ratio",
       "num": {"file": "notices.csv", "agg": "sum", "columns": {"notices_on_background": 1}},
@@ -42,6 +56,9 @@
     {"id": "<clause id>", "kind": "curve_slope", "arm": "<a>", "minus": null, "measure": "<measure name>",
      "window": {"first": 100}, "per": 100,
      "tests": [{"on": "point", "op": ">", "value": 0}, {"on": "lower", "op": ">", "value": 0}]},
+    {"id": "<clause id>", "kind": "count", "arm": "<a>", "measure": "<measure name>",
+     "description": "<a power precondition: how many events the share rests on>",
+     "tests": [{"on": "total", "op": ">=", "value": 70}]},
     {"id": "<clause id>", "kind": "identity", "a": "<arm>", "b": "<arm>",
      "files": ["notice_incidents.csv"], "ignore_columns": ["run_id"]}
   ],
@@ -52,6 +69,8 @@
      "firsts": [50, 100, 200], "per": 100}
   ],
   "verdict": {"name": "<what holding means>", "all": ["<clause id>", {"name": "<node>", "any": ["<clause id>", "<clause id>"]}]},
-  "observations": {"<name>": {"all": ["<clause id>"]}},
+  "observations": {"<name>": {"all": ["<clause id>", {"not": "<clause id>"}]}},
+  "outcomes": {"name": "<what the categories are>", "default": "<category when none holds>",
+               "categories": [{"name": "<category>", "when": {"all": ["<clause id>"]}}]},
   "readings": ["<every reading of the criterion's text that the text leaves open, stated before the run>"]
 }
