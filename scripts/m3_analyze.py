@@ -5,7 +5,10 @@ Usage: m3_analyze.py   reads artifacts/runs/m3-heldout-b5-rho0.7; writes
                        experiments/exploration/m3-heldout-table.csv (every arm, every measure, 90%
                        cluster-bootstrap intervals), m3-criterion.csv (the paired differences and
                        the verdict per tick length and result, for the frozen medium and for its
-                       sub-tick-off control), m3-latency.csv, m3-discordance.csv
+                       sub-tick-off control), m3-latency.csv, m3-discordance.csv, m3-control.csv,
+                       m3-b3-paired.csv (every medium row minus each of B3's two composed rows and
+                       the re-anchor, paired, on the five measures the chief named; reported
+                       beside, never in the criterion)
 
 Readings are `m3_common`'s, fixed before the held-out run. The bootstrap is B1's, B2's and M2's:
 10,000 resamples of whole streams, the same counts for every arm and every measure
@@ -28,9 +31,13 @@ SHOW = [
     "hard_noticed_share", "hard_anchor_correct_share", "hard_anchor_site_correct_share",
     "leak_noticed_share", "leak_anchor_correct_share", "notices_on_background_per_stream",
     "notice_precision", "strict_precision", "notices_per_incident", "notices_per_stream",
+    "notices_on_decoy_per_stream",
     "plain_noticed_share", "quality", "leak_quality", "calls_per_stream", "substrate_s_per_stream",
     "cost_s_per_stream",
 ]
+
+B3_MEASURES = ["hard_anchor_correct_share", "leak_noticed_share", "leak_anchor_correct_share",
+               "notices_on_background_per_stream", "strict_precision"]
 
 
 def main():
@@ -103,6 +110,21 @@ def main():
                          "lower": lo, "higher": hi})
     pd.DataFrame(ctrl).to_csv(C.OUT / "m3-control.csv", index=False)
 
+    # Every medium row minus each of B3's composed rows (and the re-anchor), paired, on the
+    # measures the chief named for the B3 comparison (added before the held-out run).
+    b3 = []
+    refs = [ARM(n) for n in C.B3_ROWS] + [comp]
+    for med in [a for a in m.names if a.startswith(("sel_med_", "sel_m2_"))]:
+        for ref in refs:
+            for meas in B3_MEASURES:
+                point, lo, hi = m.paired_difference(meas, med, ref, C.BOOT_SEED, C.N_RESAMPLES)
+                b3.append({"arm": med, "reference": ref, "measure": meas,
+                           "medium": float(pts[meas][m.row[med]]),
+                           "reference_value": float(pts[meas][m.row[ref]]),
+                           "difference": point, "lower": lo, "higher": hi})
+    b3 = pd.DataFrame(b3)
+    b3.to_csv(C.OUT / "m3-b3-paired.csv", index=False)
+
     lat = []
     for arm in m.names:
         ni = run.arms[arm].notice_incidents
@@ -136,6 +158,7 @@ def main():
         print(table[cols].to_string(index=False, float_format=lambda x: f"{x:.3f}"))
         print(crit.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
         print(pd.DataFrame(ctrl).to_string(index=False, float_format=lambda x: f"{x:.4f}"))
+        print(b3.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
         print(pd.DataFrame(disc).to_string(index=False))
         print(pd.DataFrame(lat).to_string(index=False, float_format=lambda x: f"{x:.2f}"))
     print(json.dumps({"verdict_result1_by_tick": {str(k): v for k, v in verdict.items()},
