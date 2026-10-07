@@ -44,6 +44,16 @@
 //! anomaly that owns the answer's focus. Without `engram`, nothing of this exists and the noticer
 //! is M2's and M3's, byte for byte.
 //!
+//! # The recall gate and the two-site key (work item A1c)
+//!
+//! With the layer's `gate` on, a resolved recall is not handed over at once: it waits in the
+//! noticer until the arm shows the noticed anomalies after the step's consistency checks
+//! ([`Noticer::gated_recalls`]), and is handed over only if [`super::gate`] admits it (within one
+//! review period of the rung), else dropped. With `two_site`, the layer is given the public graph
+//! and the rung's burst constants, an answer's key is the two-site key when the anomaly has an
+//! unconnected partner, and a pair engram's recall is resolved through the pair the crate names
+//! ([`super::engram`], "A1c").
+//!
 //! # Hard limits
 //!
 //! The medium's own (operations and proposals per tick, cells, synapses, references) are in its
@@ -51,16 +61,16 @@
 //! stops: no more ticks, no more notices in the segment ([`Noticer::refused`]).
 
 use super::adapters::{DeliveredSense, TickClock, TickLedger, encode};
-use super::engram::{EngramLayer, diagnosis_of, features};
+use super::engram::{EngramLayer, diagnosis_of, features, pair_features};
 use super::graph::{KIND_NOTICE, KIND_RETIRE, Layout, MediumParams, spec};
 use crate::stream::arms::noticer::{
     MemoryRecall, Notice, Noticer, NoticerCost, Scorer, Tracked, attach_target,
 };
-use crate::stream::arms::rung::{Held, RungConfig, Store, service_of};
+use crate::stream::arms::rung::{AnomalyView, Held, RungConfig, Store, service_of};
 use gordian_core::{ComponentId, Instant};
 use gordian_medium::{
     CollectingEffector, ConstantField, Field, Medium, NoPlasticity, NoTrace, OutcomeSite, Ports,
-    Prices, Recall,
+    Prices, Recall, pair_of,
 };
 use gordian_stream::{Diagnosis, ObsId};
 use gordian_world::{Service, ServiceId};
@@ -125,6 +135,19 @@ pub struct MediumNoticer {
     recalled: BTreeSet<u32>,
     /// Recalls resolved and not yet taken by the arm.
     recalls_out: Vec<MemoryRecall>,
+    /// Recalls waiting for the gate (A1c), in the order they were resolved.
+    gate_pending: Vec<GatedRecall>,
+}
+
+/// A recall waiting for the gate (A1c).
+#[derive(Debug, Clone, Copy)]
+struct GatedRecall {
+    /// When it was resolved.
+    at: Instant,
+    anomaly: u32,
+    diagnosis: Diagnosis,
+    engram: usize,
+    disagreed: bool,
 }
 
 impl std::fmt::Debug for MediumNoticer {
@@ -148,7 +171,11 @@ impl MediumNoticer {
         let (spec, layout) = spec(&params, services)?;
         let medium = Medium::from_spec(&spec).map_err(|e| format!("{e:?}"))?;
         let engram = match params.engram {
-            Some(cfg) => Some(EngramLayer::new(cfg, params.tick_ns)?),
+            Some(ecfg) => {
+                let mut layer = EngramLayer::new(ecfg, params.tick_ns)?;
+                layer.set_public(services, cfg.burst_ns, cfg.burst_gap_ns, cfg.retain_ns);
+                Some(layer)
+            }
             None => None,
         };
         Ok(Self {
@@ -176,6 +203,7 @@ impl MediumNoticer {
             pending_recalls: VecDeque::new(),
             recalled: BTreeSet::new(),
             recalls_out: Vec::new(),
+            gate_pending: Vec::new(),
         })
     }
 
@@ -364,8 +392,30 @@ impl MediumNoticer {
 
     /// The anomaly a recall concerns: the noticed anomaly that owns its anchor, else the first
     /// that owns one of its references.
+    ///
+    /// A pair engram's recall (A1c) concerns the noticed anomaly sited at the pair's first node
+    /// that owns its anchor or one of its references, else the first noticed anomaly that owns
+    /// one of its observations about that node.
     fn owner_of(&self, r: &Recall) -> Option<u32> {
         let noticed = || self.anomalies.iter().filter(|a| a.noticed_at.is_some());
+        if let Some((first, _)) = r.fired.and_then(pair_of) {
+            let site = ServiceId(u32::from(first));
+            let cited = || std::iter::once(&r.anchor).chain(r.refs.iter());
+            return noticed()
+                .filter(|a| a.site == site)
+                .find(|a| cited().any(|x| a.owns(ObsId(x.seq))))
+                .or_else(|| {
+                    noticed().find(|a| {
+                        cited().any(|x| {
+                            a.owns(ObsId(x.seq))
+                                && self
+                                    .held(x.seq)
+                                    .is_some_and(|h| service_of(&h.obs) == Some(site))
+                        })
+                    })
+                })
+                .map(|a| a.id);
+        }
         noticed()
             .find(|a| a.owns(ObsId(r.anchor.seq)))
             .or_else(|| noticed().find(|a| r.refs.iter().any(|x| a.owns(ObsId(x.seq)))))
@@ -391,8 +441,9 @@ impl MediumNoticer {
                 None => layer.note_unmatched(),
             }
         }
+        let gated = layer.config().gate.needs_verdicts();
         for (id, mut rs) in by_anomaly {
-            if self.recalled.contains(&id) {
+            if self.recalled.contains(&id) || self.gate_pending.iter().any(|g| g.anomaly == id) {
                 rs.iter().for_each(|_| layer.note_redundant());
                 continue;
             }
@@ -404,15 +455,31 @@ impl MediumNoticer {
             let best = rs.swap_remove(0);
             let disagreed = rs.iter().any(|r| r.outcome != best.outcome);
             rs.iter().for_each(|_| layer.note_redundant());
-            let site = match best.outcome.site {
-                OutcomeSite::None => None,
-                OutcomeSite::Support => self.held(best.anchor.seq).and_then(|h| service_of(&h.obs)),
-                OutcomeSite::Fixed(n) => Some(ServiceId(u32::from(n))),
+            let site = match (best.outcome.site, best.fired.and_then(pair_of)) {
+                (OutcomeSite::None, _) => None,
+                // A pair engram's support site is the pair's first node (A1c).
+                (OutcomeSite::Support, Some((first, _))) => Some(ServiceId(u32::from(first))),
+                (OutcomeSite::Support, None) => {
+                    self.held(best.anchor.seq).and_then(|h| service_of(&h.obs))
+                }
+                (OutcomeSite::Fixed(n), _) => Some(ServiceId(u32::from(n))),
             };
             let Some(diagnosis) = diagnosis_of(best.outcome.tag, site) else {
                 layer.note_unmatched();
                 continue;
             };
+            if gated {
+                // Waits for the arm's views after the step's checks (A1c).
+                layer.note_gate_offered();
+                self.gate_pending.push(GatedRecall {
+                    at: now,
+                    anomaly: id,
+                    diagnosis,
+                    engram: best.engram,
+                    disagreed,
+                });
+                continue;
+            }
             let confirm = layer.acted_on(best.engram, disagreed);
             self.recalled.insert(id);
             self.recalls_out.push(MemoryRecall {
@@ -560,6 +627,31 @@ impl Noticer for MediumNoticer {
                 let to = from.saturating_add(cfg.key_span_ns);
                 let onset_end = Instant(from.saturating_add(cfg.onset_ns));
                 let free_form = cfg.site == super::engram::SiteMode::Site;
+                // The two-site key, when the anomaly has an unconnected partner (A1c).
+                if let Some((t_a, partner, t_b, relation)) = cfg
+                    .two_site
+                    .then(|| layer.partner(site, a.anchor_at))
+                    .flatten()
+                {
+                    let lo = t_a.0.min(t_b.0);
+                    let hi = lo.saturating_add(cfg.key_span_ns);
+                    let onset_end = Instant(lo.saturating_add(cfg.onset_ns));
+                    let relation_late = t_a.0.max(t_b.0) > onset_end.0;
+                    let feats = pair_features(
+                        self.recent.iter().filter(|h| {
+                            h.at.0 >= lo
+                                && h.at.0 <= hi
+                                && service_of(&h.obs).is_some_and(|s| s == site || s == partner)
+                        }),
+                        site,
+                        relation,
+                        relation_late,
+                        onset_end,
+                    );
+                    layer.bind_roles(feats, site, &diagnosis);
+                    self.engram = Some(layer);
+                    return;
+                }
                 let feats = features(
                     self.recent.iter().filter(|h| {
                         h.at.0 >= from && h.at.0 <= to && service_of(&h.obs) == Some(site)
@@ -574,6 +666,46 @@ impl Noticer for MediumNoticer {
     }
 
     fn recalls(&mut self) -> Vec<MemoryRecall> {
+        std::mem::take(&mut self.recalls_out)
+    }
+
+    fn needs_verdicts(&self) -> bool {
+        self.engram
+            .as_ref()
+            .is_some_and(|l| l.config().gate.needs_verdicts())
+    }
+
+    /// The recall gate (A1c; [`super::gate`]): each waiting recall is dropped if its anomaly was
+    /// asked about, answered or retired, or if more than one review period of the rung has passed
+    /// since it was resolved; otherwise handed over if the gate admits the anomaly's view, and kept
+    /// if not.
+    fn gated_recalls(&mut self, now: Instant, views: &[AnomalyView]) -> Vec<MemoryRecall> {
+        let Some(mut layer) = self.engram.take() else {
+            return self.recalls();
+        };
+        let gate = layer.config().gate;
+        let wait = self.cfg.review_ns;
+        let mut keep = Vec::new();
+        for g in std::mem::take(&mut self.gate_pending) {
+            match views.iter().find(|v| v.id == g.anomaly) {
+                None => layer.note_gate_overtaken(),
+                Some(v) if v.attempts > 0 || v.answered > 0 => layer.note_gate_overtaken(),
+                Some(_) if now.0 > g.at.0.saturating_add(wait) => layer.note_gate_closed(),
+                Some(v) if gate.admits(v) => {
+                    layer.note_gate_admitted();
+                    let confirm = layer.acted_on(g.engram, g.disagreed);
+                    self.recalled.insert(g.anomaly);
+                    self.recalls_out.push(MemoryRecall {
+                        anomaly: g.anomaly,
+                        diagnosis: g.diagnosis,
+                        confirm,
+                    });
+                }
+                Some(_) => keep.push(g),
+            }
+        }
+        self.gate_pending = keep;
+        self.engram = Some(layer);
         std::mem::take(&mut self.recalls_out)
     }
 }

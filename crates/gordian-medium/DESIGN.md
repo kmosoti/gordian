@@ -3,7 +3,8 @@
 Work items M1, M1b and M3 (`docs/lab-queue.md`), built from `docs/medium-ports.md` (the design).
 M1b, the oscillome (section 4b), is recorded in its own section below, with departures 34 to 52;
 M3's sub-tick support in its own, with departures 53 to 57; A1a's engram in its own, written
-before its code, with departures from 58. This file
+before its code, with departures 58 to 65; A1c's two-site key in its own, written before its code,
+with departures from 66. This file
 records every place the build departs from the design or fills a gap in it, and why. The tick's
 total order is in `src/medium.rs`'s module documentation; the archetypes' parameters and state are
 in the table in `src/archetype.rs`.
@@ -714,6 +715,125 @@ cells and synapses and changes parameters through the same validation as a spec 
 privileged where it is" does not apply to the engram's outcome: an engram's outcome is the
 reasoner's answer, which the stream delivers to the arm as an `Answered` event the arm paid for,
 not the stream's truth; nothing about whether the answer was right reaches the medium.
+
+## The two-site key and the recall gate (A1c): design, written before the code
+
+Work item A1c (`docs/lab-queue.md`, "## A1c"). A1a's smoke showed two limits of the engram as
+built (review log, "A1a the engram"): a one-node coincidence cannot key the hard families whose
+evidence sits at two services, and "evidence after 2 s" is not the rule-breaking evidence, so the
+generalising family form recalled on plain incidents 151 times more than the control. A1c adds a
+key that spans two nodes (in the crate, world-agnostic) and a gate on the public consistency
+checker (in the arm, `gordian-run/src/stream/arms/medium/`). This section was committed before
+any A1c code; what the build changes against it is added below as numbered departures from 66.
+
+### What the crate adds: keys over a pair of nodes
+
+- **Roles.** Every feature of a key has a role: `Site` (the feature must occur at the key's first
+  node), `Partner` (at its second node) or `Relation` (at the **edge node** of the ordered pair,
+  below). A one-site key (A1a's) has only `Site` features, and everything A1a built treats it as
+  before: same cells, same synapses, same bytes.
+- **Edge nodes.** The ordered pair `(a, b)` has the node `pair_node(a, b) = 0x8000 | a << 7 | b`.
+  An event addressed to it is an event *about the relation of `a` to `b`*; what the relation is
+  (here: the order and the gap of two alarms) belongs to the adapter, which emits such events.
+  The crate knows only the address arithmetic. For it to be defined, a store's nodes must be
+  below 128 (`Engrams::new` refuses others; A1a's adapter uses 0 to 11).
+- **A pair site**, `KeySite::Pair`: the key's first node `a` and second node `b` range over every
+  ordered pair of the store's nodes with `a != b` (family-keyed; the services are variables, as
+  A1a's `Variable`). No fixed pair is built (no A1c arm needs one).
+- **The cells of a pair engram.** As a one-site engram's (`DESIGN.md`, "The engram"), except that
+  there is one key cell `key[e, (a, b)]` per ordered pair, `n (n - 1)` of them for `n` nodes (132
+  for A1a's twelve), each a sliding `Coincidence` of all the key's live features within `w`
+  ticks; its input for a feature with role `Site` is `feat[t, a]`, with role `Partner`
+  `feat[t, b]`, with role `Relation` `feat[t, pair_node(a, b)]`. Feature cells are shared as
+  before (an edge node's feature cell is an ordinary presence `Sense` cell whose pattern names the
+  edge node). The latch, the emitter and the strength synapse are unchanged. **The coincidence
+  spans two nodes**: it fires only when every live feature of the key has occurred at `a`, at `b`
+  and at their edge within the window.
+- **Bind on pair keys.** Features are compared as `(role, tag)` pairs everywhere (contradiction,
+  exact match, generalisation); for a one-site key this is the comparison A1a made. A one-site
+  engram is contradicted by a pair pattern whose `Site` features hold its key (it would recall on
+  that pattern at the pair's first node); a pair engram is never contradicted by a one-site
+  pattern (it holds no `Relation` feature). Generalisation narrows only an engram of the same site
+  kind, and **never narrows a pair engram to a key without its `Relation` feature or without a
+  `Partner` feature**: a narrowed pair engram still spans two nodes (the rule A1a gave marked
+  features, departure 65, applied to the span).
+- **Which pair fired.** `Engrams::recall_in(&Medium, &Proposal)` resolves a proposal as `recall`
+  does and also names the node of the key cell that fired at the medium's last tick (the key
+  cell of the engram whose `last_active` is that tick with a positive activation; the lowest
+  such cell if several did): for a pair engram, the edge node of the pair. The adapter must call
+  it after each tick. A recall's anchor is the earliest event of the coincidence and may be the
+  partner's, so the anchor's node does not say which node is the key's first; the fired cell
+  does.
+- **Persistence.** A pair engram's site is written as tag 2, followed by one role byte per
+  feature after the marks; a one-site engram's bytes are A1a's, unchanged, and the table's
+  version stays 1 (no table is persisted outside a process). Decoding checks a pair engram's
+  wiring against the medium as A1a's check does, with the role's node per input.
+- **Cost.** A pair engram has `n (n - 1)` key cells, so a feature event reaches up to `n - 1` key
+  cells per engram that names it (A1a's: one). Every cell update and traversal is counted and
+  priced as before; nothing is hidden. The hard limits (65,536 cells, 2^20 synapses) bound the
+  number of pair engrams at about 450 with twelve nodes; a bind past them is refused and counted.
+
+### What the adapter builds on it (A1c; details in the adapter's module documentation)
+
+- **Relation events.** With the two-site key on, at every abnormal observation at a service `s`
+  that begins a burst there (the first abnormal at `s`, or one at least `burst_gap_ns` after the
+  previous one at `s`: the rung's own rule), for every service `u` that the **public graph does not
+  connect to `s`** (neither is a transitive dependent of the other, `dependents_mask`) and every
+  burst start of `u` in the last `key_span_ns`, two events at that instant: at
+  `pair_node(s, u)` and at `pair_node(u, s)`, each tagged with the **order** of the two first
+  alarms seen from the edge's first node (the partner's came first, or not) and the **band** of
+  their gap (below `burst_ns`, 0.4 s, what propagation looks like; below `burst_gap_ns`, 2 s, one
+  burst; up to `key_span_ns`, 10 s). No service id and no free-form id enters a tag.
+- **The two-site key.** For an answer about an anomaly at `A` (first alarm `t_A`, the latest burst
+  start at `A` not after its anchor): the partner `B` is the service unconnected to `A` whose burst
+  start is nearest to `t_A` within `key_span_ns` (ties: the earlier, then the lower index, which is
+  used only to choose and never enters the key). The key is the relation tag, then `B`'s and
+  `A`'s invariant features (A1a's family features: kinds, bands, catalogue ids) over
+  `[min(t_A, t_B), min(t_A, t_B) + key_span_ns]` with roles `Partner` and `Site`, at most eight in
+  all (the relation and one partner feature always kept). An anomaly with no unconnected partner
+  keeps A1a's one-site family key. The outcome site is relative (`Support`), resolved at recall to
+  the pair's first node.
+- **The recall gate** (in the arm, not the crate): a recall is acted on only for an anomaly whose
+  latest public consistency check found no hypothesis consistent with its evidence
+  (`AnomalyView::contradicted_since` set), read after the step's checks and for at most one
+  review period of the rung after the recall; otherwise it is dropped and counted. A1a's
+  "late feature" requirement becomes a switch, off by default in a gated layer.
+
+### Not built, and why
+
+- No fixed (site-keyed) pair: no A1c arm needs one, and a site-keyed two-site engram would be
+  wrong in the next stream by construction (W2).
+- No relation other than the order and gap of two first alarms; no key over three or more
+  nodes (the brief names two).
+- No removal of the `n (n - 1)` key cells that a stream with fewer services never uses: they cost
+  a cell update only when one of their features arrives.
+
+### Departures and choices as built (A1c)
+
+Numbering continues A1a's. Each is a place where the build differs from the section above (written
+before the code) or fills a gap it left.
+
+66. **`recall_in` beside `recall`, not in place of it.** `Engrams::recall` keeps its signature and
+    leaves `Recall::fired` empty, so A1a's callers and tests are unchanged; `recall_in` takes the
+    medium and fills it. "The lowest such cell" is the first in the engram's own order of key
+    cells, which is ascending cell id (first node major for a pair).
+67. **The adapter resolves recalls after every tick** (A1a resolved all of a step's proposals after
+    its last tick). The same recalls in the same order; only `recall_in` needs the per-tick medium.
+    A one-site recall's `fired` is filled but not used: its support site stays the anchor's node
+    (A1a's rule), so a one-site layer does exactly what it did.
+68. **Relation events' address and sequence numbers.** The edge node is the address's node; the
+    channel is 4 (`CH_RELATION`, after the four of `adapters.rs`); `seq` counts from `0x8000_0000`
+    per segment, a space apart from observation ids, so a relation event never names an
+    observation (the noticer's owner lookups skip it) and never shares an `EventRef` with one.
+69. **A pair engram keeps a relation and a partner feature under generalisation, by role** (the
+    design said "its `Relation` feature or a `Partner` feature"): the shared features must hold at
+    least one feature of each role; since a two-site key has exactly one relation feature, sharing
+    it means the same order and gap band.
+70. **The gate's wait is checked before the gate** (adapter, `noticing.rs`): a recall is admitted
+    at a step no later than one review period after it was resolved, and dropped at the first step
+    past that, whatever the verdict there. Without the order the wait would be one step longer
+    than one review period (found by the test `the_gate_waits_one_review_period_then_drops_the_recall`
+    before any run).
 
 ## Mutation checks
 

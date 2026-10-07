@@ -156,6 +156,62 @@
 //! Variable sites range over services 0 to 11 (`MAX_SERVICES`, the public bound on a stream's
 //! graph), so an engram built on a stream of 8 services still recalls on a stream of 12.
 //!
+//! # A1c: the recall gate, the late switch and the two-site key
+//!
+//! Written and committed before any run of an A1c arm (work item A1c; `DESIGN.md`, "The two-site
+//! key and the recall gate (A1c)", committed before this code). A1a's arms are what they were:
+//! every field below defaults to A1a's behaviour when absent from a manifest.
+//!
+//! - **`gate`** ([`super::gate::RecallGate`], default `none`): `contradicted` acts on a recall only
+//!   for an anomaly whose latest public consistency check found no consistent hypothesis. The
+//!   reading, when it is read and what a dropped recall leaves are in [`super::gate`].
+//! - **`late_feature`** (A1a's requirement that a key hold evidence from after the first phase, and
+//!   that generalisation keep it): a switch. Absent, it is **off for a gated layer** (the brief:
+//!   the gate, not the time since the anchor, is the reading of rule-breaking evidence) and **on
+//!   for an ungated one** (A1a's form, so that A1a's manifests mean what they meant). Off, no
+//!   feature is marked late and a key with no late feature is bound.
+//! - **`two_site`** (default off; family-keyed only): the key spans the anomaly's service and one
+//!   other service whose alarm the public graph does not connect to it.
+//!
+//! ## The two-site key (fixed before any run)
+//!
+//! - **First alarms.** A service's *first alarm* is an abnormal observation at it that begins a
+//!   burst there: the first abnormal observation at the service in the segment, or one at least
+//!   the rung's `burst_gap_ns` (2 s) after the previous abnormal one at it (the rung's own burst
+//!   rule, `Tracked::note_attached`). The layer records every first alarm as it is delivered.
+//! - **Unconnected.** Two distinct services are connected when one is a dependent of the other in
+//!   the public graph at time zero, transitively (`dependents_mask`, the reach of public rule 1,
+//!   "propagation requires a cause"); otherwise an alarm at one is not explained by the other
+//!   through the public graph.
+//! - **Relation events.** At every first alarm at a service `s` (instant `t`), for every service `u`
+//!   unconnected to `s` and every first alarm of `u` at `t_u` in `[t - key_span_ns, t]`, the layer's
+//!   sense port also gets two events at `t`: one addressed to the edge node
+//!   `pair_node(s, u)` (channel [`CH_RELATION`]), one to `pair_node(u, s)`, each tagged with
+//!   [`relation_tag`]: the **order** seen from the edge's first node (whether the partner's first
+//!   alarm came strictly before its own) and the **band** of the gap `t - t_u`: band 0 below the
+//!   rung's `burst_ns` (0.4 s, what propagation looks like), band 1 below `burst_gap_ns` (2 s, within
+//!   one burst), band 2 up to `key_span_ns` (10 s). A relation event's `seq` is in its own space
+//!   (from `REL_SEQ`), never an observation id.
+//! - **The key, at a bind.** For an answer about an anomaly at service `A` anchored at `t0`: `t_A`
+//!   is the latest first alarm at `A` at or before `t0` (else `t0`). The **partner** `B` is the
+//!   service unconnected to `A` with a first alarm `t_B`, `|t_B - t_A| <= key_span_ns`, nearest to
+//!   `t_A` (ties: the earlier, then the lower service index; the index chooses and never enters the
+//!   key). With `t_lo = min(t_A, t_B)`, the key is: the relation tag of `(A, B)` (role `Relation`),
+//!   then, over the observations this noticer holds about `A` or `B` emitted in
+//!   `[t_lo, t_lo + key_span_ns]` in delivery order, the family features of A1a's key (kinds, bands,
+//!   catalogue message ids; never a free-form id) with role `Site` for `A` and `Partner` for `B`,
+//!   distinct as `(role, tag)`, the first partner feature placed second, at most 8 in all. With the
+//!   late switch on, a feature is late when first seen more than `onset_ns` after `t_lo` (the
+//!   relation when `max(t_A, t_B) - t_lo > onset_ns`). The key site is a pair ([`KeySite::Pair`]).
+//!   **An anomaly with no unconnected partner keeps A1a's one-site family key**, so the two-site
+//!   arm differs from the one-site arm only where a partner exists.
+//! - **Recall.** A pair engram recalls when every live feature of its key has occurred at the
+//!   pair's first node, its second and their edge within the window; the crate names the pair
+//!   ([`gordian_medium::Engrams::recall_in`], resolved after every tick). The recall concerns the
+//!   noticed anomaly sited at the pair's first node that owns the recall's anchor or one of its
+//!   references, else the first noticed anomaly that owns one of its observations about that node.
+//!   The outcome's support site is the pair's first node.
+//!
 //! # What this is not
 //!
 //! It is not told whether a recall was right: the stream never says. A memory-made error is
@@ -166,23 +222,49 @@
 use super::adapters::{
     DeliveredSense, TickClock, TickLedger, abnormal_kind_tag, encode, message_tag,
 };
-use crate::stream::arms::rung::Held;
+use super::gate::RecallGate;
+use crate::stream::arms::rung::{Held, service_of};
 use gordian_core::Instant;
 use gordian_medium::engram::{pair_bytes, restart, restore_pair};
 use gordian_medium::{
-    CollectingEffector, ConstantField, EngramParams, Engrams, Field, Key, KeySite, Limits, Medium,
-    NoTrace, OpCounts, Outcome, OutcomeSite, Ports, Prices, Recall, Tag,
+    Address, CollectingEffector, ConstantField, EngramParams, Engrams, Event, FeatureRole, Field,
+    Key, KeySite, Limits, Medium, NoTrace, OpCounts, Outcome, OutcomeSite, Ports, Prices, Recall,
+    Tag, pair_node,
 };
 use gordian_stream::{Diagnosis, HardKind, StreamHypothesis, StreamKind};
+use gordian_world::graph::dependents_mask;
 use gordian_world::physics::{CATALOGUE_LIMIT, HIGH, MAX_SERVICES};
-use gordian_world::{CounterName, FaultKind, Observation, ServiceId};
+use gordian_world::{CounterName, FaultKind, Observation, Service, ServiceId};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, VecDeque};
 
 /// The kind of a recall proposal in the engram medium.
 pub const KIND_RECALL: u16 = 3;
 
 /// The first band tag: `BAND + 4 * counter + band`.
 pub const BAND: u32 = 0x200;
+
+/// The first relation tag: `RELATION + 4 * order + band` (A1c; [`relation_tag`]).
+pub const RELATION: u32 = 0x300;
+
+/// The channel of a relation event (A1c).
+pub const CH_RELATION: u16 = 4;
+
+/// The first `seq` of relation events, a space apart from observation ids (A1c).
+pub const REL_SEQ: u32 = 0x8000_0000;
+
+/// The relation tag of two first alarms (A1c): `partner_first` when the partner's came strictly
+/// before the edge's first node's; the gap in bands at the rung's `burst_ns` and `burst_gap_ns`.
+pub fn relation_tag(partner_first: bool, gap_ns: u64, burst_ns: u64, burst_gap_ns: u64) -> Tag {
+    let band = if gap_ns < burst_ns {
+        0
+    } else if gap_ns < burst_gap_ns {
+        1
+    } else {
+        2
+    };
+    Tag(RELATION + 4 * u32::from(partner_first) + band)
+}
 
 /// Where a key's features must recur.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -256,10 +338,25 @@ pub struct EngramConfig {
     pub decay_period_ns: u64,
     /// The least time between two recalls of one engram, nanoseconds.
     pub refractory_ns: u64,
+    /// The recall gate (A1c; [`super::gate`]). Absent: none (and not written when none, so an
+    /// A1a configuration is the same text as before).
+    #[serde(default, skip_serializing_if = "RecallGate::is_none")]
+    pub gate: RecallGate,
+    /// A1a's late-feature requirement (A1c: a switch). Absent: off for a gated layer, on for an
+    /// ungated one ([`EngramConfig::requires_late`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub late_feature: Option<bool>,
+    /// The two-site key (A1c; family-keyed only). Absent: off (and not written when off).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub two_site: bool,
 }
 
 fn yes() -> bool {
     true
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 impl Default for EngramConfig {
@@ -284,6 +381,9 @@ impl Default for EngramConfig {
             decay: 0.99,
             decay_period_ns: 100_000_000_000,
             refractory_ns: 6_000_000_000,
+            gate: RecallGate::None,
+            late_feature: None,
+            two_site: false,
         }
     }
 }
@@ -293,6 +393,12 @@ impl EngramConfig {
     /// also `carry_site`.
     pub fn carries(&self) -> bool {
         self.carry && (self.site == SiteMode::Family || self.carry_site)
+    }
+
+    /// Whether a key must hold a late feature (A1a's requirement): `late_feature` if given, else
+    /// on for an ungated layer and off for a gated one (A1c).
+    pub fn requires_late(&self) -> bool {
+        self.late_feature.unwrap_or(self.gate == RecallGate::None)
     }
 
     /// The crate's parameters for a tick of `tick_ns`.
@@ -320,6 +426,9 @@ impl EngramConfig {
         let err = |e: &str| Err(format!("noticer medium engram: {e}"));
         if let ConfirmPolicy::Every { k: 0 } = self.confirm {
             return err("confirm every k needs k >= 1");
+        }
+        if self.two_site && self.site != SiteMode::Family {
+            return err("the two-site key is family-keyed only");
         }
         if self.key_span_ns == 0 || self.onset_ns >= self.key_span_ns {
             return err("key_span_ns must be positive and longer than onset_ns");
@@ -440,6 +549,40 @@ pub fn features<'a>(
     first
 }
 
+/// The two-site key's features (A1c; module documentation, "The two-site key"): the relation
+/// tag first, then the family features of the observations in `held` (already those about the
+/// site or the partner in the span, in delivery order) with role `Site` for the site and
+/// `Partner` for the partner, distinct as `(role, tag)` (a feature's first occurrence decides
+/// whether it is late), the first partner feature second. `relation_late`: whether the relation
+/// counts as late. Not capped: [`Key::with_roles`] does that.
+pub fn pair_features<'a>(
+    held: impl IntoIterator<Item = &'a Held>,
+    site: ServiceId,
+    relation: Tag,
+    relation_late: bool,
+    onset_end: Instant,
+) -> Vec<(Tag, FeatureRole, bool)> {
+    let mut rest: Vec<(Tag, FeatureRole, bool)> = Vec::new();
+    for h in held {
+        let role = if service_of(&h.obs) == Some(site) {
+            FeatureRole::Site
+        } else {
+            FeatureRole::Partner
+        };
+        for (t, late) in features(std::iter::once(h), onset_end, false) {
+            if !rest.iter().any(|(x, r, _)| *x == t && *r == role) {
+                rest.push((t, role, late));
+            }
+        }
+    }
+    let mut out = vec![(relation, FeatureRole::Relation, relation_late)];
+    if let Some(i) = rest.iter().position(|(_, r, _)| *r == FeatureRole::Partner) {
+        out.push(rest.remove(i));
+    }
+    out.extend(rest);
+    out
+}
+
 /// What the layer counted over the segment, for diagnostics and tests.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct EngramLayerStats {
@@ -467,6 +610,47 @@ pub struct EngramLayerStats {
     pub carry_errors: u64,
     /// Ticks the engram medium refused (a defect: should be none).
     pub step_errors: u64,
+    /// Relation events sensed (A1c, two-site key).
+    pub relation_events: u64,
+    /// Binds of a two-site key (A1c).
+    pub pair_binds: u64,
+    /// Recalls of a pair engram (A1c).
+    pub pair_recalls: u64,
+    /// Recalls that reached the gate (A1c).
+    pub gate_offered: u64,
+    /// Of those, admitted (acted on).
+    pub gate_admitted: u64,
+    /// Dropped: the verdict stayed consistent for the gate's wait.
+    pub gate_closed: u64,
+    /// Dropped: the anomaly was escalated, answered or retired while the recall waited.
+    pub gate_overtaken: u64,
+}
+
+/// What the two-site key reads of a stream (A1c): the public graph's connections and the rung's
+/// burst constants.
+#[derive(Debug, Clone, Default)]
+struct PairSense {
+    /// `connected[a][b]`: one of `a`, `b` is a transitive dependent of the other.
+    connected: Vec<Vec<bool>>,
+    burst_ns: u64,
+    burst_gap_ns: u64,
+    retain_ns: u64,
+    /// The latest abnormal observation per service.
+    last_abnormal: BTreeMap<u32, Instant>,
+    /// First alarms, in delivery order: service and instant, for `retain_ns`.
+    starts: VecDeque<(u32, Instant)>,
+    next_seq: u32,
+}
+
+impl PairSense {
+    fn unconnected(&self, a: u32, b: u32) -> bool {
+        a != b
+            && self
+                .connected
+                .get(a as usize)
+                .and_then(|r| r.get(b as usize))
+                .is_some_and(|c| !*c)
+    }
 }
 
 /// The engram layer. See the module documentation.
@@ -485,6 +669,8 @@ pub struct EngramLayer {
     stopped: bool,
     dirty: bool,
     stats: EngramLayerStats,
+    /// The two-site key's view of the stream (A1c), when `two_site` and the noticer gave it.
+    pair: Option<PairSense>,
 }
 
 impl std::fmt::Debug for EngramLayer {
@@ -547,7 +733,132 @@ impl EngramLayer {
             stopped: false,
             dirty: false,
             stats,
+            pair: None,
         })
+    }
+
+    /// Give a two-site layer the public graph of its stream and the rung's burst constants
+    /// (A1c). Nothing for a layer without the two-site key.
+    pub fn set_public(
+        &mut self,
+        services: &[Service],
+        burst_ns: u64,
+        burst_gap_ns: u64,
+        retain_ns: u64,
+    ) {
+        if !self.cfg.two_site {
+            return;
+        }
+        let masks: Vec<Vec<bool>> = services
+            .iter()
+            .map(|s| dependents_mask(services, s.id))
+            .collect();
+        let n = services.len();
+        let connected = (0..n)
+            .map(|a| (0..n).map(|b| masks[a][b] || masks[b][a]).collect())
+            .collect();
+        self.pair = Some(PairSense {
+            connected,
+            burst_ns,
+            burst_gap_ns,
+            retain_ns,
+            ..PairSense::default()
+        });
+    }
+
+    /// The two-site key's first alarm and partner for an anomaly at `site` anchored at
+    /// `anchor_at` (module documentation, "The two-site key"): `(t_A, B, t_B, relation tag)`, or
+    /// `None` without the two-site key or without an unconnected partner in the span.
+    pub fn partner(
+        &self,
+        site: ServiceId,
+        anchor_at: Instant,
+    ) -> Option<(Instant, ServiceId, Instant, Tag)> {
+        let p = self.pair.as_ref()?;
+        let t_a = p
+            .starts
+            .iter()
+            .filter(|(s, at)| *s == site.0 && at.0 <= anchor_at.0)
+            .map(|(_, at)| *at)
+            .next_back()
+            .unwrap_or(anchor_at);
+        let span = self.cfg.key_span_ns;
+        let (b, t_b) = p
+            .starts
+            .iter()
+            .filter(|(u, at)| p.unconnected(site.0, *u) && at.0.abs_diff(t_a.0) <= span)
+            .min_by_key(|(u, at)| (at.0.abs_diff(t_a.0), at.0, *u))
+            .copied()?;
+        let tag = relation_tag(
+            t_b.0 < t_a.0,
+            t_a.0.abs_diff(t_b.0),
+            p.burst_ns,
+            p.burst_gap_ns,
+        );
+        Some((t_a, ServiceId(b), t_b, tag))
+    }
+
+    /// Record a first alarm and sense its relation events (A1c, two-site key).
+    fn relate(&mut self, held: &Held) {
+        let Some(p) = self.pair.as_mut() else {
+            return;
+        };
+        let Some(s) = service_of(&held.obs) else {
+            return;
+        };
+        if !held.abnormal {
+            return;
+        }
+        let at = held.at;
+        let first = p
+            .last_abnormal
+            .get(&s.0)
+            .is_none_or(|l| at.0 >= l.0.saturating_add(p.burst_gap_ns));
+        p.last_abnormal.insert(s.0, at);
+        if !first {
+            return;
+        }
+        while p
+            .starts
+            .front()
+            .is_some_and(|(_, t)| t.0.saturating_add(p.retain_ns) < at.0)
+        {
+            p.starts.pop_front();
+        }
+        let span = self.cfg.key_span_ns;
+        let tick_ns = self.tick_ns.max(1);
+        let mut events = Vec::new();
+        for &(u, t_u) in &p.starts {
+            if !p.unconnected(s.0, u) || t_u.0.saturating_add(span) < at.0 {
+                continue;
+            }
+            let gap = at.0 - t_u.0.min(at.0);
+            for (first_node, second, partner_first) in [(s.0, u, t_u.0 < at.0), (u, s.0, false)] {
+                let tag = relation_tag(partner_first, gap, p.burst_ns, p.burst_gap_ns);
+                let seq = REL_SEQ.saturating_add(p.next_seq);
+                p.next_seq = p.next_seq.saturating_add(1);
+                events.push(Event {
+                    tick: at.0 / tick_ns,
+                    offset_ns: u32::try_from(at.0 % tick_ns).unwrap_or(u32::MAX),
+                    source: Address {
+                        domain: super::adapters::DOMAIN,
+                        node: pair_node(
+                            u16::try_from(first_node).unwrap_or(u16::MAX),
+                            u16::try_from(second).unwrap_or(u16::MAX),
+                        ),
+                        channel: CH_RELATION,
+                    },
+                    tags: vec![tag],
+                    value: 1.0,
+                    seq,
+                });
+            }
+        }
+        p.starts.push_back((s.0, at));
+        self.stats.relation_events += events.len() as u64;
+        for e in events {
+            self.sense.push(e);
+        }
     }
 
     /// The parameters.
@@ -591,6 +902,9 @@ impl EngramLayer {
             }
             self.sense.push(event);
         }
+        if self.pair.is_some() {
+            self.relate(held);
+        }
     }
 
     /// Run every tick complete at `now`; the recalls they made.
@@ -599,6 +913,7 @@ impl EngramLayer {
         let mut field = ConstantField(Field::default());
         let mut trace = NoTrace;
         let decays = self.engrams.stats().decays;
+        let mut out = Vec::new();
         while self.next_tick < complete && !self.stopped {
             let mut clock = TickClock {
                 tick: self.next_tick,
@@ -618,12 +933,16 @@ impl EngramLayer {
                 self.stopped = true;
             }
             self.next_tick += 1;
-        }
-        let mut out = Vec::new();
-        for (_, p) in std::mem::take(&mut self.effector.proposals) {
-            if let Some(r) = self.engrams.recall(&p) {
-                self.stats.recalls += 1;
-                out.push(r);
+            // Resolved after each tick, so that the crate can name the key cell that fired (A1c);
+            // the same recalls in the same order as resolving them all after the last tick.
+            for (_, p) in std::mem::take(&mut self.effector.proposals) {
+                if let Some(r) = self.engrams.recall_in(&self.medium, &p) {
+                    self.stats.recalls += 1;
+                    if r.fired.and_then(gordian_medium::pair_of).is_some() {
+                        self.stats.pair_recalls += 1;
+                    }
+                    out.push(r);
+                }
             }
         }
         if !out.is_empty() || self.engrams.stats().decays != decays {
@@ -637,23 +956,53 @@ impl EngramLayer {
     /// anomaly at `site`). Nothing when binding is off or the layer has stopped, when no feature
     /// is late, or, family-keyed, when the diagnosis names another site.
     pub fn bind(&mut self, features: Vec<(Tag, bool)>, site: ServiceId, diagnosis: &Diagnosis) {
+        self.bind_roles(
+            features
+                .into_iter()
+                .map(|(t, l)| (t, FeatureRole::Site, l))
+                .collect(),
+            site,
+            diagnosis,
+        );
+    }
+
+    /// [`EngramLayer::bind`] with roles (A1c): a key with a `Relation` feature is a two-site key
+    /// (a pair site); otherwise as A1a. Without the late requirement
+    /// ([`EngramConfig::requires_late`]) no feature is marked and a key with no late feature is
+    /// bound.
+    pub fn bind_roles(
+        &mut self,
+        features: Vec<(Tag, FeatureRole, bool)>,
+        site: ServiceId,
+        diagnosis: &Diagnosis,
+    ) {
         self.stats.answers += 1;
         if !self.cfg.bind || self.stopped {
             return;
         }
-        if !features.iter().any(|(_, late)| *late) {
+        let late = self.cfg.requires_late();
+        if late && !features.iter().any(|(_, _, l)| *l) {
             self.stats.no_late += 1;
             return;
         }
+        let features: Vec<(Tag, FeatureRole, bool)> = features
+            .into_iter()
+            .map(|(t, r, l)| (t, r, l && late))
+            .collect();
+        let pair = features.iter().any(|(_, r, _)| *r == FeatureRole::Relation);
         if self.cfg.site == SiteMode::Family && diagnosis.is_some_and(|h| h.site != site) {
             self.stats.elsewhere += 1;
             return;
         }
         let key_site = match self.cfg.site {
+            SiteMode::Family if pair => KeySite::Pair,
             SiteMode::Family => KeySite::Variable,
             SiteMode::Site => KeySite::Fixed(u16::try_from(site.0).unwrap_or(u16::MAX)),
         };
-        let key = Key::with_marks(features, key_site);
+        if pair {
+            self.stats.pair_binds += 1;
+        }
+        let key = Key::with_roles(features, key_site);
         self.engrams
             .bind(&mut self.medium, &key, outcome_of(diagnosis, site));
         self.stats.binds += 1;
@@ -690,6 +1039,27 @@ impl EngramLayer {
         }
         self.save_if_dirty();
         confirm
+    }
+
+    /// Count a recall that reached the gate (A1c).
+    pub fn note_gate_offered(&mut self) {
+        self.stats.gate_offered += 1;
+    }
+
+    /// Count a recall the gate admitted (A1c).
+    pub fn note_gate_admitted(&mut self) {
+        self.stats.gate_admitted += 1;
+    }
+
+    /// Count a recall the gate dropped after its wait (A1c).
+    pub fn note_gate_closed(&mut self) {
+        self.stats.gate_closed += 1;
+    }
+
+    /// Count a recall dropped while it waited because its anomaly was asked about, answered or
+    /// retired (A1c).
+    pub fn note_gate_overtaken(&mut self) {
+        self.stats.gate_overtaken += 1;
     }
 
     /// Count a recall that was not acted on.

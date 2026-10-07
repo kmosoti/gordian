@@ -546,6 +546,19 @@ impl Rung {
         self.noticer.recalls()
     }
 
+    /// Whether the noticer gates its recalls on the consistency checker's verdict
+    /// ([`Noticer::needs_verdicts`]; work item A1c). False for every noticer without a gate.
+    pub fn noticer_needs_verdicts(&self) -> bool {
+        self.noticer.needs_verdicts()
+    }
+
+    /// The noticer's recalls since the last call, gated on the views at `now`
+    /// ([`Noticer::gated_recalls`]; work item A1c).
+    pub fn take_gated_recalls(&mut self, now: Instant) -> Vec<noticer::MemoryRecall> {
+        let views = self.views(now);
+        self.noticer.gated_recalls(now, &views)
+    }
+
     /// Every notice and retirement so far, in order: the record the harness writes.
     pub fn notice_log(&self) -> &[NoticeLogEntry] {
         &self.log
