@@ -246,6 +246,30 @@ fn a_reading_is_a_follow_up_reading_of_the_watches_opened_before_it_and_only_at_
 }
 
 #[test]
+fn the_completing_reading_is_part_of_the_peak_and_a_reversal_needs_a_follow_up_reading() {
+    let mut fl = Follower::new(follow()); // max_fall 4
+    fl.open(3, key(), 40, at(10_000));
+    // The first follow-up reading is 10 below the completing one: a reversal at once, so the
+    // completing reading counts in the peak (a peak that began at zero would see no fall here).
+    assert_eq!(fl.feed(key(), 30), vec![(3, Verdict::Withdraw)]);
+    // The guard is on the number of follow-up readings, not only on the values: with none, no
+    // reversal is seen, whatever the peak and last values a caller hands `judge`.
+    assert_eq!(follow().judge(&seen(40, 0, 100, 0)), None);
+}
+
+#[test]
+fn a_follower_counts_the_watches_it_opened_and_the_ones_still_undecided() {
+    let mut fl = Follower::new(follow());
+    assert_eq!((fl.opened(), fl.watching()), (0, 0));
+    fl.open(1, key(), 40, at(10_000));
+    fl.open(2, key(), 40, at(11_000));
+    assert_eq!((fl.opened(), fl.watching()), (2, 2));
+    // A decision closes a watch and does not reduce the count of those opened.
+    assert_eq!(fl.expire(at(25_000)).len(), 2);
+    assert_eq!((fl.opened(), fl.watching()), (2, 0));
+}
+
+#[test]
 fn a_reversal_withdraws_before_the_window_ends_and_the_anomaly_is_listed_until_it_is_forgotten() {
     let mut fl = Follower::new(follow());
     fl.open(3, key(), 40, at(10_000));
@@ -591,6 +615,84 @@ fn a_follow_up_rule_that_cannot_act_is_the_ramp_noticer_in_whole_segments() {
         cell(&read(&out.join("with"), "notices.csv"), 0, "noticer"),
         "ramp_follow"
     );
+}
+
+#[test]
+fn a_withdrawn_anomaly_is_written_as_a_follow_up_retirement_and_a_call_is_stamped_with_its_step() {
+    // A rule no reading satisfies withdraws every anomaly the ramp opens, after one follow-up reading
+    // or at the horizon; the same ramp without it never retires by the rule. Both arms ask at 1 s
+    // about any anomaly the rung has not resolved, so some notices are asked about.
+    let eager = FollowSpec {
+        readings: 1,
+        horizon_ns: 4_000 * MS,
+        min_gain: u32::MAX,
+        max_fall: u32::MAX,
+    };
+    let mut m = manifest(
+        "follow-files",
+        &[("plain", "never_escalate"), ("with", "never_escalate")],
+        6,
+        600,
+        3,
+    );
+    for arm in &mut m.arms {
+        arm.policy = StreamPolicySpec::PublicThreshold {
+            delay_ns: 1_000 * MS,
+            persist_ns: 0,
+        };
+    }
+    m.noticers
+        .insert("plain".to_owned(), composed(Some(ramp(None)), None));
+    m.noticers.insert(
+        "with".to_owned(),
+        composed(Some(ramp(Some(eager))), None),
+    );
+    m.validate().unwrap();
+    let step_ns = m.limits.step_ns;
+    let out = scratch("follow-files").join("run");
+    execute_stream(&m, &out).unwrap_or_else(|e| panic!("{e}"));
+    let column = |t: &[Vec<String>], name: &str| t[0].iter().position(|c| c == name).unwrap();
+    let followed = |arm: &str| {
+        let t = rows(&read(&out.join(arm), "selection_notices.csv"));
+        let c = column(&t, "retire_cause");
+        t[1..].iter().filter(|r| r[c] == "followup").count() as u64
+    };
+    let counted = |arm: &str| {
+        let t = rows(&read(&out.join(arm), "selection.csv"));
+        let cols: Vec<usize> = t[0]
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.starts_with("followup_retired_"))
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(cols.len(), 5);
+        t[1..]
+            .iter()
+            .flat_map(|r| cols.iter().map(|&i| r[i].parse::<u64>().unwrap()))
+            .sum::<u64>()
+    };
+    assert_eq!(followed("plain"), 0);
+    assert_eq!(counted("plain"), 0);
+    assert!(
+        followed("with") > 0,
+        "the ramp opened an anomaly in six segments, and the rule withdrew it"
+    );
+    // The per-notice cause and the per-stream count are the same retirements.
+    assert_eq!(followed("with"), counted("with"));
+    // A call is stamped with the instant of the step that made it, which is a multiple of the step
+    // quantum, and not with the clock after the arm's metered work.
+    let mut asked = 0;
+    for arm in ["plain", "with"] {
+        let t = rows(&read(&out.join(arm), "selection_notices.csv"));
+        let c = column(&t, "first_escalation_at_ns");
+        for r in &t[1..] {
+            if !r[c].is_empty() {
+                asked += 1;
+                assert_eq!(r[c].parse::<u64>().unwrap() % step_ns, 0, "{arm}: {}", r[c]);
+            }
+        }
+    }
+    assert!(asked > 0, "some notice was asked about");
 }
 
 use gordian_run::stream::execute_stream;

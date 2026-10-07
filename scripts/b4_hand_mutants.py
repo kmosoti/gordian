@@ -72,7 +72,7 @@ MUTANTS = [
     (FOLLOW, RUN, "the last reading is the first", "w.seen.last = value;", ""),
     # the selectors
     (THRESHOLD, RUN, "contradictory and silent, not or", "contradictory || silent", "contradictory && silent"),
-    (THRESHOLD, RUN, "a declared rung is silent", "let silent = !view.cheap_declared", "let silent = view.cheap_declared"),
+    (THRESHOLD, RUN, "a declared rung is silent", "!view.cheap_declared &&", "view.cheap_declared &&"),
     (THRESHOLD, RUN, "the contradiction need not last", "now.0 >= since.0.saturating_add(self.persist_ns)", "now.0 >= since.0"),
     (THRESHOLD, RUN, "silent counts from the start", "now.0 >= view.noticed_at.0.saturating_add(self.persist_ns)", "true"),
     (THRESHOLD, RUN, "an asked anomaly is asked again", "v.attempts == 0\n                    &&", "true\n                    &&"),

@@ -255,3 +255,10 @@ fn fixtures_survive_a_serialization_round_trip() {
         assert_eq!(back, case.trace, "{}", case.name);
     }
 }
+
+#[test]
+fn the_class_words_are_the_ones_the_run_output_writes_in_the_order_the_counts_are() {
+    // `selection_notices.csv` writes a notice's class with these words, and the analysis reads them.
+    let words: Vec<&str> = IncidentClass::ALL.iter().map(|c| c.as_str()).collect();
+    assert_eq!(words, ["background", "plain", "hard", "leak", "decoy"]);
+}
