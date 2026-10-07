@@ -10,31 +10,45 @@ from the same file, incidents with any escalation and incidents with a wrong dec
 escalation. The tier column is the evaluator's, read here to report, never by an arm.
 """
 
-import pandas as pd
+import csv
 
 import a1a_common as C
 
 RUN = C.SMOKE_DIR / C.run_id("smoke")
 
 
+FIELDS = ["arm", "tier", "incidents", "correct_unasked", "escalated", "wrong_unasked",
+          "escalations"]
+
+
+def counts(arm, tier, rows):
+    unasked = [r for r in rows if int(r["escalations"]) == 0]
+    return {
+        "arm": arm,
+        "tier": tier,
+        "incidents": len(rows),
+        "correct_unasked": sum(int(r["correct_declarations"]) > 0 for r in unasked),
+        "escalated": len(rows) - len(unasked),
+        "wrong_unasked": sum(int(r["wrong_declarations"]) > 0 for r in unasked),
+        "escalations": sum(int(r["escalations"]) for r in rows),
+    }
+
+
 def main():
-    rows = []
+    out = []
     for name, _ in C.arms():
-        df = pd.read_csv(RUN / C.arm_name(name) / "incidents.csv")
-        for tier, g in [("all", df)] + list(df.groupby("tier")):
-            unasked = g.escalations == 0
-            rows.append({
-                "arm": name,
-                "tier": tier,
-                "incidents": len(g),
-                "correct_unasked": int(((g.correct_declarations > 0) & unasked).sum()),
-                "escalated": int((~unasked).sum()),
-                "wrong_unasked": int(((g.wrong_declarations > 0) & unasked).sum()),
-                "escalations": int(g.escalations.sum()),
-            })
-    out = pd.DataFrame(rows)
-    out.to_csv(C.OUT / "a1a-smoke.csv", index=False)
-    print(out.to_string(index=False))
+        with open(RUN / C.arm_name(name) / "incidents.csv") as fh:
+            rows = list(csv.DictReader(fh))
+        out.append(counts(name, "all", rows))
+        for tier in sorted({r["tier"] for r in rows}):
+            out.append(counts(name, tier, [r for r in rows if r["tier"] == tier]))
+    with open(C.OUT / "a1a-smoke.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, FIELDS)
+        w.writeheader()
+        w.writerows(out)
+    print(",".join(FIELDS))
+    for r in out:
+        print(",".join(str(r[f]) for f in FIELDS))
 
 
 if __name__ == "__main__":

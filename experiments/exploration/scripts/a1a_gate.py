@@ -11,12 +11,11 @@ Usage:
                          experiments/exploration/a1a-regression.csv; exit 1 unless 62 of 62 match
 """
 
+import csv
 import hashlib
 import json
 import subprocess
 import sys
-
-import pandas as pd
 
 import a1a_common as C
 
@@ -46,22 +45,26 @@ def manifest():
 
 
 def check():
-    want = pd.read_csv(C.OUT / "r6-results-sha256.csv")
-    want = want[want.dir == RID].set_index("arm")
+    with open(C.OUT / "r6-results-sha256.csv") as fh:
+        want = {r["arm"]: r for r in csv.DictReader(fh) if r["dir"] == RID}
     arms = sorted(p.name for p in DIR.iterdir() if p.is_dir())
     rows = []
     for a in arms:
+        w = want.get(a, {})
         rows.append({
             "run": RID, "arm": a,
-            "results_identical": sha(DIR / a / "results.csv") == want.loc[a, "results_sha256"],
-            "incidents_identical": sha(DIR / a / "incidents.csv") == want.loc[a, "incidents_sha256"],
+            "results_identical": sha(DIR / a / "results.csv") == w.get("results_sha256"),
+            "incidents_identical": sha(DIR / a / "incidents.csv") == w.get("incidents_sha256"),
         })
-    reg = pd.DataFrame(rows)
-    reg.to_csv(C.OUT / "a1a-regression.csv", index=False)
-    print(f"{RID}: {len(reg)} arms replayed; results identical {int(reg.results_identical.sum())}, "
-          f"incidents identical {int(reg.incidents_identical.sum())}; arms in the record {len(want)}")
-    ok = (set(arms) == set(want.index) and reg.results_identical.all()
-          and reg.incidents_identical.all())
+    with open(C.OUT / "a1a-regression.csv", "w", newline="") as fh:
+        out = csv.DictWriter(fh, ["run", "arm", "results_identical", "incidents_identical"])
+        out.writeheader()
+        out.writerows(rows)
+    res = sum(r["results_identical"] for r in rows)
+    inc = sum(r["incidents_identical"] for r in rows)
+    print(f"{RID}: {len(rows)} arms replayed; results identical {res}, incidents identical {inc}; "
+          f"arms in the record {len(want)}")
+    ok = set(arms) == set(want) and res == len(rows) and inc == len(rows)
     sys.exit(0 if ok else 1)
 
 
