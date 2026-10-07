@@ -454,3 +454,175 @@ fn the_sub_tick_cut_adds_no_counted_operation() {
     assert_eq!(n_off, n_on);
     assert!(n_on > 0);
 }
+
+// ---- tests for the survivors of the mutation run of M3's medium code (resumed unit)
+
+/// Sense cells on nodes `0..weights.len()` (channel 0, counting) into an ordered coincidence of
+/// `n` within `window_us` with arrivals at event resolution and no lead, consumed when `consume`,
+/// with a tick lookback of `lookback` ticks; then an emitter (no refractory period) that cites
+/// everything it is sent. Synapse `i` has weight `weights[i]`. On a tick of `len` ns.
+fn every_spec(
+    len: u64,
+    n: u8,
+    window_us: u32,
+    consume: bool,
+    lookback: u32,
+    weights: &[f32],
+) -> MediumSpec {
+    let mut b = builder(len);
+    let senses: Vec<CellId> = (0..weights.len() as u16)
+        .map(|node| b.sense(at(node, 0), SenseMode::Count))
+        .collect();
+    let c = b.coincidence_ordered(n, window_us, false, consume, lookback);
+    b.set_param(c, 6, 1.0);
+    let e = b.emit(1.0, 1, 1_000, 0);
+    for (s, w) in senses.into_iter().zip(weights) {
+        b.synapse(s, c, *w, 0);
+    }
+    b.synapse(c, e, 1.0, 0);
+    b.into_spec()
+}
+
+/// A sub-tick lookback makes an integrator, and any coincidence, an oscillome form (it reads
+/// event times); without it an integrator and a sliding coincidence are M1's, and an ordered
+/// coincidence is an oscillome form either way.
+#[test]
+fn a_sub_tick_lookback_is_an_oscillome_form() {
+    let mut p = [0.0f32; gordian_medium::P];
+    assert!(!Archetype::Integrator.uses_oscillome(&p));
+    assert!(!Archetype::Coincidence.uses_oscillome(&p));
+    p[7] = 20_000.0;
+    assert!(Archetype::Integrator.uses_oscillome(&p));
+    assert!(Archetype::Coincidence.uses_oscillome(&p));
+    p[7] = 0.0;
+    p[4] = 2.0;
+    assert!(Archetype::Coincidence.uses_oscillome(&p));
+}
+
+/// A message of value zero (a synapse of weight zero) is not an arrival at event resolution.
+#[test]
+fn at_event_resolution_a_zero_message_is_not_an_arrival() {
+    let len = 100 * u64::from(MS);
+    let events = vec![ev(0, 10 * MS, 0, 0, 1.0, 0), ev(0, 15 * MS, 1, 0, 1.0, 1)];
+    let fires = proposals(
+        &every_spec(len, 2, 20_000, true, 1, &[1.0, 1.0]),
+        len,
+        events.clone(),
+        2,
+    );
+    assert_eq!(fires.len(), 1);
+    let zero = proposals(
+        &every_spec(len, 2, 20_000, true, 1, &[1.0, 0.0]),
+        len,
+        events,
+        2,
+    );
+    assert!(zero.is_empty(), "{zero:?}");
+}
+
+/// Two kinds 100 ms apart in one 500 ms tick are not a coincidence within 20 ms at event
+/// resolution, whichever comes first.
+#[test]
+fn at_event_resolution_events_further_apart_than_the_window_do_not_fire() {
+    let len = 500 * u64::from(MS);
+    for (a, b) in [(0u16, 1u16), (1, 0)] {
+        let events = vec![ev(0, 10 * MS, a, 0, 1.0, 0), ev(0, 110 * MS, b, 0, 1.0, 1)];
+        let p = proposals(
+            &every_spec(len, 2, 20_000, true, 1, &[1.0, 1.0]),
+            len,
+            events,
+            2,
+        );
+        assert!(p.is_empty(), "{a}{b}: {p:?}");
+    }
+}
+
+/// A slot other than the first keeps its latest candidate's offset across a tick: node 1 at
+/// 95 ms of tick 0 and node 0 at 5 ms of tick 1 are 10 ms apart, within 20 ms.
+#[test]
+fn at_event_resolution_any_slot_keeps_its_candidates_offset_across_a_tick() {
+    let len = 100 * u64::from(MS);
+    let events = vec![ev(0, 95 * MS, 1, 0, 1.0, 0), ev(1, 5 * MS, 0, 0, 1.0, 1)];
+    let p = proposals(
+        &every_spec(len, 2, 20_000, true, 2, &[1.0, 1.0]),
+        len,
+        events,
+        3,
+    );
+    assert_eq!(p.len(), 1, "{p:?}");
+    assert_eq!(p[0].0, 1);
+    assert_eq!(p[0].2, vec![0, 1]);
+}
+
+/// A kept candidate is kept again, with its offset, by a run that does not fire: three kinds
+/// at 50 ms of tick 0, 50 ms of tick 1 and 30 ms of tick 2 span 180 ms, within a 200 ms window.
+#[test]
+fn at_event_resolution_a_kept_candidate_survives_a_run_that_does_not_fire() {
+    let len = 100 * u64::from(MS);
+    let events = vec![
+        ev(0, 50 * MS, 1, 0, 1.0, 0),
+        ev(1, 50 * MS, 2, 0, 1.0, 0),
+        ev(2, 30 * MS, 0, 0, 1.0, 0),
+    ];
+    let spec = |window_us| every_spec(len, 3, window_us, true, 3, &[1.0, 1.0, 1.0]);
+    let p = proposals(&spec(200_000), len, events.clone(), 4);
+    assert_eq!(p.len(), 1, "{p:?}");
+    assert_eq!(p[0].0, 2);
+    // And 180 ms is the span: a 170 ms window does not hold it.
+    assert!(proposals(&spec(170_000), len, events, 4).is_empty());
+}
+
+/// With a window longer than the tick, slots that hold nothing stay empty: after a consuming
+/// fire, and after a run that does not fire, one kind alone never fires a coincidence of two.
+#[test]
+fn at_event_resolution_empty_slots_stay_empty_across_ticks() {
+    let len = 100 * u64::from(MS);
+    let spec = every_spec(len, 2, 300_000, true, 3, &[1.0, 1.0, 1.0]);
+    // Nodes 0 and 1 in tick 0 fire and are consumed; node 2 alone in tick 1 does not fire.
+    let consumed = vec![
+        ev(0, 10 * MS, 0, 0, 1.0, 0),
+        ev(0, 20 * MS, 1, 0, 1.0, 1),
+        ev(1, 10 * MS, 2, 0, 1.0, 0),
+    ];
+    let p = proposals(&spec, len, consumed, 3);
+    assert_eq!(p.len(), 1, "{p:?}");
+    assert_eq!(p[0].0, 0);
+    // Node 0 alone in tick 0 and in tick 1: never two slots.
+    let alone = vec![ev(0, 10 * MS, 0, 0, 1.0, 0), ev(1, 10 * MS, 0, 0, 1.0, 0)];
+    let p = proposals(&spec, len, alone, 3);
+    assert!(p.is_empty(), "{p:?}");
+}
+
+/// Consuming at event resolution: a consumed coincidence forgets its candidates and its support
+/// when it fires, and only then; one that does not consume keeps them and fires again with a
+/// third kind in the window.
+#[test]
+fn at_event_resolution_consuming_clears_state_and_support_on_firing_only() {
+    let len = 100 * u64::from(MS);
+    let spec = |consume| every_spec(len, 2, 300_000, consume, 10, &[1.0, 1.0, 1.0]);
+    let events = vec![
+        ev(0, 10 * MS, 0, 0, 1.0, 0),
+        ev(0, 20 * MS, 1, 0, 1.0, 1),
+        ev(1, 10 * MS, 2, 0, 1.0, 2),
+    ];
+    let consumed = proposals(&spec(true), len, events.clone(), 3);
+    assert_eq!(consumed.len(), 1, "{consumed:?}");
+    let kept = proposals(&spec(false), len, events, 3);
+    assert_eq!(kept.len(), 2, "{kept:?}");
+    assert_eq!(kept[1].0, 1);
+    // A consumed fire clears the support: the next fire, two ticks later, cites only its own.
+    let again = vec![
+        ev(0, 10 * MS, 0, 0, 1.0, 0),
+        ev(0, 20 * MS, 1, 0, 1.0, 1),
+        ev(5, 10 * MS, 0, 0, 1.0, 2),
+        ev(5, 20 * MS, 1, 0, 1.0, 3),
+    ];
+    let p = proposals(&spec(true), len, again, 6);
+    assert_eq!(p.len(), 2, "{p:?}");
+    assert_eq!(p[1], (5, 2, vec![2, 3]));
+    // A run that does not fire keeps the support: node 0 at 90 ms of tick 0 and node 1 at 5 ms
+    // of tick 1 fire in tick 1 citing both, anchored on the first.
+    let across = vec![ev(0, 90 * MS, 0, 0, 1.0, 0), ev(1, 5 * MS, 1, 0, 1.0, 1)];
+    let p = proposals(&spec(true), len, across, 3);
+    assert_eq!(p, vec![(1, 0, vec![0, 1])]);
+}
