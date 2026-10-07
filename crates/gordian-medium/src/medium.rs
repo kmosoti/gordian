@@ -60,6 +60,33 @@ use crate::types::{
     SynapseId,
 };
 
+/// The sub-tick lookback (M3): keep the events of `support` (ascending) that are no earlier
+/// than `sub_us` microseconds before the run's instant, in event time. The instant is `at_us`
+/// (microseconds from the start of `tick`) when the archetype gives one, else the newest event in
+/// the support. An event's time is `(its tick - tick) * tick_len_ns + offset_ns`, in integers, so
+/// order inside a tick is read from `offset_ns` and the cut does not depend on where the tick's
+/// edges fall. Events after the instant are kept: this is a lower edge, as the tick lookback is.
+fn cut_below_tick(
+    support: &mut Vec<EventRef>,
+    tick: u64,
+    tick_len_ns: u64,
+    at_us: Option<i64>,
+    sub_us: u64,
+) {
+    let len = i128::from(tick_len_ns);
+    let time =
+        |r: &EventRef| (i128::from(r.tick) - i128::from(tick)) * len + i128::from(r.offset_ns);
+    let at = match at_us {
+        Some(us) => i128::from(us) * 1_000,
+        None => match support.last() {
+            Some(r) => time(r),
+            None => return,
+        },
+    };
+    let floor = at - i128::from(sub_us) * 1_000;
+    support.retain(|r| time(r) >= floor);
+}
+
 /// A cell: one instance of an archetype.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cell {
@@ -917,6 +944,11 @@ impl Medium {
                     s.dedup();
                     if let Some(lookback) = cell.archetype.support_lookback(&cell.params) {
                         s.retain(|r| tick.saturating_sub(r.tick) <= lookback);
+                    }
+                    if out.activation != 0.0
+                        && let Some(sub_us) = cell.archetype.sub_tick_lookback_us(&cell.params)
+                    {
+                        cut_below_tick(&mut s, tick, self.engine.tick_len_ns(), out.at_us, sub_us);
                     }
                     s
                 }

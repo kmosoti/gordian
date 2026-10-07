@@ -15,7 +15,9 @@ use gordian_run::stream::arms::medium::adapters::{
 use gordian_run::stream::arms::medium::{
     CoincidenceForm, Confirm, MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumParams,
 };
-use gordian_run::stream::arms::noticer::{Notice, NoticeKind, Noticer, NoticerSpec};
+use gordian_run::stream::arms::noticer::{
+    Notice, NoticeKind, NoticeLogEntry, Noticer, NoticerSpec,
+};
 use gordian_run::stream::arms::rung::{Held, RungConfig, Store, is_abnormal};
 use gordian_run::stream::execute_stream;
 use gordian_run::stream::manifest::StreamManifest;
@@ -359,6 +361,56 @@ fn a_noticed_anomaly_retires_when_its_service_has_been_quiet_for_the_hold() {
     assert!(*at >= 10_000 && *at <= 10_500, "retired at {at}");
 }
 
+/// M3: with `ramp_inhibit`, a ramp at a service where an anomaly is open is not noticed again
+/// while the anomaly's hold lasts; a ramp alone is noticed as before, anchored as before.
+#[test]
+fn an_open_anomaly_silences_the_ramp_at_its_service() {
+    let p = public();
+    let ramp: Vec<(u64, Observation)> = (0..8)
+        .map(|i| {
+            (
+                2_000 + 1_200 * i,
+                counter(3, CounterName::Saturation, 22 + 4 * i),
+            )
+        })
+        .collect();
+    let inhibit = MediumParams {
+        ramp_inhibit: true,
+        ..MediumParams::default()
+    };
+    inhibit.validate().unwrap();
+    // A ramp alone: the same notice with and without the inhibition.
+    let mut a = Drive::new(MediumParams::default(), &p);
+    a.play(&ramp, 14_000, &p);
+    let mut b = Drive::new(inhibit, &p);
+    b.play(&ramp, 14_000, &p);
+    assert!(!a.notices.is_empty());
+    assert_eq!(
+        a.notices.iter().map(|(_, n)| n.anchor).collect::<Vec<_>>(),
+        b.notices.iter().map(|(_, n)| n.anchor).collect::<Vec<_>>()
+    );
+    // A burst at the same service first (noticed at about 1.5 s, held for 6 s): without the
+    // inhibition the ramp is noticed a second time while the burst's anomaly is open; with it,
+    // not before the hold has expired.
+    let mut obs = burst(3, 1_000);
+    obs.extend(ramp.iter().cloned());
+    obs.sort_by_key(|(t, _)| *t);
+    let ramp_notices_before = |d: &Drive, ms: u64| {
+        d.notices
+            .iter()
+            .filter(|(at, n)| *at < ms && n.anchor.0 >= 4)
+            .count()
+    };
+    let mut a = Drive::new(MediumParams::default(), &p);
+    a.play(&obs, 14_000, &p);
+    assert_eq!(ramp_notices_before(&a, 7_000), 1, "{:?}", a.notices);
+    let mut b = Drive::new(inhibit, &p);
+    b.play(&obs, 14_000, &p);
+    assert_eq!(ramp_notices_before(&b, 7_000), 0, "{:?}", b.notices);
+    // The burst itself is noticed either way.
+    assert!(b.notices.iter().any(|(_, n)| n.anchor == ObsId(0)));
+}
+
 #[test]
 fn a_ramp_of_benign_readings_is_noticed_and_the_control_cannot_see_it() {
     let p = public();
@@ -501,6 +553,189 @@ fn a_burst_is_two_kinds_within_the_window_read_from_the_offsets() {
     let mut d = Drive::new(burst_only(500, CoincidenceForm::Sliding), &p);
     d.play(&loose, 6_000, &p);
     assert_eq!(d.notices.len(), 1);
+}
+
+/// M3: the burst's sub-tick lookback keeps a stray that shares the burst's tick out of the
+/// anchor at every tick length, and arrivals at event resolution see a burst behind a stray of
+/// one of its own kinds.
+#[test]
+fn with_a_sub_tick_lookback_a_stray_in_the_bursts_tick_is_not_the_anchor() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let params = |tick_ms: u64, sub_ms: u64, every: bool| MediumParams {
+        tick_ns: tick_ms * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_subtick_ns: sub_ms * MS,
+        burst_every_event: every,
+        ..MediumParams::default()
+    };
+    // A latency stray 160 ms before an error rate and a message 12 ms apart (as above).
+    let tight = vec![
+        (2_150, counter(site, CounterName::Latency, 70)),
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    for tick in [100, 500, 2_000] {
+        let mut d = Drive::new(params(tick, 25, false), &p);
+        d.play(&tight, 6_000, &p);
+        assert_eq!(d.notices.len(), 1, "tick {tick}");
+        assert_eq!(d.notices[0].1.anchor, ObsId(1), "tick {tick}");
+        assert!(!d.notices[0].1.attached.contains(&ObsId(0)));
+    }
+    // A stray of the burst's own kind (an error rate) 160 ms before it, in the same 2 s tick:
+    // M1b's arrival stands at the stray, so no burst is seen in that tick; at event resolution
+    // the burst is seen and anchored on its first event.
+    let same_kind = vec![
+        (2_150, counter(site, CounterName::ErrorRate, 70)),
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    let mut d = Drive::new(params(2_000, 25, false), &p);
+    d.play(&same_kind, 6_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    let mut d = Drive::new(params(2_000, 25, true), &p);
+    d.play(&same_kind, 6_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(1));
+    // Arrivals at event resolution need the ordered form.
+    let sliding = MediumParams {
+        coincidence: CoincidenceForm::Sliding,
+        ..params(500, 0, true)
+    };
+    assert!(sliding.validate().is_err());
+}
+
+/// M3: the confirmation read in event time works inside a 2 s tick, where a latch's hold cannot
+/// be shorter than the tick.
+#[test]
+fn a_burst_is_confirmed_by_an_alarm_within_a_window_in_event_time() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let params = |lead: bool| MediumParams {
+        tick_ns: 2_000 * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_subtick_ns: 25 * MS,
+        burst_every_event: true,
+        burst_confirm: Confirm::Dependents,
+        confirm_window_ns: 100 * MS,
+        confirm_lead: lead,
+        ..MediumParams::default()
+    };
+    params(true).validate().unwrap();
+    let two = vec![
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+    ];
+    let with = |extra: (u64, Observation)| {
+        let mut v = two.clone();
+        v.push(extra);
+        v.sort_by_key(|(t, _)| *t);
+        v
+    };
+    // Alone: nothing.
+    let mut d = Drive::new(params(true), &p);
+    d.play(&two, 8_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    // A dependent's alarm 40 ms after: one notice, anchored on the burst at the site.
+    let mut d = Drive::new(params(true), &p);
+    d.play(
+        &with((2_362, counter(dep, CounterName::ErrorRate, 80))),
+        8_000,
+        &p,
+    );
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(0));
+    assert_eq!(d.notices[0].1.site, ServiceId(site));
+    // 300 ms after: outside the window, nothing (a latch would hold for the whole 2 s tick).
+    let mut d = Drive::new(params(true), &p);
+    d.play(
+        &with((2_622, counter(dep, CounterName::ErrorRate, 80))),
+        8_000,
+        &p,
+    );
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    // 30 ms before the burst: with the lead, the burst must come first, nothing; without it, the
+    // notice cites the earlier alarm, which becomes the anchor (why the lead exists).
+    let before = with((2_280, counter(dep, CounterName::ErrorRate, 80)));
+    let mut d = Drive::new(params(true), &p);
+    d.play(&before, 8_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    let mut d = Drive::new(params(false), &p);
+    d.play(&before, 8_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.anchor, ObsId(0));
+    assert_eq!(d.notices[0].1.site, ServiceId(dep));
+    // It needs a confirmation to read.
+    let bad = MediumParams {
+        burst_confirm: Confirm::None,
+        ..params(true)
+    };
+    assert!(bad.validate().is_err());
+}
+
+/// M3: with the cluster merge, a burst at a dependent just after the site's burst repeats the
+/// site's anchor, so one anomaly is noticed, not two; a merge window shorter than the gap does
+/// not merge; and it works across a tick edge.
+#[test]
+fn the_cluster_merge_notices_bursts_at_neighbouring_services_once() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let params = |merge_ms: u64| MediumParams {
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_subtick_ns: 25 * MS,
+        merge_window_ns: merge_ms * MS,
+        ..MediumParams::default()
+    };
+    let cluster = |t0: u64, t1: u64| {
+        vec![
+            (t0, counter(site, CounterName::ErrorRate, 80)),
+            (t0 + 5, message(site, SignalText::OutOfResource)),
+            (t1, counter(dep, CounterName::ErrorRate, 80)),
+            (t1 + 6, counter(dep, CounterName::Latency, 90)),
+        ]
+    };
+    for (t0, t1) in [(2_310, 2_340), (2_390, 2_420)] {
+        let obs = cluster(t0, t1);
+        let mut off = Drive::new(params(0), &p);
+        off.play(&obs, 6_000, &p);
+        assert_eq!(off.notices.len(), 2, "{t0}: {:?}", off.notices);
+        let mut on = Drive::new(params(50), &p);
+        on.play(&obs, 6_000, &p);
+        assert_eq!(on.notices.len(), 1, "{t0}: {:?}", on.notices);
+        assert_eq!(on.notices[0].1.anchor, ObsId(0));
+        assert_eq!(on.notices[0].1.site, ServiceId(site));
+        assert_eq!(on.noticer.stats().duplicate_notices, 1);
+        let mut short = Drive::new(params(10), &p);
+        short.play(&obs, 6_000, &p);
+        assert_eq!(short.notices.len(), 2, "{t0}");
+    }
+    // The merge needs the burst cells.
+    let bad = MediumParams {
+        burst: false,
+        coincidence: CoincidenceForm::Ordered,
+        merge_window_ns: 50 * MS,
+        ..MediumParams::default()
+    };
+    assert!(bad.validate().is_err());
+    // And it builds with a confirmation and the three-kind path.
+    let confirmed = MediumParams {
+        burst_confirm: Confirm::All,
+        burst3_window_ns: 20 * MS,
+        ..params(100)
+    };
+    confirmed.validate().unwrap();
 }
 
 #[test]
@@ -933,4 +1168,1081 @@ fn dump_public_observations() {
         }
     }
     std::fs::write(&out, text).expect("write the dump");
+}
+
+// ---- the frozen M2 media, pinned before M3 changes the medium crate
+
+/// FNV-1a 64 over text.
+fn fnv(h: &mut u64, text: &str) {
+    for b in text.as_bytes() {
+        *h ^= u64::from(*b);
+        *h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+}
+
+/// A notice log's Debug text as it was when the digests below were pinned. Work item B4 (merged
+/// from main after M3's freeze) added `cause` to `NoticeLogEntry`: `None` for a notice and
+/// `Some(Quiet)` for every retirement of a noticer without a follow-up rule. Those two spellings
+/// carry nothing the pinned text did not, so they are removed; any other cause (a follow-up
+/// retirement, which the medium has no rule for) is a real difference and fails here.
+fn log_as_pinned(log: &[NoticeLogEntry]) -> String {
+    let text = format!("{log:?}");
+    assert!(
+        !text.contains("cause: Some(Followup)"),
+        "a medium retirement by a follow-up rule"
+    );
+    text.replace(", cause: None", "")
+        .replace(", cause: Some(Quiet)", "")
+}
+
+/// The frozen media of M2 (`m2-selected.json`), by tick length in milliseconds.
+fn m2_frozen(tick: &str) -> MediumParams {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../experiments/exploration/m2-selected.json"
+    );
+    let sel: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let NoticerSpec::Medium(p) =
+        serde_json::from_value(sel["ticks"][tick]["noticer"].clone()).unwrap()
+    else {
+        panic!("not a medium");
+    };
+    p
+}
+
+/// What the frozen M2 media do on two short streams under the selection oracle (every notice
+/// and retirement, the trajectory, and the medium's charge on the bill), at each tick length.
+fn m2_frozen_digest() -> (u64, usize) {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut notices = 0;
+    for tick in ["100", "500", "2000"] {
+        for seed in [3u64, 5] {
+            let r = medium_arm_record(seed, m2_frozen(tick));
+            notices += r
+                .notice_log
+                .iter()
+                .filter(|e| e.kind == NoticeKind::Notice)
+                .count();
+            fnv(&mut h, &log_as_pinned(&r.notice_log));
+            fnv(&mut h, &format!("{:?}", r.trajectory));
+            let charged: u64 = r
+                .bill
+                .by_phase(Resource::Compute)
+                .filter(|(phase, _)| *phase == Phase::Component(MEDIUM_COMPONENT))
+                .map(|(_, ns)| ns)
+                .sum();
+            fnv(&mut h, &charged.to_string());
+        }
+    }
+    (h, notices)
+}
+
+/// The digest M2's frozen media produced on M2's merged code, before any M3 change (commit
+/// "Pin M1b's bytes as digests before sub-tick pruning changes anything"): with sub-tick pruning
+/// off, M3's medium must reproduce it.
+const M2_FROZEN_DIGEST: u64 = 0xbdee_d209_4069_7150;
+
+#[test]
+fn the_frozen_m2_media_notice_as_they_did_with_sub_tick_pruning_off() {
+    let (digest, notices) = m2_frozen_digest();
+    eprintln!("m2 frozen digest {digest:#018x}, {notices} notices");
+    assert!(notices > 10, "not vacuous");
+    assert_eq!(digest, M2_FROZEN_DIGEST);
+}
+
+/// The frozen M3 media (`experiments/exploration/m3-selected.json`), by tick length in ms.
+fn m3_frozen(tick: &str) -> Option<MediumParams> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../experiments/exploration/m3-selected.json"
+    );
+    let text = std::fs::read_to_string(path).ok()?;
+    let sel: Value = serde_json::from_str(&text).unwrap();
+    let NoticerSpec::Medium(p) =
+        serde_json::from_value(sel["ticks"][tick]["noticer"].clone()).unwrap()
+    else {
+        panic!("not a medium");
+    };
+    Some(p)
+}
+
+/// What the frozen M3 media do on two short streams, pinned at the freeze (commit "Freeze M3's
+/// graph"): a merge of main or any later change must reproduce it. The media and their held-out
+/// variants validate.
+const M3_FROZEN_DIGEST: u64 = 0x3f53_5e09_417a_9165;
+
+#[test]
+fn the_frozen_m3_media_notice_as_they_did_at_the_freeze() {
+    if m3_frozen("100").is_none() {
+        return; // before the freeze
+    }
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut notices = 0;
+    for tick in ["100", "500", "2000"] {
+        let frozen = m3_frozen(tick).unwrap();
+        frozen.validate().unwrap();
+        for variant in [
+            MediumParams {
+                burst_subtick_ns: 0,
+                burst_every_event: false,
+                ..frozen
+            },
+            MediumParams {
+                merge_window_ns: 0,
+                ..frozen
+            },
+            MediumParams {
+                burst_every_event: false,
+                ..frozen
+            },
+            MediumParams {
+                burst_subtick_ns: 0,
+                ..frozen
+            },
+        ] {
+            variant.validate().unwrap();
+        }
+        for seed in [3u64, 5] {
+            let r = medium_arm_record(seed, frozen);
+            notices += r
+                .notice_log
+                .iter()
+                .filter(|e| e.kind == NoticeKind::Notice)
+                .count();
+            fnv(&mut h, &log_as_pinned(&r.notice_log));
+            fnv(&mut h, &format!("{:?}", r.trajectory));
+        }
+    }
+    eprintln!("m3 frozen digest {h:#018x}, {notices} notices");
+    assert!(notices > 10, "not vacuous");
+    assert_eq!(h, M3_FROZEN_DIGEST);
+}
+
+// ---- M3: tests added for survivors of the mutation run of M2's adapters, graph and noticing
+// code (cargo-mutants; the report lists each survivor and its disposition)
+
+/// The tag table is the documented encoding: counters 0x10 + index, severities 0x20 + level,
+/// verdicts 1 and 2, abnormal kinds 0x100 + kind; no two kinds of tag share a value.
+#[test]
+fn the_tag_table_is_the_documented_encoding_and_has_no_collisions() {
+    let mut all = vec![TAG_ABNORMAL, TAG_BENIGN];
+    for (i, name) in CounterName::ALL.iter().enumerate() {
+        assert_eq!(counter_tag(*name), Tag(0x10 + i as u32));
+        all.push(counter_tag(*name));
+    }
+    for (i, s) in [
+        Severity::Low,
+        Severity::Medium,
+        Severity::High,
+        Severity::Critical,
+    ]
+    .iter()
+    .enumerate()
+    {
+        assert_eq!(severity_tag(*s), Tag(0x20 + i as u32));
+        all.push(severity_tag(*s));
+    }
+    for k in 0..7 {
+        all.push(Tag(ABNORMAL_KIND + k));
+    }
+    let mut sorted = all.clone();
+    sorted.sort_unstable_by_key(|t| t.0);
+    sorted.dedup();
+    assert_eq!(sorted.len(), all.len());
+}
+
+#[test]
+fn the_sense_port_hands_out_events_tick_by_tick_and_counts_what_it_holds() {
+    use gordian_medium::Sense;
+    use gordian_run::stream::arms::medium::adapters::DeliveredSense;
+    let p = public();
+    let mut s = DeliveredSense::default();
+    assert!(s.is_empty());
+    assert_eq!(s.len(), 0);
+    for (i, ms) in [50u64, 120, 130, 450].iter().enumerate() {
+        let h = held(i as u32, *ms, counter(1, CounterName::Latency, 10), &p);
+        s.push(encode(&h, 100 * MS).unwrap());
+    }
+    assert_eq!(s.len(), 4);
+    assert!(!s.is_empty());
+    assert_eq!(s.events(0).len(), 1);
+    assert_eq!(s.events(1).len(), 2);
+    assert_eq!(s.len(), 1);
+    assert!(s.events(3).is_empty());
+    assert_eq!(s.events(4).len(), 1);
+    assert!(s.is_empty());
+}
+
+#[test]
+fn the_ledger_port_counts_ticks_and_truncated_ticks() {
+    use gordian_medium::{Ledger, OpCounts, Truncation};
+    use gordian_run::stream::arms::medium::adapters::TickLedger;
+    let mut l = TickLedger::default();
+    let c = OpCounts {
+        cell_updates: 3,
+        ..OpCounts::default()
+    };
+    let t = Truncation::default();
+    l.record(0, &c, Some(&t));
+    l.record(1, &c, None);
+    l.record(2, &c, Some(&t));
+    assert_eq!((l.ticks, l.total_ticks, l.truncated_ticks), (3, 3, 2));
+    assert_eq!(l.total_counts.cell_updates, 9);
+    let ns = l.take_ns(&Prices::DECLARED).unwrap();
+    assert_eq!(ns, 9 * 200 + 3 * TICK_PRICE_NS);
+    assert_eq!((l.ticks, l.total_ticks), (0, 3));
+    assert!(l.take_ns(&Prices::DECLARED).is_none());
+}
+
+#[test]
+fn defaulted_manifest_fields_read_as_documented() {
+    let mut text = serde_json::to_value(NoticerSpec::Medium(MediumParams::default())).unwrap();
+    let obj = text.as_object_mut().unwrap();
+    for k in [
+        "onset",
+        "burst_n",
+        "confirm_delay_ticks",
+        "burst_confirm",
+        "abnormal_only",
+        "merge_window_ns",
+        "ramp_inhibit",
+    ] {
+        obj.remove(k);
+    }
+    let NoticerSpec::Medium(p) = serde_json::from_value(text).unwrap() else {
+        panic!("not a medium");
+    };
+    assert!(p.onset);
+    assert_eq!(p.burst_n, 2);
+    assert_eq!(p.confirm_delay_ticks, 2);
+    assert_eq!(p.burst_confirm, Confirm::None);
+    assert!(!p.abnormal_only && !p.ramp_inhibit);
+    assert_eq!(p.merge_window_ns, 0);
+}
+
+#[test]
+fn every_parameter_check_refuses_what_it_names() {
+    let ok = MediumParams::default();
+    ok.validate().unwrap();
+    let bad = [
+        MediumParams { tick_ns: 0, ..ok },
+        MediumParams {
+            tick_ns: 4_294_968_000, // a whole number of microseconds above u32::MAX
+            ..ok
+        },
+        MediumParams {
+            tick_ns: 100_000_001,
+            ..ok
+        },
+        MediumParams {
+            dependent_weight: -1.0,
+            ..ok
+        },
+        MediumParams {
+            ramp_penalty: f32::NAN,
+            ..ok
+        },
+        MediumParams {
+            onset_threshold: 0.0,
+            ..ok
+        },
+        MediumParams {
+            ramp_threshold: 0.0,
+            ..ok
+        },
+        MediumParams {
+            burst: true,
+            coincidence: CoincidenceForm::Off,
+            ..ok
+        },
+        MediumParams {
+            propagation: true,
+            coincidence: CoincidenceForm::Off,
+            ..ok
+        },
+        MediumParams {
+            burst: true,
+            coincidence: CoincidenceForm::Ordered,
+            burst_confirm: Confirm::All,
+            confirm_delay_ticks: 0,
+            ..ok
+        },
+        MediumParams {
+            burst: true,
+            coincidence: CoincidenceForm::Ordered,
+            burst_n: 5,
+            ..ok
+        },
+        // Fails only on a graph with services: a hold of more than 2^24 ticks.
+        MediumParams {
+            hold_ns: 100_000_000 * (1 << 24) + 100_000_000,
+            ..ok
+        },
+    ];
+    for (i, p) in bad.iter().enumerate() {
+        assert!(p.validate().is_err(), "case {i}: {p:?}");
+    }
+    // Each refusal is about its own parameter: the same without it validates.
+    let fine = [
+        MediumParams {
+            ramp: false,
+            ramp_threshold: 0.0,
+            ..ok
+        },
+        MediumParams {
+            dependent_weight: 0.0,
+            ..ok
+        },
+        MediumParams {
+            burst: true,
+            coincidence: CoincidenceForm::Ordered,
+            burst_confirm: Confirm::None,
+            confirm_delay_ticks: 0,
+            ..ok
+        },
+        MediumParams {
+            tick_ns: 4_294_967_000,
+            ..ok
+        },
+    ];
+    for (i, p) in fine.iter().enumerate() {
+        p.validate().unwrap_or_else(|e| panic!("case {i}: {e}"));
+    }
+}
+
+#[test]
+fn the_layout_names_each_services_emitters_and_nothing_else() {
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    let (_, layout) = spec(&MediumParams::default(), &p.services).unwrap();
+    assert_eq!(layout.notice.len(), p.services.len());
+    for i in 0..p.services.len() {
+        assert_eq!(layout.emitter_node(layout.notice[i]), Some(i as u32));
+        assert_eq!(layout.emitter_node(layout.ramp_notice[i]), Some(i as u32));
+    }
+    for cell in layout.latches.keys() {
+        assert_eq!(layout.emitter_node(*cell), None);
+    }
+}
+
+/// A graph with the M3 elements off is M2's: no quantity in time names a sub-tick parameter.
+#[test]
+fn with_the_m3_elements_off_the_spec_has_no_sub_tick_entry() {
+    use gordian_medium::TimeTarget;
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    for tick in ["100", "500", "2000"] {
+        let (s, _) = spec(&m2_frozen(tick), &p.services).unwrap();
+        assert!(
+            s.oscillome
+                .seconds
+                .iter()
+                .all(|t| !matches!(t.target, TimeTarget::Param { index: 6 | 7, .. }))
+        );
+        assert!(
+            s.cells
+                .iter()
+                .all(|c| c.params[6] == 0.0 && c.params[7] == 0.0)
+        );
+        assert_eq!(s.limits.max_passes, 3);
+    }
+}
+
+/// An onset counts a dependent's alarms at their weight, and a weight of 0 cites none of them.
+#[test]
+fn the_onset_counts_dependents_at_their_weight() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    // Two alarms at the site and one at its dependent in one tick: three with weight 1.
+    let obs = vec![
+        (1_510, counter(dep, CounterName::ErrorRate, 80)),
+        (1_520, counter(site, CounterName::ErrorRate, 80)),
+        (1_530, counter(site, CounterName::Latency, 80)),
+    ];
+    let mut d = Drive::new(onset_only(), &p);
+    d.play(&obs, 4_000, &p);
+    // The site's onset fires, citing the dependent's alarm, which is the earliest: the anchor
+    // (and so the notice's site) is the dependent's.
+    assert_eq!(d.notices.len(), 1, "{:?}", d.notices);
+    assert_eq!(d.notices[0].1.anchor, ObsId(0));
+    // Without the dependent's alarm, two at the site do not reach three.
+    let mut d = Drive::new(onset_only(), &p);
+    d.play(&obs[1..], 4_000, &p);
+    assert!(d.notices.is_empty(), "{:?}", d.notices);
+    // With weight 0 the dependent does not count (two of three) and is never cited.
+    let w0 = MediumParams {
+        dependent_weight: 0.0,
+        onset_threshold: 2.0,
+        ..onset_only()
+    };
+    let mut d = Drive::new(w0, &p);
+    d.play(&obs, 4_000, &p);
+    let at_site: Vec<_> = d
+        .notices
+        .iter()
+        .filter(|(_, n)| n.site == ServiceId(site))
+        .collect();
+    assert_eq!(at_site.len(), 1);
+    assert_eq!(at_site[0].1.anchor, ObsId(1));
+    assert!(!at_site[0].1.attached.contains(&ObsId(0)));
+}
+
+/// The notice cites the burst's events from the ticks its confirmation took (the emitter's
+/// lookback covers them), and with a confirmation and the cluster merge the confirmed burst is
+/// still noticed (the merge cell's window and lookback cover the delay).
+#[test]
+fn a_confirmed_burst_cites_its_events_and_survives_the_cluster_merge() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let confirmed = MediumParams {
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_confirm: Confirm::All,
+        confirm_hold_ns: 300 * MS,
+        confirm_delay_ticks: 2,
+        lookback_ns: 0,
+        ..MediumParams::default()
+    };
+    let obs = vec![
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+        (2_340, counter(dep, CounterName::ErrorRate, 80)),
+    ];
+    for merge in [0, 30] {
+        let params = MediumParams {
+            merge_window_ns: merge * MS,
+            ..confirmed
+        };
+        let mut d = Drive::new(params, &p);
+        d.play(&obs, 6_000, &p);
+        let at_site: Vec<_> = d
+            .notices
+            .iter()
+            .filter(|(_, n)| n.site == ServiceId(site))
+            .collect();
+        assert_eq!(at_site.len(), 1, "merge {merge}: {:?}", d.notices);
+        assert_eq!(at_site[0].1.anchor, ObsId(0));
+        assert!(at_site[0].1.attached.contains(&ObsId(1)), "merge {merge}");
+    }
+}
+
+/// The extra passes the M3 paths need are there: a notice comes in the tick of its evidence.
+#[test]
+fn the_m3_paths_notice_in_the_tick_of_their_evidence() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let base = MediumParams {
+        tick_ns: 2_000 * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 25 * MS,
+        burst_subtick_ns: 25 * MS,
+        burst_every_event: true,
+        burst_confirm: Confirm::Dependents,
+        confirm_window_ns: 100 * MS,
+        confirm_lead: true,
+        ..MediumParams::default()
+    };
+    let obs = vec![
+        (2_310, counter(site, CounterName::ErrorRate, 80)),
+        (2_322, message(site, SignalText::OutOfResource)),
+        (2_362, counter(dep, CounterName::ErrorRate, 80)),
+    ];
+    for params in [
+        base,
+        MediumParams {
+            ramp: true,
+            ramp_inhibit: true,
+            ..base
+        },
+        MediumParams {
+            merge_window_ns: 50 * MS,
+            ..base
+        },
+    ] {
+        let mut d = Drive::new(params, &p);
+        d.play(&obs, 8_000, &p);
+        // The evidence is in tick 1 (2 to 4 s), complete at the step of 4 s.
+        assert_eq!(d.notices.len(), 1, "{params:?}");
+        assert_eq!(d.notices[0].0, 4_000, "{params:?}");
+    }
+}
+
+/// The ramp integrator loses `ramp_penalty` readings per `ramp_jump` of jump: a ramp with one
+/// jump of 12 (1.2 jumps) is noticed when the penalty is 3.6 readings, at the reading it would
+/// be without the jump plus about three.
+#[test]
+fn a_jump_costs_the_ramp_its_stated_penalty() {
+    let p = public();
+    let params = MediumParams {
+        onset: false,
+        ramp_tau_ns: 60_000 * MS,
+        ramp_threshold: 6.0,
+        ramp_lookback_ns: 20_000 * MS,
+        ramp_jump: 10.0,
+        ramp_penalty: 3.0,
+        ..MediumParams::default()
+    };
+    // Readings every 600 ms, steps of 2, one step of 12 at the third.
+    let mut v = 20;
+    let ramp: Vec<(u64, Observation)> = (0..14)
+        .map(|i| {
+            v += if i == 3 { 12 } else { 2 };
+            (1_000 + 600 * i, counter(3, CounterName::Saturation, v))
+        })
+        .collect();
+    let mut d = Drive::new(params, &p);
+    d.play(&ramp, 12_000, &p);
+    assert_eq!(d.notices.len(), 1, "{:?}", d.notices);
+    // Six readings reach the threshold without the jump; the jump (minus 3.6) takes four more:
+    // the tenth reading (index 9, at 6.4 s), noticed at the next step.
+    let (at, _) = d.notices[0];
+    assert!((6_400..=7_000).contains(&at), "noticed at {at}");
+}
+
+#[test]
+fn the_noticer_describes_itself() {
+    let p = public();
+    let n =
+        MediumNoticer::new(MediumParams::default(), RungConfig::default(), &p.services).unwrap();
+    let text = format!("{n:?}");
+    assert!(
+        text.contains("MediumNoticer") && text.contains("next_tick"),
+        "{text}"
+    );
+}
+
+/// On real streams, at each frozen M3 tick length: an anomaly never holds an observation twice,
+/// never holds one earlier than its anchor, and the counters of proposals add up.
+#[test]
+fn on_real_streams_attachments_are_unique_and_never_precede_the_anchor() {
+    for tick in ["100", "500", "2000"] {
+        let Some(params) = m3_frozen(tick) else {
+            return;
+        };
+        for seed in [3u64, 5] {
+            let sp = stream_common::params(seed, 150);
+            let stream = generate(&sp);
+            let public = stream.public_info();
+            let all: Vec<Held> = stream
+                .events()
+                .iter()
+                .enumerate()
+                .map(|(i, (at, o))| Held {
+                    id: ObsId(i as u32),
+                    at: *at,
+                    abnormal: is_abnormal(o, &public.services),
+                    obs: o.clone(),
+                })
+                .collect();
+            let mut n =
+                MediumNoticer::new(params, RungConfig::default(), &public.services).unwrap();
+            let (mut items, mut next, mut now, mut notices) = (Vec::new(), 0, 0u64, 0u64);
+            while now < sp.duration_ns {
+                while next < all.len() && all[next].at.0 <= now {
+                    if all[next].abnormal {
+                        n.observe(&all[next]);
+                    }
+                    items.push(all[next].clone());
+                    next += 1;
+                }
+                notices += n.notice(Instant(now), &Store::with(items.clone())).len() as u64;
+                for a in n.anomalies() {
+                    let mut ids: Vec<u32> = a.attached.iter().map(|(_, o, _)| o.0).collect();
+                    assert!(
+                        ids.iter().all(|i| *i >= a.anchor.0),
+                        "tick {tick} seed {seed}"
+                    );
+                    let len = ids.len();
+                    ids.sort_unstable();
+                    ids.dedup();
+                    assert_eq!(ids.len(), len, "tick {tick} seed {seed}: {:?}", a.attached);
+                }
+                for id in n.retirable(Instant(now)) {
+                    n.retire(id);
+                }
+                now += 500 * MS;
+            }
+            let s = n.stats();
+            assert!(notices > 0);
+            assert_eq!(
+                s.notice_proposals,
+                notices + s.duplicate_notices + s.lost_anchors
+            );
+            assert_eq!((s.lost_anchors, s.step_errors), (0, 0));
+            assert!(s.retire_proposals > 0);
+        }
+    }
+}
+
+/// An anomaly made by one service's emitter but sited at another (its anchor is another
+/// service's alarm) retires when that emitter's service has been quiet for the hold.
+#[test]
+fn an_anomaly_sited_elsewhere_retires_with_the_emitter_that_made_it() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let obs = vec![
+        (1_510, counter(dep, CounterName::ErrorRate, 80)),
+        (1_520, counter(site, CounterName::ErrorRate, 80)),
+        (1_530, counter(site, CounterName::Latency, 80)),
+    ];
+    let mut d = Drive::new(onset_only(), &p);
+    d.play(&obs, 12_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    assert_eq!(d.notices[0].1.site, ServiceId(dep));
+    assert_eq!(d.retirable.len(), 1, "{:?}", d.retirable);
+    assert_eq!(d.retirable[0].1, vec![d.notices[0].1.id]);
+    assert!(d.noticer.stats().retire_proposals >= 1);
+}
+
+/// The rung's score and its peak, as the rung computes them, are what the medium reports.
+#[test]
+fn the_medium_reports_the_rungs_score_and_its_peak() {
+    use gordian_run::stream::arms::noticer::Scorer;
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let mut d = Drive::new(onset_only(), &p);
+    d.play(&burst(site, 1_000), 2_000, &p);
+    let id = d.notices[0].1.id;
+    let now = Instant(2_000 * MS);
+    let mut scorer = Scorer::new(&RungConfig::default(), p.services.len());
+    for _ in 0..4 {
+        scorer.saw_abnormal();
+    }
+    let tracked = d.noticer.tracked(id).unwrap().clone();
+    let s = d.noticer.score(id, now);
+    assert_eq!(s, scorer.score(&tracked, now));
+    assert!(s.is_finite() && s != 0.0 && s != 1.0 && s != -1.0, "{s}");
+    assert_eq!(d.noticer.score(9_999, now), f64::NEG_INFINITY);
+    d.noticer.refresh(now);
+    assert_eq!(
+        d.noticer.tracked(id).unwrap().peak_score,
+        s.max(tracked.peak_score)
+    );
+    assert!(d.noticer.tracked(id).unwrap().peak_score > tracked.peak_score);
+}
+
+/// Once the bill refuses it, the medium runs no tick and makes no notice for the segment.
+#[test]
+fn after_a_refusal_the_medium_runs_no_tick() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let mut n = MediumNoticer::new(onset_only(), RungConfig::default(), &p.services).unwrap();
+    n.refused();
+    let items: Vec<Held> = burst(site, 1_000)
+        .into_iter()
+        .enumerate()
+        .map(|(i, (ms, o))| held(i as u32, ms, o, &p))
+        .collect();
+    for h in &items {
+        n.observe(h);
+    }
+    assert!(
+        n.notice(Instant(5_000 * MS), &Store::with(items))
+            .is_empty()
+    );
+    assert_eq!(n.ledger().total_ticks, 0);
+}
+
+/// An abnormal observation that joined no anomaly is offered to a notice made while it is kept,
+/// and it is kept until it is more than 4 s old at the end of a step (`REOFFER_NS`).
+#[test]
+fn an_unattached_alarm_is_reoffered_for_four_seconds_only() {
+    let p = public();
+    let ramp_only = MediumParams {
+        onset: false,
+        ramp_tau_ns: 60_000 * MS,
+        ramp_threshold: 5.0,
+        ramp_lookback_ns: 20_000 * MS,
+        ..MediumParams::default()
+    };
+    // A ramp at service 3 every 1 s from 1 s, noticed at the fifth reading; one error-rate alarm
+    // at service 3, `gap` ms before the step that notices the ramp.
+    let ramp: Vec<(u64, Observation)> = (0..8)
+        .map(|i| {
+            (
+                1_000 + 1_000 * i,
+                counter(3, CounterName::Saturation, 22 + 2 * i),
+            )
+        })
+        .collect();
+    let mut d = Drive::new(ramp_only, &p);
+    d.play(&ramp, 12_000, &p);
+    assert_eq!(d.notices.len(), 1);
+    let at = d.notices[0].0;
+    // Unattached alarms are pruned at the end of each step (every 500 ms here), when 4 s old
+    // or more strictly: one exactly 4 s old at the previous step survives into this one.
+    for (gap, joined) in [(3_500u64, true), (4_500, true), (5_000, false)] {
+        let mut obs = ramp.clone();
+        obs.push((at - gap, counter(3, CounterName::ErrorRate, HIGH + 10)));
+        obs.sort_by_key(|(t, _)| *t);
+        // Found by its name, not its instant: it can share an instant with a ramp reading.
+        let alarm = obs
+            .iter()
+            .position(|(_, o)| {
+                matches!(
+                    o,
+                    Observation::Counter {
+                        name: CounterName::ErrorRate,
+                        ..
+                    }
+                )
+            })
+            .unwrap() as u32;
+        let mut d = Drive::new(ramp_only, &p);
+        d.play(&obs, 12_000, &p);
+        let n = &d.notices[0].1;
+        assert_eq!(d.notices[0].0, at, "gap {gap}");
+        assert_eq!(
+            n.attached.contains(&ObsId(alarm)),
+            joined,
+            "gap {gap}: {n:?}"
+        );
+    }
+}
+
+/// The lookbacks and windows the graph gives in time are the documented ones: the emitter cites
+/// the burst path's lookback plus the confirmation's delay; the cluster merge's window covers
+/// the delay plus two ticks and its lookback the delay plus one; the confirmation relay's
+/// lookback the burst's plus the delay.
+#[test]
+fn the_graphs_lookbacks_and_windows_are_the_documented_ones() {
+    use gordian_medium::Archetype;
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    let base = MediumParams {
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        burst_window_ns: 20 * MS,
+        burst_lookback_ns: 100 * MS,
+        lookback_ns: 0,
+        merge_window_ns: 30 * MS,
+        ..MediumParams::default()
+    };
+    // (params, emitter lookback, merge window us, merge lookback, relay lookback), 100 ms ticks.
+    let cases = [
+        (base, 1.0, 200_000.0, 2.0, None),
+        (
+            MediumParams {
+                burst_confirm: Confirm::All,
+                confirm_delay_ticks: 2,
+                ..base
+            },
+            3.0,
+            400_000.0,
+            4.0,
+            Some(3.0),
+        ),
+        (
+            MediumParams {
+                burst_confirm: Confirm::All,
+                confirm_delay_ticks: 1,
+                tick_ns: 500 * MS,
+                ..base
+            },
+            2.0,
+            1_500_000.0,
+            3.0,
+            Some(2.0),
+        ),
+    ];
+    for (i, (params, emit_lb, merge_w, merge_lb, relay_lb)) in cases.into_iter().enumerate() {
+        let (s, layout) = spec(&params, &p.services).unwrap();
+        let emitter = &s.cells[layout.notice[0].0 as usize];
+        assert_eq!(emitter.params[2], emit_lb, "case {i}: emitter lookback");
+        let merges: Vec<_> = s
+            .cells
+            .iter()
+            .filter(|c| {
+                c.archetype == Archetype::Coincidence && c.params[4] == 2.0 && c.params[0] == 1.0
+            })
+            .collect();
+        assert_eq!(merges.len(), p.services.len(), "case {i}");
+        assert_eq!(merges[0].params[1], merge_w, "case {i}: merge window");
+        assert_eq!(merges[0].params[3], merge_lb, "case {i}: merge lookback");
+        assert_eq!(
+            merges[0].params[7], 30_000.0,
+            "case {i}: merge sub-tick lookback"
+        );
+        let relays: Vec<_> = s
+            .synapses
+            .iter()
+            .filter(|y| y.delay_ticks > 0)
+            .map(|y| &s.cells[y.to.0 as usize])
+            .collect();
+        match relay_lb {
+            None => assert!(relays.is_empty(), "case {i}"),
+            Some(lb) => {
+                assert_eq!(relays.len(), p.services.len(), "case {i}");
+                assert!(
+                    relays.iter().all(|c| c.params[3] == lb),
+                    "case {i}: relay lookback"
+                );
+            }
+        }
+    }
+}
+
+// ---- tests for the survivors of the third mutation run (M3, resumed unit)
+
+/// Drives a medium noticer with the rung's parameters `cfg`, as `Drive` does (a step every
+/// 500 ms), and returns it with the notices it made, by step.
+fn drive_with(
+    params: MediumParams,
+    cfg: RungConfig,
+    observations: &[(u64, Observation)],
+    until_ms: u64,
+    public: &StreamPublic,
+) -> (MediumNoticer, Vec<(u64, Notice)>) {
+    let mut n = MediumNoticer::new(params, cfg, &public.services).unwrap();
+    let all: Vec<Held> = observations
+        .iter()
+        .enumerate()
+        .map(|(i, (ms, o))| held(i as u32, *ms, o.clone(), public))
+        .collect();
+    let (mut items, mut next, mut now, mut notices) = (Vec::new(), 0, 0u64, Vec::new());
+    while now <= until_ms {
+        while next < all.len() && all[next].at.0 <= now * MS {
+            if all[next].abnormal {
+                n.observe(&all[next]);
+            }
+            items.push(all[next].clone());
+            next += 1;
+        }
+        for x in n.notice(Instant(now * MS), &Store::with(items.clone())) {
+            notices.push((now, x));
+        }
+        for id in n.retirable(Instant(now * MS)) {
+            n.retire(id);
+        }
+        now += 500;
+    }
+    (n, notices)
+}
+
+/// Two services neither of which is the other's dependent.
+fn unrelated_pair(public: &StreamPublic) -> (u32, u32) {
+    use gordian_world::graph::dependents_mask;
+    let n = public.services.len() as u32;
+    for x in 0..n {
+        let of_x = dependents_mask(&public.services, ServiceId(x));
+        for y in (x + 1)..n {
+            if !of_x[y as usize] && !dependents_mask(&public.services, ServiceId(y))[x as usize] {
+                return (x, y);
+            }
+        }
+    }
+    panic!("no unrelated pair");
+}
+
+/// The tick-length check refuses a zero tick, and a tick above `u32::MAX` nanoseconds that is a
+/// whole number of microseconds, with its own message (each half of the check on its own).
+#[test]
+fn the_tick_length_check_refuses_with_its_own_message() {
+    let ok = MediumParams::default();
+    for tick_ns in [0, 4_294_968_000] {
+        let e = MediumParams { tick_ns, ..ok }.validate().unwrap_err();
+        assert!(
+            e.contains("tick_ns must be a positive whole number of microseconds"),
+            "{tick_ns}: {e}"
+        );
+    }
+}
+
+/// The confirmation's delay enters the emitter's and the relay's lookbacks as whole ticks: with
+/// the burst path's lookback a whole number of ticks, the sum is exact (no tick is added by
+/// rounding).
+#[test]
+fn the_confirmation_delay_counts_whole_ticks_in_the_lookbacks() {
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    for (delay, ticks) in [(1u8, 2.0f32), (3, 4.0)] {
+        let params = MediumParams {
+            onset: false,
+            ramp: false,
+            burst: true,
+            coincidence: CoincidenceForm::Ordered,
+            burst_lookback_ns: 100 * MS,
+            lookback_ns: 0,
+            burst_confirm: Confirm::All,
+            confirm_delay_ticks: delay,
+            ..MediumParams::default()
+        };
+        params.validate().unwrap();
+        let (s, layout) = spec(&params, &p.services).unwrap();
+        assert_eq!(
+            s.cells[layout.notice[0].0 as usize].params[2], ticks,
+            "{delay}"
+        );
+        let relays: Vec<f32> = s
+            .synapses
+            .iter()
+            .filter(|y| y.delay_ticks > 0)
+            .map(|y| s.cells[y.to.0 as usize].params[3])
+            .collect();
+        assert_eq!(relays.len(), p.services.len(), "{delay}");
+        assert!(relays.iter().all(|&lb| lb == ticks), "{delay}: {relays:?}");
+    }
+}
+
+/// An observation delivered after its tick has run is refused by the medium: the noticer counts
+/// one step error, stops, and runs no tick after it.
+#[test]
+fn a_late_observation_is_one_step_error_and_stops_the_medium() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let mut n = MediumNoticer::new(onset_only(), RungConfig::default(), &p.services).unwrap();
+    assert!(
+        n.notice(Instant(1_000 * MS), &Store::with(Vec::new()))
+            .is_empty()
+    );
+    assert_eq!(n.stats().step_errors, 0);
+    let late = held(0, 500, counter(site, CounterName::ErrorRate, 80), &p);
+    n.observe(&late);
+    assert!(
+        n.notice(Instant(1_500 * MS), &Store::with(vec![late.clone()]))
+            .is_empty()
+    );
+    assert_eq!(n.stats().step_errors, 1);
+    let ticks = n.ledger().total_ticks;
+    assert!(
+        n.notice(Instant(3_000 * MS), &Store::with(vec![late]))
+            .is_empty()
+    );
+    assert_eq!(n.ledger().total_ticks, ticks);
+    assert_eq!(n.stats().step_errors, 1);
+}
+
+/// The noticer keeps what it took in for the rung's `retain_ns`, measured strictly: an
+/// observation exactly `retain_ns` old at the end of a step is kept into the next one. A notice
+/// whose anchor is no longer kept is not made, and is counted as a lost anchor.
+#[test]
+fn an_anchor_kept_past_the_retention_is_lost_and_counted() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    // A burst of two kinds at 1,000 ms; 2 s ticks, so it is noticed at the 2,000 ms step, two
+    // steps after it was taken in.
+    let params = MediumParams {
+        tick_ns: 2_000 * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        ..MediumParams::default()
+    };
+    for (retain_ms, noticed) in [(500u64, true), (400, false)] {
+        let cfg = RungConfig {
+            retain_ns: retain_ms * MS,
+            ..RungConfig::default()
+        };
+        let (n, notices) = drive_with(params, cfg, &burst(site, 1_000), 4_000, &p);
+        let s = n.stats();
+        assert!(s.notice_proposals >= 1, "{retain_ms}");
+        if noticed {
+            assert_eq!(notices.len(), 1, "{retain_ms}: {notices:?}");
+            assert_eq!(notices[0].0, 2_000);
+            assert_eq!(notices[0].1.anchor, ObsId(0));
+            assert_eq!(s.lost_anchors, 0);
+        } else {
+            assert!(notices.is_empty(), "{retain_ms}: {notices:?}");
+            assert_eq!(s.lost_anchors, s.notice_proposals - s.duplicate_notices);
+        }
+    }
+}
+
+/// An unattached alarm is offered only to a notice whose anchor precedes it: two anomalies
+/// noticed in one step, at unrelated services, and an alarm at the second's service between the
+/// two anchors. The alarm is the second's by the rung's rule (its site, speaking), but precedes
+/// its anchor, so it joins neither.
+#[test]
+fn an_unattached_alarm_joins_no_anomaly_noticed_after_it() {
+    let p = public();
+    let (x, y) = unrelated_pair(&p);
+    let mut obs = burst(x, 1_000);
+    // The alarm is in tick 11, after the tick in which `x`'s burst fired its emitter, and more
+    // than the onset's two-tick lookback before `y`'s burst (tick 14).
+    obs.push((1_150, counter(y, CounterName::ErrorRate, 70)));
+    obs.extend(burst(y, 1_400));
+    let (n, notices) = drive_with(onset_only(), RungConfig::default(), &obs, 3_000, &p);
+    assert_eq!(notices.len(), 2, "{notices:?}");
+    assert_eq!(notices[0].0, notices[1].0, "noticed in one step");
+    let second = notices
+        .iter()
+        .find(|(_, a)| a.site == ServiceId(y))
+        .unwrap();
+    assert_eq!(second.1.anchor, ObsId(5), "{notices:?}");
+    for a in n.anomalies() {
+        assert!(!a.owns(ObsId(4)), "{a:?}");
+    }
+}
+
+/// An unattached alarm is kept for `REOFFER_NS` (4 s) measured strictly at the end of each
+/// step: one exactly 4 s old at the step before a notice is still offered to it, one 4.01 s old
+/// is not. The alarm is at a dependent of the ramp's site, so only the re-offer can attach it
+/// (the ramp cites its own service's readings), by propagation within `burst_ns` of the anchor.
+#[test]
+fn an_unattached_alarm_is_reoffered_while_four_seconds_old_and_not_after() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let ramp_only = MediumParams {
+        onset: false,
+        ramp_tau_ns: 60_000 * MS,
+        ramp_threshold: 7.0,
+        ramp_lookback_ns: 20_000 * MS,
+        ..MediumParams::default()
+    };
+    let cfg = RungConfig {
+        burst_ns: 20_000 * MS,
+        ..RungConfig::default()
+    };
+    let ramp: Vec<(u64, Observation)> = (0..12)
+        .map(|i| {
+            (
+                1_000 + 1_000 * i,
+                counter(site, CounterName::Saturation, 22 + 2 * i),
+            )
+        })
+        .collect();
+    let (_, plain) = drive_with(ramp_only, cfg.clone(), &ramp, 12_000, &p);
+    assert_eq!(plain.len(), 1, "{plain:?}");
+    let at = plain[0].0;
+    assert!(at >= 1_000 + 4_510 + 500, "{at}");
+    for (gap, joined) in [
+        (4_000u64, true),
+        (4_500, true),
+        (4_510, false),
+        (5_000, false),
+    ] {
+        let mut obs = ramp.clone();
+        obs.push((at - gap, counter(dep, CounterName::ErrorRate, HIGH + 10)));
+        obs.sort_by_key(|(t, _)| *t);
+        // Found by its name, not its instant: it can share an instant with a ramp reading.
+        let alarm = obs
+            .iter()
+            .position(|(_, o)| {
+                matches!(
+                    o,
+                    Observation::Counter {
+                        name: CounterName::ErrorRate,
+                        ..
+                    }
+                )
+            })
+            .unwrap() as u32;
+        let (_, notices) = drive_with(ramp_only, cfg.clone(), &obs, 12_000, &p);
+        assert_eq!(notices.len(), 1, "gap {gap}: {notices:?}");
+        assert_eq!(notices[0].0, at, "gap {gap}");
+        assert_eq!(
+            notices[0].1.attached.contains(&ObsId(alarm)),
+            joined,
+            "gap {gap}: {notices:?}"
+        );
+    }
 }

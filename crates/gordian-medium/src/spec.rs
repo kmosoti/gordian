@@ -258,6 +258,10 @@ impl MediumSpec {
         let o = &self.oscillome;
         let bad = |reason| Err(SpecError::BadForm { cell: id, reason });
         let p = &cell.params;
+        // A sub-tick lookback (M3) reads event times: tick * tick length + offset.
+        if cell.archetype.sub_tick_lookback_us(p).is_some() && o.tick_len_ns == 0 {
+            return bad("a sub-tick lookback needs the oscillome's tick length");
+        }
         match cell.archetype {
             Archetype::Coincidence if p[4] == 1.0 => {
                 let r = p[5] as usize;
@@ -465,6 +469,22 @@ impl MediumBuilder {
             params(&[f32::from(n), window_us as f32, c, lookback as f32, 2.0, l]),
             None,
         )
+    }
+
+    /// Set parameter `index` of `cell` (for the parameters no constructor takes: an ordered
+    /// coincidence's arrivals at event resolution, parameter 6, and the sub-tick lookback of an
+    /// integrator or a coincidence, parameter 7, which [`MediumBuilder::timed`] can also give in
+    /// time; M3). Validation happens when the spec is built. Does nothing for a cell or index
+    /// that does not exist.
+    pub fn set_param(&mut self, cell: CellId, index: usize, value: f32) {
+        if let Some(p) = self
+            .spec
+            .cells
+            .get_mut(cell.0 as usize)
+            .and_then(|c| c.params.get_mut(index))
+        {
+            *p = value;
+        }
     }
 
     /// A latch that proposes `retire` (of `kind`) when its hold expires.

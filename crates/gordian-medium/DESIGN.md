@@ -1,7 +1,8 @@
 # gordian-medium: what was built, and where it departs from the design
 
-Work items M1 and M1b (`docs/lab-queue.md`), built from `docs/medium-ports.md` (the design). M1b,
-the oscillome (section 4b), is recorded in its own section below, with departures 34 to 52. This file
+Work items M1, M1b and M3 (`docs/lab-queue.md`), built from `docs/medium-ports.md` (the design).
+M1b, the oscillome (section 4b), is recorded in its own section below, with departures 34 to 52;
+M3's sub-tick support in its own, with departures 53 to 57. This file
 records every place the build departs from the design or fills a gap in it, and why. The tick's
 total order is in `src/medium.rs`'s module documentation; the archetypes' parameters and state are
 in the table in `src/archetype.rs`.
@@ -456,7 +457,120 @@ encoding; the behaviour does not depend on prices (`the_new_default_prices_chang
 - A phase gate opens by the clock, not by the activity of other cells; a cycle summary is a sum,
   not consolidation.
 
+## Sub-tick support (M3): what was built, and where it departs
+
+Work item M3 (`docs/lab-queue.md`), item 1: "a support lookback expressed in nanoseconds and
+applied by `offset_ns` within the tick, so that the anchoring rule's floor is no longer the tick.
+Off by default; the all-off identity with M1b's bytes holds." M2 found the mechanism this answers
+(its lookback table and its 2 s losses): the emitter's support was cut at the tick edge, so a
+stray that shared a burst's tick was cited and became the anchor. Changes in `archetype.rs`,
+`medium.rs` (`cut_below_tick`), `spec.rs` and `oscillome.rs`. Tests: `tests/subtick.rs` (a
+hand-worked example per rule, validation, determinism, restore, order independence, counts) and
+`tests/m1b_identity.rs` (the all-off identity). Departures continue the numbering.
+
+### How the all-off identity is established
+
+`tests/m1b_identity.rs` was committed first on the branch (commit `7a70871`, "Pin M1b's bytes as
+digests before sub-tick pruning changes anything"), on the merged M1b and M2 code, run there, and
+its two digests written in: the oscillome spec of `tests/common` at 100 ms, 500 ms and 2 s under
+sparse and dense events and tight limits (21 cases), and 300 generated specs mixing M1's forms with
+every oscillome element (279 build). The hashing is `m1_identity.rs`'s, extended with each tick's
+completed cycle summaries and the plasticity port's record. The same commit pins what M2's three
+frozen media do on two short streams under the selection oracle
+(`the_frozen_m2_media_notice_as_they_did_with_sub_tick_pruning_off` in
+`crates/gordian-run/tests/stream_medium.rs`). The M3 code reproduces all three digests, and M1's
+own (`m1_identity.rs`) is unchanged and passes. One edit was made to the pinned file after the
+pin: the generator's seed literal was respelled in equal digit groups for clippy
+(`0x005e_ed0f_3b1d_0001`, the same value).
+
+### Departures and choices where the brief left room
+
+53. **The sub-tick lookback is parameter 7 of `Integrator` and `Coincidence`** (every mode), in
+    microseconds (an integer up to `2^24`, about 16.8 s; 0 is off), like the ordered
+    coincidence's window, so it is exact in the `f32` parameters and independent of the tick. It
+    can be given in time (`TimeTarget::Param { index: 7 }`, kind `Micros`, rounded up). The brief
+    says nanoseconds; microseconds are the resolution the ordered coincidence already reads
+    offsets at (departure 42), and a nanosecond count above 16.8 ms is not exact in `f32`.
+    Parameter 7 was "unused, must be finite, ignored" in M1 and M1b (the hazard of departure 41):
+    a spec that put a non-zero value there now means something or is refused. Every builder call
+    and generated spec wrote 0.
+54. **What is cut, and from where.** When a cell with a sub-tick lookback `s` fires (activation
+    not zero), its support, after the tick lookback, keeps the events whose time is no earlier
+    than `s` before the run's **instant**, where an event's time is
+    `(its tick - this tick) * tick length + offset_ns`, in integers. The instant is the
+    ordered coincidence's firing instant in event time (the newest counted arrival, or, with
+    arrivals at event resolution, the end of the first window that held its sources); for an
+    integrator and the sliding and binned coincidences, which have no instant inside the tick,
+    it is the newest event in the support. Events after the instant are kept: the cut is a lower
+    edge, like the tick lookback. A run that does not fire is not cut (its support is cited by
+    nobody until a run that fires, which cuts it). The emitter's anchor rule is unchanged: the
+    earliest event in its support, which is now the earliest event no earlier than `s` before
+    the instant. **Known limit:** for an integrator or a sliding coincidence in a long tick with
+    sustained input, the newest event can be well after the crossing, and the cut then drops
+    the events that crossed; the frozen M3 graph sets the lookback on ordered coincidences only.
+55. **It needs the tick length.** Event times need `Oscillome::tick_len_ns`; a cell with a
+    sub-tick lookback in a spec without one is refused (`BadForm`), and such a cell counts as an
+    oscillome form (`uses_oscillome`, version 2 bytes).
+56. **The cut costs nothing counted.** It is part of the cell update that forms the support, as
+    the tick lookback's pruning is (`the_sub_tick_cut_adds_no_counted_operation`). It sorts and
+    filters at most `max_refs` per input.
+57. **Arrivals at event resolution (parameter 6 of the ordered coincidence, 0 or 1; the PI's
+    addition).** The brief's cut alone leaves a second tick-edge effect in the ordered
+    coincidence: M1b's arrival takes the time of the earliest event its message cites (departure
+    42), so in a long tick a stray of the same kind as the burst stands for that kind and the
+    burst is not seen (`arrivals_at_event_resolution_see_a_burst_behind_a_stray_of_the_same_kind`),
+    and a burst followed in the same tick by a third kind more than the window later is missed,
+    because M1b counts the slots within the window of the newest only
+    (`arrivals_at_event_resolution_see_a_burst_that_a_later_event_would_hide`, at 100 ms). With
+    parameter 6 = 1 every event a positive message cites is a candidate arrival on its slot; the
+    cell scans the candidates in time order as window ends and fires at the first window that
+    holds `n` slots (with a lead: slot 0's earliest in the window first); without firing, a slot
+    keeps its latest candidate, which is the one any later window could hold. Its firing
+    instant is that window's end. It is a separate switch from the cut, so that an ablation can
+    say which does the work. Cost: the same one cell update; the scan is quadratic in the
+    candidates of one run (at most `4 * max_refs` plus four), unpriced like the cut.
+
+### Where the analogy breaks (for this element)
+
+Nothing here is an oscillation. The cut and the scan read time from `offset_ns`, which the sense
+adapter supplies; they are the medium reading a timestamp, not a faster rhythm. At 2 s the
+medium still runs once per tick, and a notice still waits for the tick to complete (M2's latency
+table): the cut moves the anchor, not the time of the notice.
+
 ## Mutation checks
+
+### M3 (cargo-mutants 27.1.0; the M2 arm and the M3 sub-tick code)
+
+Two fresh runs on the frozen tree after every test was added (one row per mutant in
+`experiments/exploration/m3-mutants.csv`), each under the cgroup runner, in place:
+
+- **The medium arm in `gordian-run`** (`adapters.rs`, `graph.rs`, `noticing.rs`, `mod.rs` of
+  `src/stream/arms/medium/`), against `cargo test -p gordian-run --test stream_medium`, 120 s
+  timeout: 294 mutants, **267 caught, 17 unviable, 3 timeouts, 7 missed**. Five earlier runs
+  (the first stopped at 212 of 294 by its time limit; the others iterated) left 45, 35, 20, 8
+  and 7 survivors and drove the tests added in commits `01507e1`, `e43caa9` and `55c0228`.
+- **The M3 diff of `gordian-medium/src`** (`archetype.rs`, `medium.rs`, `oscillome.rs`,
+  `spec.rs`, as `--in-diff`), against `cargo test -p gordian-medium`, 180 s timeout: 94 mutants,
+  **85 caught, 8 unviable, 1 missed**. The first run left 15 survivors (the sub-tick lookback in
+  `uses_oscillome`, and arrivals at event resolution); seven tests in `tests/subtick.rs` kill 14.
+
+The three timeouts make the tick loop run without end or over about 10^8 ticks
+(`complete_before`'s `/` made `%` or `*`; `run_ticks`'s `&&` made `||`); the test does not finish
+in 120 s against a baseline of about 1 s, so they are detected, not missed. The eight missed
+mutants are equivalent, each for a reason that holds for every input the code can receive:
+
+| Mutant | Why it is equivalent |
+|---|---|
+| `message_tag`, `0x4000_0000 \| id` to `^` | a catalogue id is below 2^16; the bits are disjoint |
+| `message_tag`, `0x8000_0000 \| folded` to `^` | `folded` is masked to `0x7FFF_FFFF`; the bits are disjoint |
+| `MediumParams::validate`, `t > u32::MAX` to `>=` | `u32::MAX` is not a whole number of microseconds, so the next clause refuses it with the same message |
+| `effect`, the second `lost_anchors += 1` to `-=` or `*=` | unreachable: an anchor is an event's `seq`, the `held.id` of an observation `encode` accepted, and `encode` refuses the only observations without a service (probes and corrections) |
+| `reoffer`, `h.id > first_anchor` to `>=` | at equality the anomaly anchored there owns `h.id`, so nothing joins either way |
+| `reoffer`, `anchor < h.id` to `<=` | an anomaly anchored at `h.id` owns it, which the guard before excludes |
+| `ordered_every_event`, `slot < ORDERED_SLOTS` to `<=` | `slot` is the cell's incoming-synapse index, and `MediumSpec::resolved` (through which every medium is built) refuses an ordered coincidence with more than `ORDERED_SLOTS` inputs |
+
+The `gordian-run` runs used only `stream_medium`'s tests, so a mutant other test files would
+catch is counted as missed there; the tally is conservative in that direction.
 
 ### M1b
 

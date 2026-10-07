@@ -125,7 +125,8 @@ pub enum TimeKind {
     Decay,
     /// `1 - exp(-tick / tau)` per tick (a novelty cell's rate).
     Rate,
-    /// Microseconds, rounded up, independent of the tick (an ordered coincidence's window).
+    /// Microseconds, rounded up, independent of the tick (an ordered coincidence's window; a
+    /// sub-tick lookback, M3).
     Micros,
 }
 
@@ -166,6 +167,8 @@ pub fn time_kind(archetype: Archetype, index: usize, params: &[f32; P]) -> Optio
     match (archetype, index) {
         (Archetype::Integrator, 0) => Some(TimeKind::Decay),
         (Archetype::Integrator, 3) => Some(TimeKind::Span),
+        // The sub-tick lookback (M3): microseconds, independent of the tick.
+        (Archetype::Integrator | Archetype::Coincidence, 7) => Some(TimeKind::Micros),
         // A rate per tick only means something when silent ticks count (gaps as zeros).
         (Archetype::Novelty, 0) if params[4] == 1.0 => Some(TimeKind::Rate),
         (Archetype::Coincidence, 1) => match params[4] as u8 {

@@ -14,14 +14,18 @@
 //! | `onset[n]` (`onset`) | `Integrator`, leak from `onset_tau_ns`, threshold `onset_threshold`, reset, lookback `lookback_ns` | `abn[n]` (1), `abn[d]` for each dependent `d` of `n` (`dependent_weight`) | several alarms at `n` (and its dependents) within a short time |
 //! | `kind[n, k]` (`burst`) | `Sense`, count | abnormal observations about `n` of kind `k`: error rate, latency, a message | one input per kind |
 //! | `other[n]` (`burst`) | `Integrator`, no memory, threshold 1/2, lookback 0 | `Sense` cells of the other kinds (saturation, authentication failures, restarts, a snapshot) | the fourth kind, relayed |
-//! | `burst[n]` (`burst`) | `Coincidence` (form `coincidence`), n = `burst_n`, consumed, window `burst_window_ns`, lookback `burst_lookback_ns` | `kind[n, *]`, `other[n]` | abnormal observations of `burst_n` distinct kinds at `n` within the window: in the ordered form, by their time inside the tick (`offset_ns`) |
+//! | `burst[n]` (`burst`) | `Coincidence` (form `coincidence`), n = `burst_n`, consumed, window `burst_window_ns`, lookback `burst_lookback_ns`, sub-tick lookback `burst_subtick_ns` (M3), arrivals at event resolution `burst_every_event` (M3) | `kind[n, *]`, `other[n]` | abnormal observations of `burst_n` distinct kinds at `n` within the window: in the ordered form, by their time inside the tick (`offset_ns`) |
 //! | `confirm[n]`, `relay[n]` (`burst_confirm`) | `Latch`, hold `confirm_hold_ns`; `Integrator`, no memory | `abn[d]` of the confirming services (dependents, or all others); `burst[n]`, `confirm_delay_ticks` late | the burst reaches `notice[n]` only through `relay[n]`, gated by `confirm[n]`: a burst of two kinds counts when another service alarmed around it; a gate carries no references, so the anchor stays at `n` |
-//! | `three[n]` (`burst3_window_ns`) | `Coincidence`, n = 3, window `burst3_window_ns` | `kind[n, *]`, `other[n]` | three kinds at `n`: a burst without confirmation |
+//! | `confirm[n]`, `others[n]` (`confirm_window_ns`, M3, in place of the latch and relay) | ordered `Coincidence`, n = 2, lead `confirm_lead`, window and sub-tick lookback `confirm_window_ns`; relay | `burst[n]` (slot 0), `others[n]` (the confirming services' alarms) | the burst counts when a confirming service alarms within the window of it in event time, at any tick length; its events and the confirming alarms are cited |
+//! | `three[n]` (`burst3_window_ns`) | `Coincidence`, n = 3, window `burst3_window_ns`, the burst's lookbacks and arrivals | `kind[n, *]`, `other[n]` | three kinds at `n`: a burst without confirmation |
+//! | `hub` (one; `merge_window_ns`, M3) | `Integrator`, no memory, reset | every `burst[n]` and `three[n]` | the bursts of one pass, anywhere |
+//! | `direct[n]`, `merge[n]` (`merge_window_ns`, M3) | relay; ordered `Coincidence`, n = 1, consumed, window and tick lookback covering the confirmation delay, sub-tick lookback `merge_window_ns` | `burst[n]` or `three[n]` through `direct[n]`, the confirmed burst through `relay[n]`, and `hub` with weight 0 | the burst reaches `notice[n]` citing every burst anywhere that began no more than `merge_window_ns` before it: the anchor is the earliest burst of the cluster, so the services around an incident repeat its site's anchor (one anomaly) instead of opening their own |
 //! | `dep[n]`, `prop[n]` (`propagation`) | relay; `Coincidence` (form `coincidence`), n = 2, lead, window `coincidence_window_ns` | `abn[n]` (slot 0), `abn[d]` of the dependents | an alarm at `n` and then one at a dependent (public rule 1) |
 //! | `arrived[n, c]`, `value[n, c]` (`ramp`) | `Sense`, presence and sum | counter `c` at `n`, benign or not | that a reading came, and the reading itself (five counters) |
 //! | `jump[n, c]` (`ramp`) | `Novelty`, rate 1 (its estimate is the last reading), band `ramp_jump`, one reading of warm-up | `value[n, c]` | the reading jumped from the last one by more than `ramp_jump` |
 //! | `smooth[n, c]` (`ramp`) | `Integrator`, leak from `ramp_tau_ns`, threshold `ramp_threshold`, reset, lookback `ramp_lookback_ns` | `arrived[n, c]` (+1), `jump[n, c]` (minus `ramp_penalty` per `ramp_jump` of jump) | readings of one counter that come often and move little: a ramp, which noise (readings far apart, each drawn afresh) is not |
 //! | `rampnotice[n]` (`ramp`) | `Emit`, kind notice, lookback `ramp_lookback_ns`, refractory `refractory_ns` | `smooth[n, c]` | the notice of a ramp |
+//! | `rgate[n]`, `inh1[n]`, `inh2[n]` (`ramp_inhibit`, M3) | relays | the ramp integrators; `hold[n]`, one tick late, at weight -1e9 | the ramp reaches `rampnotice[n]` only while no anomaly is open at `n`: one notice per episode at a service, not a ramp notice repeating a burst's |
 //! | `hold[n]` | `Latch`, retiring, hold `hold_ns` | `notice[n]`, `rampnotice[n]`, and `abn[n]` while it holds | an open anomaly at `n`; it proposes `retire` when `n` has been quiet for the hold |
 //!
 //! Times are given in nanoseconds and converted by the medium at build time for the tick length
@@ -127,6 +131,38 @@ pub struct MediumParams {
     /// The burst path's anchor lookback, nanoseconds.
     #[serde(default)]
     pub burst_lookback_ns: u64,
+    /// The burst and three-kind coincidences' sub-tick lookback (M3), nanoseconds, 0 for none:
+    /// when they fire, their support keeps the events no earlier than this before their firing
+    /// instant, read from `offset_ns`, so a stray that shares the burst's tick is not cited.
+    /// Converted to microseconds (rounded up) at build.
+    #[serde(default)]
+    pub burst_subtick_ns: u64,
+    /// Whether the ordered burst and three-kind coincidences read every event a message cites as
+    /// an arrival (M3; parameter 6 of the ordered coincidence), not only the earliest.
+    #[serde(default)]
+    pub burst_every_event: bool,
+    /// The cluster merge (M3), nanoseconds, 0 for none: a burst at a service is cited together
+    /// with every burst at any service that began no more than this before it, so that the
+    /// notice's anchor is the earliest burst of a cluster of services that burst together (an
+    /// incident seen at its site and at the services around it), and a burst whose cluster has
+    /// already been noticed repeats that notice's anchor, which the effector treats as the same
+    /// anomaly. See the module documentation.
+    #[serde(default)]
+    pub merge_window_ns: u64,
+    /// The confirmation in event time (M3), nanoseconds, 0 for M2's latch: with a confirmation,
+    /// a burst counts when an alarm at a confirming service falls within this window of it, read
+    /// from `offset_ns` (an ordered coincidence), instead of within a latch's hold in ticks.
+    #[serde(default)]
+    pub confirm_window_ns: u64,
+    /// With the confirmation in event time: the burst must come first (the coincidence's lead).
+    #[serde(default)]
+    pub confirm_lead: bool,
+    /// Silence the ramp at a service while an anomaly is open there (M3): its hold latch holds.
+    #[serde(default)]
+    pub ramp_inhibit: bool,
+    /// The ramp emitter's refractory period (M3), nanoseconds; `None` for `refractory_ns`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ramp_refractory_ns: Option<u64>,
     /// Which services' alarms must confirm a burst (gating it, `confirm_delay_ticks` late).
     #[serde(default = "no_confirm")]
     pub burst_confirm: Confirm,
@@ -195,6 +231,13 @@ impl Default for MediumParams {
             burst_n: 2,
             burst_window_ns: 25_000_000,
             burst_lookback_ns: 0,
+            burst_subtick_ns: 0,
+            burst_every_event: false,
+            merge_window_ns: 0,
+            confirm_window_ns: 0,
+            confirm_lead: false,
+            ramp_inhibit: false,
+            ramp_refractory_ns: None,
             burst_confirm: Confirm::None,
             confirm_hold_ns: 300_000_000,
             confirm_delay_ticks: 2,
@@ -251,6 +294,24 @@ impl MediumParams {
         }
         if self.burst && !(2..=4).contains(&self.burst_n) {
             return Err("noticer medium: burst_n must be 2 to 4".to_owned());
+        }
+        if self.confirm_window_ns > 0
+            && (self.burst_confirm == Confirm::None || self.coincidence != CoincidenceForm::Ordered)
+        {
+            return Err(
+                "noticer medium: the confirmation in event time needs a confirmation and the \
+                 ordered coincidence"
+                    .to_owned(),
+            );
+        }
+        if self.merge_window_ns > 0 && !self.burst {
+            return Err("noticer medium: the cluster merge needs the burst cells".to_owned());
+        }
+        if self.burst_every_event && self.coincidence != CoincidenceForm::Ordered {
+            return Err(
+                "noticer medium: arrivals at event resolution need the ordered coincidence"
+                    .to_owned(),
+            );
         }
         if self.coincidence == CoincidenceForm::Binned && !self.rhythms {
             return Err("noticer medium: a binned coincidence needs the rhythms".to_owned());
@@ -344,12 +405,64 @@ fn coincidence(
     c
 }
 
+/// The burst path's sub-tick support on coincidence `c` (M3): its sub-tick lookback, in time,
+/// and arrivals at event resolution for the ordered form. Nothing when both are off, so a graph
+/// without them is M2's, byte for byte.
+fn sub_tick(b: &mut MediumBuilder, params: &MediumParams, c: CellId) {
+    if params.burst_subtick_ns > 0 {
+        timed(b, c, 7, params.burst_subtick_ns);
+    }
+    if params.burst_every_event && params.coincidence == CoincidenceForm::Ordered {
+        b.set_param(c, 6, 1.0);
+    }
+}
+
+/// With a confirmation and `burst3_window_ns`: three kinds at the service within that window
+/// need no confirmation (the coincidence over the burst's `slots`, into `direct`, and into the
+/// cluster merge's `hub` when there is one).
+fn three_kinds(
+    b: &mut MediumBuilder,
+    params: &MediumParams,
+    slots: &[CellId],
+    direct: CellId,
+    hub: Option<CellId>,
+) {
+    if params.burst3_window_ns == 0 {
+        return;
+    }
+    let three = coincidence(
+        b,
+        params,
+        3,
+        params.burst3_window_ns,
+        params.burst_lookback_ns,
+        false,
+    );
+    sub_tick(b, params, three);
+    for s in slots {
+        b.synapse(*s, three, 1.0, 0);
+    }
+    b.synapse(three, direct, 1.0, 0);
+    if let Some(hub) = hub {
+        b.synapse(three, hub, 1.0, 0);
+    }
+}
+
 /// The medium's spec for the public graph `services`, and what its cells are.
 pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, Layout), String> {
     let n = services.len();
     let mut b = MediumBuilder::new()
         .limits(Limits {
-            max_passes: 3,
+            // The cluster merge adds two stages (a relay, the merge cell) between a burst and its
+            // emitter, which must complete in the burst's tick.
+            // The confirmation in event time adds one stage.
+            max_passes: if params.merge_window_ns > 0 {
+                5
+            } else if params.confirm_window_ns > 0 || params.ramp_inhibit {
+                4
+            } else {
+                3
+            },
             ..Limits::default()
         })
         .prices(Prices::DECLARED);
@@ -377,6 +490,13 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
             }
         })
         .collect();
+
+    // The cluster merge's hub: fires whenever a burst fires anywhere, citing the bursts of its
+    // pass; it tells every service's merge cell, with weight 0 (the merge cell keeps the events,
+    // and only its own service's bursts make it fire).
+    let merging = params.burst && params.merge_window_ns > 0;
+    let hub = merging.then(|| b.integrator(0.0, f32::MIN_POSITIVE, true, 0));
+    let mut merges: Vec<CellId> = Vec::new();
 
     for i in 0..n {
         // The emitter: fires whenever a cell feeding it fires (their activations are positive).
@@ -434,12 +554,72 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                 params.burst_lookback_ns,
                 false,
             );
+            sub_tick(&mut b, params, burst);
             for s in &slots {
                 b.synapse(*s, burst, 1.0, 0);
             }
+            // Without the cluster merge a burst reaches the emitter (`into` is the emitter, and
+            // `direct` too). With it, a burst reaches the service's merge cell: the confirmed
+            // burst through its relay, the others through a relay of one pass (`direct`), so that
+            // they meet the hub's message in the same pass.
+            let (into, direct) = match hub {
+                None => (notice, notice),
+                Some(hub) => {
+                    let delay = if params.burst_confirm == Confirm::None {
+                        0
+                    } else {
+                        u64::from(params.confirm_delay_ticks)
+                    };
+                    let merge = b.coincidence_ordered(1, 0, false, true, 0);
+                    // A relayed burst arrives `delay` ticks after its events: the window and the
+                    // tick lookback cover that, and the sub-tick lookback is the merge window.
+                    timed(&mut b, merge, 1, (delay + 2) * params.tick_ns);
+                    timed(
+                        &mut b,
+                        merge,
+                        3,
+                        params.burst_lookback_ns + (delay + 1) * params.tick_ns,
+                    );
+                    timed(&mut b, merge, 7, params.merge_window_ns);
+                    let direct = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+                    timed(&mut b, direct, 3, params.burst_lookback_ns);
+                    b.synapse(direct, merge, 1.0, 0);
+                    b.synapse(merge, notice, 1.0, 0);
+                    b.synapse(burst, hub, 1.0, 0);
+                    merges.push(merge);
+                    (merge, direct)
+                }
+            };
             match confirmers(params.burst_confirm, i, &dependents) {
                 None => {
-                    b.synapse(burst, notice, 1.0, 0);
+                    b.synapse(burst, direct, 1.0, 0);
+                }
+                Some(from) if params.confirm_window_ns > 0 => {
+                    // M3: the confirmation read in event time. An ordered coincidence of the
+                    // burst (slot 0) and any alarm at a confirming service (slot 1) within
+                    // `confirm_window_ns`, the burst first when `confirm_lead`; its sub-tick
+                    // lookback is the same window, so with the lead it cites the burst and the
+                    // alarms that confirmed it, and the anchor stays at the burst's first event.
+                    let confirm = b.coincidence_ordered(2, 0, params.confirm_lead, true, 0);
+                    timed(&mut b, confirm, 1, params.confirm_window_ns);
+                    timed(
+                        &mut b,
+                        confirm,
+                        3,
+                        params.burst_lookback_ns + params.tick_ns,
+                    );
+                    timed(&mut b, confirm, 7, params.confirm_window_ns);
+                    if params.burst_every_event {
+                        b.set_param(confirm, 6, 1.0);
+                    }
+                    b.synapse(burst, confirm, 1.0, 0);
+                    let others = b.integrator(0.0, 0.5, true, 0);
+                    for d in from {
+                        b.synapse(abn[d], others, 1.0, 0);
+                    }
+                    b.synapse(others, confirm, 1.0, 0);
+                    b.synapse(confirm, into, 1.0, 0);
+                    three_kinds(&mut b, params, &slots, direct, hub);
                 }
                 Some(from) => {
                     // The burst reaches the emitter `confirm_delay_ticks` later, through a relay,
@@ -463,27 +643,13 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                     b.synapse(burst, relay, 1.0, params.confirm_delay_ticks);
                     b.synapse_with(SynapseSpec {
                         from: relay,
-                        to: notice,
+                        to: into,
                         weight: 1.0,
                         delay_ticks: 0,
                         gate: Gate::Cell(confirm),
                         plastic: false,
                     });
-                    if params.burst3_window_ns > 0 {
-                        // Three kinds at the service need no confirmation.
-                        let three = coincidence(
-                            &mut b,
-                            params,
-                            3,
-                            params.burst3_window_ns,
-                            params.burst_lookback_ns,
-                            false,
-                        );
-                        for s in &slots {
-                            b.synapse(*s, three, 1.0, 0);
-                        }
-                        b.synapse(three, notice, 1.0, 0);
-                    }
+                    three_kinds(&mut b, params, &slots, direct, hub);
                 }
             }
         }
@@ -511,10 +677,27 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
         // The ramp path: per counter, a reading arrived (+1) and it jumped from the last one
         // (minus `ramp_penalty` per `ramp_jump` of jump), leaking with `ramp_tau_ns`.
         let mut ramp_notice = None;
+        let mut ramp_gate = None;
         if params.ramp {
             let rn = b.emit(f32::MIN_POSITIVE, KIND_NOTICE, 0, 0);
             timed(&mut b, rn, 2, params.ramp_lookback_ns);
-            timed(&mut b, rn, 3, params.refractory_ns);
+            timed(
+                &mut b,
+                rn,
+                3,
+                params.ramp_refractory_ns.unwrap_or(params.refractory_ns),
+            );
+            // With `ramp_inhibit`, the ramp reaches its emitter through `rgate`, which an open
+            // anomaly at the service silences (wired below, once the hold latch exists).
+            let into = if params.ramp_inhibit {
+                let g = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+                timed(&mut b, g, 3, params.ramp_lookback_ns);
+                b.synapse(g, rn, 1.0, 0);
+                ramp_gate = Some(g);
+                g
+            } else {
+                rn
+            };
             for name in CounterName::ALL {
                 let pattern = at(i, Some(CH_COUNTER), counter_tag(name));
                 let arrived = b.sense(pattern, SenseMode::Presence);
@@ -529,7 +712,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                 b.synapse(arrived, smooth, 1.0, 0);
                 let penalty = -params.ramp_penalty / params.ramp_jump.max(1.0);
                 b.synapse(jump, smooth, penalty, 0);
-                b.synapse(smooth, rn, 1.0, 0);
+                b.synapse(smooth, into, 1.0, 0);
             }
             layout.ramp_notice.push(rn);
             ramp_notice = Some(rn);
@@ -551,9 +734,28 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
             gate: Gate::Cell(hold),
             plastic: false,
         });
+        if let Some(g) = ramp_gate {
+            // M3: while the hold latch holds (an anomaly is open at the service), the ramp is
+            // silenced: the held value reaches `rgate` one tick later through two relays, in the
+            // same pass as the ramp integrators' messages (the latch wakes in pass 1; the ramp
+            // fires in pass 2), with a weight that no ramp outweighs. The relays' tick lookback
+            // is 0 and the first synapse has a delay of one tick, so they cite nothing and the
+            // ramp notice's anchor is the ramp's alone.
+            let inh1 = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+            let inh2 = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
+            b.synapse(hold, inh1, 1.0e9, 1);
+            b.synapse(inh1, inh2, 1.0, 0);
+            b.synapse(inh2, g, -1.0e9, 0);
+        }
         layout
             .latches
             .insert(hold, u32::try_from(i).unwrap_or(u32::MAX));
+    }
+
+    if let Some(hub) = hub {
+        for m in merges {
+            b.synapse(hub, m, 0.0, 0);
+        }
     }
 
     let mut o = Oscillome {
