@@ -79,28 +79,28 @@ pub enum DecodeError {
     Inconsistent(&'static str),
 }
 
-struct Writer(Vec<u8>);
+pub(crate) struct Writer(pub(crate) Vec<u8>);
 
 impl Writer {
-    fn u8(&mut self, v: u8) {
+    pub(crate) fn u8(&mut self, v: u8) {
         self.0.push(v);
     }
-    fn u16(&mut self, v: u16) {
+    pub(crate) fn u16(&mut self, v: u16) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn u32(&mut self, v: u32) {
+    pub(crate) fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn u64(&mut self, v: u64) {
+    pub(crate) fn u64(&mut self, v: u64) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn f32(&mut self, v: f32) {
+    pub(crate) fn f32(&mut self, v: f32) {
         self.u32(v.to_bits());
     }
-    fn len32(&mut self, n: usize) {
+    pub(crate) fn len32(&mut self, n: usize) {
         self.u32(u32::try_from(n).unwrap_or(u32::MAX));
     }
-    fn opt_u64(&mut self, v: Option<u64>) {
+    pub(crate) fn opt_u64(&mut self, v: Option<u64>) {
         match v {
             None => self.u8(0),
             Some(x) => {
@@ -109,7 +109,7 @@ impl Writer {
             }
         }
     }
-    fn opt_u16(&mut self, v: Option<u16>) {
+    pub(crate) fn opt_u16(&mut self, v: Option<u16>) {
         match v {
             None => self.u8(0),
             Some(x) => {
@@ -118,7 +118,7 @@ impl Writer {
             }
         }
     }
-    fn opt_u8(&mut self, v: Option<u8>) {
+    pub(crate) fn opt_u8(&mut self, v: Option<u8>) {
         match v {
             None => self.u8(0),
             Some(x) => {
@@ -127,7 +127,7 @@ impl Writer {
             }
         }
     }
-    fn oscillome(&mut self, o: &Oscillome) {
+    pub(crate) fn oscillome(&mut self, o: &Oscillome) {
         self.u64(o.tick_len_ns);
         self.u8(u8::try_from(o.periods_ns.len()).unwrap_or(u8::MAX));
         for p in &o.periods_ns {
@@ -152,7 +152,7 @@ impl Writer {
         self.opt_u8(o.plasticity_rhythm);
         self.opt_u8(o.trace_rhythm);
     }
-    fn cycle(&mut self, c: &CycleSummary) {
+    pub(crate) fn cycle(&mut self, c: &CycleSummary) {
         self.u64(c.cycle);
         self.opt_u64(c.first_tick);
         self.u64(c.ticks);
@@ -168,7 +168,7 @@ impl Writer {
             self.u64(v);
         }
     }
-    fn refs(&mut self, refs: &[EventRef]) {
+    pub(crate) fn refs(&mut self, refs: &[EventRef]) {
         // A support never exceeds max_refs (a u16), so the count fits.
         self.u16(u16::try_from(refs.len()).unwrap_or(u16::MAX));
         for r in refs.iter().take(usize::from(u16::MAX)) {
@@ -177,7 +177,7 @@ impl Writer {
             self.u32(r.seq);
         }
     }
-    fn counts(&mut self, c: &OpCounts) {
+    pub(crate) fn counts(&mut self, c: &OpCounts) {
         for v in [
             c.cell_updates,
             c.synapse_traversals,
@@ -190,12 +190,12 @@ impl Writer {
     }
 }
 
-struct Reader<'a> {
-    rest: &'a [u8],
+pub(crate) struct Reader<'a> {
+    pub(crate) rest: &'a [u8],
 }
 
 impl Reader<'_> {
-    fn take<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
+    pub(crate) fn take<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
         let (head, tail) = self
             .rest
             .split_first_chunk::<N>()
@@ -203,46 +203,46 @@ impl Reader<'_> {
         self.rest = tail;
         Ok(*head)
     }
-    fn u8(&mut self) -> Result<u8, DecodeError> {
+    pub(crate) fn u8(&mut self) -> Result<u8, DecodeError> {
         Ok(self.take::<1>()?[0])
     }
-    fn u16(&mut self) -> Result<u16, DecodeError> {
+    pub(crate) fn u16(&mut self) -> Result<u16, DecodeError> {
         Ok(u16::from_le_bytes(self.take()?))
     }
-    fn u32(&mut self) -> Result<u32, DecodeError> {
+    pub(crate) fn u32(&mut self) -> Result<u32, DecodeError> {
         Ok(u32::from_le_bytes(self.take()?))
     }
-    fn u64(&mut self) -> Result<u64, DecodeError> {
+    pub(crate) fn u64(&mut self) -> Result<u64, DecodeError> {
         Ok(u64::from_le_bytes(self.take()?))
     }
-    fn f32(&mut self) -> Result<f32, DecodeError> {
+    pub(crate) fn f32(&mut self) -> Result<f32, DecodeError> {
         Ok(f32::from_bits(self.u32()?))
     }
-    fn flag(&mut self) -> Result<bool, DecodeError> {
+    pub(crate) fn flag(&mut self) -> Result<bool, DecodeError> {
         match self.u8()? {
             0 => Ok(false),
             1 => Ok(true),
             t => Err(DecodeError::BadTag(t)),
         }
     }
-    fn opt_u64(&mut self) -> Result<Option<u64>, DecodeError> {
+    pub(crate) fn opt_u64(&mut self) -> Result<Option<u64>, DecodeError> {
         Ok(if self.flag()? {
             Some(self.u64()?)
         } else {
             None
         })
     }
-    fn opt_u16(&mut self) -> Result<Option<u16>, DecodeError> {
+    pub(crate) fn opt_u16(&mut self) -> Result<Option<u16>, DecodeError> {
         Ok(if self.flag()? {
             Some(self.u16()?)
         } else {
             None
         })
     }
-    fn opt_u8(&mut self) -> Result<Option<u8>, DecodeError> {
+    pub(crate) fn opt_u8(&mut self) -> Result<Option<u8>, DecodeError> {
         Ok(if self.flag()? { Some(self.u8()?) } else { None })
     }
-    fn oscillome(&mut self) -> Result<Oscillome, DecodeError> {
+    pub(crate) fn oscillome(&mut self) -> Result<Oscillome, DecodeError> {
         let tick_len_ns = self.u64()?;
         let n = usize::from(self.u8()?);
         if n.saturating_mul(8) > self.rest.len() {
@@ -276,7 +276,7 @@ impl Reader<'_> {
             trace_rhythm: self.opt_u8()?,
         })
     }
-    fn cycle(&mut self, rhythm: u8) -> Result<CycleSummary, DecodeError> {
+    pub(crate) fn cycle(&mut self, rhythm: u8) -> Result<CycleSummary, DecodeError> {
         let cycle = self.u64()?;
         let first_tick = self.opt_u64()?;
         let ticks = self.u64()?;
@@ -297,14 +297,14 @@ impl Reader<'_> {
     }
     /// A count of items each at least `min_len` bytes long, checked against the bytes left so a
     /// hostile count cannot demand a huge allocation.
-    fn count(&mut self, min_len: usize) -> Result<usize, DecodeError> {
+    pub(crate) fn count(&mut self, min_len: usize) -> Result<usize, DecodeError> {
         let n = self.u32()? as usize;
         if n.saturating_mul(min_len) > self.rest.len() {
             return Err(DecodeError::Truncated);
         }
         Ok(n)
     }
-    fn refs(&mut self) -> Result<Vec<EventRef>, DecodeError> {
+    pub(crate) fn refs(&mut self) -> Result<Vec<EventRef>, DecodeError> {
         let n = usize::from(self.u16()?);
         if n.saturating_mul(16) > self.rest.len() {
             return Err(DecodeError::Truncated);
@@ -319,7 +319,7 @@ impl Reader<'_> {
             })
             .collect()
     }
-    fn counts(&mut self) -> Result<OpCounts, DecodeError> {
+    pub(crate) fn counts(&mut self) -> Result<OpCounts, DecodeError> {
         Ok(OpCounts {
             cell_updates: self.u64()?,
             synapse_traversals: self.u64()?,

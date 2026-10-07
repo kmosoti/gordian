@@ -124,6 +124,9 @@ pub enum SpecError {
         /// What is wrong.
         reason: &'static str,
     },
+    /// A structural change asked of a built medium ([`Medium::grow`], [`Medium::set_params`])
+    /// names nothing that exists, or changes what a quantity in time already sets (A1a).
+    Structure(&'static str),
 }
 
 impl MediumSpec {

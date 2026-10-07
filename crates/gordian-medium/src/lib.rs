@@ -15,9 +15,13 @@
 //!   at build, per-cycle summaries, and plasticity and trace sampling at rhythm boundaries. Every
 //!   element is switchable off, and with all off the medium is M1's, byte for byte.
 //!
+//! - Engrams (work item A1a, [`engram`]): a bind operation on the plasticity port that builds,
+//!   strengthens and weakens a recall pattern of ordinary cells, decay at a rhythm boundary, and
+//!   the structural operations it needs ([`Medium::grow`], [`Medium::set_params`]).
+//!
 //! # What is not built
 //!
-//! No world adapter, no noticer, no learning (M2 and later). Nothing here claims that the
+//! No world adapter, no noticer (M2 and later, in `gordian-run`). Nothing here claims that the
 //! archetypes notice or anchor anything in a world; that is what M2's experiment is for.
 //!
 //! # Determinism
@@ -30,6 +34,7 @@
 #![forbid(unsafe_code)]
 
 pub mod archetype;
+pub mod engram;
 pub mod medium;
 pub mod oscillome;
 pub mod persist;
@@ -38,6 +43,10 @@ pub mod spec;
 pub mod types;
 
 pub use archetype::{Archetype, ParamError};
+pub use engram::{
+    Bind, BindResult, Engram, EngramParams, EngramStats, Engrams, Key, KeySite, Outcome, OutcomeSite,
+    Recall,
+};
 pub use medium::{
     Cell, Medium, StepError, Synapse, TickSummary, TickTrace, TraceItem, Truncation, WeightError,
 };
