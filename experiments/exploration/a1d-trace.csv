@@ -1,0 +1,13 @@
+arm,selector,form,state_key,segments,engrams_at_end,answers,answers_not_incident,bound_not_incident,answers_known,bound_known,answers_hard,bound_hard,bind_created,bind_strengthened,bind_generalised,bind_too_few,bind_refused,bind_no_late,bind_elsewhere,bind_off,bind_unheld,contradicted,recall,offered,admitted,gated_consistent,gated_standing,overtaken,unmatched,redundant,confirmed,declared,not_declared,admitted_not_incident,admitted_known,admitted_hard
+thr_t1_eng_off,thr,eng_off,1301,20,0,584,69,0,484,0,31,0,0,0,0,0,0,0,0,584,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+thr_t1_eng_family,thr,eng_family,1302,20,20,495,60,56,408,323,27,16,20,12,363,45,0,0,55,0,0,2812,840,623,89,120,43,371,44,173,0,70,19,6,83,0
+thr_t1_eng_2site,thr,eng_2site,1303,20,116,346,56,52,272,213,18,14,116,6,157,30,0,0,37,0,0,1142,6152,1800,243,407,79,1071,1619,2718,0,209,34,32,206,5
+thr_t1_eng_site,thr,eng_site,1304,20,18,579,69,63,479,430,31,30,411,33,79,56,0,0,0,0,0,96,140,113,5,4,4,100,7,19,0,3,2,1,4,0
+chg_k12_eng_off,chg,eng_off,1306,20,0,504,34,0,448,0,22,0,0,0,0,0,0,0,0,504,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+chg_k12_eng_family,chg,eng_family,1307,20,19,412,29,27,365,305,18,13,19,11,315,37,0,0,30,0,0,2499,946,658,97,108,44,409,102,186,0,82,15,8,87,2
+chg_k12_eng_2site,chg,eng_2site,1308,20,105,295,21,20,262,217,12,10,105,13,129,30,0,0,18,0,0,926,5238,1580,239,358,78,905,1110,2538,0,198,41,8,227,4
+chg_k12_eng_site,chg,eng_site,1309,20,16,499,34,30,444,404,21,20,353,29,72,45,0,0,0,0,0,64,167,142,5,3,7,127,6,19,0,1,4,0,5,0
+sel_eng_off_privileged,sel,eng_off,1311,20,0,61,6,0,23,0,32,0,0,0,0,0,0,0,0,61,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+sel_eng_family_privileged,sel,eng_family,1312,20,11,53,6,6,20,19,27,16,11,4,26,1,0,0,11,0,0,131,402,271,134,72,42,23,59,72,0,126,8,15,43,76
+sel_eng_2site_privileged,sel,eng_2site,1313,20,35,58,6,6,22,21,30,17,35,2,7,1,0,0,13,0,0,9,362,217,98,63,38,18,39,106,0,93,5,24,39,35
+sel_eng_site_privileged,sel,eng_site,1314,20,1,61,6,6,23,22,32,32,57,2,1,1,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0

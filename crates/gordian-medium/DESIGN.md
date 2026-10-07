@@ -4,7 +4,8 @@ Work items M1, M1b and M3 (`docs/lab-queue.md`), built from `docs/medium-ports.m
 M1b, the oscillome (section 4b), is recorded in its own section below, with departures 34 to 52;
 M3's sub-tick support in its own, with departures 53 to 57; A1a's engram in its own, written
 before its code, with departures 58 to 65; A1c's two-site key in its own, written before its code,
-with departures from 66. This file
+with departures 66 to 70; A1d's rule of where a recall may speak and its trace marks in its own,
+written before its code, with departures from 71. This file
 records every place the build departs from the design or fills a gap in it, and why. The tick's
 total order is in `src/medium.rs`'s module documentation; the archetypes' parameters and state are
 in the table in `src/archetype.rs`.
@@ -834,6 +835,156 @@ before the code) or fills a gap it left.
     past that, whatever the verdict there. Without the order the wait would be one step longer
     than one review period (found by the test `the_gate_waits_one_review_period_then_drops_the_recall`
     before any run).
+
+## The engram under a non-privileged selector (A1d): design, written before the code
+
+Work item A1d (`docs/lab-queue.md`, "## A1d"). A1c showed the memory learning from a one-sided
+teacher: under the selection oracle only hard incidents are asked about, so nothing plain is ever
+bound or contradicted (review log, "A1c"). A1d runs the engram arm under B4's public selectors and
+adds three things: a rule for where a recall may speak, a trace of the layer's counters, and the
+hooks they need. This section was committed before any A1d code; what the build changes against
+it is added below as numbered departures from 71.
+
+### The selector (manifest only; no code)
+
+The engram arm's escalation rule is chosen in the manifest, as every arm's is. Under B4's public
+selectors (`public_threshold`, `public_change`, at R5's 16 s delay with the rung's context) plain
+anomalies are asked about, and the `Answered` events that come back already feed bind through the
+seam's memory hook (A1a): every answer the arm receives is bound, plain kinds and "not an
+incident" included, with A1a's three structural exceptions unchanged (the anomaly is no longer
+held; a family-keyed answer naming another service than the anomaly's; a key with fewer than
+`min_features` features). The vote (A1a: each disagreeing answer about a pattern an engram keys
+takes one from its strength) is what weakens a key whose outcomes disagree; nothing new is built
+for it. The constants are B4's merged choices for the medium row (`b4-selected.json`,
+`medium_t100`: threshold `t` = 1 s, change `k` = 12), read and not retuned. The selection oracle
+stays: it is the same arm under `oracle_selection`, a labelled ceiling.
+
+**What the selector cannot be told.** A recalled anomaly is never escalated (A1a's rule, in
+`StreamArm::step`): once the memory speaks on an anomaly, the selector's question about it is not
+asked and no answer about it is bound. So the memory's own recalls are never contradicted by an
+answer about the same anomaly; only answers about anomalies it did not recall (or recalled and the
+gate dropped) vote on its engrams. This is charter section 9's selective evidence inside the arm,
+stated before the run and measured by the trace (recalls admitted against answers bound).
+
+### Where a recall may speak (the rule of item 2)
+
+**The rule.** A recall is declared only on an anomaly that (a) A1c's gate admits (the latest
+public consistency check found no consistent hypothesis, `AnomalyView::contradicted_since` set)
+and (b) carries no declaration made **strictly after** the checker's last consistent verdict on
+it. Written with `d` the instant of the latest declaration the rung made for the anomaly and `c`
+the instant of the latest check that found a consistent hypothesis:
+
+- no declaration (`d` none): the recall may speak (A1c's case);
+- `d` and no consistent verdict ever (`c` none): the declaration was made on evidence the checker
+  never explained; it **stands**; the recall does not speak;
+- `d > c`: the declaration was made after the checker last explained the evidence; it **stands**
+  (the contradiction is not news to it); the recall does not speak;
+- `d <= c`: the checker explained the evidence at or after the declaration, and has since found
+  it contradictory (by (a)); the declaration is **stale**; the recall may speak, beside it.
+
+The equal case is stale because the rung's review runs the checker at the instant it concludes:
+a cheap declaration made on a consistent verdict has `d = c`, and a later contradiction is what
+makes it stale. That is the brief's "memory corrects a cheap declaration the rules have since
+contradicted, and never adds to one that stands". (a) is kept because (b) alone would let a
+recall add to a declaration whose latest check is consistent (`d <= c` and no contradiction
+since), which stands by any reading.
+
+**What it does not stop.** A stale declaration may be correct. A recall beside it adds a second
+declaration; under the evaluator's rule S11 a wrong declaration never cancels a correct one, so the
+incident's decision (correct by its deadline) is unchanged, and its `wrong_declarations` rises.
+This is A1c's "118 also correct" channel, which the rule keeps open by construction: the rule
+decides on the public verdict's history, never on whether the declaration was right, which no arm
+can know. And a recall still preempts the selector's later question about the anomaly (above).
+
+**Where it lives.** The rung keeps, per anomaly, the instant of its latest declaration (where it
+sets `cheap_declared`) and the instant of its latest consistent verdict (where it records a
+verdict, in a review or a check; only while it monitors). It hands the ids whose declaration
+stands to the noticer before the gate reads the views (a new default method on the `Noticer` seam,
+a no-op for every other noticer). The gate is a new value of the layer's `gate` switch,
+`stale` (A1c's `contradicted` and `none` are unchanged); the wait is A1c's (one review period of
+the rung, read at each step).
+
+### Counters, through the trace port
+
+**In the crate (world-agnostic).** A `Mark`: an instant in nanoseconds, a kind (`u16`, the
+adapter's), a subject (`u32`), an event (`u32`), a tag (`u32`) and a value (`i64`), all the
+adapter's to define. `Trace` gains `mark(&mut self, mark)`, a default method that does nothing, so
+every existing trace (`NoTrace`, `SamplingTrace`) is what it was. A `MarkLog` trace samples no
+tick and keeps the marks it is given, in order. The medium never writes a mark: marks are notes by
+the medium's owner, on the same port as its tick traces, so that everything the medium's side
+reports leaves by one outlet.
+
+**In the adapter.** The engram layer holds a `MarkLog` as its medium's trace port (it samples no
+tick, so the engram medium does exactly what it did under `NoTrace`) and marks, with the step's
+instant:
+
+| Mark | When | Subject | Event | Tag | Value |
+|---|---|---|---|---|---|
+| `answer` | an answer reached the layer | the anomaly (or none, unheld) | the answer's focus | the outcome tag (0 not an incident, 1 to 5 known kinds, 6 to 9 hard kinds) | what bind did: created, strengthened, generalised, too few features, refused, no late feature, elsewhere, off, unheld |
+| `contradicted` | the bind weakened engrams | the anomaly | the focus | the outcome tag | how many |
+| `recall` | the engram medium recalled | none | the recall's anchor | the outcome tag | the engram |
+| `offered` | a recall was resolved to an anomaly (to the gate, or acted on when ungated) | the anomaly | the anchor | the outcome tag | the engram |
+| `admitted` | the gate (or no gate) let it through | the anomaly | the anchor | the outcome tag | the engram |
+| `gated_consistent`, `gated_standing` | dropped after the wait; the last reading was a consistent verdict, or a standing declaration | the anomaly | the anchor | the outcome tag | the engram |
+| `overtaken` | dropped: asked about, answered or retired while it waited | the anomaly | the anchor | the outcome tag | the engram |
+| `unmatched`, `redundant` | no anomaly owned it in time; another recall of the anomaly won or came first | the anomaly if any | the anchor | the outcome tag | the engram |
+| `confirmed` | the confirmation policy asked instead | the anomaly | the anchor | the outcome tag | the engram |
+| `declared`, `not_declared` | the arm declared the recall, or did not (asked or answered already; the same declaration already made) | the anomaly | none | none | none |
+| `segment_end` | the layer is dropped at the end of its segment | none | none | none | engrams held |
+
+`not_declared` and `declared` need the arm's answer: a third default method on the `Noticer` seam,
+called by `StreamArm::step` after it acts on a recall (a no-op for every other noticer). An answer
+arrives between steps, so an `answer` mark takes the instant of the next step the layer runs (the
+step at which the rung took the answer).
+
+**The file.** With the layer's switch `trace` on (default off, not written when off, so A1a's and
+A1c's configurations are the same text) and the environment variable `GORDIAN_ENGRAM_TRACE_DIR`
+naming a directory, the layer appends its marks, at its end, to
+`<dir>/engram-trace-<state_key>.csv` (one file per arm, since every engram arm of a manifest has
+its own key), one row per mark, with a segment ordinal counted per key in the process (segments
+are played in stream order, so ordinal `i` is the manifest's `i`-th seed). The run script sets the
+variable to a directory inside the run directory. This is I/O in the adapter, at the arm's
+boundary, and output only: nothing read back, nothing that changes a decision, and no I/O in the
+crate. The brief asks for "the arm's own trace file"; the recorder, which writes the arm's
+directory, is Lab 2's and is being changed by E1, and the medium's parameters are `Copy` through
+the `Noticer` seam's manifest type (Lab 2's), so a path cannot travel in them; the file is written
+beside the run's arm directories, named by the arm's state key.
+
+### Not built, and why
+
+- No new column in `results.csv` or `incidents.csv`, and nothing in the evaluator (E1's).
+- No change to bind, recall, the key, the vote, the strength rule or any first value.
+- No confirmation of recalls by the selector: a recalled anomaly stays unasked (A1a's rule).
+
+### Departures and choices as built (A1d)
+
+Numbering continues A1c's. Each is a place where the build differs from the section above (written
+before the code) or fills a gap it left.
+
+71. **The gate's reading is a value** (`gate::Reading`: admit, consistent, standing), so a recall
+    dropped at the end of its wait is marked by the last reason it was read with; for A1c's
+    `contradicted` gate the reading is exactly its old condition (declarations are not read).
+72. **`bind` and `bind_roles` return what they did** (`trace::BindNote`; they returned nothing),
+    so that the noticer, which knows the anomaly and the focus, writes the `answer` mark and, after
+    it, the `contradicted` mark with the same subject and event. Callers that ignore the value are
+    unchanged.
+73. **An answer's instant.** Marks of answers (and their contradictions) take the instant of the
+    layer's next step; answers taken in the arm's final call, after which no step runs, keep the
+    last step's instant.
+74. **`declared` and `not_declared` are also marked when the arm skips a recall** before trying to
+    declare it (its anomaly is gone, asked about or answered), not only when `declare_recognized`
+    declines: every recall handed to the arm ends in exactly one of the two.
+75. **The file is written by `Drop`** of the layer (the end of its segment), with a `segment_end`
+    mark carrying the number of engrams held; a write failure is counted in a process-wide counter
+    and never stops the arm. The writer takes its directory as an argument (`trace::append_to`);
+    only `trace::append` reads the environment.
+76. **The declaration instant is the rung's `now`** (the instant of the step it last took in),
+    recorded wherever `cheap_declared` is set, including when the same diagnosis was already
+    declared at the anchor and no new declaration is proposed: the anomaly carries that
+    declaration either way.
+77. **B4's constants were tuned on M2's medium** (`medium_t100`); A1d's arms use M3's frozen
+    medium, as A1a's and A1c's do. The constants are applied to it unchanged (the brief: nothing
+    retuned).
 
 ## Mutation checks
 

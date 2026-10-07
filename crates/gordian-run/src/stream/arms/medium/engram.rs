@@ -212,6 +212,18 @@
 //!   references, else the first noticed anomaly that owns one of its observations about that node.
 //!   The outcome's support site is the pair's first node.
 //!
+//! # A1d: the stale gate and the trace
+//!
+//! Written and committed before any run of an A1d arm (`DESIGN.md`, "The engram under a
+//! non-privileged selector (A1d)", committed before this code). Every field below defaults to
+//! A1c's behaviour when absent from a manifest.
+//!
+//! - **`gate: stale`** ([`super::gate`], "A1d"): A1c's gate, and a recall speaks only on an anomaly
+//!   that carries no declaration made strictly after the checker's last consistent verdict.
+//! - **`trace`** (default off, not written when off): the layer's counters as marks on its engram
+//!   medium's trace port, appended at the end of each segment to the arm's own trace file
+//!   ([`super::trace`]).
+//!
 //! # What this is not
 //!
 //! It is not told whether a recall was right: the stream never says. A memory-made error is
@@ -223,13 +235,14 @@ use super::adapters::{
     DeliveredSense, TickClock, TickLedger, abnormal_kind_tag, encode, message_tag,
 };
 use super::gate::RecallGate;
+use super::trace::{self, BindNote, NONE, TraceKind};
 use crate::stream::arms::rung::{Held, service_of};
 use gordian_core::Instant;
 use gordian_medium::engram::{pair_bytes, restart, restore_pair};
 use gordian_medium::{
-    Address, CollectingEffector, ConstantField, EngramParams, Engrams, Event, FeatureRole, Field,
-    Key, KeySite, Limits, Medium, NoTrace, OpCounts, Outcome, OutcomeSite, Ports, Prices, Recall,
-    Tag, pair_node,
+    Address, BindResult, CollectingEffector, ConstantField, EngramParams, Engrams, Event,
+    FeatureRole, Field, Key, KeySite, Limits, Mark, MarkLog, Medium, OpCounts, Outcome,
+    OutcomeSite, Ports, Prices, Recall, Tag, pair_node,
 };
 use gordian_stream::{Diagnosis, HardKind, StreamHypothesis, StreamKind};
 use gordian_world::graph::dependents_mask;
@@ -349,6 +362,10 @@ pub struct EngramConfig {
     /// The two-site key (A1c; family-keyed only). Absent: off (and not written when off).
     #[serde(default, skip_serializing_if = "is_false")]
     pub two_site: bool,
+    /// The trace of the layer's counters (A1d; [`super::trace`]). Absent: off (and not written
+    /// when off).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub trace: bool,
 }
 
 fn yes() -> bool {
@@ -384,6 +401,7 @@ impl Default for EngramConfig {
             gate: RecallGate::None,
             late_feature: None,
             two_site: false,
+            trace: false,
         }
     }
 }
@@ -671,6 +689,16 @@ pub struct EngramLayer {
     stats: EngramLayerStats,
     /// The two-site key's view of the stream (A1c), when `two_site` and the noticer gave it.
     pair: Option<PairSense>,
+    /// The engram medium's trace port, and the layer's marks on it (A1d).
+    log: MarkLog,
+    /// Marks from this index on have no instant yet (answers arrive between steps; A1d).
+    unstamped: Option<usize>,
+    /// Engrams the latest bind weakened (A1d).
+    last_contradicted: usize,
+    /// The instant of the latest step the layer ran (A1d).
+    now: Instant,
+    /// This segment's ordinal for the layer's key in the process (A1d; when tracing).
+    segment: u64,
 }
 
 impl std::fmt::Debug for EngramLayer {
@@ -734,7 +762,85 @@ impl EngramLayer {
             dirty: false,
             stats,
             pair: None,
+            log: MarkLog::default(),
+            unstamped: None,
+            last_contradicted: 0,
+            now: Instant::ZERO,
+            segment: if cfg.trace {
+                trace::next_segment(cfg.state_key)
+            } else {
+                0
+            },
         })
+    }
+
+    /// The marks written so far in this segment (A1d; empty unless `trace`).
+    pub fn marks(&self) -> &[Mark] {
+        &self.log.marks
+    }
+
+    /// Mark `kind` (A1d) at the latest step's instant; an answer's mark (and its contradiction
+    /// mark) is given the next step's instant when that step runs ([`EngramLayer::run_ticks`]).
+    /// Nothing unless `trace`.
+    fn mark_at(&mut self, kind: TraceKind, subject: u32, event: u32, tag: u32, value: i64) {
+        if !self.cfg.trace {
+            return;
+        }
+        if kind == TraceKind::Answer && self.unstamped.is_none() {
+            self.unstamped = Some(self.log.marks.len());
+        }
+        gordian_medium::Trace::mark(
+            &mut self.log,
+            Mark {
+                at_ns: self.now.0,
+                kind: kind.code(),
+                subject,
+                event,
+                tag,
+                value,
+            },
+        );
+    }
+
+    /// Mark a recall event (A1d): `kind` for anomaly `anomaly` (or [`NONE`]), the recall's anchor
+    /// `anchor`, its outcome tag and engram.
+    pub fn mark_recall(
+        &mut self,
+        kind: TraceKind,
+        anomaly: u32,
+        anchor: u32,
+        tag: Tag,
+        engram: usize,
+    ) {
+        self.mark_at(kind, anomaly, anchor, tag.0, engram as i64);
+    }
+
+    /// Mark what the arm did with a recall of `anomaly` at `now` (A1d).
+    pub fn mark_declared(&mut self, now: Instant, anomaly: u32, declared: bool) {
+        self.now = Instant(self.now.0.max(now.0));
+        let kind = if declared {
+            TraceKind::Declared
+        } else {
+            TraceKind::NotDeclared
+        };
+        self.mark_at(kind, anomaly, NONE, NONE, 0);
+    }
+
+    /// Mark an answer about `focus` for `anomaly` (or [`NONE`]) with outcome `diagnosis` and what
+    /// bind did (A1d); its instant is the next step's.
+    pub fn mark_answer(&mut self, anomaly: u32, focus: u32, diagnosis: &Diagnosis, note: BindNote) {
+        let tag = outcome_tag(diagnosis).0;
+        self.mark_at(TraceKind::Answer, anomaly, focus, tag, note.code());
+        let weakened = std::mem::take(&mut self.last_contradicted);
+        if weakened > 0 {
+            self.mark_at(
+                TraceKind::Contradicted,
+                anomaly,
+                focus,
+                tag,
+                weakened as i64,
+            );
+        }
     }
 
     /// Give a two-site layer the public graph of its stream and the rung's burst constants
@@ -909,9 +1015,14 @@ impl EngramLayer {
 
     /// Run every tick complete at `now`; the recalls they made.
     pub fn run_ticks(&mut self, now: Instant) -> Vec<Recall> {
+        self.now = Instant(self.now.0.max(now.0));
+        if let Some(from) = self.unstamped.take() {
+            for m in &mut self.log.marks[from..] {
+                m.at_ns = self.now.0;
+            }
+        }
         let complete = TickClock::complete_before(self.tick_ns, now);
         let mut field = ConstantField(Field::default());
-        let mut trace = NoTrace;
         let decays = self.engrams.stats().decays;
         let mut out = Vec::new();
         while self.next_tick < complete && !self.stopped {
@@ -925,7 +1036,7 @@ impl EngramLayer {
                 field: &mut field,
                 effector: &mut self.effector,
                 ledger: &mut self.ledger,
-                trace: &mut trace,
+                trace: &mut self.log,
                 plasticity: &mut self.engrams,
             };
             if self.medium.step(&mut ports).is_err() {
@@ -941,6 +1052,13 @@ impl EngramLayer {
                     if r.fired.and_then(gordian_medium::pair_of).is_some() {
                         self.stats.pair_recalls += 1;
                     }
+                    self.mark_recall(
+                        TraceKind::Recall,
+                        NONE,
+                        r.anchor.seq,
+                        r.outcome.tag,
+                        r.engram,
+                    );
                     out.push(r);
                 }
             }
@@ -955,7 +1073,12 @@ impl EngramLayer {
     /// Bind `features` (with their late marks) at `site` to `diagnosis` (an answer about an
     /// anomaly at `site`). Nothing when binding is off or the layer has stopped, when no feature
     /// is late, or, family-keyed, when the diagnosis names another site.
-    pub fn bind(&mut self, features: Vec<(Tag, bool)>, site: ServiceId, diagnosis: &Diagnosis) {
+    pub fn bind(
+        &mut self,
+        features: Vec<(Tag, bool)>,
+        site: ServiceId,
+        diagnosis: &Diagnosis,
+    ) -> BindNote {
         self.bind_roles(
             features
                 .into_iter()
@@ -963,7 +1086,7 @@ impl EngramLayer {
                 .collect(),
             site,
             diagnosis,
-        );
+        )
     }
 
     /// [`EngramLayer::bind`] with roles (A1c): a key with a `Relation` feature is a two-site key
@@ -975,15 +1098,16 @@ impl EngramLayer {
         features: Vec<(Tag, FeatureRole, bool)>,
         site: ServiceId,
         diagnosis: &Diagnosis,
-    ) {
+    ) -> BindNote {
         self.stats.answers += 1;
+        self.last_contradicted = 0;
         if !self.cfg.bind || self.stopped {
-            return;
+            return BindNote::Off;
         }
         let late = self.cfg.requires_late();
         if late && !features.iter().any(|(_, _, l)| *l) {
             self.stats.no_late += 1;
-            return;
+            return BindNote::NoLate;
         }
         let features: Vec<(Tag, FeatureRole, bool)> = features
             .into_iter()
@@ -992,7 +1116,7 @@ impl EngramLayer {
         let pair = features.iter().any(|(_, r, _)| *r == FeatureRole::Relation);
         if self.cfg.site == SiteMode::Family && diagnosis.is_some_and(|h| h.site != site) {
             self.stats.elsewhere += 1;
-            return;
+            return BindNote::Elsewhere;
         }
         let key_site = match self.cfg.site {
             SiteMode::Family if pair => KeySite::Pair,
@@ -1003,11 +1127,19 @@ impl EngramLayer {
             self.stats.pair_binds += 1;
         }
         let key = Key::with_roles(features, key_site);
-        self.engrams
-            .bind(&mut self.medium, &key, outcome_of(diagnosis, site));
+        let outcome = outcome_of(diagnosis, site);
+        let bind = self.engrams.bind(&mut self.medium, &key, outcome);
         self.stats.binds += 1;
         self.dirty = true;
         self.save_if_dirty();
+        self.last_contradicted = bind.contradicted.len();
+        match bind.result {
+            BindResult::Created(_) => BindNote::Created,
+            BindResult::Strengthened(_) => BindNote::Strengthened,
+            BindResult::Generalised(_) => BindNote::Generalised,
+            BindResult::TooFewFeatures => BindNote::TooFew,
+            BindResult::Refused(_) => BindNote::Refused,
+        }
     }
 
     /// An answer reached the layer whose anomaly the noticer no longer held.
@@ -1105,6 +1237,19 @@ impl EngramLayer {
             );
         }
         self.dirty = false;
+    }
+}
+
+impl Drop for EngramLayer {
+    /// The end of the layer's segment (A1d): with `trace` on, a `segment_end` mark and the
+    /// segment's marks appended to the arm's trace file ([`super::trace::append`]).
+    fn drop(&mut self) {
+        if !self.cfg.trace {
+            return;
+        }
+        let held = self.engrams.engrams().len() as i64;
+        self.mark_at(TraceKind::SegmentEnd, NONE, NONE, NONE, held);
+        trace::append(self.cfg.state_key, self.segment, &self.log);
     }
 }
 
