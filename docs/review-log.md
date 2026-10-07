@@ -4,6 +4,61 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## V1 criteria as code — merged (Lab 2); the verifier exists, and its first act was to catch the chief
+
+**Provenance.** Six commits on `criteria`: the schema and the four specifications (f3c407a)
+before the measures (99fba9a) and the back-test (efc513b); one reports-only amendment between
+(d52a26b; the chief read its diff: report rows added, no clause, bound, bootstrap setting or
+verdict changed). No Rust touched (chief's diff over `crates/` and the lockfile: empty). The
+chief reran `scripts/criterion.py` on the M2, L1 and M3 specifications against the kept runs:
+M2 holds at 100 ms only (+0.040 [+0.022, +0.060]; +0.532 [+0.462, +0.603]; background 5.44),
+L1's clause 2 fails (+0.043 [−0.021, +0.126]) and the conjunction is false, M3 does not hold;
+the clause values equal the committed back-test. Analysis suite 507 passed on the merged tree;
+the guard passes. Cargo gates not rerun (nothing in Rust changed).
+
+**Verdict: V1 passes its criterion.** 189 printed numbers and verdicts: 166 match to the
+printed precision, 11 one unit off in the last digit (bootstrap Monte Carlo error; the script
+reproduces the labs' fixed-seed CSVs to 1e-14 in 4,209 cells), 4 mismatch, 8 outside the
+schema. Every verdict the log states is reproduced. Six hand mutants caught.
+
+**The four mismatches are findings against this log, and three are the chief's errors.**
+
+- **Coordinator error (tenth).** The L1 entry prints a slope of the chief's own, +0.053
+  [−0.037, +0.085], with no recorded definition; no reading the lab tried reproduces it, the
+  lab's own figure reproduces exactly, and the verdict is the same under every reading. The
+  number stands in the log as unreproducible and is so marked here. Lesson: a number the chief
+  prints must carry its definition, which is what a specification is.
+- **Coordinator error (eleventh).** The B3 and M3 entries print 0.80 for the ramp + split cost
+  per stream; the files give 0.7948, double-rounded. Immaterial, and wrong.
+- **Coordinator error (twelfth).** The M3 entry says no per-stream column existed to recompute
+  strict precision; `notices.csv` carries `notices_anchor_site_correct`, and the script gives
+  0.77 / 0.81 / 0.84 as printed. The chief's tooling, not M3.
+- The eleven one-digit differences in interval ends are the chief's bootstrap at another seed;
+  each printed end lies within the range of the same end under 40 seeds. Not an error, and the
+  cure is the specification's fixed seed. One clause in sixty is seed-sensitive at the bound
+  (M2's 500 ms lower bound straddles 0.01 across seeds; its point test fails anyway).
+
+**What it means (meta, objective).** Charter section 11's rule is now operational: the verdict
+is the script's output, with the spec's hash and every input file's hash recorded. The lab
+named what the chief could not have seen in its own log, which is the point of a verifier
+that is neither explorer nor expert. The schema's gaps for A1b are named by the lab and
+adopted below: a `not` node and exclusive outcome categories (for "the record rung captures
+the lever"), not-null filters, count-with-total clauses so that power is a precondition, a
+per-stream quantile, and a join of two arms by incident. Nothing enforces that a
+specification was committed before its run except git history; the chief's verification
+records both hashes and their commit order.
+
+**Decided.**
+
+1. **E1 (Lab 2) starts now** as amended; it also extends the schema with the five constructs
+   above, with tests, so that `experiments/criteria/a1b.json` can be written when its numbers
+   are fixed.
+2. **A1b's specification is written by the chief, before any A1b run, in the schema**; the
+   verdict comes from the script. No number the chief prints about A1b appears without its
+   clause id.
+3. **This log's L1 entry is annotated** (one line) as unreproducible on the chief's slope; the
+   entry is otherwise unchanged, as the rule on frozen records requires.
+
 ## A1a the engram, build phase — merged (Lab 1); the mechanism exists, and its first values collide exactly as W2 predicted
 
 **Provenance.** Eight commits on `engram` in the order the brief required: design into
@@ -417,6 +472,8 @@ selector (intervals exclude zero).
    the user before the freeze, after B5's table sets the margins.
 
 ## L1 the learned noticer — merged (Lab 3); learning is real, fast, and stops short of the hand design
+
+*Annotation 2026-10-07 (V1): the chief's own slope figure in this entry, +0.053 [−0.037, +0.085], has no recorded definition and was not reproduced by the criterion script; the lab's figure reproduces exactly and the clause verdict is the same under every reading. See the V1 entry.*
 
 **Provenance.** Two interruptions (an API limit, then the disk restart); the final PI verified
 the inherited state, rebuilt the release binary and found its hash equal to the one the main run

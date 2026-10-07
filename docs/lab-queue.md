@@ -45,8 +45,8 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | A1c | 1 | The recall gate on the public consistency checker; a two-site key; identity; the smoke against A1a's table | A1a | running |
 | W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | merged |
 | W3 | 3 | World C (three times the hard share) for A1b's power; the phase-2-keyed collision floor | W2 | queued |
-| V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | queued |
-| E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | queued |
+| V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | merged |
+| E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | running |
 | A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions scored against the hidden graph | A1, E1 | queued |
 
 **Priority after the resumption of 2026-10-07** (charter section 1.2): A1, W2, V1, E1, then A1b and
@@ -653,6 +653,9 @@ ids inside a stream only. (c) The reset at the stream boundary is a switch on bo
 held-out table reports each form with and without it. (d) The rung waits for evidence after the
 first phase before recalling, and the module docs say what it waits for. (e) Its experience
 curve across streams is reported for the family form (the only form that can have one).
+(g) Amended after V1: the criterion schema gains, with tests, a `not` node and exclusive outcome
+categories, not-null filters, count-with-total clauses, a per-stream quantile measure, and a
+join of two arms by incident, so that `experiments/criteria/a1b.json` can express A1b's clauses.
 (f) Amended after A1a: `results.csv` gains a `recall_declarations` column (declarations whose
 source is `Source::Recall`, today folded into `cheap_declarations`), and `total_cost_ns` for
 every arm includes the noticer's charge as a new column `noticer_ns` beside it, the existing
