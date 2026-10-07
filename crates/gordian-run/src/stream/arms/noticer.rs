@@ -592,6 +592,18 @@ impl Tracked {
         Instant(at.0.saturating_sub(self.anchor_at.0))
     }
 
+    /// When the current burst at its site began (read by the medium noticer's attach switch, work
+    /// item A2).
+    pub fn burst_open_at(&self) -> Instant {
+        self.burst_open_at
+    }
+
+    /// When the last abnormal observation at its own site was attached (read by the medium
+    /// noticer's attach switch, work item A2).
+    pub fn last_site_at(&self) -> Instant {
+        self.last_site_at
+    }
+
     /// Whether the anomaly's anchor or one of its attached observations is `id`.
     pub fn owns(&self, id: ObsId) -> bool {
         id == self.anchor || self.attached.iter().any(|(_, o, _)| *o == id)

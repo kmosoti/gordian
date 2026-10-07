@@ -54,6 +54,16 @@
 //! unconnected partner, and a pair engram's recall is resolved through the pair the crate names
 //! ([`super::engram`], "A1c").
 //!
+//! # The anticipation layer (work item A2)
+//!
+//! With `anticipation` in the parameters the noticer also holds an anticipation layer
+//! ([`super::anticipation`]): every delivered observation is taken into it at the step that
+//! delivers it, its pair-cell medium ticks after the engram layer at each step, and its
+//! predictions go to its trace only. With its `attach` switch on, the noticer attaches an abnormal
+//! observation through [`MediumNoticer`]'s `attach_index`: the rung's rule, then, where that rule
+//! gives the observation to no anomaly or only to its own service's stale one, the layer's learned
+//! edges. Without `anticipation`, or with `attach` off, the noticer attaches exactly as before.
+//!
 //! # Hard limits
 //!
 //! The medium's own (operations and proposals per tick, cells, synapses, references) are in its
@@ -61,6 +71,7 @@
 //! stops: no more ticks, no more notices in the segment ([`Noticer::refused`]).
 
 use super::adapters::{DeliveredSense, TickClock, TickLedger, encode};
+use super::anticipation::Layer as AnticipationLayer;
 use super::engram::{EngramLayer, diagnosis_of, features, pair_features};
 use super::gate::Reading;
 use super::graph::{KIND_NOTICE, KIND_RETIRE, Layout, MediumParams, spec};
@@ -141,6 +152,8 @@ pub struct MediumNoticer {
     gate_pending: Vec<GatedRecall>,
     /// The noticed anomalies that carry a standing declaration, as the rung last said (A1d).
     standing: BTreeSet<u32>,
+    /// The anticipation layer (A2), when the parameters name one.
+    anticipation: Option<AnticipationLayer>,
 }
 
 /// A recall waiting for the gate (A1c).
@@ -187,6 +200,15 @@ impl MediumNoticer {
             }
             None => None,
         };
+        let anticipation = match params.anticipation {
+            Some(acfg) => Some(AnticipationLayer::new(
+                acfg,
+                params.tick_ns,
+                services,
+                &cfg,
+            )?),
+            None => None,
+        };
         Ok(Self {
             scorer: Scorer::new(&cfg, services.len()),
             prices: *medium.prices(),
@@ -214,7 +236,41 @@ impl MediumNoticer {
             recalls_out: Vec::new(),
             gate_pending: Vec::new(),
             standing: BTreeSet::new(),
+            anticipation,
         })
+    }
+
+    /// The anticipation layer, if the parameters name one (A2).
+    pub fn anticipation(&self) -> Option<&AnticipationLayer> {
+        self.anticipation.as_ref()
+    }
+
+    /// Where an abnormal observation about `service` at `at` attaches: the rung's rule
+    /// ([`attach_target`]); with the anticipation layer's `attach` switch on (A2), where that rule
+    /// gives it to no anomaly or only by its last rule (its own service's stale anomaly), the
+    /// anomaly a learned edge gives it to, if any. Without the switch, exactly the rung's rule.
+    fn attach_index(&mut self, service: ServiceId, at: Instant) -> Option<usize> {
+        let base = attach_target(
+            &self.anomalies,
+            service,
+            at,
+            self.cfg.burst_ns,
+            self.cfg.burst_gap_ns,
+        );
+        let Some(layer) = self.anticipation.as_mut().filter(|l| l.config().attach) else {
+            return base;
+        };
+        if let Some(i) = base {
+            let a = &self.anomalies[i];
+            let speaking = at.0
+                <= a.last_site_at()
+                    .0
+                    .saturating_add(self.cfg.burst_gap_ns.saturating_mul(2));
+            if a.site != service || speaking {
+                return base;
+            }
+        }
+        layer.attach_target(&self.anomalies, service, at).or(base)
     }
 
     /// The engram layer, if the parameters name one (A1a).
@@ -241,11 +297,16 @@ impl MediumNoticer {
     /// the price per tick (the engram layer's ticks included when there is one; its plasticity
     /// work is charged through [`Noticer::take_cost`] only).
     pub fn total_ns(&self) -> u64 {
-        self.ledger.total_ns(&self.prices) + self.engram.as_ref().map_or(0, EngramLayer::total_ns)
+        self.ledger.total_ns(&self.prices)
+            + self.engram.as_ref().map_or(0, EngramLayer::total_ns)
+            + self
+                .anticipation
+                .as_ref()
+                .map_or(0, AnticipationLayer::total_ns)
     }
 
-    /// Take in what the store holds past the cursor.
-    fn ingest(&mut self, store: &Store) {
+    /// Take in what the store holds past the cursor, at the step of instant `now`.
+    fn ingest(&mut self, store: &Store, now: Instant) {
         let fresh: Vec<&Held> = store
             .iter()
             .rev()
@@ -260,6 +321,10 @@ impl MediumNoticer {
             }
             if let Some(layer) = self.engram.as_mut() {
                 layer.take(h);
+            }
+            if let Some(layer) = self.anticipation.as_mut() {
+                let owner = self.anomalies.iter().find(|a| a.owns(h.id)).map(|a| a.id);
+                layer.take(h, now, owner);
             }
             self.recent.push_back(h.clone());
         }
@@ -376,21 +441,16 @@ impl MediumNoticer {
             .unwrap_or(ObsId(u32::MAX));
         let kept = std::mem::take(&mut self.unattached);
         for h in kept {
-            let joined = if h.id > first_anchor && !self.anomalies.iter().any(|a| a.owns(h.id)) {
-                service_of(&h.obs).and_then(|service| {
-                    attach_target(
-                        &self.anomalies,
-                        service,
-                        h.at,
-                        self.cfg.burst_ns,
-                        self.cfg.burst_gap_ns,
-                    )
-                    .filter(|i| created.contains(i) && self.anomalies[*i].anchor < h.id)
-                    .map(|i| (i, service))
-                })
-            } else {
-                None
-            };
+            let mut joined = None;
+            if h.id > first_anchor
+                && !self.anomalies.iter().any(|a| a.owns(h.id))
+                && let Some(service) = service_of(&h.obs)
+                && let Some(i) = self.attach_index(service, h.at)
+                && created.contains(&i)
+                && self.anomalies[i].anchor < h.id
+            {
+                joined = Some((i, service));
+            }
             match joined {
                 Some((i, service)) => {
                     self.anomalies[i].note_attached(&h, service, self.cfg.burst_gap_ns);
@@ -568,13 +628,7 @@ impl Noticer for MediumNoticer {
         }
         self.scorer.saw_abnormal();
         let service = service_of(&held.obs)?;
-        match attach_target(
-            &self.anomalies,
-            service,
-            held.at,
-            self.cfg.burst_ns,
-            self.cfg.burst_gap_ns,
-        ) {
+        match self.attach_index(service, held.at) {
             Some(i) => {
                 self.anomalies[i].note_attached(held, service, self.cfg.burst_gap_ns);
                 Some(self.anomalies[i].id)
@@ -589,11 +643,14 @@ impl Noticer for MediumNoticer {
     fn notice(&mut self, now: Instant, store: &Store) -> Vec<Notice> {
         let mut out = Vec::new();
         if !self.stopped {
-            self.ingest(store);
+            self.ingest(store, now);
             self.run_ticks(now);
             let created = self.effect(now);
             self.reoffer(&created);
             self.engram_step(now);
+            if let Some(layer) = self.anticipation.as_mut() {
+                layer.run_ticks(now);
+            }
             for i in created {
                 let a = &self.anomalies[i];
                 out.push(Notice {
@@ -643,18 +700,25 @@ impl Noticer for MediumNoticer {
     fn take_cost(&mut self) -> Option<NoticerCost> {
         let own = self.ledger.take_ns(&self.prices);
         let memory = self.engram.as_mut().and_then(EngramLayer::take_ns);
-        if own.is_none() && memory.is_none() {
+        let pairs = self
+            .anticipation
+            .as_mut()
+            .and_then(AnticipationLayer::take_ns);
+        if own.is_none() && memory.is_none() && pairs.is_none() {
             return None;
         }
         Some(NoticerCost {
             component: MEDIUM_COMPONENT,
-            compute_ns: own.unwrap_or(0) + memory.unwrap_or(0),
+            compute_ns: own.unwrap_or(0) + memory.unwrap_or(0) + pairs.unwrap_or(0),
         })
     }
 
     fn refused(&mut self) {
         self.stopped = true;
         if let Some(layer) = self.engram.as_mut() {
+            layer.refused();
+        }
+        if let Some(layer) = self.anticipation.as_mut() {
             layer.refused();
         }
     }

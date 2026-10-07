@@ -18,6 +18,9 @@
 //! - Engrams (work item A1a, [`engram`]): a bind operation on the plasticity port that builds,
 //!   strengthens and weakens a recall pattern of ordinary cells, decay at a rhythm boundary, and
 //!   the structural operations it needs ([`Medium::grow`], [`Medium::set_params`]).
+//! - Pair cells (work item A2, [`anticipation`]): per ordered pair of nodes and band, an
+//!   integrator that holds a decayed net count of evidence, read as a held edge, and the
+//!   bookkeeping of trials that turns instants at two nodes into that evidence.
 //!
 //! # What is not built
 //!
@@ -33,6 +36,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod anticipation;
 pub mod archetype;
 pub mod engram;
 pub mod medium;
@@ -42,6 +46,9 @@ pub mod ports;
 pub mod spec;
 pub mod types;
 
+pub use anticipation::{
+    EV_CHANNEL, Evidence, MAX_BANDS, PairCells, PairParams, Trial, Trials, chance,
+};
 pub use archetype::{Archetype, ParamError};
 pub use engram::{
     Bind, BindResult, Engram, EngramParams, EngramStats, Engrams, FeatureRole, Key, KeySite,
