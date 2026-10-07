@@ -4,6 +4,60 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## W3 world C, the phase-2 floor, and A2's hidden-side score — merged (Lab 3); anticipation as built finds nothing, and memory's floor is the world's
+
+**Provenance.** Seven commits on `world-c`; the only Rust change is the `laws` example (world C,
+`--floor`, `--alarms`, `floor.rs`); no file under `crates/*/src` changed; the guard passes. The
+chief reran every analysis script except the ceiling runs in place: no committed CSV changed
+(every script exit 0, `git status` clean afterwards). The chief recomputed A2's coverage independently from W2's hidden tables for
+seeds 10000–10019: 21 hard incidents with a partner (12 split brain, 9 cascade), 0 covered by a
+prediction on the right pair made between onset and the partner's alarm; 7 of 251 predictions
+name a true pair (2.8%). The lab's count of 29 adds added-edge dependents, which the chief's
+table lacks; both readings give zero coverage. Runs kept in `artifacts/runs/w3/`.
+
+**Verdict: W3 passes its acceptance** (reproduction, ranges and sides named, bounds moved and
+by how much, the scorer tested with 14 of 14 mutants caught).
+
+**What it shows.**
+
+- **A2 is a negative on the hidden side too.** Of 29 true partner alarms, 0 were predicted;
+  of 10 on which the learner could even open a trial, 0. Learned edges fall on a true pair at
+  the chance rate (5.5% against 6.7%). The funnel is the mechanism: a true pair is seen about
+  0.07 times per stream with two earlier sightings, so a pair cell that needs two follows
+  beyond chance never reaches its threshold on a true edge before the stream ends, and the
+  edges it does learn are sibling alarms sharing an upstream. World C does not help A2b
+  (0.065 against 0.070 such events per stream). **A2b is not briefed.**
+- **World C buys memory its power and nothing else of note.** 138 reachable events against 41
+  (3.4×), 259 hard recurrences against 83, the cost interval narrows from ±2.2 to ±1.5 points;
+  incident rate, overlap, background, deadlines unchanged; the hard-family mix shifts (cascade
+  18% from 26%, leak 28% from 22%) by the generator's fall-through, and the hard-to-decoy ratio
+  goes from 1:1 to 2.7:1, which changes every collision share that involves decoys.
+- **E1's site-keyed rung sits on the world's floor** (0.11 measured against a floor of
+  0.115): there is no better site-keyed memory to build on this world. The carried family rung
+  (0.81) is above its floor (0.64), and 328 of its 372 plain collisions are on plain incidents
+  whose own evidence the checker finds consistent, so a cleaner gate could recover some; but
+  no key tried across streams reaches the 0.20 bound (the best is 0.28). Within a stream the
+  family key reaches 0.29 at 16 s and what remains is decoys, which no abnormal evidence
+  separates from their family until they resolve.
+
+**What it means for the purpose (objective, time, meta).** Both halves of charter 1.2 as
+mechanisms on this world are now measured: memory over public patterns is a small clean lever
+within a stream and collides across streams at the world's floor; anticipation of hidden
+edges has too few events per stream to learn from. Neither is a failure of the medium in
+particular, since the public comparator and the world's own floor show the same shape, and
+neither is a failure of the purpose; they are the finding that this world's laws are, by its
+design, stream-local or too rare. The law that crosses streams here is the reasoner's. The
+chief's recommendation stands: the learning line moves to the reasoner's law, and any further
+memory or anticipation work goes to a world built to carry laws across streams, labelled as
+such.
+
+**Decided.**
+
+1. A2b is not briefed; the pair-cell learner stays as a merged mechanism with its negative.
+2. W3's moved bounds are the ones any memory specification on world C will use; the
+   collision bound is restated per hard incident, as the lab proposed.
+3. The remaining open question for the user is the learning line (synthesis above).
+
 ## A2 anticipation of hidden edges — merged (Lab 1); the learner exists, its predictions are at chance on the public side, the hidden-side verdict is Lab 3's
 
 **Provenance.** Six commits in order: design 75552b0, code 5ddaed2, a rule change before any

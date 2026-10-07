@@ -45,10 +45,10 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | A1c | 1 | The recall gate on the public consistency checker; a two-site key; identity; the smoke against A1a's table | A1a | merged (negative branch) |
 | A1d | 1 | The engram under a non-privileged selector: plain outcomes bound, memory speaks only where no later declaration stands, trace counters; identity; the smoke on decision columns | A1c | merged (negative) |
 | W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | merged |
-| W3 | 3 | World C (three times the hard share) for power; the phase-2-keyed collision floor; scoring A2's predictions from the hidden side | W2 | running |
+| W3 | 3 | World C (three times the hard share) for power; the phase-2-keyed collision floor; scoring A2's predictions from the hidden side | W2 | merged |
 | V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | merged |
 | E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | merged |
-| A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions through the trace port, scored from the hidden side by Lab 3 | A1d | merged (public side at chance; hidden-side score pending W3) |
+| A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions through the trace port, scored from the hidden side by Lab 3 | A1d | merged (negative on both sides; A2b not briefed) |
 
 **Priority after the resumption of 2026-10-07** (charter section 1.2): A1, W2, V1, E1, then A1b and
 A2. C2 and M5 stay queued behind them; M4, B5 and L2 stay `stopped`, resumable from their origin
