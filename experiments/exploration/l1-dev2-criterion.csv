@@ -1,0 +1,5 @@
+clause,statement,learned,reference,difference,lower,higher,point_ok,bound_ok,holds,conjunction
+1,learned anchor-correct (last 100) >= frozen - 0.01 and paired lower bound > -0.03,0.9798994974874372,0.9798994974874372,0.0,0.0,0.0,True,True,True,False
+2,"learned slope of W1's anchor-correct curve over the first 100 streams positive, lower bound > 0 (efficiency per 100 streams; reading R3)",0.056169414159816466,0.0,0.056169414159816466,-0.018135442588209278,0.12948623837097598,True,False,False,False
+3,learning-off anchor-correct (last 100) below frozen by >= 0.02,0.949748743718593,0.9798994974874372,0.03015075376884424,0.005988023952095856,0.055299539170506895,True,,True,False
+2b,"beside, not the clause: learned incident-level slope over the first 100 streams (share per 100 incidents seen; reading R3b)",0.01994822597837673,0.0,0.01994822597837673,-0.010755693263248354,0.051348022392815974,True,False,False,False

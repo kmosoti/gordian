@@ -16,6 +16,7 @@ from gordian_analysis.measures import (
     PLACEHOLDER_WATTS_CHEAP,
     PLACEHOLDER_WATTS_REASONER,
     energy_proxy,
+    outcome_slope,
     sample_efficiency,
 )
 
@@ -186,6 +187,89 @@ def test_the_conversion_is_a_parameter_and_changes_only_the_joules():
     assert "20 W" in e.assumptions and "500 W" in e.assumptions
     zero = energy_proxy(cost_frame(), watts_cheap=0.0, watts_reasoner=0.0)
     assert zero.joules_total == 0.0 and zero.ns_total == base.ns_total
+
+
+# ---- improvement per unit experience: the slope of an outcome against incidents seen -----------
+
+
+def seen(*per_stream):
+    """Incidents in the order seen, from the outcomes of each stream (a list per stream)."""
+    rows = [
+        {"stream": s, "y": float(y)} for s, ys in enumerate(per_stream, start=1) for y in ys
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_slope_by_hand_four_incidents():
+    # positions 1..4, y = 0, 0, 1, 1: mean x 2.5, mean y 0.5, sum (x - 2.5)(y - 0.5) = 2.0,
+    # sum (x - 2.5)^2 = 5.0, so the slope is 0.4 per incident, 40 per 100.
+    r = outcome_slope(seen([0, 0], [1, 1]), [1, 2], resamples=200)
+    assert r.incidents == 4
+    assert r.slope_per_100 == pytest.approx(40.0)
+
+
+def test_slope_sign_follows_the_order():
+    up = outcome_slope(seen([0, 0], [1, 1]), [1, 2], resamples=50)
+    down = outcome_slope(seen([1, 1], [0, 0]), [1, 2], resamples=50)
+    assert up.slope_per_100 == pytest.approx(-down.slope_per_100)
+    assert down.slope_per_100 < 0
+
+
+def test_a_constant_outcome_has_slope_zero_and_a_degenerate_interval():
+    r = outcome_slope(seen([1, 1, 1], [1, 1], [1, 1, 1, 1]), [1, 2, 3], resamples=200)
+    assert r.slope_per_100 == pytest.approx(0.0, abs=1e-9)
+    assert r.lower == pytest.approx(0.0, abs=1e-9)
+    assert r.higher == pytest.approx(0.0, abs=1e-9)
+
+
+def test_the_window_is_the_first_streams_and_positions_are_the_runs_own():
+    # Streams 1 and 2 are all wrong, stream 3 all right. Over streams 1 and 2 the slope is zero;
+    # over all three it is the slope of y = 0 0 0 0 1 1 at positions 1..6.
+    data = seen([0, 0], [0, 0], [1, 1])
+    first_two = outcome_slope(data, [1, 2], resamples=50)
+    assert first_two.incidents == 4
+    assert first_two.slope_per_100 == pytest.approx(0.0, abs=1e-9)
+    all_three = outcome_slope(data, [1, 2, 3], resamples=50)
+    xs = np.arange(1, 7.0)
+    ys = np.array([0, 0, 0, 0, 1, 1.0])
+    want = ((xs - xs.mean()) * (ys - ys.mean())).sum() / ((xs - xs.mean()) ** 2).sum()
+    assert all_three.incidents == 6
+    assert all_three.slope_per_100 == pytest.approx(100 * want)
+
+
+def test_a_stream_with_no_incident_is_a_cluster_that_can_be_resampled():
+    data = seen([0, 0], [], [1, 1])
+    r = outcome_slope(data, [1, 2, 3], resamples=300, seed=1)
+    assert r.incidents == 4
+    assert r.slope_per_100 == pytest.approx(40.0)
+
+
+def test_the_interval_brackets_a_real_trend_and_straddles_zero_without_one():
+    rng = np.random.default_rng(3)
+    per = [list((rng.random(4) < 0.2 + 0.7 * s / 59).astype(int)) for s in range(60)]
+    r = outcome_slope(seen(*per), list(range(1, 61)), resamples=2000, seed=5)
+    assert r.lower < r.slope_per_100 < r.higher
+    assert r.lower > 0, "a strong trend over 240 incidents is distinguishable from none"
+    flat = [list((rng.random(4) < 0.5).astype(int)) for _ in range(60)]
+    f = outcome_slope(seen(*flat), list(range(1, 61)), resamples=2000, seed=5)
+    assert f.lower < 0 < f.higher
+
+
+def test_the_interval_is_reproducible_by_seed():
+    data = seen([0, 1, 0], [1], [1, 1, 0, 1], [0, 0])
+    a = outcome_slope(data, [1, 2, 3, 4], resamples=500, seed=9)
+    assert a == outcome_slope(data, [1, 2, 3, 4], resamples=500, seed=9)
+    c = outcome_slope(data, [1, 2, 3, 4], resamples=500, seed=10)
+    assert (a.lower, a.higher) != (c.lower, c.higher)
+
+
+def test_outcome_slope_refuses_what_it_cannot_read():
+    with pytest.raises(ValueError, match="columns"):
+        outcome_slope(pd.DataFrame({"y": [1.0]}), [1])
+    with pytest.raises(ValueError, match="0 or 1"):
+        outcome_slope(pd.DataFrame({"stream": [1], "y": [2.0]}), [1])
+    r = outcome_slope(seen([1]), [1], resamples=20)
+    assert math.isnan(r.slope_per_100) and math.isnan(r.lower)
 
 
 def test_an_arm_that_never_calls_the_reasoner_is_all_cheap():
