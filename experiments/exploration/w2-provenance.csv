@@ -1,5 +1,5 @@
 path,bytes,sha256
-(git revision of the tree when written),,bd0362c55cd4f12d7abae93308c4e7d1857faf6f
+(git revision of the tree when written),,14c2b8d4e0fa7b7813b089afb7991d730c2cb27e
 artifacts/runs/w2/hidden/a-heldout/incidents.csv,779086,0605634dfbc894748d88d71f10c8c8937e397c79228c68a0d109bd77a442c349
 artifacts/runs/w2/hidden/a-heldout/owners.jsonl,2585233,b3e6bb1d44d5c7e5af86398a1a7473f40afcca7ab9683dd75958ba02f347d627
 artifacts/runs/w2/hidden/a-heldout/regimes.csv,22225,229008eaafac62bcf99988c3040a34dacb81452de1a84709b2595ec31f7a0490
@@ -40,5 +40,5 @@ artifacts/runs/w2/w2-heldout-b5-rho0.7/sel_reanchor_privileged/selection.csv,294
 artifacts/runs/w2/w2-heldout-b5-rho0.7/sel_reanchor_privileged/selection_notices.csv,598901,e5ccd5a343e0dfd6d97b69790834b471f62e2c27787847f9d448462a3d1a887d
 artifacts/runs/w2/_manifests/w2-heldout-b5-rho0.7.json,7242,88e9e39559cc6d99f8839583658169e7ab3632250166dd591e56dd3c2105cbdf
 artifacts/runs/w2/_manifests/w2-tune-b5-rho0.7.json,6136,6590b7923c9718bf4faf7681e84979b56d7ab0a256625c69182a7c4012569893
-target/debug/examples/laws,1485640,9ee717cfdae8628cecad59b25e461281fd92c7ea98a12dc46719581c44e524ee
+target/debug/examples/laws,1485640,6a3c6a1eb0576174914aaa07b2a63f9297cb6b60c776a113d17ab6cf2009f2f0
 target/release/gordian-run,22885256,5328e035097a81cb1da2b0d5773e6b85f04149cee26c50af3b8f8b46bdd34a51
