@@ -1,7 +1,7 @@
 """Run E1 manifests one after another through `scripts/run-driver.sh`, logging each run (A1a's
 `a1a_run.py`, with E1's directories).
 
-Usage: e1_run.py [--name NAME] MANIFEST...   (--name: the run directory's name, one manifest)
+Usage: e1_run.py [--trace] [--name NAME] MANIFEST...   (--name: the run directory's name, one manifest)
 
 Needs a clean tree whose HEAD is each manifest's `source_revision` and the release binary built
 from that tree. The machine is shared with other labs: before each run this waits, polling every
@@ -12,6 +12,7 @@ artifacts/runs/e1/_logs/<run_id>.log. Nothing is deleted.
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -32,6 +33,9 @@ def busy():
 def main():
     args = sys.argv[1:]
     out_name = None
+    trace = False
+    if args[:1] == ["--trace"]:  # A1d's engram arms write their counters under <out>/_trace
+        trace, args = True, args[1:]
     if args[:1] == ["--name"]:
         out_name, args = args[1], args[2:]
     if not args or (out_name and len(args) != 1):
@@ -47,11 +51,14 @@ def main():
             waits += 1
             time.sleep(30)
         start = time.time()
+        env = dict(os.environ)
+        if trace:
+            env["GORDIAN_ENGRAM_TRACE_DIR"] = str(C.E1_DIR / name / "_trace")
         with open(LOGS / f"{name}.log", "w") as out:
             status = subprocess.run(
                 [str(C.ROOT / "scripts" / "run-driver.sh"), "--manifest", str(m), "--out",
                  str(C.E1_DIR / name)],
-                cwd=C.ROOT, stdout=out, stderr=subprocess.STDOUT,
+                cwd=C.ROOT, stdout=out, stderr=subprocess.STDOUT, env=env,
             ).returncode
         wall = time.time() - start
         print(f"{name} exit={status} wall_s={wall:.0f} waits={waits}", file=log, flush=True)
