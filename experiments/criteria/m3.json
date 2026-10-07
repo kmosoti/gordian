@@ -812,6 +812,45 @@
       "description": "each medium row minus the comparator, paired"
     },
     {
+      "id": "paired_vs_ramp_split",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "medium_t100",
+          "ramp_split_over_re2"
+        ],
+        [
+          "medium_t500",
+          "ramp_split_over_re2"
+        ],
+        [
+          "medium_t2000",
+          "ramp_split_over_re2"
+        ],
+        [
+          "m2_t100",
+          "ramp_split_over_re2"
+        ],
+        [
+          "m2_t500",
+          "ramp_split_over_re2"
+        ],
+        [
+          "m2_t2000",
+          "ramp_split_over_re2"
+        ]
+      ],
+      "measures": [
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "strict_precision",
+        "cost_s_per_stream"
+      ],
+      "description": "each medium row minus B3's ramp + split over the re-anchor (the best public row), paired; reported beside, never in the criterion (added to the specification after the first back-test run, reports only)"
+    },
+    {
       "id": "control",
       "kind": "paired_table",
       "pairs": [

@@ -692,6 +692,34 @@
       "den": {
         "per_stream": 1
       }
+    },
+    "decoy_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "decoy"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "decoy"
+          }
+        ]
+      }
     }
   },
   "clauses": [
@@ -1102,7 +1130,8 @@
         "notices_on_hard_per_stream",
         "notices_on_decoy_per_stream",
         "notices_per_stream",
-        "calls_per_stream"
+        "calls_per_stream",
+        "decoy_noticed_share"
       ],
       "description": "B3's acceptance table and the columns beside it (fixed 16 s delay with retirement), 90% intervals"
     },
