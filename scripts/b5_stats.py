@@ -39,10 +39,13 @@ def per_stream(arm):
     t = B4.per_stream(arm).copy()
     r = arm.results.set_index("seed").sort_index()
     assert (t.index.to_numpy() == r.index.to_numpy()).all()
-    extra = {
-        "correct_hard": r["correct_hard"].astype("int64"),
-        "incidents_hard": r["incidents_hard"].astype("int64"),
-    }
+    extra = {}
+    for name in ("correct_hard", "incidents_hard", "correct_plain", "incidents_plain"):
+        col = r[name].astype("int64")
+        if name in t.columns:  # already there (R6's frame has some): checked equal, not added twice
+            assert (t[name].to_numpy() == col.to_numpy()).all(), name
+        else:
+            extra[name] = col
     out = pd.concat([t, pd.DataFrame(extra, index=t.index)], axis=1)
     out["verified"] = out["correct_plain"] + out["correct_hard"]
     assert not out.columns.duplicated().any(), list(out.columns[out.columns.duplicated()])
