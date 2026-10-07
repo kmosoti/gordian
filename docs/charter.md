@@ -94,6 +94,58 @@ them. If a learned substrate, given public observations and its own history only
 tuned threshold rung at noticing within a few hundred streams, the cell model has no claim to
 sample efficiency on this world, and the aim is pursued through another mechanism.
 
+**The gap is cost, not capability (added 2026-10-07).** On 5 October 2026 Alman and Vassilevska
+Williams posted truly subquadratic 3SUM and truly subcubic APSP algorithms whose core, they
+report, an internal language model found in one unattended run of about 16 million tokens
+(section 13; a preprint, unreviewed, the scaffolding around the model undisclosed). Taken at face
+value it is a result no human reached in four decades, produced by the status quo substrate at a
+token cost the aim counts in the data and energy gaps. It does not weaken the aim; it locates it.
+The question is not whether the status quo can discover but at what cost, and whether a different
+substrate does the same work at near-human cost. Proxy 1 is therefore primary, and wherever a
+discovery-like result is claimed in this program its cost (tokens or modelled compute, and
+experience consumed) is reported beside it.
+
+### 1.2 The purpose: a mind that learns the laws of its world
+
+Noticing is settled on the stream world: a tuned public rule closes anchoring and the leak
+(review log, B3), and the medium holds only at the shortest tick (M2, M3). The program's centre
+moves to what the aim actually asks for, stated here from concept to measurement.
+
+- **Concept.** An organism that, from its own experience alone, learns the hidden laws of the
+  world it lives in and acts on them before being told, at bounded cost.
+- **Principle.** Understanding is measured by action without the oracle. A system understands a
+  law when it acts correctly where the law applies without asking the reasoner (memory), and
+  before the decisive evidence has arrived (anticipation).
+- **Invariants.** No hidden state reaches an arm's inputs; what an arm uses it earned from the
+  public stream and its own history (AGENTS.md, the rule that matters most). Hard limits stay
+  on. The laws are fixed before the arm runs, and the evaluator reads the hidden side only to
+  score. A memory-made wrong decision is scored as its own kind of error, never folded into
+  general accuracy.
+- **Mechanism (planned, Lab 1).** The medium's plasticity port binds a public pattern it has
+  witnessed to the outcome the reasoner later gave it (an engram); a coincidence over the same
+  pattern recalls the outcome and declares without escalating; recall strength decays under
+  contradiction. Whether this is better than keeping records is the experiment, not the premise.
+- **Comparator.** A public record-keeping rung: a table from a site's public signature to the
+  diagnosis last obtained for it, consulted before escalating. It is what a careful engineer
+  would build, and the status quo has captured every lever so far when given this chance.
+- **Measures, per arm, under the hard limits:** correct decisions made with no reasoner call on
+  that incident; stale errors (a wrong decision made with no reasoner call); reasoner calls per
+  correct decision; the slope of unasked correct decisions against incidents seen; after a
+  regime change, time to recover and what is forgotten. These are EXP-103's and EXP-104's
+  measures. The purpose makes them the program's centre rather than its tail.
+- **Counts toward the aim:** a substrate that converts experience into correct unasked decisions
+  faster per incident seen and cheaper per decision than the record rung, with stale errors
+  bounded, on streams never used for tuning. **Counts against:** the record rung captures the
+  lever, or stale errors grow with experience.
+
+The stream world offers these laws by design (its hidden record, section 14: recurrence, the
+hidden vocabulary, hidden edges, unannounced regime changes). Transfer is tested by a family of
+worlds that differ in their hidden parameters, not by one world, because every constant learned
+so far was fitted to one world's statistics (review log, B3). The build order in section 12 is
+amended: EXP-103 and EXP-104 come before EXP-101 and EXP-102; EXP-101 stays registered as
+reframed. Beyond this world the same measure applies to any world the program adds: correct
+unasked action per unit experience and per unit cost.
+
 ## 2. Foundations we borrow, and what each actually supports
 
 | Gordian idea | Established foundation | What the evidence supports | What it does not establish |
@@ -415,6 +467,15 @@ An agent may implement alternatives and analyse results. It may not silently cha
 weaken the null, discard failed runs, or modify the hidden evaluator to make its implementation
 pass.
 
+**The verdict is computed, not read (added 2026-10-07).** Every fixed criterion is written as a
+machine-evaluable specification committed before the unit runs (`experiments/criteria/<unit>.json`,
+evaluated by `scripts/criterion.py` from the raw run files; unit V1 builds the script). The
+verdict is the script's output. The chief's verification is to rerun it from the raw files and to
+reason about what the verdict means, not to recompute it by hand. A criterion that cannot be
+written as such a specification is not fixed. The division is explorer, expert, verifier: the PI
+explores, the chief judges meaning, the specification decides the criterion. Until the script
+exists the chief's recomputation from raw files stands in and says so.
+
 ## 12. Build order
 
 | Stage | Deliverable | Question answered |
@@ -486,6 +547,7 @@ supports it.
 | Kanerva (VSA) | P. Kanerva, "Hyperdimensional Computing: An Introduction to Computing in Distributed Representation with High-Dimensional Random Vectors," Cognitive Computation 1(2), 2009. **To acquire and check**; a candidate memory representation for EXP-103. |
 | McSherry et al. | F. McSherry, D. Murray, R. Isaacs, M. Isard, "Differential dataflow," CIDR 2013. **To acquire and check**; the incremental-computation adversary of unit C1. |
 | Jaeger | H. Jaeger, "The 'echo state' approach to analysing and training recurrent neural networks," GMD Report 148, 2001. **To acquire and check**; the reservoir comparator of unit L2. |
+| Alman and Vassilevska Williams | J. Alman, V. Vassilevska Williams, "Truly Subquadratic 3SUM and Truly Subcubic APSP via Triangles in Sparse Lopsided Graphs," 2026. arXiv:2610.06783. **To acquire and check** (preprint v1, 5 October 2026, unreviewed). Cited in section 1.1 for one claim only: the core algorithm is reported as found by an internal language model in one unattended run of about 16 million tokens, with the scaffolding undisclosed; the mathematics is not relied on here.
 
 Citations are to be verified against the primary text before any claim in this repository relies
 on them; a secondary summary is not acquisition.

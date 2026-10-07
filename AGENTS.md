@@ -158,6 +158,17 @@ verifies every report independently, merges what survives, and analyses results 
 several perspectives (representation, structure, causality, time, environment, failure, objective,
 meta), recording the analysis in [`docs/review-log.md`](docs/review-log.md).
 
+**The verifier** is neither the PI nor the chief. Each fixed criterion is a committed
+machine-evaluable specification (`experiments/criteria/<unit>.json`) evaluated by
+`scripts/criterion.py` from the raw run files; the verdict is that output, rerun by the chief or
+by a bounded verifier worker that reports numbers and nothing else. The PI explores, the chief
+judges meaning, the specification decides. Until the script exists (unit V1) the chief's
+recomputation from raw files stands in and says so.
+
+**A unit is one trajectory.** A PI runs its unit unattended from brief to report, committing at
+every checkpoint (rule and priors before any run, each tuning stage, the held-out run), so that a
+fresh PI resumes from the last commit after any interruption without redoing or re-deciding.
+
 ## The rule that matters most
 
 An agent may implement alternatives, build instruments, and analyse results. An agent may **not**:

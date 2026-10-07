@@ -1132,7 +1132,7 @@ Two workers may hold worktrees at once. The driver refuses to start a run while 
 `rustc` process exists, but nothing stops a build from starting during another worker's run. So:
 
 - Before any `cargo build`, `cargo test` or `cargo clippy`, a worker checks for a running
-  `gordian-run` process (`pgrep -f target/release/gordian-run`). If one exists it waits, polling
+  `gordian-run` process (`pgrep -x gordian-run`; the `-f` form matched the checking shell itself). If one exists it waits, polling
   every 30 s, until none does, then builds. It records in its report every time it waited.
 - **Every build and test runs under the runner too** (user direction, 2026-10-06, after a
   container restart under three concurrent unboxed builds): `scripts/cgroup-run.sh --name

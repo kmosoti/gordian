@@ -4,6 +4,49 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Resumption, 2026-10-07 — three lessons applied; the program's centre moves to memory and anticipation
+
+**The reference.** Alman and Vassilevska Williams, arXiv:2610.06783 (5 October 2026; existence
+confirmed by the chief, content not read beyond the abstract-level coverage): truly subquadratic
+3SUM and truly subcubic APSP, the core reported as found by an internal language model in one
+unattended run of about 16 million tokens, then simplified and formalised by the authors.
+Unreviewed; scaffolding undisclosed; relied on here for nothing mathematical.
+
+**Lessons applied (what changed in the repository).**
+
+1. **The gap is cost, not capability.** The status quo substrate produced a discovery-like
+   result at a token cost the aim counts against it. Charter section 1.1 now says so, and makes
+   proxy 1 primary.
+2. **The verdict is computed, not read.** Nine of this log's recorded coordinator errors were
+   criterion or reasoning errors; none was caught by a checker because the checker was the
+   chief. Charter section 11 and AGENTS.md now require a committed machine-evaluable
+   specification per criterion (`experiments/criteria/`), evaluated by `scripts/criterion.py`
+   (unit V1) from raw files. Explorer, expert, verifier are three roles.
+3. **A unit is one trajectory.** The labs' failures were usage limits, restarts and disk, never
+   reasoning, and resumption from the last commit worked every time. AGENTS.md now states the
+   checkpoint rule as the design rather than the accident.
+
+**The purpose (charter section 1.2).** Noticing is settled on this world (B3, M2, M3). The
+centre moves to what the aim asks: experience converted into correct decisions made without the
+reasoner (memory) and before the decisive evidence (anticipation), per unit cost and per unit
+experience, with stale errors scored on their own. The world offers the laws by design
+(recurrence, vocabulary, hidden edges, regime changes; hidden record section 14). The
+comparator is a public record-keeping rung, because the status quo has captured every lever so
+far when given the chance, and the honest prediction is that it captures much of this one too;
+the medium's claim, if it has one, is generalisation across sites, survival of regime changes,
+and cost. EXP-103 and EXP-104 move ahead of EXP-101 and EXP-102.
+
+**Queued and launched.** A1a (Lab 1, opus: the engram mechanism and adapter, identity, no
+criterion beyond deliverables), W2 (Lab 3, sonnet: the learnable laws measured from the hidden
+side, the perfect-memory ceiling, world B); V1 and E1 (Lab 2) follow under the two-lab disk
+rule. A1b's criterion is fixed after W2 and E1 report and before any A1b run, as a committed
+specification. M4, B5, L2 stay stopped and resumable; C2, M5 stay queued behind.
+
+**Chief's own uncertainty.** Whether the record rung leaves the medium anything is the question,
+and I would not bet on the medium. If the record rung captures the lever, the purpose stands
+and the medium's role narrows to generalisation and regime survival, which A1b measures
+directly. The anticipation half (A2) is unbriefed until A1b reports.
+
 ## Stop order, 2026-10-07 — M4, B5 and L2 stopped mid-unit; evidence merged, criteria undecided
 
 **What happened.** The user ordered the labs stopped. Each unit's branch was committed as left

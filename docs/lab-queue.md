@@ -41,6 +41,16 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | M5 | 1 | A less redundant graph at M4's anchoring and precision, in counted operations and wall time against C1's rows | M4 | queued |
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | stopped (reservoir built, identity passed) |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
+| A1 | 1 | The engram: memory in the medium (A1a build and identity; A1b the run, criterion fixed after W2 and E1) | M3 | running (A1a) |
+| W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | running |
+| V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | queued |
+| E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | queued |
+| A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions scored against the hidden graph | A1, E1 | queued |
+
+**Priority after the resumption of 2026-10-07** (charter section 1.2): A1, W2, V1, E1, then A1b and
+A2. C2 and M5 stay queued behind them; M4, B5 and L2 stay `stopped`, resumable from their origin
+branches with their criteria as fixed. EXP-101's registration draft waits on B5 and comes to the
+user before any freeze.
 
 ## M1 The medium crate (Lab 1)
 
@@ -494,3 +504,143 @@ unknown until B1 and may be lower. Every outcome is reachable.
 The medium's graph is designed on the tuning streams and frozen (commit named) before any
 held-out run. It uses public information only. The PI records every structural choice and what
 it was for.
+
+## A1 The engram: memory in the medium (Lab 1, after M3)
+
+The first unit of the purpose in charter section 1.2: experience converted into correct unasked
+decisions. Two phases. **A1a** builds the mechanism and passes identity; **A1b** runs it against
+the record rung once W2 has measured the world's recurrence and E1 has built the measures. A1a
+has no criterion beyond its deliverables; A1b's criterion is fixed by the chief after W2 and E1
+report and before any A1b run.
+
+**A1a, the build.**
+
+1. **The mechanism, in `crates/gordian-medium`.** A bind operation on the plasticity port: given
+   a key (a public pattern the arm witnessed, as a set of features the PI defines) and an outcome
+   (a diagnosis the reasoner gave), create or strengthen an engram: a latch cell keyed by the
+   pattern with an emit that carries the outcome. Recall: a coincidence over the key's features
+   fires the latch, and its emit carries the outcome with the site substituted from the firing
+   support. Strength grows on each bind of the same key, decays at a rhythm boundary, and is
+   weakened by contradiction (a later reasoner answer for the same key that disagrees). All of it
+   deterministic, priced with the calibrated prices, persisted through the persist port across
+   segments so experience accumulates in stream order (L1's `state_key` store is the precedent).
+   Record the design in `crates/gordian-medium/DESIGN.md` before writing it.
+2. **The adapter, in `crates/gordian-run/src/stream/arms/medium/`.** `Answered` events are the
+   arm's own history and feed bind: the key is built from what the arm held about the incident
+   the answer concerns (the abnormal kinds at the site, the message ids attached to it, the shape
+   of the counters) and nothing else. A recall yields a `Declare` with no `Escalate`. The key
+   definition and the confirmation policy (never confirm; confirm every k-th recall; confirm on
+   contradiction) are written in the module documentation and committed before any run. **The
+   key may use only public bytes.** Hidden-vocabulary message ids are public bytes once
+   delivered; whether they mark a family is for the arm to find out from its history, never from
+   the hidden record. The PI does not read `HIDDEN-DESIGN.md`; if it does, it says so.
+3. **Site generalisation is a switch:** the key with the site as a variable (family-keyed) and
+   the key with the site fixed (site-keyed), both built, because E1's record rung has the same
+   two forms and the comparison is between like forms.
+4. **Identity and gates.** R6's held-out manifest replays byte-identical for all 62 arms
+   (`experiments/exploration/r6-results-sha256.csv`); the medium's existing identity tests pass
+   unchanged; fmt, clippy, tests, the oracle guard. A smoke run on seeds 10000–10019 showing
+   that recalls occur and declare, measured only by the existing per-incident columns
+   (`correct_declarations` with `escalations` = 0), with no tuning against any measure.
+5. **The report** records: the key definition, the confirmation policy, every place the build
+   departed from `docs/medium-ports.md` and `DESIGN.md`, the smoke counts, what the PI is least
+   sure of, and what A1b should measure that the chief's brief does not name.
+
+**A1b, the run (brief to follow W2 and E1).** Tuning on seeds 10000–10099 under a stale-error
+bound and the cost column; held-out on seeds 40000–40199 in stream order; arms: the medium with
+engrams (family-keyed and site-keyed), the medium with bind switched off, E1's record rung in
+both forms, the re-anchor with no memory. Measures: E1's. Criterion to be fixed then, in
+`experiments/criteria/a1b.json`.
+
+## W2 The learnable laws, measured from the hidden side (Lab 3)
+
+Experimenter-side measurement, nothing arm-side. Lab 3 reads `HIDDEN-DESIGN.md` and the stream
+crate's internals; its scripts live in `crates/gordian-stream/examples/` and
+`experiments/exploration/scripts/`, and every number comes with the seed range it was measured
+on. Seeds 10000–10099 (tuning) and 40000–40199 (held-out) at the default parameters, reported
+separately, and a second parameterisation (below).
+
+1. **Recurrence.** Per stream: incidents, recurrences, recurrences by tier and family; for each
+   recurrence, the index of the incident it repeats and the gap in incidents and seconds; the
+   cumulative count of recurrences against incidents seen, averaged over streams (the
+   experience curve a memory could at best follow); how many recurrences fall after a regime
+   change that altered their family's physics (stale by construction).
+2. **Same family, different site.** Per stream: non-recurrence hard incidents whose family and
+   mode match an earlier incident at another site. This is what a family-keyed memory can reach
+   and a site-keyed one cannot.
+3. **The vocabulary.** From the public side only: for each stream, the mutual information
+   between a message id and the hard family of the incident it belongs to, and the share of ids
+   that appear at exactly one family; the same statistic over background free-form messages as
+   the floor.
+4. **Hidden edges.** Cascade root-to-partner delays; `EdgeAdd` instants and the number of
+   incidents after each that alarm over the new edge; how often the same pair recurs.
+5. **Regime changes.** Per stream: incidents affected by each change (by family), and the share
+   of all hard incidents that fall after the first change.
+6. **The perfect-memory ceiling.** On the selection oracle's own runs (R6's manifest at the
+   default setting, or a fresh run of the re-anchor with the oracle on these seeds), the
+   reasoner cost spent on incidents that are recurrences of an incident the arm declared
+   correctly earlier: that is the most a site-keyed memory could save; and the same for
+   family-keyed reach (item 2). Reported as calls, modelled ns, and as a share of the arm's
+   total bill.
+7. **A second parameterisation**, world B: recurrence 0.6, regime changes at 150 s and 300 s,
+   same everything else, on seeds 50000–50099: items 1, 2 and 5 only. Its purpose is the later
+   transfer test; nothing is tuned on it.
+
+**Acceptance (fixed 2026-10-07).** Every number reproduces when the chief reruns the script
+from the manifest; every statistic names its seed range and its side (hidden or public); the
+report states which of items 1–6 bound A1b's feasibility and proposes, with its reasons, the
+bounds the chief should fix for A1b's stale-error and unasked-correct clauses. Nothing in W2
+reaches an arm.
+
+## V1 Criteria as code (Lab 2)
+
+The lesson of 2026-10-07 (charter section 11): the verdict is computed, not read.
+
+1. **`scripts/criterion.py`**: given a criterion specification and one or more run directories,
+   computes each clause and prints a verdict file (`verdict.json` and a Markdown table). A
+   specification names: the run directories by role (arm, comparator, controls), the evaluator
+   files and columns each measure reads, the measure (a share over incidents filtered by tier
+   or family, a per-stream mean, a paired difference, a slope over stream order), the bootstrap
+   (cluster by stream, resamples, seed, percentile), the bound or margin, and whether clauses
+   are conjunctive. Measures are implemented once in `analysis/gordian_analysis/` and the
+   script only composes them. Deterministic under a fixed bootstrap seed.
+2. **`experiments/criteria/`**: a specification per criterion, starting with M2, B3's
+   supplementary comparison, L1's three clauses and M3's four-part criterion, written from the
+   queue's text without reading the review log's numbers first.
+3. **Back-test.** Run each against the kept run directories (`artifacts/runs/m2`, `b3`, `l1`,
+   `m3`) and compare with the review log's numbers.
+
+**Criterion (fixed 2026-10-07).** The back-test reproduces every number the review log prints
+for M2 (both results at all three tick lengths, with intervals and background), B3's table and
+paired differences, L1's three clause verdicts and M3's verdict, to the printed precision, from
+the raw files, under the script alone. Where it does not, the report says which number, which
+side is wrong, and why; a discrepancy traced to the review log is a finding, not a failure of
+V1. Mutation: six hand mutants of the measures (a wrong filter, an off-by-one in the window, a
+dropped cluster) each change a verdict or a number.
+
+## E1 Memory measures and the public record rung (Lab 2, after V1)
+
+1. **Evaluator** (`gordian-stream-eval`): per incident, `recurrence_of` (the index of the
+   incident it repeats, from the hidden side, or none), `same_family_earlier` (an earlier
+   incident of the same family and mode at another site exists), `unasked_correct` (a correct
+   declaration with no escalation whose focus belongs to this incident), `stale_wrong` (a
+   wrong declaration with no such escalation), and per stream: unasked-correct share of
+   recurrences, stale errors, reasoner calls per correct decision, and the experience curves
+   over stream order that W1's machinery gives. Rules written into `RULES.md` with fixtures and
+   mutation checks, as B1 did.
+2. **The record rung**, a public arm: the re-anchor with a table from a key to the diagnosis
+   last obtained from the reasoner for that key, consulted before escalating; two forms,
+   site-keyed (site plus the public signature) and family-keyed (signature only, site free),
+   and a confirmation policy with the same three options as A1's. The key uses only public
+   bytes. Tuned on seeds 10000–10099 under a stale-error bound; its table on 40000–40199 in
+   stream order is A1b's comparator row.
+3. **Identity:** R6's held-out manifest replays byte-identical for all 62 arms.
+
+**Criterion (fixed 2026-10-07).** Deliverables, identity, fixtures and mutation checks as B1's
+standard; the record rung's held-out table reported with the W2 ceiling beside it. No claim.
+
+## A2 Anticipation (Lab 1, after A1 and E1)
+
+A hidden edge is learned from co-alarm timing in the arm's own history and used to predict the
+partner's alarm before it arrives; predictions are recorded by the harness and scored against
+the hidden graph. Brief and criterion to be written after A1b reports.
