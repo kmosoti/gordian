@@ -1,0 +1,11 @@
+stage,pair,file,rows_dataflow_side,rows_b3_side,identical,rows_in_one_only
+heldout,dataflow_vs_b3,notice_events,14327,14327,True,0
+heldout,dataflow_vs_b3,notice_incidents,5316,5316,True,0
+heldout,dataflow_vs_b3,notices,200,200,True,0
+heldout,dataflow_vs_b3,incidents,5316,5316,False,8242
+heldout,dataflow_vs_b3,results,200,200,True,0
+heldout,dataflow_unbilled_vs_b3,notice_events,14327,14327,True,0
+heldout,dataflow_unbilled_vs_b3,notice_incidents,5316,5316,True,0
+heldout,dataflow_unbilled_vs_b3,notices,200,200,True,0
+heldout,dataflow_unbilled_vs_b3,incidents,5316,5316,True,0
+heldout,dataflow_unbilled_vs_b3,results,200,200,True,0

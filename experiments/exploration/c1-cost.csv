@@ -1,0 +1,32 @@
+noticer,measure,unit,mean,lo,hi,streams
+b3,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,1912835.815,1873805.58,1953791.37575,200
+dataflow,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,5720523.75,5617721.334000001,5826113.801,200
+medium,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,10916295.89,10704523.7565,11130946.2455,200
+driver loop,wall_ns_per_stream (a noticer that does nothing),ns,175171.835,172441.909,178066.816,200
+dataflow,modelled_ns_per_stream (counted operations at the declared prices),ns,2674429.725,2642667.54125,2706183.17125,200
+dataflow,"billed_ns_per_stream (the replay's charges, as the bill takes them)",ns,2674235.875,2642445.9650000003,2706009.3425,200
+dataflow,counted probes per stream,operations,33658.5,33380.34175,33945.06475,200
+dataflow,counted writes per stream,operations,31507.385,31080.8825,31933.333000000002,200
+dataflow,counted scans per stream,operations,94079.72,92693.768,95463.31850000001,200
+dataflow,counted fires per stream,operations,22605.76,22352.18175,22858.33575,200
+medium,modelled_ns_per_stream (counted operations at 200/25/40/2 ns plus 200 ns per tick),ns,16709407.575,16435106.98875,16984574.7025,200
+medium,counted ticks per stream,operations,5995.0,5995.0,5995.0,200
+medium,counted cell updates per stream,operations,72002.54,70716.48275000001,73295.5345,200
+medium,counted synapse traversals per stream,operations,27798.655,27311.514,28293.31075,200
+medium,counted event routings per stream,operations,10373.33,10245.4505,10500.986499999999,200
+medium,counted field reads per stream,operations,0.0,0.0,0.0,200
+all,observations per stream,observations,4471.87,4433.0067500000005,4511.1105,200
+all,abnormal observations per stream,observations,1703.375,1676.91475,1729.7852500000001,200
+dataflow minus hand-written B3,paired wall_ns_per_stream,ns,3807687.935,3740023.1692500003,3877671.48875,200
+medium minus dataflow,paired wall_ns_per_stream,ns,5195772.14,5052178.857,5344212.62175,200
+medium minus hand-written B3,paired wall_ns_per_stream,ns,9003460.075,8817529.541,9190956.863,200
+dataflow,measured wall over modelled (sums over streams),ratio,2.138969551723779,,,200
+medium,measured wall over modelled (sums over streams),ratio,0.653302389148288,,,200
+dataflow,"in-run charge per stream (bill_compute, billed arm minus unbilled control)",ns,3391562.6,3344469.4074999997,3438495.8575,200
+dataflow,"in-run measured_sched_ns per stream (the arm's bookkeeping, noticer included)",ns,14077060.62,13744169.94025,14427156.52225,200
+dataflow_unbilled,"in-run measured_sched_ns per stream (the arm's bookkeeping, noticer included)",ns,12337047.185,12037293.5435,12651023.79875,200
+med_t100,"in-run measured_sched_ns per stream (the arm's bookkeeping, noticer included)",ns,20436526.195,19787447.88325,21128353.583499998,200
+ramp_split_over_re2,"in-run measured_sched_ns per stream (the arm's bookkeeping, noticer included)",ns,7799729.05,7600424.05475,8010606.29075,200
+dataflow minus ramp_split_over_re2,paired in-run measured_sched_ns per stream,ns,6277331.57,6065541.53125,6497840.88375,200
+dataflow_unbilled minus ramp_split_over_re2,paired in-run measured_sched_ns per stream,ns,4537318.135,4352104.788,4733316.01425,200
+med_t100 minus ramp_split_over_re2,paired in-run measured_sched_ns per stream,ns,12636797.145,12112975.59275,13196866.0395,200

@@ -11,6 +11,8 @@ Writes experiments/exploration/c1-*.csv (c1-tune-*.csv for the tuning stage):
   paired        A minus B over the same resamples for every measure: dataflow minus the B3 row, the
                 unbilled control minus the B3 row, the medium minus the dataflow noticer, the medium
                 minus the B3 row
+  clock-effect  the billed dataflow arm's incidents.csv against the unbilled control's: the columns
+                that differ and by how much (what the bill's clock does)
   cost-run      per stream, per arm, from the run's own files: the bill's compute (`bill_compute`,
                 which carries a noticer's charge), the arm's measured bookkeeping time
                 (`measured_sched_ns`: the noticer's wall time is inside it), and the difference of the
@@ -37,7 +39,8 @@ MAIN = ["hard_anchor_correct_share", "leak_noticed_share", "leak_anchor_correct_
         "notices_on_background_per_stream", "strict_precision"]
 BESIDE = ["hard_noticed_share", "notice_precision", "notices_per_incident", "notices_per_stream",
           "quality", "leak_quality", "cost_s_per_stream", "calls_per_stream"]
-VOLATILE_RESULTS = {"run_id", "bill_compute"}
+VOLATILE_RESULTS = {"run_id", "bill_compute", "measured_component_ns", "measured_sched_ns",
+                    "measured_harness_ns", "arm_position"}
 
 PAIRS = [("dataflow_vs_b3", C.DATAFLOW, C.B3_ROW), ("dataflow_unbilled_vs_b3", C.DATAFLOW_FREE, C.B3_ROW)]
 
@@ -89,6 +92,34 @@ def reproduction(run):
     return rep, d
 
 
+def clock_effect(run):
+    """What the bill's clock did: the billed dataflow arm's `incidents.csv` against the unbilled
+    control's, per column that differs (the noticer's charge advances the logical clock by
+    microseconds, which moves the instants of declarations)."""
+    a = run.arms[C.arm_name(C.DATAFLOW)].incidents.reset_index(drop=True)
+    b = run.arms[C.arm_name(C.DATAFLOW_FREE)].incidents.reset_index(drop=True)
+    rows = []
+    for col in a.columns:
+        if col == "run_id":
+            continue
+        diff = (a[col].astype(str) != b[col].astype(str))
+        if not diff.any():
+            continue
+        row = {"stage": STAGE, "column": col, "rows_differing": int(diff.sum()), "rows": len(a)}
+        try:
+            d = (pd.to_numeric(a[col]) - pd.to_numeric(b[col]))[diff]
+            row.update({"min_difference": float(d.min()), "max_difference": float(d.max()),
+                        "mean_difference": float(d.mean())})
+        except (ValueError, TypeError):
+            pass
+        rows.append(row)
+    out = pd.DataFrame(rows, columns=["stage", "column", "rows_differing", "rows", "min_difference",
+                                      "max_difference", "mean_difference"])
+    out.to_csv(C.OUT / f"{PREFIX}-clock-effect.csv", index=False)
+    print(out.to_string(index=False))
+    return out
+
+
 def cost_run(run):
     rows = []
     for name, arm in run.arms.items():
@@ -117,6 +148,7 @@ def main():
     first, count = C.seeds(STAGE)
     assert seeds == list(range(first, first + count)), "not the streams the stage names"
     reproduction(run)
+    clock_effect(run)
     cost_run(run)
     if STAGE != "heldout":
         return
