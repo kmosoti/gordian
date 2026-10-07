@@ -4,6 +4,47 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A2 anticipation of hidden edges — merged (Lab 1); the learner exists, its predictions are at chance on the public side, the hidden-side verdict is Lab 3's
+
+**Provenance.** Six commits in order: design 75552b0, code 5ddaed2, a rule change before any
+run from a no-data null model b0f40df (the partner's rate per second of its quiet time;
+evidence as follows beyond chance), scripts and the PI's prediction 394d490, identity 46211ce,
+report f7362f4; the prediction section has no removed lines after its commit (chief's diff).
+The chief judges the rule change as design, not tuning: it was made before any run and from
+no observation of the world. The chief recomputed: R6's held-out replay 62 of 62; 251
+predictions on 20 streams (38 / 202 / 11 by band), followed on the public side 3 / 49 / 8,
+as the lab's table. Two read-only accessors on `Tracked` in Lab 2's `noticer.rs`, accepted.
+Runs kept in `artifacts/runs/a2/`; the prediction file is with Lab 3 for the hidden-side
+score (W3 item 4).
+
+**Verdict: A2 delivers** (pair cells, the learner, predictions through the trace port, the
+attach switch built and off, identity, the committed prediction, a joinable trace). No claim.
+
+**What the public side shows (mechanism, failure).** 5.4 edges learned per stream against the
+PI's 12 predicted (inside its range); 12.6 predictions per stream against 60. The follow
+rates by band (0.08 / 0.24 / 0.73) equal the all-trials rates (0.05 / 0.20 / 0.53) within
+noise: on the public side the learner's predictions carry no information beyond the base
+rate of alarms. The control without the public-graph filter learned 3.6 times as many 0.4 s
+edges, likely siblings sharing an upstream. Decision columns unchanged for 523 of 523
+incidents (predictions change no action). The layer costs 3.96 ms of bill per stream.
+
+**What it does not show.** The public follow rate cannot see whether the few true hidden
+edges (cascade partners at 20 to 230 ms or seconds later; one added edge per stream at
+400 s) are among the predicted ones; W2 measured the true pair recurring 0.08 times per
+stream and 0.97 incidents per stream over the added edge, so a correct learner would also
+look like chance on a public follow rate dominated by ordinary alarms. The hidden-side
+precision by edge kind is the number that decides, and it is Lab 3's.
+
+**Decided.**
+
+1. A2b (the use of learned edges) is not briefed until W3's hidden-side score is in. If
+   precision on true edges is at chance too, the pair-cell learner joins the engram as a
+   mechanism this world does not reward, and the anticipation half of the purpose waits for
+   a world with more structure to learn (world C, or a persistent graph).
+2. The explanation filter (an alarm explained by an upstream burst in the previous 0.4 s is
+   not a trial) may hide alarms over a true added edge; Lab 3's score is asked to report
+   predictions and coverage with and without that filter, from the hidden side.
+
 ## E1 memory measures and the public record rung — merged (Lab 2); the status quo finds the same shape the engram did
 
 **Provenance.** Eighteen commits on `memory-measures`, then a merge of main (A1c, A1d) resolved
