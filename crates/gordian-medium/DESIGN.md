@@ -2,7 +2,8 @@
 
 Work items M1, M1b and M3 (`docs/lab-queue.md`), built from `docs/medium-ports.md` (the design).
 M1b, the oscillome (section 4b), is recorded in its own section below, with departures 34 to 52;
-M3's sub-tick support in its own, with departures 53 to 57. This file
+M3's sub-tick support in its own, with departures 53 to 57; A1a's engram in its own, written
+before its code, with departures from 58. This file
 records every place the build departs from the design or fills a gap in it, and why. The tick's
 total order is in `src/medium.rs`'s module documentation; the archetypes' parameters and state are
 in the table in `src/archetype.rs`.
@@ -536,6 +537,134 @@ Nothing here is an oscillation. The cut and the scan read time from `offset_ns`,
 adapter supplies; they are the medium reading a timestamp, not a faster rhythm. At 2 s the
 medium still runs once per tick, and a notice still waits for the tick to complete (M2's latency
 table): the cut moves the anchor, not the time of the notice.
+
+## The engram (A1a): design, written before the code
+
+Work item A1a (`docs/lab-queue.md`, "## A1"): a bind operation on the plasticity port that turns a
+public pattern the arm witnessed and the outcome the reasoner later gave it into an **engram**,
+and a recall by coincidence over the same pattern. Charter section 1.2 names the mechanism; whether
+it beats keeping records is A1b's experiment, not a premise here. The names "engram", "bind" and
+"recall" label a mechanism; they claim nothing about what it achieves (AGENTS.md, "Language").
+This section was committed before any engram code; what the build changes against it is added
+below it as numbered departures, never edited into it silently. Module `engram`.
+
+### What the crate builds (world-agnostic)
+
+The crate knows tags, nodes and cells, never services, incidents or diagnoses. A world adapter
+supplies the key's features as tags and the outcome as a tag (A1a's adapter is in
+`gordian-run/src/stream/arms/medium/`).
+
+- **A key** is a set of at most 8 features and a site. A **feature** is a tag carried by an event
+  at a node (the event's `source.node`). The **site** is `Fixed(node)` (site-keyed: every feature
+  must occur at that node) or `Variable` (family-keyed: every feature must occur at one node,
+  whichever it is). 8 is the number of slots a sliding `Coincidence` has (`S`).
+- **An outcome** is a tag and an outcome site: `None` (the outcome names no site), `Support` (the
+  site of the event that anchors the recall, substituted at recall), or `Fixed(node)`.
+- **An engram** is cells and synapses in an ordinary medium, built by bind:
+
+  | Cells | Archetype | Inputs | What it is for |
+  |---|---|---|---|
+  | `feat[t, n]` (shared by every engram that names feature `t` at node `n`) | `Sense`, presence, pattern `(domain, n, any channel, tag t)` | events at `n` carrying `t` | the feature |
+  | `key[e, n]`, one per node the site ranges over (one for a fixed site, every node of the world for a variable one) | `Coincidence`, sliding (mode 0), `n` = the live features of the key, window `w` ticks, consumed, lookback `w` | `feat[t, n]` for each feature `t` of the key, weight 1, plastic | every feature of the key at one node within `w` ticks |
+  | `latch[e]` | `Latch`, threshold = the live features, hold 0 | every `key[e, n]`, weight 1, fixed | the engram's own cell, keyed by the pattern: it fires on the tick a key cell fires, citing that key cell's events |
+  | `emit[e]` | `Emit`, kind = the recall kind, threshold `n * theta`, lookback `w`, refractory `r` ticks | `latch[e]`, weight = the engram's **strength** `s`, plastic | the recall: a proposal whose anchor is the earliest event of the coincidence that fired |
+
+  The emitter's input is `n * s` (the latch holds the coincidence's count, `n`), so a recall
+  happens when `n * s >= n * theta` in `f32`, which is `s >= theta` up to one rounding of a
+  product by a small integer (stated, not hidden). The strength lives in one place, the weight of
+  the plastic synapse `latch[e] -> emit[e]`; the engram table (below) mirrors it.
+- **The engram table**, beside the medium: per engram its key, its outcome, its strength, and
+  counts of binds, contradictions and recalls, and the ids of its cells and synapses. An outcome
+  cannot live in the cells: a tag is a `u32`, not exact in an `f32` parameter (departure 5). The
+  table maps an emitter to its engram, which is how "the emit carries the outcome" is built.
+
+### Bind (the plasticity port)
+
+`bind(key, outcome)`, called by the adapter with `&mut Medium`, between ticks (an answer arrives
+between ticks; queuing it to the next tick would lose an answer that arrives at the end of a
+segment, after the last tick). In order:
+
+1. **Contradiction.** Every engram whose outcome differs from `outcome` and whose live key is a
+   subset of `key` (with a compatible site: same fixed node, or variable) would have recalled on
+   this pattern: its strength becomes `max(0, s - penalty)` and its contradiction count rises.
+   This is the brief's "a later reasoner answer for the same key that disagrees", read as "for a
+   pattern the engram keys" (with exact keys and no generalisation, every engram whose key equals
+   `key` is among them).
+2. **Strengthen.** An engram with exactly this key (as a set, live features only, same site) and
+   this outcome: `s = min(s_max, s + gain)`, binds + 1.
+3. **Generalise (a switch, the PI's addition, off by default).** Otherwise, with generalisation
+   on: the engram with this outcome and a compatible site whose live key shares the most features
+   with `key`, if it shares at least `min_features` (ties: the lowest engram id), keeps only the
+   shared features (the others' input synapses set to weight 0, the coincidence's `n`, the latch's
+   threshold and the emitter's threshold set for the new count) and is strengthened as in 2. This
+   is generalisation by intersection: features that recur with the same outcome survive, a
+   feature that was there once by chance does not. It is how the arm can "find out from its
+   history" whether a message id marks a family (the brief) without a statistic over labels.
+4. **Create.** Otherwise a new engram: the cells above (feature cells created only where missing),
+   strength `gain`. A key with fewer than `min_features` features is not bound (counted).
+
+Creation needs cells and synapses; the medium's hard limits on both stay on and a bind that would
+exceed them is refused and counted, never truncated silently. Strength never exceeds `s_max` and
+never falls below 0.
+
+### Decay (the plasticity port, at a rhythm boundary)
+
+The engram medium has the oscillome on: its tick length, one rhythm (the decay rhythm, first value
+100 s, section 4b's "memory decay is counted in slow cycles") and cycle summaries. At the end of
+every tick the plasticity adapter looks at `TickSummary::completed`; at a boundary of the decay
+rhythm every engram's strength becomes `s * decay` (a fixed factor per cycle). A strength below
+`theta` cannot recall; the engram stays (its cells are not removed) and a later bind of the same
+key revives it. Nothing is removed from a medium in this build: removing cells would renumber ids,
+which every persisted support and pending message names.
+
+### Recall
+
+The emitter's proposal is resolved through the table: engram, outcome, strength, anchor and
+references. A `Support` outcome site is the node of the anchor event; the crate does not know
+event addresses after routing (supports are `EventRef`s), so the adapter, which knows which
+observation each `seq` is, resolves it, and every event of a key cell's support is at that cell's
+node by construction. With two engrams recalling on one pattern, the adapter decides (A1a: the
+strongest, then the lowest id).
+
+### Persistence across segments
+
+`Engrams::to_bytes` is a fixed binary encoding of the table (versioned, validated on decode, never
+panicking), and the persist port stores the medium's bytes and the table's together. Across
+segments the adapter carries the bytes in a process-wide store keyed by `state_key` (L1's
+precedent) and, at a segment's start, rebuilds the medium from the decoded medium's structure and
+weights (`Medium::spec`): **the engrams carry, their activity does not.** Ticks restart at a
+segment's first tick (a stream's clock restarts at 0), so a pending message or a support citing a
+previous segment's event cannot survive into the next.
+
+### Cost
+
+Every tick of the engram medium is counted and priced like the noticing medium's (200 / 25 / 40 /
+2 ns, and 200 ns per tick, the adapter's `TICK_PRICE_NS`). The plasticity work is counted too:
+one cell update per cell created or re-parameterised and one synapse traversal per synapse created
+or re-weighted (a bind, a contradiction, a generalisation, every engram at every decay boundary),
+priced at the same prices. These are an analogy, stated as such: structural growth has no
+calibrated price.
+
+### What changes in the medium (and so in earlier decisions)
+
+- `Medium::grow(cells, synapses)`: appends cells (in their initial state) and synapses, validated
+  as one spec with the existing ones against the limits; ids of existing cells and synapses and
+  every dynamic state are unchanged; a new synapse into an existing cell takes the next slot.
+- `Medium::set_param(cell, index, value)`: validated by the archetype's rules and refused if it
+  would change whether the cell is an oscillome form (which would change the encoding version).
+- Both are reachable by a plasticity adapter, which receives `&mut Medium`. This reverses
+  departure 30 ("plasticity cannot add cells or synapses"), and the reason that departure gave
+  (the structural limits cannot be bypassed) still holds: both go through the same validation as
+  a spec. A medium that never calls them is byte for byte what it was.
+
+### Not built, and why
+
+- No removal of cells or synapses (above).
+- No keys that span nodes (a feature at the site and another at a dependent): the variable site
+  binds one node, and a relative node ("a dependent of the site") would need the world's graph in
+  the crate.
+- No learned window, threshold or decay: they are parameters, fixed before any run and written in
+  the adapter's module documentation and the manifest.
 
 ## Mutation checks
 
