@@ -15,7 +15,9 @@ use gordian_run::stream::arms::medium::adapters::{
 use gordian_run::stream::arms::medium::{
     CoincidenceForm, Confirm, MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumParams,
 };
-use gordian_run::stream::arms::noticer::{Notice, NoticeKind, Noticer, NoticerSpec};
+use gordian_run::stream::arms::noticer::{
+    Notice, NoticeKind, NoticeLogEntry, Noticer, NoticerSpec,
+};
 use gordian_run::stream::arms::rung::{Held, RungConfig, Store, is_abnormal};
 use gordian_run::stream::execute_stream;
 use gordian_run::stream::manifest::StreamManifest;
@@ -1178,6 +1180,21 @@ fn fnv(h: &mut u64, text: &str) {
     }
 }
 
+/// A notice log's Debug text as it was when the digests below were pinned. Work item B4 (merged
+/// from main after M3's freeze) added `cause` to `NoticeLogEntry`: `None` for a notice and
+/// `Some(Quiet)` for every retirement of a noticer without a follow-up rule. Those two spellings
+/// carry nothing the pinned text did not, so they are removed; any other cause (a follow-up
+/// retirement, which the medium has no rule for) is a real difference and fails here.
+fn log_as_pinned(log: &[NoticeLogEntry]) -> String {
+    let text = format!("{log:?}");
+    assert!(
+        !text.contains("cause: Some(Followup)"),
+        "a medium retirement by a follow-up rule"
+    );
+    text.replace(", cause: None", "")
+        .replace(", cause: Some(Quiet)", "")
+}
+
 /// The frozen media of M2 (`m2-selected.json`), by tick length in milliseconds.
 fn m2_frozen(tick: &str) -> MediumParams {
     let path = concat!(
@@ -1206,7 +1223,7 @@ fn m2_frozen_digest() -> (u64, usize) {
                 .iter()
                 .filter(|e| e.kind == NoticeKind::Notice)
                 .count();
-            fnv(&mut h, &format!("{:?}", r.notice_log));
+            fnv(&mut h, &log_as_pinned(&r.notice_log));
             fnv(&mut h, &format!("{:?}", r.trajectory));
             let charged: u64 = r
                 .bill
@@ -1292,7 +1309,7 @@ fn the_frozen_m3_media_notice_as_they_did_at_the_freeze() {
                 .iter()
                 .filter(|e| e.kind == NoticeKind::Notice)
                 .count();
-            fnv(&mut h, &format!("{:?}", r.notice_log));
+            fnv(&mut h, &log_as_pinned(&r.notice_log));
             fnv(&mut h, &format!("{:?}", r.trajectory));
         }
     }
