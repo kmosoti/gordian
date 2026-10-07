@@ -60,8 +60,9 @@ def test_the_old_files_keep_their_columns_so_that_old_runs_and_hashes_stand():
         load_module.STREAM_INCIDENTS_COLUMNS,
         load_module.STREAM_MEASURED_COLUMNS,
     ):
-        assert not [c for c in cols if "notice" in c and c != "anomalies_noticed"]
-    assert len(load_module.STREAM_RESULTS_COLUMNS) == 59
+        assert not [c for c in cols if "notice" in c and c not in ("anomalies_noticed", "noticer_ns")]
+    assert len(load_module.STREAM_RESULTS_LEGACY_COLUMNS) == 59
+    assert len(load_module.STREAM_RESULTS_COLUMNS) == 61  # work item E1 appended two
     assert len(load_module.STREAM_INCIDENTS_COLUMNS) == 17
 
 

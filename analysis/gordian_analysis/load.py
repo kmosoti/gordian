@@ -401,7 +401,7 @@ def load_pair(dir_a: str | Path, dir_b: str | Path) -> PairedRuns:
 
 # The exact column sets the stream harness writes (crates/gordian-run/src/stream/results.rs:
 # RESULTS_HEADER, INCIDENTS_HEADER, MEASURED_HEADER). A test parses those constants and compares.
-STREAM_RESULTS_COLUMNS = [
+STREAM_RESULTS_LEGACY_COLUMNS = [
     "run_id", "arm_role", "seed", "duration_ns", "observations", "anomalies_noticed",
     "probes_used", "declarations", "declared_incident", "declared_dismissal",
     "incidents_plain", "incidents_hard", "incidents_decoy", "critical_incidents",
@@ -419,6 +419,11 @@ STREAM_RESULTS_COLUMNS = [
     "ops_component", "ops_sched", "modelled_component_ns", "modelled_sched_ns", "substrate_ns",
     "total_cost_ns",
 ]  # fmt: skip
+# Work item E1 appended two columns to `results.csv`: the declarations made from memory and what the
+# arm's noticer charged to the bill. A run made before E1 has neither; its loaded table holds them
+# as missing values (never as zero: an engram arm of A1a made recalls and the file does not say).
+STREAM_RESULTS_APPENDED_COLUMNS = ["recall_declarations", "noticer_ns"]
+STREAM_RESULTS_COLUMNS = STREAM_RESULTS_LEGACY_COLUMNS + STREAM_RESULTS_APPENDED_COLUMNS
 STREAM_INCIDENTS_COLUMNS = [
     "run_id", "arm_role", "seed", "incident", "tier", "family", "critical",
     "correct_declarations", "wrong_declarations", "first_correct_at_ns",
@@ -506,6 +511,39 @@ STREAM_SELECTION_NOTICES_COLUMNS = [
 STREAM_RETIRE_CAUSES = ("quiet", "followup")
 STREAM_SELECTION_FILES = ("selection.csv", "selection_notices.csv")
 
+# The memory files of work item E1 (crates/gordian-run/src/stream/results.rs: MEMORY_HEADER,
+# MEMORY_INCIDENTS_HEADER, RECALLS_HEADER): what the arm declared without asking and what it
+# declared from memory, the observation each memory was bound at, and the evaluator's reading
+# (crates/gordian-stream-eval/RULES.md, K1 to K10). The three are present or none is.
+STREAM_RECALL_CELLS = (
+    "correct_source_right", "correct_source_wrong", "correct_source_unknown",
+    "wrong_source_right", "wrong_source_wrong", "wrong_source_unknown",
+)  # fmt: skip
+STREAM_MEMORY_COLUMNS = [
+    "run_id", "arm_role", "seed", "noticer", "recalls",
+    *[f"recalls_{c}" for c in STREAM_RECALL_CELLS],
+    "recalls_plain_correct", "recalls_plain_wrong", "recalls_hard_correct", "recalls_hard_wrong",
+    "recalls_decoy_correct", "recalls_decoy_wrong", "recalls_background_correct",
+    "recalls_background_wrong",
+    "unasked_correct_plain", "unasked_correct_hard", "unasked_correct_decoy",
+    "unasked_wrong_plain", "unasked_wrong_hard", "unasked_wrong_decoy",
+    "stale_wrong_plain", "stale_wrong_hard", "stale_wrong_decoy",
+    "hard_recurrences", "hard_recurrences_unasked_correct", "hard_elsewhere",
+    "hard_elsewhere_unasked_correct", "hard_reachable", "hard_reachable_unasked_correct",
+]  # fmt: skip
+STREAM_MEMORY_INCIDENTS_COLUMNS = [
+    "run_id", "arm_role", "seed", "incident", "tier", "family", "recurrence_of",
+    "same_family_earlier", "correct_declarations", "wrong_declarations", "escalations",
+    "unasked_correct", "unasked_wrong", "stale_wrong", "recalls",
+    *[f"recalls_{c}" for c in STREAM_RECALL_CELLS],
+]  # fmt: skip
+STREAM_RECALLS_COLUMNS = [
+    "run_id", "arm_role", "seed", "step", "at_ns", "anchor", "declared", "source_obs", "stored",
+    "incident", "tier", "correct", "source_class", "source_incident",
+]  # fmt: skip
+STREAM_SOURCE_CLASSES = ("right", "wrong", "unknown")
+STREAM_MEMORY_FILES = ("memory.csv", "memory_incidents.csv", "recalls.csv")
+
 
 @dataclass
 class StreamArm:
@@ -530,6 +568,9 @@ class StreamArm:
     notice_events: pd.DataFrame | None = None
     selection: pd.DataFrame | None = None
     selection_notices: pd.DataFrame | None = None
+    memory: pd.DataFrame | None = None
+    memory_incidents: pd.DataFrame | None = None
+    recalls: pd.DataFrame | None = None
 
 
 @dataclass
@@ -555,10 +596,15 @@ def _parse_count(series: pd.Series, column: str, where: str) -> pd.Series:
     return text.astype("int64")
 
 
-def _read_stream_csv(path: Path, expected: list[str], allow_empty: bool = False) -> pd.DataFrame:
-    """Read a stream CSV as strings; its columns must be exactly the ones the harness writes."""
+def _read_stream_csv(
+    path: Path, expected: list[str], allow_empty: bool = False, legacy: list[str] | None = None
+) -> pd.DataFrame:
+    """Read a stream CSV as strings; its columns must be exactly the ones the harness writes (or,
+    when `legacy` is given, exactly those of the schema before columns were appended to it)."""
     where = str(path)
     raw = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if legacy is not None and list(raw.columns) == legacy:
+        return raw
     if list(raw.columns) != expected:
         missing = [c for c in expected if c not in raw.columns]
         unknown = [c for c in raw.columns if c not in expected]
@@ -588,12 +634,15 @@ def _single_role(raw: pd.DataFrame, where: str) -> str:
 
 def _load_stream_results(path: Path) -> pd.DataFrame:
     where = str(path)
-    raw = _read_stream_csv(path, STREAM_RESULTS_COLUMNS)
+    raw = _read_stream_csv(path, STREAM_RESULTS_COLUMNS, legacy=STREAM_RESULTS_LEGACY_COLUMNS)
     df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
     _single_value(raw, "run_id", where)
     df["arm_role"] = _single_role(raw, where)
     for c in STREAM_COUNT_COLUMNS:
-        df[c] = _parse_count(raw[c], c, where)
+        if c in STREAM_RESULTS_APPENDED_COLUMNS and c not in raw.columns:
+            df[c] = pd.array([pd.NA] * len(raw), dtype="Int64")
+        else:
+            df[c] = _parse_count(raw[c], c, where)
     df["stop_reason"] = raw["stop_reason"].str.strip()
     if (df["stop_reason"] == "").any():
         raise LoadError(f"{where}: empty 'stop_reason' value")
@@ -1130,6 +1179,137 @@ def _load_stream_measured(path: Path, results: pd.DataFrame) -> pd.DataFrame:
     return results.merge(df, on="seed", how="left", validate="one_to_one")
 
 
+def _load_stream_memory(path: Path, results: pd.DataFrame) -> pd.DataFrame:
+    """`memory.csv`: one row per stream (K3 to K7), the same streams as `results.csv`."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_MEMORY_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    df["noticer"] = _single_value(raw, "noticer", where)
+    for c in STREAM_MEMORY_COLUMNS:
+        if c not in ("run_id", "arm_role", "noticer"):
+            df[c] = _parse_count(raw[c], c, where)
+    if df.duplicated(STREAM_KEY).any():
+        raise LoadError(f"{where}: duplicate seeds")
+    if sorted(df["seed"]) != sorted(results["seed"]):
+        raise LoadError(f"{where}: not the streams of results.csv")
+    cells = df[[f"recalls_{c}" for c in STREAM_RECALL_CELLS]].sum(axis=1)
+    bad = cells != df["recalls"]
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: the six cells do not add to recalls")
+    by_anchor = df[[c for c in STREAM_MEMORY_COLUMNS if c.startswith("recalls_") and c.split("_")[1] in
+                    ("plain", "hard", "decoy", "background")]].sum(axis=1)
+    bad = by_anchor != df["recalls"]
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: recalls by anchor do not add to recalls")
+    for pop in ("hard_recurrences", "hard_elsewhere", "hard_reachable"):
+        if (df[f"{pop}_unasked_correct"] > df[pop]).any():
+            raise LoadError(f"{where}: more unasked correct than {pop}")
+    r = results.set_index("seed")["recall_declarations"]
+    if r.notna().all():
+        mine = df.set_index("seed")["recalls"].reindex(r.index)
+        if (mine.to_numpy() != r.astype("int64").to_numpy()).any():
+            raise LoadError(f"{where}: recalls is not recall_declarations of results.csv")
+    return df[STREAM_MEMORY_COLUMNS]
+
+
+def _load_stream_memory_incidents(path: Path, incidents: pd.DataFrame) -> pd.DataFrame:
+    """`memory_incidents.csv`: one row per incident (K1 to K6), the same incidents as
+    `incidents.csv`."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_MEMORY_INCIDENTS_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    for c in ("seed", "incident", "correct_declarations", "wrong_declarations", "escalations", "recalls",
+              *[f"recalls_{c}" for c in STREAM_RECALL_CELLS]):
+        df[c] = _parse_count(raw[c], c, where)
+    df["tier"] = raw["tier"].str.strip()
+    df["family"] = raw["family"].str.strip()
+    df["recurrence_of"] = _optional_count(raw, "recurrence_of", where)
+    for c in ("same_family_earlier", "unasked_correct", "unasked_wrong", "stale_wrong"):
+        df[c] = _parse_bool(raw[c], c, where)
+    if df.duplicated(STREAM_INCIDENT_KEY).any():
+        raise LoadError(f"{where}: duplicate (seed, incident) keys")
+    mine = df.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
+    theirs = incidents.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
+    key = ["seed", "incident", "tier", "family", "correct_declarations", "wrong_declarations", "escalations"]
+    if not mine[key].equals(theirs[key]):
+        raise LoadError(
+            f"{where}: not the incidents of incidents.csv (same seed, incident, tier, family and "
+            "declaration and escalation counts on every row)"
+        )
+    # K3, K4, K6: the flags are a function of the row's own counts.
+    for flag, expected in (
+        ("unasked_correct", (df["correct_declarations"] > 0) & (df["escalations"] == 0)),
+        ("unasked_wrong", (df["wrong_declarations"] > 0) & (df["escalations"] == 0)),
+    ):
+        bad = df[flag] != expected
+        if bad.any():
+            raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: {flag} does not follow the counts")
+    wrong = df[[f"recalls_{c}" for c in STREAM_RECALL_CELLS if c.startswith("wrong")]].sum(axis=1)
+    bad = df["stale_wrong"] != ((wrong > 0) & (df["escalations"] == 0))
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: stale_wrong does not follow the cells")
+    bad = df[[f"recalls_{c}" for c in STREAM_RECALL_CELLS]].sum(axis=1) != df["recalls"]
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: the six cells do not add to recalls")
+    bad = df["same_family_earlier"] & (df["tier"] != "hard")
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: same_family_earlier on a tier other than hard")
+    return df[STREAM_MEMORY_INCIDENTS_COLUMNS]
+
+
+def _load_stream_recalls(path: Path) -> pd.DataFrame:
+    """`recalls.csv`: every declaration made from memory, in the order made (K5)."""
+    where = str(path)
+    raw = _read_stream_csv(path, STREAM_RECALLS_COLUMNS, allow_empty=True)
+    if len(raw) == 0:
+        return pd.DataFrame(columns=STREAM_RECALLS_COLUMNS)
+    df = pd.DataFrame({"run_id": raw["run_id"].str.strip()})
+    _single_value(raw, "run_id", where)
+    df["arm_role"] = _single_role(raw, where)
+    for c in ("seed", "step", "at_ns", "anchor"):
+        df[c] = _parse_count(raw[c], c, where)
+    df["declared"] = raw["declared"].str.strip()
+    df["stored"] = raw["stored"].str.strip()
+    for c in ("source_obs", "incident", "source_incident"):
+        df[c] = _optional_count(raw, c, where)
+    df["tier"] = raw["tier"].str.strip()
+    df["correct"] = _parse_bool(raw["correct"], "correct", where)
+    df["source_class"] = raw["source_class"].str.strip()
+    bad = ~df["source_class"].isin(STREAM_SOURCE_CLASSES)
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: source_class is not one of {list(STREAM_SOURCE_CLASSES)}")
+    bad = (df["source_class"] == "unknown") != (df["source_obs"].isna())
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: the source class is unknown exactly when no source is recorded")
+    bad = df["incident"].isna() != (df["tier"] == "")
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: incident and tier are empty together (background)")
+    return df[STREAM_RECALLS_COLUMNS]
+
+
+def _check_memory_files(path: Path, memory: pd.DataFrame, memory_incidents: pd.DataFrame, recalls: pd.DataFrame):
+    """The three memory files describe the same recalls and add up to one another."""
+    g = memory_incidents.groupby("seed")
+    m = memory.set_index("seed")
+    for tier in ("plain", "hard", "decoy"):
+        sub = memory_incidents[memory_incidents["tier"] == tier].groupby("seed")
+        for flag in ("unasked_correct", "unasked_wrong", "stale_wrong"):
+            have = sub[flag].sum().reindex(m.index, fill_value=0).astype("int64")
+            if (have.to_numpy() != m[f"{flag}_{tier}"].to_numpy()).any():
+                raise LoadError(f"{path}: memory.csv {flag}_{tier} is not the count of memory_incidents.csv")
+    on_inc = g["recalls"].sum().reindex(m.index, fill_value=0)
+    on_bg = m["recalls_background_correct"] + m["recalls_background_wrong"]
+    if ((on_inc + on_bg).to_numpy() != m["recalls"].to_numpy()).any():
+        raise LoadError(f"{path}: recalls of memory_incidents.csv and the background ones do not add to memory.csv")
+    n = recalls.groupby("seed").size().reindex(m.index, fill_value=0)
+    if (n.to_numpy() != m["recalls"].to_numpy()).any():
+        raise LoadError(f"{path}: recalls.csv does not have the rows memory.csv counts")
+
+
 def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
     """Read one arm directory of a stream run: `results.csv` and `incidents.csv` (both required)
     and `measured.csv` (joined on `seed` when present).
@@ -1176,6 +1356,18 @@ def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
         selection_notices = _load_stream_selection_notices(path / "selection_notices.csv")
         _check_selection_files(path, results, notices, notice_events, selection, selection_notices)
         selection = selection.sort_values("seed").reset_index(drop=True)
+    memory = memory_incidents = recalls = None
+    mem_present = [(path / f).is_file() for f in STREAM_MEMORY_FILES]
+    if any(mem_present) and not all(mem_present):
+        missing = [f for f, p in zip(STREAM_MEMORY_FILES, mem_present) if not p]
+        raise LoadError(f"{path}: the memory files come together; missing {missing}")
+    if all(mem_present):
+        memory = _load_stream_memory(path / "memory.csv", results)
+        memory_incidents = _load_stream_memory_incidents(path / "memory_incidents.csv", incidents)
+        recalls = _load_stream_recalls(path / "recalls.csv")
+        _check_memory_files(path, memory, memory_incidents, recalls)
+        memory = memory.sort_values("seed").reset_index(drop=True)
+        memory_incidents = memory_incidents.sort_values(STREAM_INCIDENT_KEY).reset_index(drop=True)
     return StreamArm(
         path=path,
         name=name or path.name,
@@ -1188,6 +1380,9 @@ def load_stream_arm(path: str | Path, name: str | None = None) -> StreamArm:
         notice_events=notice_events,
         selection=selection,
         selection_notices=selection_notices,
+        memory=memory,
+        memory_incidents=memory_incidents,
+        recalls=recalls,
     )
 
 

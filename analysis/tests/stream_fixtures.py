@@ -17,6 +17,7 @@ from gordian_analysis.load import (
     STREAM_INCIDENTS_COLUMNS,
     STREAM_MEASURED_COLUMNS,
     STREAM_RESULTS_COLUMNS,
+    STREAM_RESULTS_LEGACY_COLUMNS,
 )
 
 TOKENS_PER_CALL = 100
@@ -133,6 +134,8 @@ RESULT_DEFAULTS = {
     "stop_reason": "horizon",
     "ops_component": 5000,
     "ops_sched": 700,
+    "recall_declarations": 0,
+    "noticer_ns": 0,
 }
 
 
@@ -148,11 +151,14 @@ def write_stream_arm(
     role: str = "comparison",
     measured: bool = True,
     position: int = 0,
+    legacy: bool = False,
 ) -> Path:
-    """Write `results.csv`, `incidents.csv` and (unless `measured=False`) `measured.csv`."""
+    """Write `results.csv`, `incidents.csv` and (unless `measured=False`) `measured.csv`. With
+    `legacy` the results file has the columns it had before work item E1 appended two."""
     path.mkdir(parents=True, exist_ok=True)
     with open(path / "results.csv", "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=STREAM_RESULTS_COLUMNS, lineterminator="\n")
+        fields = STREAM_RESULTS_LEGACY_COLUMNS if legacy else STREAM_RESULTS_COLUMNS
+        w = csv.DictWriter(fh, fieldnames=fields, lineterminator="\n", extrasaction="ignore")
         w.writeheader()
         for s in streams:
             extra = {k: v for k, v in s.items() if k not in ("seed", "incidents")}

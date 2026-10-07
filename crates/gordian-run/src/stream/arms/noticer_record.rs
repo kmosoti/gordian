@@ -135,6 +135,17 @@
 //! when none does. The held-out table (seeds 40000 to 40199, in stream order) runs every cell once
 //! with its tuned values, beside the memoryless re-anchor.
 //!
+//! **Two cases the rule above leaves open, decided before any run** (the script that applies the
+//! rule, `experiments/exploration/scripts/e1_select.py`, carries these words): when no level meets
+//! the bound in stage 1, the level kept is `timing` and the cell is reported as failing the bound;
+//! when no `k` meets it in stage 2, the `k` kept is the one with the smallest collision share, ties
+//! to the larger `k`. The statistics the rule reads are `memory.csv`'s: the collision share is
+//! `recalls_wrong_source_right` over `recalls_correct_source_right + recalls_wrong_source_right`,
+//! pooled over the 100 streams; the count per stream is `recalls_wrong_source_right` summed over
+//! the streams and divided by their number; the hard incidents unasked correct are
+//! `unasked_correct_hard` summed. Each cell's `never` and `on_contradiction` arms have no free
+//! parameter beyond the stage 1 level.
+//!
 //! # What this is not
 //!
 //! It is not told whether a recall was right: the stream never says. It learns only from answers it
