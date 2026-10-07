@@ -1,0 +1,169 @@
+range,seeds,side,cutoff_s,group,incidents,with_five_benign_readings_in_a_row,share
+a-tune,10000-10099,hidden,6,plain,2110,0,0.0000
+a-tune,10000-10099,hidden,6,hard,243,0,0.0000
+a-tune,10000-10099,hidden,6,decoy,267,5,0.0187
+a-tune,10000-10099,hidden,6,decoy/slow_leak,61,5,0.0820
+a-tune,10000-10099,hidden,6,decoy/other families,206,0,0.0000
+a-tune,10000-10099,hidden,6,hard/slow_leak,44,0,0.0000
+a-tune,10000-10099,hidden,10,plain,2110,2,0.0009
+a-tune,10000-10099,hidden,10,hard,243,0,0.0000
+a-tune,10000-10099,hidden,10,decoy,267,24,0.0899
+a-tune,10000-10099,hidden,10,decoy/slow_leak,61,22,0.3607
+a-tune,10000-10099,hidden,10,decoy/other families,206,2,0.0097
+a-tune,10000-10099,hidden,10,hard/slow_leak,44,0,0.0000
+a-tune,10000-10099,hidden,13,plain,2110,1,0.0005
+a-tune,10000-10099,hidden,13,hard,243,0,0.0000
+a-tune,10000-10099,hidden,13,decoy,267,56,0.2097
+a-tune,10000-10099,hidden,13,decoy/slow_leak,61,31,0.5082
+a-tune,10000-10099,hidden,13,decoy/other families,206,25,0.1214
+a-tune,10000-10099,hidden,13,hard/slow_leak,44,0,0.0000
+a-tune,10000-10099,hidden,16,plain,2110,0,0.0000
+a-tune,10000-10099,hidden,16,hard,243,0,0.0000
+a-tune,10000-10099,hidden,16,decoy,267,102,0.3820
+a-tune,10000-10099,hidden,16,decoy/slow_leak,61,45,0.7377
+a-tune,10000-10099,hidden,16,decoy/other families,206,57,0.2767
+a-tune,10000-10099,hidden,16,hard/slow_leak,44,0,0.0000
+a-tune,10000-10099,hidden,20,plain,2110,3,0.0014
+a-tune,10000-10099,hidden,20,hard,243,0,0.0000
+a-tune,10000-10099,hidden,20,decoy,267,171,0.6404
+a-tune,10000-10099,hidden,20,decoy/slow_leak,61,59,0.9672
+a-tune,10000-10099,hidden,20,decoy/other families,206,112,0.5437
+a-tune,10000-10099,hidden,20,hard/slow_leak,44,0,0.0000
+a-tune,10000-10099,hidden,24,plain,2110,1,0.0005
+a-tune,10000-10099,hidden,24,hard,243,1,0.0041
+a-tune,10000-10099,hidden,24,decoy,267,219,0.8202
+a-tune,10000-10099,hidden,24,decoy/slow_leak,61,61,1.0000
+a-tune,10000-10099,hidden,24,decoy/other families,206,158,0.7670
+a-tune,10000-10099,hidden,24,hard/slow_leak,44,1,0.0227
+a-tune,10000-10099,hidden,32,plain,2110,65,0.0308
+a-tune,10000-10099,hidden,32,hard,243,4,0.0165
+a-tune,10000-10099,hidden,32,decoy,267,267,1.0000
+a-tune,10000-10099,hidden,32,decoy/slow_leak,61,61,1.0000
+a-tune,10000-10099,hidden,32,decoy/other families,206,206,1.0000
+a-tune,10000-10099,hidden,32,hard/slow_leak,44,3,0.0682
+a-heldout,40000-40199,hidden,6,plain,4304,4,0.0009
+a-heldout,40000-40199,hidden,6,hard,512,1,0.0020
+a-heldout,40000-40199,hidden,6,decoy,502,9,0.0179
+a-heldout,40000-40199,hidden,6,decoy/slow_leak,122,9,0.0738
+a-heldout,40000-40199,hidden,6,decoy/other families,380,0,0.0000
+a-heldout,40000-40199,hidden,6,hard/slow_leak,114,0,0.0000
+a-heldout,40000-40199,hidden,10,plain,4304,4,0.0009
+a-heldout,40000-40199,hidden,10,hard,512,0,0.0000
+a-heldout,40000-40199,hidden,10,decoy,502,55,0.1096
+a-heldout,40000-40199,hidden,10,decoy/slow_leak,122,54,0.4426
+a-heldout,40000-40199,hidden,10,decoy/other families,380,1,0.0026
+a-heldout,40000-40199,hidden,10,hard/slow_leak,114,0,0.0000
+a-heldout,40000-40199,hidden,13,plain,4304,4,0.0009
+a-heldout,40000-40199,hidden,13,hard,512,0,0.0000
+a-heldout,40000-40199,hidden,13,decoy,502,116,0.2311
+a-heldout,40000-40199,hidden,13,decoy/slow_leak,122,71,0.5820
+a-heldout,40000-40199,hidden,13,decoy/other families,380,45,0.1184
+a-heldout,40000-40199,hidden,13,hard/slow_leak,114,0,0.0000
+a-heldout,40000-40199,hidden,16,plain,4304,11,0.0026
+a-heldout,40000-40199,hidden,16,hard,512,0,0.0000
+a-heldout,40000-40199,hidden,16,decoy,502,197,0.3924
+a-heldout,40000-40199,hidden,16,decoy/slow_leak,122,92,0.7541
+a-heldout,40000-40199,hidden,16,decoy/other families,380,105,0.2763
+a-heldout,40000-40199,hidden,16,hard/slow_leak,114,0,0.0000
+a-heldout,40000-40199,hidden,20,plain,4304,2,0.0005
+a-heldout,40000-40199,hidden,20,hard,512,0,0.0000
+a-heldout,40000-40199,hidden,20,decoy,502,304,0.6056
+a-heldout,40000-40199,hidden,20,decoy/slow_leak,122,117,0.9590
+a-heldout,40000-40199,hidden,20,decoy/other families,380,187,0.4921
+a-heldout,40000-40199,hidden,20,hard/slow_leak,114,0,0.0000
+a-heldout,40000-40199,hidden,24,plain,4304,6,0.0014
+a-heldout,40000-40199,hidden,24,hard,512,2,0.0039
+a-heldout,40000-40199,hidden,24,decoy,502,391,0.7789
+a-heldout,40000-40199,hidden,24,decoy/slow_leak,122,122,1.0000
+a-heldout,40000-40199,hidden,24,decoy/other families,380,269,0.7079
+a-heldout,40000-40199,hidden,24,hard/slow_leak,114,2,0.0175
+a-heldout,40000-40199,hidden,32,plain,4304,125,0.0290
+a-heldout,40000-40199,hidden,32,hard,512,16,0.0312
+a-heldout,40000-40199,hidden,32,decoy,502,502,1.0000
+a-heldout,40000-40199,hidden,32,decoy/slow_leak,122,122,1.0000
+a-heldout,40000-40199,hidden,32,decoy/other families,380,380,1.0000
+a-heldout,40000-40199,hidden,32,hard/slow_leak,114,13,0.1140
+c-tune,60000-60099,hidden,6,plain,1519,1,0.0007
+c-tune,60000-60099,hidden,6,hard,786,0,0.0000
+c-tune,60000-60099,hidden,6,decoy,260,3,0.0115
+c-tune,60000-60099,hidden,6,decoy/slow_leak,67,3,0.0448
+c-tune,60000-60099,hidden,6,decoy/other families,193,0,0.0000
+c-tune,60000-60099,hidden,6,hard/slow_leak,222,0,0.0000
+c-tune,60000-60099,hidden,10,plain,1519,2,0.0013
+c-tune,60000-60099,hidden,10,hard,786,1,0.0013
+c-tune,60000-60099,hidden,10,decoy,260,20,0.0769
+c-tune,60000-60099,hidden,10,decoy/slow_leak,67,20,0.2985
+c-tune,60000-60099,hidden,10,decoy/other families,193,0,0.0000
+c-tune,60000-60099,hidden,10,hard/slow_leak,222,0,0.0000
+c-tune,60000-60099,hidden,13,plain,1519,2,0.0013
+c-tune,60000-60099,hidden,13,hard,786,1,0.0013
+c-tune,60000-60099,hidden,13,decoy,260,70,0.2692
+c-tune,60000-60099,hidden,13,decoy/slow_leak,67,37,0.5522
+c-tune,60000-60099,hidden,13,decoy/other families,193,33,0.1710
+c-tune,60000-60099,hidden,13,hard/slow_leak,222,0,0.0000
+c-tune,60000-60099,hidden,16,plain,1519,2,0.0013
+c-tune,60000-60099,hidden,16,hard,786,0,0.0000
+c-tune,60000-60099,hidden,16,decoy,260,125,0.4808
+c-tune,60000-60099,hidden,16,decoy/slow_leak,67,57,0.8507
+c-tune,60000-60099,hidden,16,decoy/other families,193,68,0.3523
+c-tune,60000-60099,hidden,16,hard/slow_leak,222,0,0.0000
+c-tune,60000-60099,hidden,20,plain,1519,2,0.0013
+c-tune,60000-60099,hidden,20,hard,786,0,0.0000
+c-tune,60000-60099,hidden,20,decoy,260,170,0.6538
+c-tune,60000-60099,hidden,20,decoy/slow_leak,67,65,0.9701
+c-tune,60000-60099,hidden,20,decoy/other families,193,105,0.5440
+c-tune,60000-60099,hidden,20,hard/slow_leak,222,0,0.0000
+c-tune,60000-60099,hidden,24,plain,1519,3,0.0020
+c-tune,60000-60099,hidden,24,hard,786,4,0.0051
+c-tune,60000-60099,hidden,24,decoy,260,214,0.8231
+c-tune,60000-60099,hidden,24,decoy/slow_leak,67,67,1.0000
+c-tune,60000-60099,hidden,24,decoy/other families,193,147,0.7617
+c-tune,60000-60099,hidden,24,hard/slow_leak,222,4,0.0180
+c-tune,60000-60099,hidden,32,plain,1519,43,0.0283
+c-tune,60000-60099,hidden,32,hard,786,34,0.0433
+c-tune,60000-60099,hidden,32,decoy,260,260,1.0000
+c-tune,60000-60099,hidden,32,decoy/slow_leak,67,67,1.0000
+c-tune,60000-60099,hidden,32,decoy/other families,193,193,1.0000
+c-tune,60000-60099,hidden,32,hard/slow_leak,222,30,0.1351
+c-heldout,70000-70199,hidden,6,plain,3273,3,0.0009
+c-heldout,70000-70199,hidden,6,hard,1516,0,0.0000
+c-heldout,70000-70199,hidden,6,decoy,524,8,0.0153
+c-heldout,70000-70199,hidden,6,decoy/slow_leak,121,8,0.0661
+c-heldout,70000-70199,hidden,6,decoy/other families,403,0,0.0000
+c-heldout,70000-70199,hidden,6,hard/slow_leak,431,0,0.0000
+c-heldout,70000-70199,hidden,10,plain,3273,3,0.0009
+c-heldout,70000-70199,hidden,10,hard,1516,5,0.0033
+c-heldout,70000-70199,hidden,10,decoy,524,42,0.0802
+c-heldout,70000-70199,hidden,10,decoy/slow_leak,121,38,0.3140
+c-heldout,70000-70199,hidden,10,decoy/other families,403,4,0.0099
+c-heldout,70000-70199,hidden,10,hard/slow_leak,431,0,0.0000
+c-heldout,70000-70199,hidden,13,plain,3273,3,0.0009
+c-heldout,70000-70199,hidden,13,hard,1516,1,0.0007
+c-heldout,70000-70199,hidden,13,decoy,524,104,0.1985
+c-heldout,70000-70199,hidden,13,decoy/slow_leak,121,55,0.4545
+c-heldout,70000-70199,hidden,13,decoy/other families,403,49,0.1216
+c-heldout,70000-70199,hidden,13,hard/slow_leak,431,0,0.0000
+c-heldout,70000-70199,hidden,16,plain,3273,6,0.0018
+c-heldout,70000-70199,hidden,16,hard,1516,1,0.0007
+c-heldout,70000-70199,hidden,16,decoy,524,216,0.4122
+c-heldout,70000-70199,hidden,16,decoy/slow_leak,121,85,0.7025
+c-heldout,70000-70199,hidden,16,decoy/other families,403,131,0.3251
+c-heldout,70000-70199,hidden,16,hard/slow_leak,431,0,0.0000
+c-heldout,70000-70199,hidden,20,plain,3273,3,0.0009
+c-heldout,70000-70199,hidden,20,hard,1516,1,0.0007
+c-heldout,70000-70199,hidden,20,decoy,524,331,0.6317
+c-heldout,70000-70199,hidden,20,decoy/slow_leak,121,117,0.9669
+c-heldout,70000-70199,hidden,20,decoy/other families,403,214,0.5310
+c-heldout,70000-70199,hidden,20,hard/slow_leak,431,1,0.0023
+c-heldout,70000-70199,hidden,24,plain,3273,5,0.0015
+c-heldout,70000-70199,hidden,24,hard,1516,8,0.0053
+c-heldout,70000-70199,hidden,24,decoy,524,424,0.8092
+c-heldout,70000-70199,hidden,24,decoy/slow_leak,121,121,1.0000
+c-heldout,70000-70199,hidden,24,decoy/other families,403,303,0.7519
+c-heldout,70000-70199,hidden,24,hard/slow_leak,431,8,0.0186
+c-heldout,70000-70199,hidden,32,plain,3273,97,0.0296
+c-heldout,70000-70199,hidden,32,hard,1516,52,0.0343
+c-heldout,70000-70199,hidden,32,decoy,524,524,1.0000
+c-heldout,70000-70199,hidden,32,decoy/slow_leak,121,121,1.0000
+c-heldout,70000-70199,hidden,32,decoy/other families,403,403,1.0000
+c-heldout,70000-70199,hidden,32,hard/slow_leak,431,50,0.1160

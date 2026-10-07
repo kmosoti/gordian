@@ -1,4 +1,81 @@
 range,seeds,side,setting,stream_reset,wrong_recalls_on,wrong
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,decoy/compound/contradict,1
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,decoy/compound/mimic,1
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,decoy/slow_leak/,11
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,decoy/split_brain/contradict,3
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,decoy/split_brain/mimic,3
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,plain/known/,74
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,plain altered by the signature shift,9
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,plain altered by the added edge,1
+a-tune,10000-10099,hidden,ladder K2 at 6 s,yes,plain unaltered,64
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,decoy/cascade/contradict,25
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,decoy/cascade/mimic,21
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,decoy/compound/contradict,26
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,decoy/compound/mimic,29
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,decoy/slow_leak/,61
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,decoy/split_brain/contradict,38
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,decoy/split_brain/mimic,34
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,hard/cascade/mimic,3
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,hard/compound/mimic,3
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,plain/known/,1215
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,plain altered by the signature shift,47
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,plain altered by the added edge,22
+a-tune,10000-10099,hidden,ladder K2 at 6 s,no,plain unaltered,1146
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,decoy/cascade/contradict,1
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,decoy/compound/contradict,1
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,decoy/slow_leak/,11
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,decoy/split_brain/contradict,8
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,plain/known/,1
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,plain altered by the signature shift,0
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,plain altered by the added edge,1
+a-tune,10000-10099,hidden,ladder K2 at 16 s,yes,plain unaltered,0
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,decoy/cascade/contradict,30
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,decoy/compound/contradict,27
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,decoy/slow_leak/,61
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,decoy/split_brain/contradict,40
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,decoy/split_brain/mimic,1
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,plain/known/,6
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,plain altered by the signature shift,0
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,plain altered by the added edge,6
+a-tune,10000-10099,hidden,ladder K2 at 16 s,no,plain unaltered,0
+a-tune,10000-10099,hidden,ladder K4 at 16 s,yes,decoy/compound/contradict,1
+a-tune,10000-10099,hidden,ladder K4 at 16 s,yes,decoy/slow_leak/,1
+a-tune,10000-10099,hidden,ladder K4 at 16 s,yes,decoy/split_brain/contradict,3
+a-tune,10000-10099,hidden,ladder K4 at 16 s,yes,plain altered by the signature shift,0
+a-tune,10000-10099,hidden,ladder K4 at 16 s,yes,plain altered by the added edge,0
+a-tune,10000-10099,hidden,ladder K4 at 16 s,yes,plain unaltered,0
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,decoy/cascade/contradict,18
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,decoy/compound/contradict,12
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,decoy/slow_leak/,16
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,decoy/split_brain/contradict,25
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,decoy/split_brain/mimic,1
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,plain/known/,6
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,plain altered by the signature shift,0
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,plain altered by the added edge,6
+a-tune,10000-10099,hidden,ladder K4 at 16 s,no,plain unaltered,0
+a-tune,10000-10099,hidden,ladder K4 at 32 s,yes,plain/known/,1
+a-tune,10000-10099,hidden,ladder K4 at 32 s,yes,plain altered by the signature shift,0
+a-tune,10000-10099,hidden,ladder K4 at 32 s,yes,plain altered by the added edge,1
+a-tune,10000-10099,hidden,ladder K4 at 32 s,yes,plain unaltered,0
+a-tune,10000-10099,hidden,ladder K4 at 32 s,no,decoy/slow_leak/,2
+a-tune,10000-10099,hidden,ladder K4 at 32 s,no,decoy/split_brain/contradict,1
+a-tune,10000-10099,hidden,ladder K4 at 32 s,no,plain/known/,6
+a-tune,10000-10099,hidden,ladder K4 at 32 s,no,plain altered by the signature shift,0
+a-tune,10000-10099,hidden,ladder K4 at 32 s,no,plain altered by the added edge,6
+a-tune,10000-10099,hidden,ladder K4 at 32 s,no,plain unaltered,0
+a-tune,10000-10099,hidden,E1 timing at the snapshot,yes,decoy/compound/contradict,1
+a-tune,10000-10099,hidden,E1 timing at the snapshot,yes,decoy/split_brain/contradict,1
+a-tune,10000-10099,hidden,E1 timing at the snapshot,yes,plain/known/,10
+a-tune,10000-10099,hidden,E1 timing at the snapshot,yes,plain altered by the signature shift,10
+a-tune,10000-10099,hidden,E1 timing at the snapshot,yes,plain altered by the added edge,0
+a-tune,10000-10099,hidden,E1 timing at the snapshot,yes,plain unaltered,0
+a-tune,10000-10099,hidden,E1 timing at the snapshot,no,decoy/cascade/contradict,3
+a-tune,10000-10099,hidden,E1 timing at the snapshot,no,decoy/compound/contradict,23
+a-tune,10000-10099,hidden,E1 timing at the snapshot,no,decoy/split_brain/contradict,20
+a-tune,10000-10099,hidden,E1 timing at the snapshot,no,plain/known/,47
+a-tune,10000-10099,hidden,E1 timing at the snapshot,no,plain altered by the signature shift,47
+a-tune,10000-10099,hidden,E1 timing at the snapshot,no,plain altered by the added edge,1
+a-tune,10000-10099,hidden,E1 timing at the snapshot,no,plain unaltered,0
 a-heldout,40000-40199,hidden,ladder K2 at 6 s,yes,decoy/cascade/contradict,1
 a-heldout,40000-40199,hidden,ladder K2 at 6 s,yes,decoy/cascade/mimic,2
 a-heldout,40000-40199,hidden,ladder K2 at 6 s,yes,decoy/compound/contradict,2
@@ -84,6 +161,118 @@ a-heldout,40000-40199,hidden,E1 timing at the snapshot,no,plain/known/,125
 a-heldout,40000-40199,hidden,E1 timing at the snapshot,no,plain altered by the signature shift,125
 a-heldout,40000-40199,hidden,E1 timing at the snapshot,no,plain altered by the added edge,7
 a-heldout,40000-40199,hidden,E1 timing at the snapshot,no,plain unaltered,0
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,decoy/cascade/contradict,3
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,decoy/cascade/mimic,5
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,decoy/compound/contradict,3
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,decoy/compound/mimic,4
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,decoy/slow_leak/,33
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,decoy/split_brain/contradict,4
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,decoy/split_brain/mimic,9
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,hard/cascade/mimic,3
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,hard/compound/mimic,2
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,plain/known/,118
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,plain altered by the signature shift,15
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,plain altered by the added edge,1
+c-tune,60000-60099,hidden,ladder K2 at 6 s,yes,plain unaltered,102
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,decoy/cascade/contradict,26
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,decoy/cascade/mimic,29
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,decoy/compound/contradict,29
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,decoy/compound/mimic,35
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,decoy/slow_leak/,67
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,decoy/split_brain/contradict,31
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,decoy/split_brain/mimic,31
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,hard/cascade/contradict,2
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,hard/cascade/mimic,12
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,hard/compound/mimic,10
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,plain/known/,928
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,plain altered by the signature shift,45
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,plain altered by the added edge,21
+c-tune,60000-60099,hidden,ladder K2 at 6 s,no,plain unaltered,862
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,decoy/cascade/contradict,4
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,decoy/compound/contradict,4
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,decoy/compound/mimic,2
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,decoy/slow_leak/,34
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,decoy/split_brain/contradict,9
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,plain/known/,10
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,plain altered by the signature shift,5
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,plain altered by the added edge,2
+c-tune,60000-60099,hidden,ladder K2 at 16 s,yes,plain unaltered,3
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,decoy/cascade/contradict,26
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,decoy/cascade/mimic,14
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,decoy/compound/contradict,29
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,decoy/compound/mimic,26
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,decoy/slow_leak/,67
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,decoy/split_brain/contradict,31
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,decoy/split_brain/mimic,1
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,hard/cascade/mimic,1
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,plain/known/,355
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,plain altered by the signature shift,12
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,plain altered by the added edge,13
+c-tune,60000-60099,hidden,ladder K2 at 16 s,no,plain unaltered,332
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,decoy/cascade/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,decoy/compound/contradict,2
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,decoy/compound/mimic,1
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,decoy/slow_leak/,5
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,plain/known/,3
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,plain altered by the signature shift,2
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,plain altered by the added edge,0
+c-tune,60000-60099,hidden,ladder K4 at 16 s,yes,plain unaltered,1
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,decoy/cascade/contradict,11
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,decoy/cascade/mimic,9
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,decoy/compound/contradict,19
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,decoy/compound/mimic,17
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,decoy/slow_leak/,10
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,decoy/split_brain/contradict,20
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,decoy/split_brain/mimic,1
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,hard/cascade/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,plain/known/,335
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,plain altered by the signature shift,7
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,plain altered by the added edge,10
+c-tune,60000-60099,hidden,ladder K4 at 16 s,no,plain unaltered,318
+c-tune,60000-60099,hidden,ladder K4 at 32 s,yes,decoy/slow_leak/,1
+c-tune,60000-60099,hidden,ladder K4 at 32 s,yes,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 32 s,yes,plain/known/,5
+c-tune,60000-60099,hidden,ladder K4 at 32 s,yes,plain altered by the signature shift,3
+c-tune,60000-60099,hidden,ladder K4 at 32 s,yes,plain altered by the added edge,0
+c-tune,60000-60099,hidden,ladder K4 at 32 s,yes,plain unaltered,2
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,decoy/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,decoy/compound/mimic,10
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,decoy/slow_leak/,37
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,decoy/split_brain/contradict,5
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,hard/cascade/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,hard/compound/contradict,1
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,plain/known/,215
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,plain altered by the signature shift,6
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,plain altered by the added edge,10
+c-tune,60000-60099,hidden,ladder K4 at 32 s,no,plain unaltered,199
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,decoy/cascade/contradict,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,decoy/compound/contradict,3
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,decoy/compound/mimic,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,hard/cascade/mimic,2
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,hard/compound/contradict,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,hard/compound/mimic,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,plain/known/,15
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,plain altered by the signature shift,15
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,plain altered by the added edge,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,yes,plain unaltered,0
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,decoy/cascade/contradict,2
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,decoy/compound/contradict,28
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,decoy/compound/mimic,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,decoy/split_brain/contradict,14
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,hard/cascade/contradict,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,hard/cascade/mimic,3
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,hard/compound/contradict,1
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,hard/compound/mimic,2
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,plain/known/,38
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,plain altered by the signature shift,38
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,plain altered by the added edge,3
+c-tune,60000-60099,hidden,E1 timing at the snapshot,no,plain unaltered,0
 c-heldout,70000-70199,hidden,ladder K2 at 6 s,yes,decoy/cascade/contradict,4
 c-heldout,70000-70199,hidden,ladder K2 at 6 s,yes,decoy/cascade/mimic,11
 c-heldout,70000-70199,hidden,ladder K2 at 6 s,yes,decoy/compound/contradict,7

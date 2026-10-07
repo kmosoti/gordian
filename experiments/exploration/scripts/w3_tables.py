@@ -336,6 +336,18 @@ def who():
     return md(rows, ["seeds (hidden)", "family-keyed, stream reset, hard teacher", "wrong recalls by the incident that recalled (tier family mode, count)", "of the plain ones: altered by the shift / by the added edge / unaltered"])
 
 
+def streak():
+    d = csv("floor-streak")
+    rows = []
+    for g in ("decoy", "decoy/slow_leak", "decoy/other families", "hard", "hard/slow_leak", "plain"):
+        r = [g]
+        for c in (10, 16, 24, 32):
+            x = d[(d["range"] == "a-heldout") & (d["cutoff_s"] == c) & (d["group"] == g)].iloc[0]
+            r.append(num(x["share"], 3))
+        rows.append(r)
+    return md(rows, ["group (A 40000-40199, hidden)", "10 s", "16 s", "24 s", "32 s"])
+
+
 def waiting():
     d = csv("floor-waiting")
     rows = []
@@ -357,6 +369,7 @@ def check_w2():
 
 def check_partition():
     d = csv("floor-check-partition")
+    d = d[d["subset"] != "not hard slow leak"]
     rows = [[r.seeds, r.subset, r.incidents, r.w2_classes, r.data_classes, r.incidents_whose_w2_class_has_one_data_class, r.incidents_whose_data_class_has_one_w2_class] for r in d.itertuples()]
     return md(rows, ["seeds (hidden)", "subset", "incidents", "W2 code-derived classes", "data-derived classes (K2 at 6 s)",
                      "incidents whose W2 class holds one data class", "incidents whose data class holds one W2 class"])

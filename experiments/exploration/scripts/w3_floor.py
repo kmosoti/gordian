@@ -285,6 +285,24 @@ def vote(name: str, t: dict) -> list[dict]:
     return rows
 
 
+def streak_table(name: str, t: dict) -> list[dict]:
+    """When the decoy's own evidence has arrived: the share of each group whose site's last five counter readings
+    are all benign (`K4`'s flag) at each cutoff after the first abnormal observation."""
+    inc, fr = t["inc"], t["fr"]
+    rows = []
+    for c in (6, 10, 13, 16, 20, 24, 32):
+        sub = fr[fr["cut"] == str(c)].merge(inc[["seed", "incident", "tier", "family"]], on=["seed", "incident"])
+        sub["flag"] = sub["streak"] >= DECOY_STREAK
+        for g, m in (("plain", sub["tier"] == "plain"), ("hard", sub["tier"] == "hard"), ("decoy", sub["tier"] == "decoy"),
+                     ("decoy/slow_leak", (sub["tier"] == "decoy") & (sub["family"] == "slow_leak")),
+                     ("decoy/other families", (sub["tier"] == "decoy") & (sub["family"] != "slow_leak")),
+                     ("hard/slow_leak", (sub["tier"] == "hard") & (sub["family"] == "slow_leak"))):
+            d = sub[m]
+            rows.append({"range": name, "seeds": C.seed_range(t["seeds"]), "side": "hidden", "cutoff_s": c, "group": g, "incidents": len(d),
+                         "with_five_benign_readings_in_a_row": int(d["flag"].sum()), "share": f(d["flag"].mean())})
+    return rows
+
+
 def who(name: str, t: dict) -> list[dict]:
     """Who the wrong recalls are: by tier, family and mode of the incident that recalled wrongly, for a few
     settings (family-keyed, hard teacher, sources after their answer)."""
@@ -445,15 +463,15 @@ def main(argv=None) -> int:
     ap.add_argument("--hidden-root", type=pathlib.Path, default=HIDDEN)
     ap.add_argument("--out-dir", type=pathlib.Path, default=OUT)
     ap.add_argument("--ranges", default="a-tune,a-heldout,c-tune,c-heldout")
-    ap.add_argument("--parts", default="ladder,e1,check-w2,check-partition,waiting,gate,vote,who")
+    ap.add_argument("--parts", default="ladder,e1,check-w2,check-partition,waiting,gate,vote,who,streak")
     args = ap.parse_args(argv)
     ap2 = args.parts.split(",")
-    tables: dict[str, list[dict]] = {k: [] for k in ("ladder", "e1", "check-w2", "check-partition", "waiting", "gate", "vote", "who") if k in ap2}
+    tables: dict[str, list[dict]] = {k: [] for k in ("ladder", "e1", "check-w2", "check-partition", "waiting", "gate", "vote", "who", "streak") if k in ap2}
     for name in args.ranges.split(","):
         t = load(args.hidden_root, name)
         print(name, C.seed_range(t["seeds"]), len(t["inc"]), "incidents", flush=True)
         for part, fn in (("check-w2", w2_replication), ("check-partition", partition_check), ("waiting", waiting_cost), ("gate", gate_table),
-                         ("e1", e1_forms), ("ladder", ladder), ("vote", vote), ("who", who)):
+                         ("e1", e1_forms), ("ladder", ladder), ("vote", vote), ("who", who), ("streak", streak_table)):
             if part in tables:
                 tables[part] += fn(name, t)
     for k, rows in tables.items():

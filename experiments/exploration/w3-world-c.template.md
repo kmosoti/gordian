@@ -32,8 +32,7 @@ streams that had predictions).
    recurrences, 259 against 83 (3.1 times; 1.295 per stream against 0.415); the share of the bill `R` covers
    is 10.0% [8.6, 11.5] against 8.5% [6.4, 10.8], an interval about a third narrower. The family-keyed reach inside a
    stream (`F`) is 412 against 70; carried across streams it is 99.98% of the bill from the eleventh stream on
-   (97.8% in world A). The brief's "about 120" was low for `R`; it is about right for the 138 and the
-   3.1-fold recurrence count is what the mix buys.
+   (97.8% in world A). The brief expected about 120 reachable events for 40; the measured ratio is 3.4 for `R` and 3.1 for all hard recurrences.
 2. **What else changed with the mix** (section 2.2): *Unchanged within the intervals:* incidents per stream
    (26.7), the number of other incidents live during a hard incident (5.1), overlap of incidents (98%
    overlap another; the arrival rate and the incident lifetimes did not change), the background share of the
@@ -91,14 +90,15 @@ streams that had predictions).
   `incidents.csv`'s `escalations`, the evaluator's tier and family equal the hidden tables' (W2's join checks,
   which stop the script).
 - **The floor's simulator** reproduces W2's published phase-1 collision table exactly on both world-A ranges
-  (`w3-floor-check-w2.csv`, 16 of 16 cells equal) and has 9 unit tests (`w3_floor_test.py`). The hidden-side key
+  (`w3-floor-check-w2.csv`, 32 of 32 cells equal over the four ranges, world C included) and has 11 unit tests (`w3_floor_test.py`). The hidden-side key
   features agree with E1's own recalls where E1 recalled from a source in the same stream (11 of 11 for the
-  site-keyed `kinds` form, 8 of 9 to 22 of 23 for the family forms: section 3.4).
+  site-keyed forms, 8 of 9 to 22 of 23 for the family forms: section 3.4).
 - **The scoring script** has 8 tests on a synthetic stream with answers derived by hand (`w3_score_test.py`) and
   caught 14 of 14 hand-made mutants of itself (window bounds, relation direction, owner join, quiet condition,
   counted-alarm condition and others).
 - **Determinism**: every table is a pure function of the hidden tables, the runs and the inputs named; reruns are
-  byte-identical (`cmp` on the CSVs after a second run of `w3_laws.py`, `w3_ceiling.sh`, `w3_pairs.py` and `w3_score.py`).
+  byte-identical: after a second run of `w3_laws.py`, `w3_ceiling.sh`, `w3_bounds.py`, `w3_pairs.py`, `w3_e1join.py` and `w3_score.py` (both arms) 31 of 31 CSVs are `cmp`-equal to the first; `w3_floor.py`'s CSVs (a 20-minute run) were
+  compared the same way (section 8).
 - Gates, process record: section 8.
 
 ### 1.2 Read from the code or the design record and not measured
@@ -215,7 +215,7 @@ what the key can recognise, not in what there was to recognise.
 
 Reading. The share of hard incidents declared correctly by the deadline (0.472 against 0.451), the missed ones (correct after the deadline,
 2.8% against 3.1%) and the critical misses are the same within the intervals; the oracle arm asks every hard incident it notices
-(1228 calls on 1516 hard incidents), none on a plain incident or a decoy, and the reasoner is 99.98% of its bill, as in world A. The hard
+(1288 calls, on 1228 of the 1516 hard incidents), none on a plain incident or a decoy, and the reasoner is 99.98% of its bill, as in world A. The hard
 incidents noticed are 81.5% against 85.7%, a **family-mix effect**: per family the shares are cascade 0.986 / 0.985, compound 0.966 / 0.940,
 split brain 0.965 / 0.980, slow leak 0.425 / 0.465 (world C held-out / world A held-out; `w3-ceiling-hard-incidents.csv`).
 
@@ -256,14 +256,13 @@ The permutation test (the learner, 251 predictions):
 {{a2_perm}}
 
 Reading. The predictions are at the chance level on every hidden-side verdict. 21 of 251 name a true hidden-edge pair against 7.1% expected,
-and the permutation puts 17.7% of draws at or above 21. The 12 predictions on a `cascade` pair are 12 predictions on **one pair in one
-stream** (7 -> 8 in seed 10003, held after that stream's cascade at 264 s, then predicted at 7 later alarms, none of which was the cascade's) and the
-9 on `added_edge` pairs are three pairs in three streams; the cluster bootstrap over streams ([0.036, 0.143]) is the honest width. Every one of the 21
-predictions was made on an alarm that was not part of the incident that made the pair true; none was a hit. Lead times of the followed
-predictions are median 0.98 s from the alarm (0.78 s from the step that made the prediction), but these are follows by background alarms (hidden-side follow
-rate 0.239, chance 0.248): A2's own reading (60 of 251) and the hidden-side reading (60 of 251) agree. By stream position (the first nine streams that
-had predictions against the last nine) 0.099 against 0.069 of predictions on a true pair; by time in the stream 0.033, 0.065 and 0.145 for alarms
-before 200 s, in 200-400 s and after 400 s (the added edge exists from 400 s; the intervals are wide and overlap, and I read
+and the permutation puts 17.7% of draws at or above 21. The 12 predictions on a `cascade` pair are on three pairs in three streams (7 on 7 -> 8 in seed 10003, a pair held after that
+stream's cascade at 264 s; 3 on 3 -> 4 in seed 10010, **made before** that pair's decoy cascade at 403 s; 2 on 3 -> 6 in seed 10017), and the 9 on `added_edge` pairs are four pairs in four streams: the
+pair-level verdict counts a pair that is a hidden edge at any instant of the stream, so it cannot tell a learned edge from a coincidence that preceded the cascade, and the
+cluster bootstrap over streams ([0.036, 0.143]) is the honest width. None of the 21 was made on an alarm of an incident for which the pair is the partner relation (event hits 0).
+The followed predictions have a median lead of 0.98 s from the alarm (0.78 s from the step that made the prediction); they are follows at chance (hidden-side follow rate
+0.239, chance 0.248), and A2's own reading (60 of 251) and the hidden-side reading (60 of 251) agree. By stream position (the nine lowest and the nine highest seeds among those with predictions)
+0.099 against 0.069 of predictions on a true pair; by time in the stream 0.033, 0.065 and 0.145 for alarms before 200 s, in 200-400 s and after 400 s (the added edge exists from 400 s; the intervals are wide and overlap, and I read
 nothing into it).
 
 ### 4.2 Coverage of the true partner alarms, and what the explanation filter costs
@@ -275,12 +274,12 @@ trial (the learner opens a trial only on a *counted* first alarm: one that no up
 {{a2_coverage}}
 
 Reading. **Coverage is 0 of 29 over all true partner alarms, and 0 of the 10 for which a trial was licensed.** The lead of a true partner alarm is
-short (median 43 ms; the contradict-mode cascade 20-230 ms, the added edge tens of ms) and most are inside the 0.4 s band; the mimic cascades' partner
-alarms arrive 6-16 s after the root's (4 of 5 beyond the widest band): no band of A2 can cover them. The explanation filter, as specified,
+short (median 43 ms; 33 to 78 ms for the hard contradict cascades, 4 to 57 ms for the added edge in this smoke) and nearly all are inside the 0.4 s band; the five mimic cascades' partner
+alarms arrive 9 to 14 s after the root's (4 of 5 beyond the widest band): no band of A2 can cover them. The explanation filter, as specified,
 removes **4 of the 25 coverable alarms** (a further 4 are not first alarms at all: the site was already alarming), so the filter's cost is 16% of the coverable
-alarms and the dominant losses are elsewhere: 7 of the 17 counted alarms have a partner that was not quiet. Five true partner alarms had an edge for the pair
-held at some read of the stream; none was predicted on this alarm: the edge learned from an earlier co-alarm is gone (decay and misses) by the next occurrence, or the next occurrence
-is a different pair. The learned edges themselves:
+alarms and the larger loss is the licence: 7 of the 17 counted alarms have a partner that was not quiet. Five true partner alarms had an edge for the pair
+held at some read of the stream and none was predicted on this alarm; in the one I traced (seed 10000, 4 -> 9) the edge was held at three reads at 402 to 430 s and was no longer held at the event, 491.9 s; the others I did not trace. The learned edges
+themselves:
 
 {{a2_edges}}
 
@@ -305,7 +304,7 @@ BOUNDS_SECTION
 `w3_bounds.py`, `w3_pairs.py`, `w3_floor.py`, `w3_e1join.py`, `w3_score.py`, `w3_provenance.py`, `w3_assemble.py`). Raw directories are under `artifacts/runs/w3/`
 (git-ignored; kept until the chief has verified them): `hidden/{c-tune,c-heldout,a-tune,a-heldout,a-a2}` (tables, floor features, `usage.json`; `a-a2` also the
 alarms and the graph for A2), `w3-ctune-b5-rho0.7` and `w3-cheldout-b5-rho0.7` (the ceiling's runs with the ledger, `usage.json`), `_manifests/`. File hashes are in
-`w3-provenance.csv`. The hidden world-A tables are identical to W2's; W2's kept runs, E1's held-out run and A2's smoke are read, never written, from `/home/user/gordian/artifacts/runs/`.
+`w3-provenance.csv`. A2 is scored by `w3_score.py --predictions <A2 run>/predictions-a2_learn.csv --first-alarms <A2 run>/first-alarms-a2_learn.csv --edges <A2 run>/edges-a2_learn.csv --hidden artifacts/runs/w3/hidden/a-a2 --arm a2_learn` (the same with `a2_raw`). The hidden world-A tables are identical to W2's; W2's kept runs, E1's held-out run and A2's smoke are read, never written, from `/home/user/gordian/artifacts/runs/`.
 
 ## 7. Uncertainty, what would change the conclusions, and what the chief should examine
 
