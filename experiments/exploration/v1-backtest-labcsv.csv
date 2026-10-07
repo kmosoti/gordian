@@ -1,0 +1,15 @@
+unit,lab_csv,cells_compared,cells_not_in_specification,cells_differing,max_abs_difference
+m2,m2-heldout-table.csv,714,0,0,4.441e-16
+m2,m2-criterion.csv,36,0,0,9.368e-17
+b3,b3-noticers-table.csv,759,0,0,2.220e-16
+b3,b3-paired.csv,528,0,0,4.441e-16
+b3,b3-vs-m2.csv,273,56,0,2.220e-16
+b3,b3-vs-m2-paired.csv,234,0,0,3.553e-15
+l1,l1-criterion.csv,9,0,0,7.633e-17
+l1,l1-table.csv,540,0,0,1.421e-14
+l1,l1-paired.csv,60,0,0,3.553e-15
+l1,l1-slopes.csv,162,0,0,9.714e-17
+m3,m3-heldout-table.csv,714,136,0,2.220e-16
+m3,m3-criterion.csv,54,0,0,9.714e-17
+m3,m3-control.csv,36,0,0,4.441e-16
+m3,m3-b3-paired.csv,90,225,0,4.441e-16
