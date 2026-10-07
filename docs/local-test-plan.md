@@ -1140,6 +1140,10 @@ Two workers may hold worktrees at once. The driver refuses to start a run while 
   writable on this machine and the runner reports the mode, peak memory and OOM kills; a build
   that exceeds 3 GB is killed inside its group and recorded, instead of taking the container
   down. The chief's merge gates use the same wrapper. `--allow-unisolated` is never passed.
+- **Disk, after the second restart (2026-10-07):** three worktrees building at once took free
+  disk under 4 GB and the container restarted. At most two labs run concurrently while free disk
+  is under 12 GB; the chief removes the main checkout's `target/` between gate runs and keeps
+  run outputs trimmed. A lab checks `df -h /home/user` before every build and run, as before.
 - A worker never kills another worker's process.
 - A worker keeps its scratch files in its own subdirectory of the session scratchpad, named by
   its worktree, and never writes to another's (a PI's helper was overwritten by another lab).
