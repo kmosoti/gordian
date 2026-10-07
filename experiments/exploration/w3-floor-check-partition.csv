@@ -1,0 +1,13 @@
+range,seeds,side,subset,incidents,w2_classes,data_classes,incidents_whose_w2_class_has_one_data_class,incidents_whose_data_class_has_one_w2_class
+a-tune,10000-10099,hidden,all incidents,2620,14,81,105,2289
+a-tune,10000-10099,hidden,not altered by a regime change,2258,14,19,2131,2258
+a-tune,10000-10099,hidden,not hard slow leak,2515,13,80,0,2184
+a-heldout,40000-40199,hidden,all incidents,5318,14,99,236,4549
+a-heldout,40000-40199,hidden,not altered by a regime change,4584,14,19,4356,4584
+a-heldout,40000-40199,hidden,not hard slow leak,5082,13,98,0,4313
+c-tune,60000-60099,hidden,all incidents,2565,14,90,289,2234
+c-tune,60000-60099,hidden,not altered by a regime change,2222,14,19,2004,2222
+c-tune,60000-60099,hidden,not hard slow leak,2276,13,89,0,1945
+c-heldout,70000-70199,hidden,all incidents,5313,14,106,552,3941
+c-heldout,70000-70199,hidden,not altered by a regime change,4621,14,19,4162,4621
+c-heldout,70000-70199,hidden,not hard slow leak,4761,13,105,0,3389

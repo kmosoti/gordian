@@ -24,9 +24,20 @@
 //!   (`-1` for background), parallel to the delivered stream: the join key for a run's focus ids.
 //!
 //! `--world a` is the default parameters; `--world b` is recurrence 0.6 with the regime changes
-//! at 150 s and 300 s (same kinds, same everything else). The output is a pure function of the
+//! at 150 s and 300 s (same kinds, same everything else); `--world c` (W3) is the default with the
+//! hard share raised threefold through the tier mix (plain 600, hard 300 per mille, so decoys keep
+//! their 100 and nothing else changes).
+//!
+//! `--floor` (W3) also writes `floor-rows.csv` and `floor-incidents.csv` (`floor.rs`): per incident
+//! and cutoff the invariant public features a key could use and the public checker's verdict, from
+//! the incident's own observations. `--alarms` writes `alarms.csv` (every abnormal observation with
+//! its owner) and `graph.csv` (the time-zero graph) for scoring A2's predictions. Neither changes
+//! the five files above. The output is a pure function of the
 //! arguments, so two runs have the same sha256. The example needs the hidden-state feature;
 //! without it the binary only says so. Nothing here reaches a policy.
+
+#[cfg(feature = "reveal-hidden-state")]
+mod floor;
 
 #[cfg(not(feature = "reveal-hidden-state"))]
 fn main() -> std::process::ExitCode {
@@ -56,7 +67,9 @@ mod real {
     use std::process::ExitCode;
 
     fn usage() -> ExitCode {
-        eprintln!("usage: laws [--seed-from N] [--count K] [--world a|b] --out-dir DIR [--owners]");
+        eprintln!(
+            "usage: laws [--seed-from N] [--count K] [--world a|b|c] --out-dir DIR [--owners] [--floor] [--alarms]"
+        );
         ExitCode::from(2)
     }
 
@@ -64,10 +77,19 @@ mod real {
     enum World {
         A,
         B,
+        C,
     }
 
     fn params(world: World, seed: u64) -> StreamParams {
         let mut p = StreamParams::new(seed);
+        if world == World::C {
+            // W3's world C: hard 100 -> 300 per mille; decoys stay at 100, plain takes the
+            // difference. Nothing else differs from world A.
+            p.mix = gordian_stream::TierMix {
+                plain_permille: 600,
+                hard_permille: 300,
+            };
+        }
         if world == World::B {
             p.recurrence_permille = 600;
             p.regimes = vec![
@@ -158,10 +180,19 @@ mod real {
         let mut world = World::A;
         let mut out_dir: Option<PathBuf> = None;
         let mut owners = false;
+        let (mut floor_on, mut alarms_on) = (false, false);
         let mut args = std::env::args().skip(1);
         while let Some(flag) = args.next() {
             if flag == "--owners" {
                 owners = true;
+                continue;
+            }
+            if flag == "--floor" {
+                floor_on = true;
+                continue;
+            }
+            if flag == "--alarms" {
+                alarms_on = true;
                 continue;
             }
             let Some(value) = args.next() else {
@@ -179,6 +210,7 @@ mod real {
                 "--world" => match value.as_str() {
                     "a" => world = World::A,
                     "b" => world = World::B,
+                    "c" => world = World::C,
                     _ => return usage(),
                 },
                 "--out-dir" => out_dir = Some(PathBuf::from(value)),
@@ -206,6 +238,10 @@ sig_altered,edge_altered,edge_exposed\n",
         );
         let mut vocab: BTreeMap<(u64, u64, String, String, String, u8), u64> = BTreeMap::new();
         let mut owners_jsonl = String::new();
+        let mut floor_rows = String::from(crate::floor::ROWS_HEADER);
+        let mut floor_inc = String::from(crate::floor::INC_HEADER);
+        let mut alarms_csv = String::from(crate::floor::ALARMS_HEADER);
+        let mut graph_csv = String::from(crate::floor::GRAPH_HEADER);
 
         for seed in seed_from..seed_from.saturating_add(count) {
             let stream: Stream = generate(&params(world, seed));
@@ -229,7 +265,11 @@ sig_altered,edge_altered,edge_exposed\n",
                 events.len(),
                 truth.incidents.len(),
                 truth.skipped_arrivals,
-                w = if world == World::A { "a" } else { "b" },
+                w = match world {
+                    World::A => "a",
+                    World::B => "b",
+                    World::C => "c",
+                },
             )
             .unwrap();
 
@@ -470,6 +510,22 @@ sig_altered,edge_altered,edge_exposed\n",
                 }
             }
 
+            if floor_on || alarms_on {
+                crate::floor::emit(
+                    seed,
+                    &stream,
+                    &truth,
+                    &|t| graph_at(&truth, t),
+                    &mut floor_rows,
+                    &mut floor_inc,
+                    if alarms_on {
+                        Some((&mut alarms_csv, &mut graph_csv))
+                    } else {
+                        None
+                    },
+                );
+            }
+
             if owners {
                 let owner: Vec<String> = (0..events.len())
                     .map(|i| match truth.labels[i] {
@@ -501,6 +557,14 @@ sig_altered,edge_altered,edge_exposed\n",
         ];
         if owners {
             files.push(("owners.jsonl", owners_jsonl));
+        }
+        if floor_on {
+            files.push(("floor-rows.csv", floor_rows));
+            files.push(("floor-incidents.csv", floor_inc));
+        }
+        if alarms_on {
+            files.push(("alarms.csv", alarms_csv));
+            files.push(("graph.csv", graph_csv));
         }
         for (name, body) in files {
             if let Err(e) = std::fs::write(out_dir.join(name), body) {

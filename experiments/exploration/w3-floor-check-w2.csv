@@ -1,0 +1,33 @@
+range,seeds,side,form,tier,mine_incidents_recalled_right_wrong,w2_incidents_recalled_right_wrong,equal
+a-tune,10000-10099,hidden,site+class,all,2643/142/120/22,2643/142/120/22,True
+a-tune,10000-10099,hidden,site+class,plain,2110/13/0/13,2110/13/0/13,True
+a-tune,10000-10099,hidden,site+class,hard,243/54/47/7,243/54/47/7,True
+a-tune,10000-10099,hidden,site+class,decoy,290/75/73/2,290/75/73/2,True
+a-tune,10000-10099,hidden,class only,all,2643/386/151/235,2643/386/151/235,True
+a-tune,10000-10099,hidden,class only,plain,2110/187/0/187,2110/187/0/187,True
+a-tune,10000-10099,hidden,class only,hard,243/89/63/26,243/89/63/26,True
+a-tune,10000-10099,hidden,class only,decoy,290/110/88/22,290/110/88/22,True
+a-heldout,40000-40199,hidden,site+class,all,5344/259/221/38,5344/259/221/38,True
+a-heldout,40000-40199,hidden,site+class,plain,4304/21/0/21,4304/21/0/21,True
+a-heldout,40000-40199,hidden,site+class,hard,512/97/87/10,512/97/87/10,True
+a-heldout,40000-40199,hidden,site+class,decoy,528/141/134/7,528/141/134/7,True
+a-heldout,40000-40199,hidden,class only,all,5344/670/285/385,5344/670/285/385,True
+a-heldout,40000-40199,hidden,class only,plain,4304/284/0/284,4304/284/0/284,True
+a-heldout,40000-40199,hidden,class only,hard,512/162/111/51,512/162/111/51,True
+a-heldout,40000-40199,hidden,class only,decoy,528/224/174/50,528/224/174/50,True
+c-tune,60000-60099,hidden,site+class,all,2581/270/224/46,2581/270/224/46,True
+c-tune,60000-60099,hidden,site+class,plain,1519/20/0/20,1519/20/0/20,True
+c-tune,60000-60099,hidden,site+class,hard,786/184/168/16,786/184/168/16,True
+c-tune,60000-60099,hidden,site+class,decoy,276/66/56/10,276/66/56/10,True
+c-tune,60000-60099,hidden,class only,all,2581/703/363/340,2581/703/363/340,True
+c-tune,60000-60099,hidden,class only,plain,1519/193/0/193,1519/193/0/193,True
+c-tune,60000-60099,hidden,class only,hard,786/376/297/79,786/376/297/79,True
+c-tune,60000-60099,hidden,class only,decoy,276/134/66/68,276/134/66/68,True
+c-heldout,70000-70199,hidden,site+class,all,5341/479/416/63,5341/479/416/63,True
+c-heldout,70000-70199,hidden,site+class,plain,3273/38/0/38,3273/38/0/38,True
+c-heldout,70000-70199,hidden,site+class,hard,1516/301/289/12,1516/301/289/12,True
+c-heldout,70000-70199,hidden,site+class,decoy,552/140/127/13,552/140/127/13,True
+c-heldout,70000-70199,hidden,class only,all,5341/1490/706/784,5341/1490/706/784,True
+c-heldout,70000-70199,hidden,class only,plain,3273/505/0/505,3273/505/0/505,True
+c-heldout,70000-70199,hidden,class only,hard,1516/708/565/143,1516/708/565/143,True
+c-heldout,70000-70199,hidden,class only,decoy,552/277/141/136,552/277/141/136,True

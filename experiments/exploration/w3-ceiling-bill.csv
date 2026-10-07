@@ -1,0 +1,5 @@
+range,seeds,side,streams,total_cost_ns,reasoner_modelled_ns,reasoner_share_of_bill,reasoner_calls,calls_on_hard,calls_on_other_incidents,calls_on_background,mean_ns_per_call,hard_incidents,hard_noticed,hard_asked,hard_declared_correctly,hard_declared_correctly_by_deadline
+a-tune,10000-10099,run,100,67332800599,67285000000,0.999290,220,220,0,0,305840909,243,213,211,131,124
+a-heldout,40000-40199,run,200,137974165524,137880000000,0.999318,459,459,0,0,300392157,512,439,435,247,231
+c-tune,60000-60099,run,100,203456145078,203410000000,0.999773,671,671,0,0,303144560,786,644,642,363,340
+c-heldout,70000-70199,run,200,391703228064,391610000000,0.999762,1288,1288,0,0,304045031,1516,1236,1228,759,716

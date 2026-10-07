@@ -1,0 +1,30 @@
+seed,incident,kind,a,b,lead_true_s,coverable_by_a_band,trial_openable_counted_alarm,site_alarm_status,partner_quiet,edge_held_ever_in_stream,covered,covered_loose,lead_pred_s,t_a
+10000,27,added_edge plain,4,9,0.024601,True,True,counted,True,True,False,False,,491854375362
+10001,20,added_edge plain,5,6,0.045073,True,True,counted,True,False,False,False,,454619398260
+10002,21,added_edge plain,3,5,0.019130,True,True,counted,True,False,False,False,,454210913644
+10002,22,cascade hard contradict,6,4,0.032494,True,True,counted,True,False,False,False,,478019264119
+10002,23,added_edge plain,1,5,0.043179,True,True,counted,True,False,False,False,,511511874931
+10003,4,cascade hard mimic,3,9,14.224082,False,True,counted,True,False,False,False,,88685596453
+10003,13,cascade hard contradict,7,8,0.063219,True,True,counted,True,True,False,False,,264327375590
+10003,18,added_edge plain,5,8,0.014758,True,False,explained by an upstream burst,,False,False,False,,405420652363
+10003,19,added_edge plain,2,8,0.057092,True,True,counted,True,False,False,False,,426293276371
+10003,27,added_edge plain,2,8,0.003553,True,True,counted,False,False,False,False,,497282809113
+10003,29,added_edge plain,5,8,0.019395,True,False,explained by an upstream burst,,False,False,False,,508747777974
+10004,26,cascade hard mimic,7,4,11.334646,False,True,counted,True,False,False,False,,432411080989
+10007,25,added_edge plain,2,4,0.056820,True,False,explained by an upstream burst,,True,False,False,,516379992467
+10008,26,added_edge plain,9,10,0.034418,True,False,not a first alarm,,False,False,False,,433448917568
+10008,27,cascade decoy contradict,4,1,0.069962,True,False,explained by an upstream burst,,False,False,False,,441849662338
+10009,0,cascade hard contradict,5,3,0.052866,True,True,counted,True,False,False,False,,6402673203
+10009,10,cascade hard contradict,5,3,0.077751,True,True,counted,False,False,False,False,,167841616091
+10009,22,added_edge plain,7,8,0.011296,True,False,not a first alarm,,False,False,False,,472536831437
+10010,23,cascade decoy contradict,3,4,0.068241,True,True,counted,False,True,False,False,,403719372494
+10012,16,added_edge plain,1,4,0.009382,True,True,counted,True,False,False,False,,485359145420
+10013,22,added_edge plain,4,8,0.012531,True,True,counted,False,False,False,False,,425921919365
+10013,27,added_edge plain,4,5,0.010179,True,True,counted,False,False,False,False,,497244053450
+10014,8,cascade hard mimic,9,4,9.204427,True,True,counted,False,False,False,False,,132620482671
+10014,18,cascade decoy contradict,3,5,0.117256,True,False,not a first alarm,,False,False,False,,411922591529
+10014,20,added_edge plain,6,8,0.004947,True,True,counted,True,False,False,False,,538349478651
+10016,5,cascade hard mimic,3,2,13.707797,False,True,counted,True,False,False,False,,92567114733
+10017,22,added_edge plain,3,6,0.012002,True,False,not a first alarm,,True,False,False,,417353293650
+10017,31,cascade hard mimic,3,1,12.635650,False,True,counted,True,False,False,False,,499443930658
+10018,13,added_edge plain,2,4,0.016085,True,True,counted,False,False,False,False,,403162090238
