@@ -585,6 +585,97 @@ impl Medium {
         Ok(())
     }
 
+    /// Structural plasticity (work item A1a, DESIGN.md "The engram"): append `cells` (in their
+    /// initial state) and `synapses` to the medium. The result is validated as one spec, existing
+    /// cells and synapses included, against the limits, the archetypes' rules and the oscillome,
+    /// so a plasticity adapter cannot bypass the hard limits on cells and synapses; on refusal the
+    /// medium is unchanged. Ids of existing cells and synapses, their state, their supports, the
+    /// messages in flight and the wakes are unchanged; a new synapse into an existing cell takes
+    /// the next slot of that cell. The new cells' parameters are taken as given: quantities in time
+    /// are not converted for them (give them in ticks). Returns the ids of the first new cell and
+    /// the first new synapse.
+    pub fn grow(
+        &mut self,
+        cells: &[CellSpec],
+        synapses: &[SynapseSpec],
+    ) -> Result<(CellId, SynapseId), SpecError> {
+        let first_cell = CellId(self.cells.len() as u32);
+        let first_synapse = SynapseId(self.synapses.len() as u32);
+        let mut spec = self.spec();
+        spec.cells.extend_from_slice(cells);
+        spec.synapses.extend_from_slice(synapses);
+        spec.validate()?;
+        let mut incoming = vec![0u32; spec.cells.len()];
+        for s in &self.synapses {
+            incoming[s.to.0 as usize] += 1;
+        }
+        for (k, c) in cells.iter().enumerate() {
+            self.cells.push(Cell {
+                id: CellId(first_cell.0 + k as u32),
+                archetype: c.archetype,
+                params: c.params,
+                state: c.archetype.initial_state(),
+                activation: 0.0,
+                last_active: None,
+                pattern: c.pattern,
+                support: Vec::new(),
+            });
+        }
+        for (k, s) in synapses.iter().enumerate() {
+            let slot = incoming[s.to.0 as usize];
+            incoming[s.to.0 as usize] += 1;
+            self.synapses.push(Synapse {
+                id: SynapseId(first_synapse.0 + k as u32),
+                from: s.from,
+                to: s.to,
+                weight: s.weight,
+                delay_ticks: s.delay_ticks,
+                gate: s.gate,
+                plastic: s.plastic,
+                slot,
+            });
+        }
+        self.derive();
+        Ok((first_cell, first_synapse))
+    }
+
+    /// Structural plasticity (A1a): set parameters of existing cells, `(cell, index, value)`, in
+    /// order. Validated as one spec with every change applied; on refusal nothing changes. A
+    /// parameter that a quantity in time sets (`oscillome.seconds`) is refused: its value is the
+    /// conversion's, and a restore would put the conversion back. State, support and activation
+    /// are unchanged.
+    pub fn set_params(&mut self, changes: &[(CellId, usize, f32)]) -> Result<(), SpecError> {
+        let mut spec = self.spec();
+        for &(cell, index, value) in changes {
+            let c = spec
+                .cells
+                .get_mut(cell.0 as usize)
+                .ok_or(SpecError::Structure("no such cell"))?;
+            let p = c
+                .params
+                .get_mut(index)
+                .ok_or(SpecError::Structure("no such parameter"))?;
+            *p = value;
+            let timed = self.oscillome.seconds.iter().any(|t| {
+                t.target
+                    == crate::oscillome::TimeTarget::Param {
+                        cell,
+                        index: index as u8,
+                    }
+            });
+            if timed {
+                return Err(SpecError::Structure(
+                    "the parameter is set by a quantity in time",
+                ));
+            }
+        }
+        spec.validate()?;
+        for &(cell, index, value) in changes {
+            self.cells[cell.0 as usize].params[index] = value;
+        }
+        Ok(())
+    }
+
     /// Store the persisted bytes through `port`.
     pub fn persist(&self, port: &mut dyn Persist) {
         port.store(self.last_tick, self.to_bytes());

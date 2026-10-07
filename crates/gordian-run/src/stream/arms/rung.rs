@@ -540,6 +540,12 @@ impl Rung {
         self.noticer.refused();
     }
 
+    /// The noticer's recalls since the last call ([`Noticer::recalls`]; work item A1a). Empty for
+    /// every noticer without memory.
+    pub fn take_recalls(&mut self) -> Vec<noticer::MemoryRecall> {
+        self.noticer.recalls()
+    }
+
     /// Every notice and retirement so far, in order: the record the harness writes.
     pub fn notice_log(&self) -> &[NoticeLogEntry] {
         &self.log
@@ -806,6 +812,8 @@ impl Rung {
     /// `diagnosis` should be declared (it differs from the last declaration anchored there), and
     /// marks the anomaly as answered.
     pub fn take_answer(&mut self, focus: ObsId, diagnosis: Diagnosis) -> bool {
+        // The noticer's memory hook (work item A1a; nothing for a noticer without memory).
+        self.noticer.answered(focus, diagnosis);
         let owner = self
             .noticer
             .anomalies()

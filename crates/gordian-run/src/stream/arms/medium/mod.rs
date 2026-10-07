@@ -15,11 +15,22 @@
 //! port. The graph's parameters are chosen on the tuning streams and recorded in the manifest.
 //! This directory is held to the textual ban of `scripts/check-no-oracle.sh` like every file
 //! under `arms/`.
+//!
+//! # Memory (work item A1a)
+//!
+//! [`engram`]: an engram layer beside the noticing graph, switched on by the parameters'
+//! `engram` field. It binds the arm's own answered incidents into engrams and recalls them by
+//! coincidence; a recall reaches the arm through the seam's memory hooks
+//! ([`super::noticer::Noticer::answered`], [`super::noticer::Noticer::recalls`]) and is declared
+//! without an escalation. The key definition and the confirmation policy are in [`engram`]'s
+//! documentation.
 
 pub mod adapters;
+pub mod engram;
 pub mod graph;
 pub mod noticing;
 
+pub use engram::{ConfirmPolicy, EngramConfig, EngramLayer, SiteMode};
 pub use graph::{
     CoincidenceForm, Confirm, InhibitForm, KIND_NOTICE, KIND_RETIRE, Layout, MediumParams,
 };

@@ -414,6 +414,30 @@ pub trait Noticer {
     /// The bill refused the cost [`Noticer::take_cost`] reported: the noticer stops doing
     /// counted work for the rest of the segment. Nothing, by default.
     fn refused(&mut self) {}
+
+    /// A reasoner's answer about the observation `focus` arrived (work item A1a, the memory
+    /// hooks): the arm's own history, for a noticer that remembers. Called by the rung when the
+    /// answer is taken, before anything retires. Nothing, by default.
+    fn answered(&mut self, _focus: ObsId, _diagnosis: Diagnosis) {}
+
+    /// The noticer's recalls since the last call (work item A1a): diagnoses of noticed anomalies
+    /// made without the reasoner, each to be declared, or, when `confirm` is set, asked about
+    /// instead. None, by default.
+    fn recalls(&mut self) -> Vec<MemoryRecall> {
+        Vec::new()
+    }
+}
+
+/// A recall by a noticer's memory (work item A1a): a diagnosis for the noticed anomaly
+/// `anomaly`, reached without a reasoner call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MemoryRecall {
+    /// The anomaly it concerns.
+    pub anomaly: u32,
+    /// What it recalls.
+    pub diagnosis: Diagnosis,
+    /// Whether the arm should ask the reasoner instead of declaring (the confirmation policy).
+    pub confirm: bool,
 }
 
 /// A noticer's own counted work, priced (work item M2), charged by the arm to its bill under
