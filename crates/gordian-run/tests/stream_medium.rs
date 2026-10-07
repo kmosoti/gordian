@@ -1864,7 +1864,19 @@ fn an_unattached_alarm_is_reoffered_for_four_seconds_only() {
         let mut obs = ramp.clone();
         obs.push((at - gap, counter(3, CounterName::ErrorRate, HIGH + 10)));
         obs.sort_by_key(|(t, _)| *t);
-        let alarm = obs.iter().position(|(t, _)| *t == at - gap).unwrap() as u32;
+        // Found by its name, not its instant: it can share an instant with a ramp reading.
+        let alarm = obs
+            .iter()
+            .position(|(_, o)| {
+                matches!(
+                    o,
+                    Observation::Counter {
+                        name: CounterName::ErrorRate,
+                        ..
+                    }
+                )
+            })
+            .unwrap() as u32;
         let mut d = Drive::new(ramp_only, &p);
         d.play(&obs, 12_000, &p);
         let n = &d.notices[0].1;
@@ -1958,5 +1970,262 @@ fn the_graphs_lookbacks_and_windows_are_the_documented_ones() {
                 );
             }
         }
+    }
+}
+
+// ---- tests for the survivors of the third mutation run (M3, resumed unit)
+
+/// Drives a medium noticer with the rung's parameters `cfg`, as `Drive` does (a step every
+/// 500 ms), and returns it with the notices it made, by step.
+fn drive_with(
+    params: MediumParams,
+    cfg: RungConfig,
+    observations: &[(u64, Observation)],
+    until_ms: u64,
+    public: &StreamPublic,
+) -> (MediumNoticer, Vec<(u64, Notice)>) {
+    let mut n = MediumNoticer::new(params, cfg, &public.services).unwrap();
+    let all: Vec<Held> = observations
+        .iter()
+        .enumerate()
+        .map(|(i, (ms, o))| held(i as u32, *ms, o.clone(), public))
+        .collect();
+    let (mut items, mut next, mut now, mut notices) = (Vec::new(), 0, 0u64, Vec::new());
+    while now <= until_ms {
+        while next < all.len() && all[next].at.0 <= now * MS {
+            if all[next].abnormal {
+                n.observe(&all[next]);
+            }
+            items.push(all[next].clone());
+            next += 1;
+        }
+        for x in n.notice(Instant(now * MS), &Store::with(items.clone())) {
+            notices.push((now, x));
+        }
+        for id in n.retirable(Instant(now * MS)) {
+            n.retire(id);
+        }
+        now += 500;
+    }
+    (n, notices)
+}
+
+/// Two services neither of which is the other's dependent.
+fn unrelated_pair(public: &StreamPublic) -> (u32, u32) {
+    use gordian_world::graph::dependents_mask;
+    let n = public.services.len() as u32;
+    for x in 0..n {
+        let of_x = dependents_mask(&public.services, ServiceId(x));
+        for y in (x + 1)..n {
+            if !of_x[y as usize] && !dependents_mask(&public.services, ServiceId(y))[x as usize] {
+                return (x, y);
+            }
+        }
+    }
+    panic!("no unrelated pair");
+}
+
+/// The tick-length check refuses a zero tick, and a tick above `u32::MAX` nanoseconds that is a
+/// whole number of microseconds, with its own message (each half of the check on its own).
+#[test]
+fn the_tick_length_check_refuses_with_its_own_message() {
+    let ok = MediumParams::default();
+    for tick_ns in [0, 4_294_968_000] {
+        let e = MediumParams { tick_ns, ..ok }.validate().unwrap_err();
+        assert!(
+            e.contains("tick_ns must be a positive whole number of microseconds"),
+            "{tick_ns}: {e}"
+        );
+    }
+}
+
+/// The confirmation's delay enters the emitter's and the relay's lookbacks as whole ticks: with
+/// the burst path's lookback a whole number of ticks, the sum is exact (no tick is added by
+/// rounding).
+#[test]
+fn the_confirmation_delay_counts_whole_ticks_in_the_lookbacks() {
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    for (delay, ticks) in [(1u8, 2.0f32), (3, 4.0)] {
+        let params = MediumParams {
+            onset: false,
+            ramp: false,
+            burst: true,
+            coincidence: CoincidenceForm::Ordered,
+            burst_lookback_ns: 100 * MS,
+            lookback_ns: 0,
+            burst_confirm: Confirm::All,
+            confirm_delay_ticks: delay,
+            ..MediumParams::default()
+        };
+        params.validate().unwrap();
+        let (s, layout) = spec(&params, &p.services).unwrap();
+        assert_eq!(
+            s.cells[layout.notice[0].0 as usize].params[2], ticks,
+            "{delay}"
+        );
+        let relays: Vec<f32> = s
+            .synapses
+            .iter()
+            .filter(|y| y.delay_ticks > 0)
+            .map(|y| s.cells[y.to.0 as usize].params[3])
+            .collect();
+        assert_eq!(relays.len(), p.services.len(), "{delay}");
+        assert!(relays.iter().all(|&lb| lb == ticks), "{delay}: {relays:?}");
+    }
+}
+
+/// An observation delivered after its tick has run is refused by the medium: the noticer counts
+/// one step error, stops, and runs no tick after it.
+#[test]
+fn a_late_observation_is_one_step_error_and_stops_the_medium() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    let mut n = MediumNoticer::new(onset_only(), RungConfig::default(), &p.services).unwrap();
+    assert!(
+        n.notice(Instant(1_000 * MS), &Store::with(Vec::new()))
+            .is_empty()
+    );
+    assert_eq!(n.stats().step_errors, 0);
+    let late = held(0, 500, counter(site, CounterName::ErrorRate, 80), &p);
+    n.observe(&late);
+    assert!(
+        n.notice(Instant(1_500 * MS), &Store::with(vec![late.clone()]))
+            .is_empty()
+    );
+    assert_eq!(n.stats().step_errors, 1);
+    let ticks = n.ledger().total_ticks;
+    assert!(
+        n.notice(Instant(3_000 * MS), &Store::with(vec![late]))
+            .is_empty()
+    );
+    assert_eq!(n.ledger().total_ticks, ticks);
+    assert_eq!(n.stats().step_errors, 1);
+}
+
+/// The noticer keeps what it took in for the rung's `retain_ns`, measured strictly: an
+/// observation exactly `retain_ns` old at the end of a step is kept into the next one. A notice
+/// whose anchor is no longer kept is not made, and is counted as a lost anchor.
+#[test]
+fn an_anchor_kept_past_the_retention_is_lost_and_counted() {
+    let p = public();
+    let (site, _) = site_and_dependent(&p);
+    // A burst of two kinds at 1,000 ms; 2 s ticks, so it is noticed at the 2,000 ms step, two
+    // steps after it was taken in.
+    let params = MediumParams {
+        tick_ns: 2_000 * MS,
+        onset: false,
+        ramp: false,
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        ..MediumParams::default()
+    };
+    for (retain_ms, noticed) in [(500u64, true), (400, false)] {
+        let cfg = RungConfig {
+            retain_ns: retain_ms * MS,
+            ..RungConfig::default()
+        };
+        let (n, notices) = drive_with(params, cfg, &burst(site, 1_000), 4_000, &p);
+        let s = n.stats();
+        assert!(s.notice_proposals >= 1, "{retain_ms}");
+        if noticed {
+            assert_eq!(notices.len(), 1, "{retain_ms}: {notices:?}");
+            assert_eq!(notices[0].0, 2_000);
+            assert_eq!(notices[0].1.anchor, ObsId(0));
+            assert_eq!(s.lost_anchors, 0);
+        } else {
+            assert!(notices.is_empty(), "{retain_ms}: {notices:?}");
+            assert_eq!(s.lost_anchors, s.notice_proposals - s.duplicate_notices);
+        }
+    }
+}
+
+/// An unattached alarm is offered only to a notice whose anchor precedes it: two anomalies
+/// noticed in one step, at unrelated services, and an alarm at the second's service between the
+/// two anchors. The alarm is the second's by the rung's rule (its site, speaking), but precedes
+/// its anchor, so it joins neither.
+#[test]
+fn an_unattached_alarm_joins_no_anomaly_noticed_after_it() {
+    let p = public();
+    let (x, y) = unrelated_pair(&p);
+    let mut obs = burst(x, 1_000);
+    // The alarm is in tick 11, after the tick in which `x`'s burst fired its emitter, and more
+    // than the onset's two-tick lookback before `y`'s burst (tick 14).
+    obs.push((1_150, counter(y, CounterName::ErrorRate, 70)));
+    obs.extend(burst(y, 1_400));
+    let (n, notices) = drive_with(onset_only(), RungConfig::default(), &obs, 3_000, &p);
+    assert_eq!(notices.len(), 2, "{notices:?}");
+    assert_eq!(notices[0].0, notices[1].0, "noticed in one step");
+    let second = notices
+        .iter()
+        .find(|(_, a)| a.site == ServiceId(y))
+        .unwrap();
+    assert_eq!(second.1.anchor, ObsId(5), "{notices:?}");
+    for a in n.anomalies() {
+        assert!(!a.owns(ObsId(4)), "{a:?}");
+    }
+}
+
+/// An unattached alarm is kept for `REOFFER_NS` (4 s) measured strictly at the end of each
+/// step: one exactly 4 s old at the step before a notice is still offered to it, one 4.01 s old
+/// is not. The alarm is at a dependent of the ramp's site, so only the re-offer can attach it
+/// (the ramp cites its own service's readings), by propagation within `burst_ns` of the anchor.
+#[test]
+fn an_unattached_alarm_is_reoffered_while_four_seconds_old_and_not_after() {
+    let p = public();
+    let (site, dep) = site_and_dependent(&p);
+    let ramp_only = MediumParams {
+        onset: false,
+        ramp_tau_ns: 60_000 * MS,
+        ramp_threshold: 7.0,
+        ramp_lookback_ns: 20_000 * MS,
+        ..MediumParams::default()
+    };
+    let cfg = RungConfig {
+        burst_ns: 20_000 * MS,
+        ..RungConfig::default()
+    };
+    let ramp: Vec<(u64, Observation)> = (0..12)
+        .map(|i| {
+            (
+                1_000 + 1_000 * i,
+                counter(site, CounterName::Saturation, 22 + 2 * i),
+            )
+        })
+        .collect();
+    let (_, plain) = drive_with(ramp_only, cfg.clone(), &ramp, 12_000, &p);
+    assert_eq!(plain.len(), 1, "{plain:?}");
+    let at = plain[0].0;
+    assert!(at >= 1_000 + 4_510 + 500, "{at}");
+    for (gap, joined) in [
+        (4_000u64, true),
+        (4_500, true),
+        (4_510, false),
+        (5_000, false),
+    ] {
+        let mut obs = ramp.clone();
+        obs.push((at - gap, counter(dep, CounterName::ErrorRate, HIGH + 10)));
+        obs.sort_by_key(|(t, _)| *t);
+        // Found by its name, not its instant: it can share an instant with a ramp reading.
+        let alarm = obs
+            .iter()
+            .position(|(_, o)| {
+                matches!(
+                    o,
+                    Observation::Counter {
+                        name: CounterName::ErrorRate,
+                        ..
+                    }
+                )
+            })
+            .unwrap() as u32;
+        let (_, notices) = drive_with(ramp_only, cfg.clone(), &obs, 12_000, &p);
+        assert_eq!(notices.len(), 1, "gap {gap}: {notices:?}");
+        assert_eq!(notices[0].0, at, "gap {gap}");
+        assert_eq!(
+            notices[0].1.attached.contains(&ObsId(alarm)),
+            joined,
+            "gap {gap}: {notices:?}"
+        );
     }
 }
