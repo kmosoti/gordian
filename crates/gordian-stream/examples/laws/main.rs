@@ -17,7 +17,7 @@
 //!   downstream of its site or its partner).
 //! - `regimes.csv`: the resolved regime changes.
 //! - `streams.csv`: per stream counts.
-//! - `vocab.csv`: free-form messages (public id at or above the catalogue limit) counted by id, the public cue (an abnormal counter at the message's service in the 10 s before it) and
+//! - `vocab.csv`: free-form messages (public id at or above the catalogue limit) counted by id, the public cue (the number of abnormal counter readings, at most 3, at the message's service in the 10 s before it) and
 //!   hidden class: the hard family an incident-borne message belongs to, or for a background
 //!   message the hard family live anywhere, and at the message's service, at that instant.
 //! - `owners.jsonl` (only with `--owners`): per stream, the incident each observation belongs to
@@ -412,14 +412,15 @@ sig_altered,edge_altered,edge_exposed\n",
                     .map_or("none", family_name)
                     .to_string()
             };
-            // The public cue: an abnormal counter reading at the message's service in the 10 s
-            // before it (what an arm could compute from the stream).
-            let mut last_abnormal: Vec<Option<u64>> = vec![None; truth.services.len()];
+            // The public cue: how many abnormal counter readings (at or above the alarm level) the
+            // message's service has had in the 10 s before it, capped at 3 (what an arm could
+            // compute from the stream).
+            let mut abnormal_at: Vec<Vec<u64>> = vec![Vec::new(); truth.services.len()];
             for (i, (at, ob)) in events.iter().enumerate() {
                 if let Observation::Counter { service, value, .. } = ob
                     && *value >= HIGH
                 {
-                    last_abnormal[service.index()] = Some(at.0);
+                    abnormal_at[service.index()].push(at.0);
                 }
                 let Observation::Message {
                     service, text_id, ..
@@ -427,9 +428,12 @@ sig_altered,edge_altered,edge_exposed\n",
                 else {
                     continue;
                 };
-                let cue = last_abnormal[service.index()]
-                    .is_some_and(|t| at.0.saturating_sub(t) <= 10 * SEC)
-                    as u8;
+                let cue = abnormal_at[service.index()]
+                    .iter()
+                    .rev()
+                    .take_while(|t| at.0.saturating_sub(**t) <= 10 * SEC)
+                    .count()
+                    .min(3) as u8;
                 if *text_id < CATALOGUE_LIMIT {
                     continue;
                 }
