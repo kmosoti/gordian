@@ -4,6 +4,69 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## M3 sub-tick support and strict precision — merged (Lab 1); the mechanism works, the criterion fails
+
+**Provenance.** Two interruptions; the final PI verified the inherited state, committed the two
+crash-left test files after reading them, finished the mutation tally with two fresh runs (294 +
+94 mutants: 352 caught, 25 unviable, 3 timeouts that are detections, 8 missed and argued
+equivalent one by one), froze, merged main (L1 and B4), and found that B4's new notice field
+broke the pinned freeze digests; the fix strips exactly B4's two inert spellings, and the 40 of
+40 per-arm reproduction against earlier runs is the independent check that the merge changed
+nothing. Byte identity 62 of 62 (chief's hashes). The held-out and byte-identity directories
+were kept and the chief recomputed every criterion row from them. Gates under the runner on
+the merged tree: fmt, clippy `--locked`, 875 Rust tests, the oracle guard, 450 analysis tests.
+Outputs in `artifacts/runs/m3/` (ignored).
+
+**Re-verified from the held-out run** (paired against the re-anchor, 0.952):
+
+| Tick | Anchor-correct | Difference [90%] | Leak noticed | Background / stream | Result 1 |
+|---|---|---|---|---|---|
+| 100 ms | 0.981 | +0.030 [+0.011, +0.049] | 0.770 | 2.04 | misses the margin by 0.0004 |
+| 500 ms | 0.970 | +0.019 [−0.003, +0.040] | 0.892 | 0.95 | fails |
+| 2 s | 0.949 | −0.003 [−0.028, +0.022] | 0.712 | 1.01 | fails |
+
+Sub-tick pruning off (control), anchor-correct: 0.976 / 0.911 / 0.780 at 100 ms / 500 ms /
+2 s, so pruning is worth +0.005 / +0.059 / +0.169 at the same graph. All match the lab. Strict
+precision (0.77 / 0.81 / 0.84) is the lab's figure; the chief did not find a per-stream column
+to recompute it and takes it as reported.
+
+**Verdict as written: M3 does not hold.** Result 2 holds at every tick.
+
+**What it means (mechanism, objective, failure).**
+
+- **M2's diagnosis was right and the fix works.** The tick was the anchoring rule's floor;
+  pruning the support below the tick lifts 2 s anchoring from 0.780 to 0.949 and 500 ms from
+  0.911 to 0.970. The medium now anchors as well at 500 ms as the best public row does
+  (0.970 against 0.973).
+- **The criterion failed because the tuning rule bought something else with the gain.** Under
+  the new strict-precision bound, the devices that raised precision from about 0.5 to about
+  0.8 (cluster merge, confirmation in event time, a ramp inhibit) cost anchoring; at 500 ms ten
+  configurations tied on tuning anchoring and the tie rule chose the one with fewest false
+  notices. The frozen media sit at about 1 false notice per stream against a bound of 6.8 and
+  precision 0.81 against 0.67: a different operating point from M2, not a failure of the
+  mechanism. A chief who wanted anchoring should not have let a tie rule prefer background.
+- **The leak loss is a side effect of a precision device.** The ramp inhibit, which suppresses
+  the ramp detector while another anomaly is open, drops leak noticing from 0.99 to about 0.89
+  at 500 ms and 0.71 at 2 s; the tuning score was bound by anchoring and ignored it.
+- **The medium's first advantage outside anchoring.** At 500 ms, against ramp + split over the
+  re-anchor: anchoring at parity (−0.003 [−0.022, +0.016]), 5.3 fewer false notices per
+  stream, +0.11 strict precision, at the same reasoner cost (0.81 s against 0.80 s), and far
+  worse on the leak (−0.094 noticed, −0.49 anchored at start). In B5's call-budgeted frame,
+  precision is what decides which anomalies get asked about, so this is the row that matters.
+
+**Decided.**
+
+1. **M4 (Lab 1):** the anchoring-against-precision frontier, each precision device switched
+   separately, with a ramp inhibit that does not suppress a ramp-noticed anomaly. Criterion
+   (fixed now): a parity test on all three public measures at 500 ms against ramp + split over
+   the re-anchor: anchor-correct ≥ 0.963 with the paired lower bound above −0.03, leak noticed
+   ≥ 0.976 with the paired lower bound above −0.03, strict precision ≥ 0.693, background ≤ 6.24.
+   Feasibility: M3's 500 ms row meets the anchoring and precision parts and misses the leak by
+   0.09, and the leak loss has a named cause; both outcomes are reachable.
+2. Tie rules in every future tuning rule prefer the criterion's own measure; background is a
+   bound, never a tie-break.
+3. Sub-tick pruning stays on in every medium arm from here.
+
 ## B4 public selectors and decoy accounting — merged (Lab 2); on this world, public selection is always-escalate
 
 **Provenance.** Two interruptions (an API limit, then the disk restart); the final PI found one

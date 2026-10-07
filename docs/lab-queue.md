@@ -32,7 +32,8 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | merged |
 | B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | merged |
 | B4 | 2 | A non-privileged selector; decoy-notice accounting; leak-versus-decoy separation | B3 | merged |
-| M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | running |
+| M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | merged |
+| M4 | 1 | The anchoring-against-precision frontier; a ramp inhibit that spares ramp-noticed anomalies; parity with the best public row on all three measures | M3 | running |
 | L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | merged |
 | C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | running |
 | B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | queued |
@@ -294,6 +295,34 @@ reframed EXP-101 charges every notice through a public selector. B4 builds that 
 **Acceptance (fixed 2026-10-06).** Byte identity on R6's held-out run; fixtures and mutation
 checks; the table above; no claim about which arm is better. This table is EXP-101's
 feasibility check: its numbers set EXP-101's margins before the freeze.
+
+## M4 The anchoring-against-precision frontier (Lab 1, after M3)
+
+M3 showed that sub-tick pruning removes the tick floor and that the precision devices (cluster
+merge, confirmation in event time, the ramp inhibit) trade anchoring and leak noticing for
+precision. M4 maps the trade and fixes the one named cause of the leak loss.
+
+1. Each precision device switchable in the spec; the ramp inhibit gains a form that does not
+   suppress the ramp detector when the open anomaly is itself ramp-noticed.
+2. Tuning on seeds 10000–10099 at 500 ms (the tick where M3 reached public parity on
+   anchoring; 100 ms and 2 s reported for continuity) over the device switches and the existing
+   grids, with the tuning rule written before the run: the objective is the criterion's own
+   conjunction, and ties break on the criterion's measures in the order anchoring, leak,
+   precision; background is a bound only. Frozen with a named commit before the held-out run;
+   byte identity on R6's held-out run.
+3. Held-out run on the 200 streams: the frozen medium, each single-device-off ablation, M3's
+   frozen 500 ms medium, M2's 100 ms medium, the re-anchor and ramp + split over the re-anchor.
+   The frontier (anchor-correct against strict precision, with leak noticed as a third axis) from
+   the tuning streams is reported as a table.
+
+**Criterion, fixed by the chief before any M4 code or run (2026-10-07).** At 500 ms on the 200
+held-out streams, against ramp + split over the re-anchor (anchor-correct 0.973, leak noticed
+0.986, strict precision 0.693, background 6.24), the frozen medium meets all four: anchor-correct
+≥ 0.963 with the paired lower bound above −0.03; leak noticed ≥ 0.976 with the paired lower
+bound above −0.03; strict precision ≥ 0.693; background notices per stream ≤ 6.24. Conjunctive.
+Feasibility: M3's 500 ms medium meets the anchoring and precision parts and misses the leak by
+0.094 with a named cause; both outcomes are reachable. Cost per stream and leak anchor-correct
+are reported beside, never in the criterion.
 
 ## C1 An incremental-dataflow noticer (Lab 2, after B4)
 
