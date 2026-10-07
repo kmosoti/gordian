@@ -18,7 +18,7 @@ import pandas as pd
 import m4_common as C
 import m4_grids as G
 
-STAGES = ["tune-a"]
+STAGES = ["tune-a", "tune-b"]
 PUBLIC = ("reanchor", "ramp_split_over_re2", "ramp_over_re2", "rung_z2", "rung_z3")
 
 

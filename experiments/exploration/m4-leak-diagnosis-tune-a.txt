@@ -1,0 +1,76 @@
+=== m1_ce_ia_r0_t500 m1_ce_in_r0_t500
+m1_ce_ia_r0_t500 misses 3 leaks that m1_ce_in_r0_t500 notices; notices 0 that it misses; leaks 44
+
+seed 10022 leak 15: first observation 328.3 s; m1_ce_in_r0_t500 notices it at site 4, anchor 348.97 s, at 359.0 s
+   m1_ce_ia_r0_t500: retire  anomaly 8 at   274.5 s, anchor  209.76 s -> background
+   m1_ce_ia_r0_t500: notice  anomaly 14 at   347.0 s, anchor  336.50 s -> background
+   m1_ce_ia_r0_t500: retire  anomaly 14 at   377.5 s, anchor  336.50 s -> background
+
+seed 10026 leak 3: first observation 129.1 s; m1_ce_in_r0_t500 notices it at site 0, anchor 135.52 s, at 140.0 s
+   m1_ce_ia_r0_t500: notice  anomaly 4 at   134.5 s, anchor  124.22 s -> background
+
+seed 10048 leak 23: first observation 536.8 s; m1_ce_in_r0_t500 notices it at site 3, anchor 544.32 s, at 548.5 s
+   m1_ce_ia_r0_t500: retire  anomaly 13 at   432.0 s, anchor  383.74 s -> background
+   m1_ce_ia_r0_t500: notice  anomaly 18 at   543.5 s, anchor  534.51 s -> background
+=== m1_ce_ia_r30_t500 m1_ce_in_r30_t500
+m1_ce_ia_r30_t500 misses 2 leaks that m1_ce_in_r30_t500 notices; notices 0 that it misses; leaks 44
+
+seed 10026 leak 3: first observation 129.1 s; m1_ce_in_r30_t500 notices it at site 0, anchor 190.03 s, at 200.5 s
+   m1_ce_ia_r30_t500: notice  anomaly 4 at   134.5 s, anchor  124.22 s -> background
+   m1_ce_ia_r30_t500: retire  anomaly 4 at   214.5 s, anchor  124.22 s -> background
+
+seed 10048 leak 23: first observation 536.8 s; m1_ce_in_r30_t500 notices it at site 3, anchor 573.37 s, at 579.5 s
+   m1_ce_ia_r30_t500: notice  anomaly 18 at   543.5 s, anchor  534.51 s -> background
+=== m1_ce_in_r30_t500 m1_ce_in_r0_t500
+m1_ce_in_r30_t500 misses 1 leaks that m1_ce_in_r0_t500 notices; notices 0 that it misses; leaks 44
+
+seed 10022 leak 15: first observation 328.3 s; m1_ce_in_r0_t500 notices it at site 4, anchor 348.97 s, at 359.0 s
+   m1_ce_in_r30_t500: retire  anomaly 8 at   274.5 s, anchor  209.76 s -> background
+   m1_ce_in_r30_t500: notice  anomaly 14 at   347.0 s, anchor  336.50 s -> background
+   m1_ce_in_r30_t500: retire  anomaly 14 at   377.5 s, anchor  336.50 s -> background
+=== m1_ce_in_r0_t100 m1_ce_i0_r0_t100
+m1_ce_in_r0_t100 misses 7 leaks that m1_ce_i0_r0_t100 notices; notices 0 that it misses; leaks 44
+
+seed 10022 leak 15: first observation 328.3 s; m1_ce_i0_r0_t100 notices it at site 4, anchor 352.98 s, at 362.0 s
+   m1_ce_in_r0_t100: retire  anomaly 9 at   386.0 s, anchor  209.76 s -> background
+
+seed 10049 leak 6: first observation 96.8 s; m1_ce_i0_r0_t100 notices it at site 8, anchor 131.23 s, at 141.0 s
+
+seed 10062 leak 11: first observation 243.3 s; m1_ce_i0_r0_t100 notices it at site 8, anchor 243.29 s, at 252.0 s
+   m1_ce_in_r0_t100: retire  anomaly 1 at   151.5 s, anchor   64.57 s -> background
+   m1_ce_in_r0_t100: notice  anomaly 12 at   241.0 s, anchor  240.66 s -> incident 10 (decoy )
+
+seed 10065 leak 9: first observation 156.5 s; m1_ce_i0_r0_t100 notices it at site 7, anchor 156.49 s, at 161.0 s
+
+seed 10073 leak 19: first observation 455.8 s; m1_ce_i0_r0_t100 notices it at site 1, anchor 458.93 s, at 469.0 s
+   m1_ce_in_r0_t100: retire  anomaly 2 at   423.0 s, anchor  115.66 s -> background
+   m1_ce_in_r0_t100: retire  anomaly 13 at   423.0 s, anchor  307.50 s -> background
+   m1_ce_in_r0_t100: retire  anomaly 14 at   423.0 s, anchor  313.75 s -> background
+
+seed 10083 leak 26: first observation 481.9 s; m1_ce_i0_r0_t100 notices it at site 6, anchor 495.88 s, at 504.0 s
+   m1_ce_in_r0_t100: retire  anomaly 29 at   412.5 s, anchor  357.74 s -> background
+   m1_ce_in_r0_t100: notice  anomaly 34 at   421.0 s, anchor  420.86 s -> incident 22 (decoy )
+
+seed 10090 leak 21: first observation 426.6 s; m1_ce_i0_r0_t100 notices it at site 3, anchor 428.64 s, at 438.5 s
+   m1_ce_in_r0_t100: notice  anomaly 22 at   327.0 s, anchor  326.53 s -> incident 13 (plain )
+=== m1_ce_in_r0_t2000 m1_ce_i0_r0_t2000
+m1_ce_in_r0_t2000 misses 7 leaks that m1_ce_i0_r0_t2000 notices; notices 0 that it misses; leaks 44
+
+seed 10022 leak 15: first observation 328.3 s; m1_ce_i0_r0_t2000 notices it at site 4, anchor 330.46 s, at 342.0 s
+
+seed 10049 leak 6: first observation 96.8 s; m1_ce_i0_r0_t2000 notices it at site 8, anchor 98.15 s, at 110.0 s
+
+seed 10062 leak 11: first observation 243.3 s; m1_ce_i0_r0_t2000 notices it at site 8, anchor 244.67 s, at 256.0 s
+
+seed 10065 leak 9: first observation 156.5 s; m1_ce_i0_r0_t2000 notices it at site 7, anchor 158.27 s, at 170.0 s
+
+seed 10073 leak 19: first observation 455.8 s; m1_ce_i0_r0_t2000 notices it at site 1, anchor 455.82 s, at 466.0 s
+   m1_ce_in_r0_t2000: retire  anomaly 2 at   426.0 s, anchor  115.66 s -> background
+   m1_ce_in_r0_t2000: retire  anomaly 12 at   426.0 s, anchor  307.50 s -> background
+
+seed 10083 leak 26: first observation 481.9 s; m1_ce_i0_r0_t2000 notices it at site 6, anchor 481.90 s, at 492.0 s
+   m1_ce_in_r0_t2000: retire  anomaly 37 at   416.0 s, anchor  357.74 s -> background
+   m1_ce_in_r0_t2000: notice  anomaly 52 at   422.0 s, anchor  420.86 s -> incident 22 (decoy )
+
+seed 10090 leak 21: first observation 426.6 s; m1_ce_i0_r0_t2000 notices it at site 3, anchor 428.64 s, at 440.0 s
+   m1_ce_in_r0_t2000: notice  anomaly 19 at   328.0 s, anchor  326.53 s -> incident 13 (plain )

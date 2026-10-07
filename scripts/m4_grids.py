@@ -78,4 +78,44 @@ def stage(name):
                                      f"_i{inh}_r{rr or 0}_t{tick}")
                             arms.append((label, arm))
         return arms, seeds, 14_100, "exploration-m4-tuning"
+    if name == "tune-b":
+        # tune-a (m4-tuning-tune-a.csv; m4-leak-diagnosis-tune-a.txt): at 500 ms M4's inhibit form
+        # recovers the leak (44 of 44 at the emitter's 1 s ramp refractory, against 41 for M3's
+        # form): the three leaks M3's form loses are each preceded by a ramp notice anchored just
+        # outside the leak (attributed to background), whose anomaly the leak's own alarms keep
+        # open, so M3's form silences the ramp's second, correct notice. But at 500 ms the form
+        # buys almost no precision over no inhibit (0.722 against 0.721; M3's form 0.789): M3's
+        # form earned its precision by silencing the ramp after its own notice. The ramp
+        # refractory of 30 s buys about 0.06 of precision and loses one leak (seed 10022), by
+        # blocking the same corrective second notice 12 s after a mis-anchored one. At 100 ms and
+        # 2 s every form with the inhibit loses 7 leaks to anomalies open for minutes at a service
+        # whose alarms keep a 15 s hold open (those frozen media's hold; 500 ms has 6 s).
+        # Here, at 500 ms: the existing grids (the confirmation in event time at 50 and 100 ms from
+        # the dependents and 50 ms from all services; the cluster merge at 0, 10, 20, 30, 50 ms)
+        # crossed with the inhibit off / M3's / M4's and the ramp refractory at 1, 5, 10, 15, 20
+        # and 30 s (M3's grids had 1 and 30), hold 6 s. At 100 ms and 2 s, for continuity, at the
+        # frozen confirmation and merge: hold 6 or 15 s, the inhibit off / M3's / M4's, and the
+        # same ramp refractories.
+        refractories = (None, 5, 10, 15, 20, 30)
+        frozen = m3_frozen(500)
+        confirms = {"dep50L": ("dependents", 50), "dep100L": ("dependents", 100),
+                    "all50L": ("all", 50)}
+        for cname, (conf, cw) in confirms.items():
+            for merge in (0, 10, 20, 30, 50):
+                for inh in INHIBITS:
+                    for rr in refractories:
+                        b = dict(frozen, burst_confirm=conf, confirm_window_ns=cw * MS,
+                                 confirm_lead=True, merge_window_ns=merge * MS, hold_ns=6 * S)
+                        arm = with_refractory(devices(b, merge > 0, True, inh), rr)
+                        arms.append((f"{cname}_m{merge}_i{inh}_r{rr or 1}_t500", arm))
+        for tick in (100, 2000):
+            frozen = m3_frozen(tick)
+            for hold in (6, 15):
+                for inh in INHIBITS:
+                    for rr in refractories:
+                        b = dict(frozen, hold_ns=hold * S)
+                        on = bool(b.get("merge_window_ns", 0))
+                        arm = with_refractory(devices(b, on, True, inh), rr)
+                        arms.append((f"h{hold}_i{inh}_r{rr or 1}_t{tick}", arm))
+        return arms, seeds, 14_200, "exploration-m4-tuning"
     raise SystemExit(f"unknown stage {name!r}")
