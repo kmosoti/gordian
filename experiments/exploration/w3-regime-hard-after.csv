@@ -1,0 +1,25 @@
+range,seeds,side,measure,value,n
+a-tune,10000-10099,hidden,streams with at least one hard incident affected by signature_shift,0.1800,100
+a-tune,10000-10099,hidden,streams with at least one hard incident affected by edge_add,0.0700,100
+a-tune,10000-10099,hidden,share of hard incidents with onset at or after the first change,0.6214,243
+a-tune,10000-10099,hidden,  90% interval (first change),"[0.5730, 0.6716]",
+a-tune,10000-10099,hidden,share of hard incidents with onset at or after the last change,0.2634,243
+a-tune,10000-10099,hidden,  90% interval (last change),"[0.2227, 0.3041]",
+a-heldout,40000-40199,hidden,streams with at least one hard incident affected by signature_shift,0.1900,200
+a-heldout,40000-40199,hidden,streams with at least one hard incident affected by edge_add,0.1050,200
+a-heldout,40000-40199,hidden,share of hard incidents with onset at or after the first change,0.6172,512
+a-heldout,40000-40199,hidden,  90% interval (first change),"[0.5846, 0.6496]",
+a-heldout,40000-40199,hidden,share of hard incidents with onset at or after the last change,0.2461,512
+a-heldout,40000-40199,hidden,  90% interval (last change),"[0.2179, 0.2744]",
+c-tune,60000-60099,hidden,streams with at least one hard incident affected by signature_shift,0.4200,100
+c-tune,60000-60099,hidden,streams with at least one hard incident affected by edge_add,0.2500,100
+c-tune,60000-60099,hidden,share of hard incidents with onset at or after the first change,0.6514,786
+c-tune,60000-60099,hidden,  90% interval (first change),"[0.6238, 0.6796]",
+c-tune,60000-60099,hidden,share of hard incidents with onset at or after the last change,0.2519,786
+c-tune,60000-60099,hidden,  90% interval (last change),"[0.2264, 0.2779]",
+c-heldout,70000-70199,hidden,streams with at least one hard incident affected by signature_shift,0.4000,200
+c-heldout,70000-70199,hidden,streams with at least one hard incident affected by edge_add,0.1950,200
+c-heldout,70000-70199,hidden,share of hard incidents with onset at or after the first change,0.6240,1516
+c-heldout,70000-70199,hidden,  90% interval (first change),"[0.6060, 0.6424]",
+c-heldout,70000-70199,hidden,share of hard incidents with onset at or after the last change,0.2731,1516
+c-heldout,70000-70199,hidden,  90% interval (last change),"[0.2546, 0.2917]",

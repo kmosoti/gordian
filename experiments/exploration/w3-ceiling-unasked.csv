@@ -1,0 +1,25 @@
+range,seeds,side,tier,incidents,n,declared_correct_with_no_call,share,lo90,hi90,declared_wrong_with_no_call,wrong_share,wrong_lo90,wrong_hi90
+a-tune,10000-10099,run joined to hidden,plain,all incidents,2110,1838,0.8711,0.8565,0.8859,354,0.1678,0.1503,0.1856
+a-tune,10000-10099,run joined to hidden,plain,recurrences,437,376,0.8604,0.8238,0.8946,89,0.2037,0.1649,0.2445
+a-tune,10000-10099,run joined to hidden,hard,all incidents,243,0,0.0000,0.0000,0.0000,2,0.0082,0.0000,0.0184
+a-tune,10000-10099,run joined to hidden,hard,recurrences,44,0,0.0000,0.0000,0.0000,0,0.0000,0.0000,0.0000
+a-tune,10000-10099,run joined to hidden,decoy,all incidents,290,0,0.0000,0.0000,0.0000,215,0.7414,0.6918,0.7906
+a-tune,10000-10099,run joined to hidden,decoy,recurrences,69,0,0.0000,0.0000,0.0000,43,0.6232,0.5000,0.7353
+a-heldout,40000-40199,run joined to hidden,plain,all incidents,4304,3695,0.8585,0.8466,0.8704,732,0.1701,0.1591,0.1809
+a-heldout,40000-40199,run joined to hidden,plain,recurrences,883,755,0.8550,0.8314,0.8778,143,0.1619,0.1402,0.1841
+a-heldout,40000-40199,run joined to hidden,hard,all incidents,512,0,0.0000,0.0000,0.0000,5,0.0098,0.0037,0.0176
+a-heldout,40000-40199,run joined to hidden,hard,recurrences,83,0,0.0000,0.0000,0.0000,0,0.0000,0.0000,0.0000
+a-heldout,40000-40199,run joined to hidden,decoy,all incidents,528,0,0.0000,0.0000,0.0000,388,0.7348,0.6986,0.7710
+a-heldout,40000-40199,run joined to hidden,decoy,recurrences,129,0,0.0000,0.0000,0.0000,94,0.7287,0.6522,0.8037
+c-tune,60000-60099,run joined to hidden,plain,all incidents,1519,1286,0.8466,0.8268,0.8667,255,0.1679,0.1470,0.1900
+c-tune,60000-60099,run joined to hidden,plain,recurrences,312,262,0.8397,0.8026,0.8758,54,0.1731,0.1366,0.2121
+c-tune,60000-60099,run joined to hidden,hard,all incidents,786,0,0.0000,0.0000,0.0000,4,0.0051,0.0013,0.0095
+c-tune,60000-60099,run joined to hidden,hard,recurrences,145,0,0.0000,0.0000,0.0000,0,0.0000,0.0000,0.0000
+c-tune,60000-60099,run joined to hidden,decoy,all incidents,276,0,0.0000,0.0000,0.0000,202,0.7319,0.6873,0.7765
+c-tune,60000-60099,run joined to hidden,decoy,recurrences,54,0,0.0000,0.0000,0.0000,37,0.6852,0.5593,0.8154
+c-heldout,70000-70199,run joined to hidden,plain,all incidents,3273,2795,0.8540,0.8420,0.8657,529,0.1616,0.1489,0.1748
+c-heldout,70000-70199,run joined to hidden,plain,recurrences,674,565,0.8383,0.8133,0.8632,109,0.1617,0.1375,0.1857
+c-heldout,70000-70199,run joined to hidden,hard,all incidents,1516,0,0.0000,0.0000,0.0000,9,0.0059,0.0028,0.0093
+c-heldout,70000-70199,run joined to hidden,hard,recurrences,259,0,0.0000,0.0000,0.0000,0,0.0000,0.0000,0.0000
+c-heldout,70000-70199,run joined to hidden,decoy,all incidents,552,0,0.0000,0.0000,0.0000,417,0.7554,0.7212,0.7887
+c-heldout,70000-70199,run joined to hidden,decoy,recurrences,123,0,0.0000,0.0000,0.0000,90,0.7317,0.6585,0.8015

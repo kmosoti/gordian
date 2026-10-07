@@ -1,0 +1,5 @@
+range,seeds,side,incidents,with_eligible_template,recurrences,recurrence_share_of_eligible,recurrences_without_eligible_template,recurrences_of_a_recurrence
+a-tune,10000-10099,hidden,2643,2155,550,0.2552,0,79
+a-heldout,40000-40199,hidden,5344,4351,1095,0.2517,0,148
+c-tune,60000-60099,hidden,2581,2085,511,0.2451,0,68
+c-heldout,70000-70199,hidden,5341,4276,1056,0.2470,0,123

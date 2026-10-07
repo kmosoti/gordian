@@ -30,4 +30,4 @@ run c-tune    60000 100 c --owners --floor
 run c-heldout 70000 200 c --owners --floor
 run a-tune    10000 100 a --floor
 run a-heldout 40000 200 a --floor
-run a-a2      10000 20  a --alarms
+run a-a2      10000 20  a --floor --alarms

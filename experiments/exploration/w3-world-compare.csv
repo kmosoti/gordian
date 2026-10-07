@@ -1,0 +1,113 @@
+range,seeds,side,measure,value,lo90,hi90
+a-tune,10000-10099,hidden,incidents per stream,26.4300,25.6300,27.2200
+a-tune,10000-10099,hidden,plain incidents per stream,21.1000,20.3400,21.8400
+a-tune,10000-10099,hidden,plain share of incidents,0.7983,0.7802,0.8158
+a-tune,10000-10099,hidden,hard incidents per stream,2.4300,2.1000,2.7800
+a-tune,10000-10099,hidden,hard share of incidents,0.0919,0.0799,0.1047
+a-tune,10000-10099,hidden,decoy incidents per stream,2.9000,2.5300,3.2800
+a-tune,10000-10099,hidden,decoy share of incidents,0.1097,0.0963,0.1234
+a-tune,10000-10099,hidden,recurrences per stream,5.5000,5.0800,5.9300
+a-tune,10000-10099,hidden,hard recurrences per stream,0.4400,0.3000,0.5900
+a-tune,10000-10099,hidden,share of hard incidents that recur,0.1811,0.1376,0.2218
+a-tune,10000-10099,hidden,skipped arrivals per stream (no service free),0.3700,0.2100,0.5500
+a-tune,10000-10099,hidden,share of arrivals skipped,0.0138,0.0079,0.0205
+a-tune,10000-10099,hidden,"incidents overlapping another incident's live interval, per stream",26.0000,25.1700,26.8100
+a-tune,10000-10099,hidden,share of incidents overlapping another incident,0.9837,0.9793,0.9878
+a-tune,10000-10099,hidden,"hard incidents overlapping another incident, per stream",2.4100,2.0800,2.7600
+a-tune,10000-10099,hidden,share of hard incidents overlapping another incident,0.9918,0.9810,1.0000
+a-tune,10000-10099,hidden,"other incidents live during a hard incident, mean per hard incident",5.119,4.833,5.408
+a-tune,10000-10099,hidden,incident-live seconds per stream (sum over incidents of live_end - onset),1280.51,1239.56,1320.36
+a-tune,10000-10099,hidden,mean live seconds per incident,48.45,47.78,49.13
+a-tune,10000-10099,hidden,mean busy seconds per incident (busy_until - onset),71.45,70.78,72.13
+a-tune,10000-10099,hidden,observations per stream,4471.7,4424.5,4517.4
+a-tune,10000-10099,hidden,background share of observations (not labelled with any incident),0.6531,0.6462,0.6603
+a-tune,10000-10099,hidden,incident-labelled observations per stream,1551.1,1503.1,1597.7
+a-tune,10000-10099,hidden,free-form messages per stream,910.0,905.3,914.7
+a-tune,10000-10099,hidden,critical share of hard incidents,0.2922,0.2372,0.3459
+a-tune,10000-10099,hidden,critical share of plain incidents,0.1664,0.1485,0.1855
+a-tune,10000-10099,hidden,"arrivals with an eligible template, per stream",21.5500,20.7500,22.3300
+a-tune,10000-10099,hidden,share of hard incidents after the last regime change,0.2634,0.2227,0.3041
+a-heldout,40000-40199,hidden,incidents per stream,26.7200,26.1550,27.2800
+a-heldout,40000-40199,hidden,plain incidents per stream,21.5200,20.9947,22.0450
+a-heldout,40000-40199,hidden,plain share of incidents,0.8054,0.7953,0.8154
+a-heldout,40000-40199,hidden,hard incidents per stream,2.5600,2.3650,2.7550
+a-heldout,40000-40199,hidden,hard share of incidents,0.0958,0.0888,0.1028
+a-heldout,40000-40199,hidden,decoy incidents per stream,2.6400,2.4200,2.8650
+a-heldout,40000-40199,hidden,decoy share of incidents,0.0988,0.0909,0.1069
+a-heldout,40000-40199,hidden,recurrences per stream,5.4750,5.2100,5.7400
+a-heldout,40000-40199,hidden,hard recurrences per stream,0.4150,0.3400,0.4950
+a-heldout,40000-40199,hidden,share of hard incidents that recur,0.1621,0.1379,0.1862
+a-heldout,40000-40199,hidden,skipped arrivals per stream (no service free),0.3400,0.2398,0.4500
+a-heldout,40000-40199,hidden,share of arrivals skipped,0.0126,0.0088,0.0165
+a-heldout,40000-40199,hidden,"incidents overlapping another incident's live interval, per stream",26.2500,25.6550,26.8352
+a-heldout,40000-40199,hidden,share of incidents overlapping another incident,0.9824,0.9792,0.9855
+a-heldout,40000-40199,hidden,"hard incidents overlapping another incident, per stream",2.5250,2.3300,2.7200
+a-heldout,40000-40199,hidden,share of hard incidents overlapping another incident,0.9863,0.9775,0.9941
+a-heldout,40000-40199,hidden,"other incidents live during a hard incident, mean per hard incident",5.043,4.818,5.269
+a-heldout,40000-40199,hidden,incident-live seconds per stream (sum over incidents of live_end - onset),1311.85,1281.79,1341.67
+a-heldout,40000-40199,hidden,mean live seconds per incident,49.10,48.63,49.55
+a-heldout,40000-40199,hidden,mean busy seconds per incident (busy_until - onset),72.10,71.63,72.55
+a-heldout,40000-40199,hidden,observations per stream,4496.6,4461.2,4532.1
+a-heldout,40000-40199,hidden,background share of observations (not labelled with any incident),0.6488,0.6438,0.6539
+a-heldout,40000-40199,hidden,incident-labelled observations per stream,1579.1,1544.3,1614.2
+a-heldout,40000-40199,hidden,free-form messages per stream,909.1,905.8,912.5
+a-heldout,40000-40199,hidden,critical share of hard incidents,0.3262,0.2863,0.3675
+a-heldout,40000-40199,hidden,critical share of plain incidents,0.1578,0.1458,0.1697
+a-heldout,40000-40199,hidden,"arrivals with an eligible template, per stream",21.7550,21.2350,22.2700
+a-heldout,40000-40199,hidden,share of hard incidents after the last regime change,0.2461,0.2179,0.2744
+c-tune,60000-60099,hidden,incidents per stream,25.8100,24.9000,26.6900
+c-tune,60000-60099,hidden,plain incidents per stream,15.1900,14.4200,15.9500
+c-tune,60000-60099,hidden,plain share of incidents,0.5885,0.5689,0.6076
+c-tune,60000-60099,hidden,hard incidents per stream,7.8600,7.3700,8.3500
+c-tune,60000-60099,hidden,hard share of incidents,0.3045,0.2876,0.3216
+c-tune,60000-60099,hidden,decoy incidents per stream,2.7600,2.4300,3.1100
+c-tune,60000-60099,hidden,decoy share of incidents,0.1069,0.0942,0.1203
+c-tune,60000-60099,hidden,recurrences per stream,5.1100,4.7200,5.5100
+c-tune,60000-60099,hidden,hard recurrences per stream,1.4500,1.2200,1.6900
+c-tune,60000-60099,hidden,share of hard incidents that recur,0.1845,0.1601,0.2092
+c-tune,60000-60099,hidden,skipped arrivals per stream (no service free),0.4800,0.2800,0.7000
+c-tune,60000-60099,hidden,share of arrivals skipped,0.0183,0.0109,0.0262
+c-tune,60000-60099,hidden,"incidents overlapping another incident's live interval, per stream",25.2500,24.2600,26.2100
+c-tune,60000-60099,hidden,share of incidents overlapping another incident,0.9783,0.9717,0.9840
+c-tune,60000-60099,hidden,"hard incidents overlapping another incident, per stream",7.7700,7.2700,8.2700
+c-tune,60000-60099,hidden,share of hard incidents overlapping another incident,0.9885,0.9812,0.9949
+c-tune,60000-60099,hidden,"other incidents live during a hard incident, mean per hard incident",5.109,4.882,5.335
+c-tune,60000-60099,hidden,incident-live seconds per stream (sum over incidents of live_end - onset),1326.53,1275.45,1377.07
+c-tune,60000-60099,hidden,mean live seconds per incident,51.40,50.65,52.12
+c-tune,60000-60099,hidden,mean busy seconds per incident (busy_until - onset),74.40,73.65,75.12
+c-tune,60000-60099,hidden,observations per stream,4506.7,4447.4,4565.2
+c-tune,60000-60099,hidden,background share of observations (not labelled with any incident),0.6458,0.6373,0.6545
+c-tune,60000-60099,hidden,incident-labelled observations per stream,1596.4,1537.2,1654.9
+c-tune,60000-60099,hidden,free-form messages per stream,934.5,928.8,940.1
+c-tune,60000-60099,hidden,critical share of hard incidents,0.3155,0.2817,0.3508
+c-tune,60000-60099,hidden,critical share of plain incidents,0.1580,0.1400,0.1761
+c-tune,60000-60099,hidden,"arrivals with an eligible template, per stream",20.8500,20.0700,21.6200
+c-tune,60000-60099,hidden,share of hard incidents after the last regime change,0.2519,0.2264,0.2779
+c-heldout,70000-70199,hidden,incidents per stream,26.7050,26.1300,27.2700
+c-heldout,70000-70199,hidden,plain incidents per stream,16.3650,15.8500,16.8750
+c-heldout,70000-70199,hidden,plain share of incidents,0.6128,0.6002,0.6253
+c-heldout,70000-70199,hidden,hard incidents per stream,7.5800,7.2650,7.8950
+c-heldout,70000-70199,hidden,hard share of incidents,0.2838,0.2729,0.2945
+c-heldout,70000-70199,hidden,decoy incidents per stream,2.7600,2.5200,3.0050
+c-heldout,70000-70199,hidden,decoy share of incidents,0.1034,0.0946,0.1122
+c-heldout,70000-70199,hidden,recurrences per stream,5.2800,5.0100,5.5500
+c-heldout,70000-70199,hidden,hard recurrences per stream,1.2950,1.1500,1.4400
+c-heldout,70000-70199,hidden,share of hard incidents that recur,0.1708,0.1555,0.1864
+c-heldout,70000-70199,hidden,skipped arrivals per stream (no service free),0.5650,0.4450,0.6950
+c-heldout,70000-70199,hidden,share of arrivals skipped,0.0207,0.0164,0.0253
+c-heldout,70000-70199,hidden,"incidents overlapping another incident's live interval, per stream",26.3400,25.7350,26.9302
+c-heldout,70000-70199,hidden,share of incidents overlapping another incident,0.9863,0.9836,0.9889
+c-heldout,70000-70199,hidden,"hard incidents overlapping another incident, per stream",7.5250,7.2100,7.8350
+c-heldout,70000-70199,hidden,share of hard incidents overlapping another incident,0.9927,0.9887,0.9962
+c-heldout,70000-70199,hidden,"other incidents live during a hard incident, mean per hard incident",5.098,4.951,5.242
+c-heldout,70000-70199,hidden,incident-live seconds per stream (sum over incidents of live_end - onset),1366.58,1335.63,1397.15
+c-heldout,70000-70199,hidden,mean live seconds per incident,51.17,50.69,51.66
+c-heldout,70000-70199,hidden,mean busy seconds per incident (busy_until - onset),74.17,73.69,74.66
+c-heldout,70000-70199,hidden,observations per stream,4565.0,4528.2,4601.4
+c-heldout,70000-70199,hidden,background share of observations (not labelled with any incident),0.6396,0.6345,0.6448
+c-heldout,70000-70199,hidden,incident-labelled observations per stream,1645.3,1608.8,1681.2
+c-heldout,70000-70199,hidden,free-form messages per stream,929.8,926.3,933.3
+c-heldout,70000-70199,hidden,critical share of hard incidents,0.3186,0.2949,0.3426
+c-heldout,70000-70199,hidden,critical share of plain incidents,0.1518,0.1388,0.1649
+c-heldout,70000-70199,hidden,"arrivals with an eligible template, per stream",21.3800,20.8650,21.9000
+c-heldout,70000-70199,hidden,share of hard incidents after the last regime change,0.2731,0.2546,0.2917
