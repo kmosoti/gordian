@@ -695,6 +695,7 @@ fn assert_matches_fixtures(m: &StreamManifest, name: &str) {
             let expected =
                 fs::read_to_string(fixture_dir().join(format!("{}.{file}", arm.arm))).unwrap();
             let got = fs::read_to_string(out.join(&arm.arm).join(file)).unwrap();
+            let got = without_appended_columns(file, &got);
             assert!(
                 expected == got,
                 "{} {file} differs from the fixture written before R6",
@@ -747,7 +748,7 @@ fn a_non_default_builder_does_change_the_results_so_the_check_above_has_power() 
         let expected =
             fs::read_to_string(fixture_dir().join(format!("{}.results.csv", arm.arm))).unwrap();
         let got = fs::read_to_string(out.join(&arm.arm).join("results.csv")).unwrap();
-        differing += usize::from(expected != got);
+        differing += usize::from(expected != without_appended_columns("results.csv", &got));
     }
     // Three arms escalate (always, contradiction, selection); the decoy oracle never does.
     assert_eq!(differing, 3);

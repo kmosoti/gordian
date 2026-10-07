@@ -542,7 +542,7 @@ fn diagnosis_text(d: &gordian_stream::Diagnosis) -> String {
 pub fn memory_row(run_id: &str, record: &SegmentRecord) -> String {
     let t = &record.memory.totals;
     let r = &t.recalls;
-    let c = |cells: &gordian_stream_eval::RecallCells| (cells.correct(), cells.wrong());
+    let c = |cells: &super::score::RecallCells| (cells.correct(), cells.wrong());
     let (pc, pw) = c(&t.recalls_on_plain);
     let (hc, hw) = c(&t.recalls_on_hard);
     let (dc, dw) = c(&t.recalls_on_decoy);
@@ -646,9 +646,9 @@ pub fn recall_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
                 tier = score.tier.map_or("", tier_name),
                 correct = score.correct,
                 class = match score.source {
-                    gordian_stream_eval::SourceClass::Right => "right",
-                    gordian_stream_eval::SourceClass::Wrong => "wrong",
-                    gordian_stream_eval::SourceClass::Unknown => "unknown",
+                    super::score::SourceClass::Right => "right",
+                    super::score::SourceClass::Wrong => "wrong",
+                    super::score::SourceClass::Unknown => "unknown",
                 },
                 source_incident = score
                     .source_incident

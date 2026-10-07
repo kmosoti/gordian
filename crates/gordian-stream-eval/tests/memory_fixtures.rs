@@ -18,6 +18,9 @@ use std::collections::BTreeSet;
 const FIXTURES: &str = include_str!("../fixtures/memory-cases.json");
 const RULES_MD: &str = include_str!("../RULES.md");
 
+// A few dozen of these are read once per test run; the size difference between the variants costs
+// nothing, and boxing the verdict would only make the comparison compare a box with a reference.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Deserialize)]
 enum Expected {
     Verdict(MemoryVerdict),

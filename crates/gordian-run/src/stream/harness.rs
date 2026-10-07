@@ -62,8 +62,8 @@ use super::privileged::{OracleFactory, OraclePlan, PlanIncident};
 use super::score::{
     EscalationEntry, MemoryError, MemoryVerdict, NoticeEntry, NoticeEvalError, NoticeTrace,
     NoticeVerdict, RecallEntry, RecallSource, RetireEntry, SelectionError, SelectionRetire,
-    SelectionTrace, SelectionVerdict, StreamEvalError, StreamStep, StreamVerdict,
-    TrajectoryCounts, family_name,
+    SelectionTrace, SelectionVerdict, StreamEvalError, StreamStep, StreamVerdict, TrajectoryCounts,
+    family_name,
 };
 use crate::harness::{
     Charged, EpisodeOps, HarnessError, Measured, affordable, append, charge, elapsed_ns, payload,

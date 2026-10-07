@@ -168,7 +168,7 @@ pub const RECORD_FAMILY_ID: &str = "record_family";
 pub enum KeyForm {
     /// The site's own id besides (ids are regenerated per stream: it cannot leave one).
     Site,
-    /// Stream-invariant features only.
+    /// Features that hold in every stream only.
     Family,
 }
 
@@ -503,10 +503,9 @@ impl<B: Noticer> RecordNoticer<B> {
     fn declared(&self, entry: &Entry, site: ServiceId) -> Diagnosis {
         match self.params.form {
             KeyForm::Site => entry.stored,
-            KeyForm::Family => entry.stored.map(|h| StreamHypothesis {
-                kind: h.kind,
-                site,
-            }),
+            KeyForm::Family => entry
+                .stored
+                .map(|h| StreamHypothesis { kind: h.kind, site }),
         }
     }
 }

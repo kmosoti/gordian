@@ -186,3 +186,30 @@ pub fn without_run_id(csv: &str) -> Vec<String> {
 pub fn at(ms: u64) -> Instant {
     Instant(ms * 1_000_000)
 }
+
+/// `results.csv` gained two columns at the end (work item E1: `recall_declarations` and
+/// `noticer_ns`). The fixtures were written before them, so they are compared on the columns the
+/// fixtures have, which are byte for byte what they were; the two new ones are zero for these arms
+/// (no memory, no counted noticer work).
+pub fn without_appended_columns(file: &str, text: &str) -> String {
+    if file != "results.csv" {
+        return text.to_owned();
+    }
+    let mut out = String::new();
+    for (i, line) in text.lines().enumerate() {
+        let mut cells: Vec<&str> = line.split(',').collect();
+        let appended = cells.split_off(cells.len() - 2);
+        if i == 0 {
+            assert_eq!(appended, ["recall_declarations", "noticer_ns"]);
+        } else {
+            assert_eq!(
+                appended,
+                ["0", "0"],
+                "no memory and no counted noticer work"
+            );
+        }
+        out.push_str(&cells.join(","));
+        out.push('\n');
+    }
+    out
+}

@@ -691,6 +691,7 @@ fn every_arm_that_existed_before_r5_writes_the_results_it_wrote_before() {
             let expected =
                 fs::read_to_string(fixture_dir().join(format!("{}.{file}", arm.arm))).unwrap();
             let got = fs::read_to_string(out.join(&arm.arm).join(file)).unwrap();
+            let got = without_appended_columns(file, &got);
             assert!(
                 expected == got,
                 "{} {file} differs from the fixture written before R5",

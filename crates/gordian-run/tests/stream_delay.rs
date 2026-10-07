@@ -39,6 +39,7 @@ fn assert_fixture(m: &StreamManifest, out: &Path) {
             let expected =
                 fs::read_to_string(fixture_dir().join(format!("{}.{file}", arm.arm))).unwrap();
             let got = fs::read_to_string(out.join(&arm.arm).join(file)).unwrap();
+            let got = without_appended_columns(file, &got);
             assert!(
                 expected == got,
                 "{} {file} differs from the pre-delay fixture",
