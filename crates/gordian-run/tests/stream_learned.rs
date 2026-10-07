@@ -52,21 +52,17 @@ fn learned_at_frozen() -> LearnedParams {
     }
 }
 
+/// What a replay returns: the notices (with the step's instant), the retirable sets, the charges.
+type Replayed = (Vec<(u64, Notice)>, Vec<(u64, Vec<u32>)>, Vec<u64>);
+
 /// Play the public observations of `seed` (a stream of `duration_s`) to a noticer as the rung
 /// does, a step every 500 ms, and return the notices (with the step's instant), the retirable
 /// sets, and the noticer's cost charges.
-fn replay<N: Noticer>(
-    n: &mut N,
-    seed: u64,
-    duration_s: u64,
-) -> (Vec<(u64, Notice)>, Vec<(u64, Vec<u32>)>, Vec<u64>) {
+fn replay<N: Noticer>(n: &mut N, seed: u64, duration_s: u64) -> Replayed {
     replay_params(n, &params(seed, duration_s))
 }
 
-fn replay_params<N: Noticer>(
-    n: &mut N,
-    p: &gordian_stream::StreamParams,
-) -> (Vec<(u64, Notice)>, Vec<(u64, Vec<u32>)>, Vec<u64>) {
+fn replay_params<N: Noticer>(n: &mut N, p: &gordian_stream::StreamParams) -> Replayed {
     let stream = generate(p);
     let public = stream.public_info();
     let all: Vec<Held> = stream
