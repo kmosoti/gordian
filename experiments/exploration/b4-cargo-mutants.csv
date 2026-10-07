@@ -1,0 +1,111 @@
+file,line,mutant,result
+crates/gordian-stream-eval/src/select.rs,50,"crates/gordian-stream-eval/src/select.rs:50:9: replace IncidentClass::as_str -> &'static str with """"",CaughtMutant
+crates/gordian-stream-eval/src/select.rs,50,"crates/gordian-stream-eval/src/select.rs:50:9: replace IncidentClass::as_str -> &'static str with ""xyzzy""",CaughtMutant
+crates/gordian-stream-eval/src/select.rs,78,crates/gordian-stream-eval/src/select.rs:78:9: replace ByClass<T>::get -> T with Default::default(),Unviable
+crates/gordian-stream-eval/src/select.rs,90,crates/gordian-stream-eval/src/select.rs:90:9: replace ByClass<T>::slot -> &mut T with Box::leak(Box::new(Default::default())),Unviable
+crates/gordian-stream-eval/src/select.rs,217,crates/gordian-stream-eval/src/select.rs:217:9: replace <impl fmt::Display for SelectionError>::fmt -> fmt::Result with Ok(Default::default()),CaughtMutant
+crates/gordian-stream-eval/src/select.rs,239,"crates/gordian-stream-eval/src/select.rs:239:5: replace class_of -> Result<(Option<u32>, IncidentClass), SelectionError> with Ok((None, Default::default()))",Unviable
+crates/gordian-stream-eval/src/select.rs,239,"crates/gordian-stream-eval/src/select.rs:239:5: replace class_of -> Result<(Option<u32>, IncidentClass), SelectionError> with Ok((Some(0), Default::default()))",Unviable
+crates/gordian-stream-eval/src/select.rs,239,"crates/gordian-stream-eval/src/select.rs:239:5: replace class_of -> Result<(Option<u32>, IncidentClass), SelectionError> with Ok((Some(1), Default::default()))",Unviable
+crates/gordian-stream-eval/src/select.rs,239,crates/gordian-stream-eval/src/select.rs:239:25: replace >= with < in class_of,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,249,crates/gordian-stream-eval/src/select.rs:249:23: replace match guard inc.shape.hard_kind == Some(HardKind::SlowLeak) with true in class_of,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,249,crates/gordian-stream-eval/src/select.rs:249:23: replace match guard inc.shape.hard_kind == Some(HardKind::SlowLeak) with false in class_of,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,249,crates/gordian-stream-eval/src/select.rs:249:43: replace == with != in class_of,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,265,"crates/gordian-stream-eval/src/select.rs:265:5: replace score_selection -> Result<SelectionVerdict, SelectionError> with Ok(Default::default())",Unviable
+crates/gordian-stream-eval/src/select.rs,283,crates/gordian-stream-eval/src/select.rs:283:69: replace == with != in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,297,crates/gordian-stream-eval/src/select.rs:297:40: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,297,crates/gordian-stream-eval/src/select.rs:297:40: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,298,crates/gordian-stream-eval/src/select.rs:298:41: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,298,crates/gordian-stream-eval/src/select.rs:298:41: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,299,crates/gordian-stream-eval/src/select.rs:299:46: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,299,crates/gordian-stream-eval/src/select.rs:299:46: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,311,crates/gordian-stream-eval/src/select.rs:311:21: replace && with || in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,310,crates/gordian-stream-eval/src/select.rs:310:21: replace && with || in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,309,crates/gordian-stream-eval/src/select.rs:309:26: replace == with != in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,310,crates/gordian-stream-eval/src/select.rs:310:29: replace <= with > in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,311,crates/gordian-stream-eval/src/select.rs:311:67: replace >= with < in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,317,crates/gordian-stream-eval/src/select.rs:317:31: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,317,crates/gordian-stream-eval/src/select.rs:317:31: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,320,crates/gordian-stream-eval/src/select.rs:320:46: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,320,crates/gordian-stream-eval/src/select.rs:320:46: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,327,crates/gordian-stream-eval/src/select.rs:327:62: replace && with || in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,327,crates/gordian-stream-eval/src/select.rs:327:79: replace == with != in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,329,crates/gordian-stream-eval/src/select.rs:329:40: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,329,crates/gordian-stream-eval/src/select.rs:329:40: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,330,crates/gordian-stream-eval/src/select.rs:330:26: replace > with == in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,330,crates/gordian-stream-eval/src/select.rs:330:26: replace > with < in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,330,crates/gordian-stream-eval/src/select.rs:330:26: replace > with >= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,331,crates/gordian-stream-eval/src/select.rs:331:46: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,331,crates/gordian-stream-eval/src/select.rs:331:46: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,334,crates/gordian-stream-eval/src/select.rs:334:62: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,334,crates/gordian-stream-eval/src/select.rs:334:62: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,338,crates/gordian-stream-eval/src/select.rs:338:53: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,338,crates/gordian-stream-eval/src/select.rs:338:53: replace += with *= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,340,crates/gordian-stream-eval/src/select.rs:340:67: replace += with -= in score_selection,CaughtMutant
+crates/gordian-stream-eval/src/select.rs,340,crates/gordian-stream-eval/src/select.rs:340:67: replace += with *= in score_selection,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,93,"crates/gordian-run/src/stream/arms/noticer_follow.rs:93:9: replace FollowSpec::validate -> Result<(), String> with Ok(())",CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,93,crates/gordian-run/src/stream/arms/noticer_follow.rs:93:26: replace == with != in FollowSpec::validate,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,96,crates/gordian-run/src/stream/arms/noticer_follow.rs:96:28: replace == with != in FollowSpec::validate,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,129,crates/gordian-run/src/stream/arms/noticer_follow.rs:129:9: replace FollowSpec::judge -> Option<Verdict> with None,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,129,crates/gordian-run/src/stream/arms/noticer_follow.rs:129:9: replace FollowSpec::judge -> Option<Verdict> with Some(Default::default()),Unviable
+crates/gordian-run/src/stream/arms/noticer_follow.rs,129,crates/gordian-run/src/stream/arms/noticer_follow.rs:129:31: replace && with || in FollowSpec::judge,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,129,crates/gordian-run/src/stream/arms/noticer_follow.rs:129:26: replace >= with < in FollowSpec::judge,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,129,crates/gordian-run/src/stream/arms/noticer_follow.rs:129:70: replace > with == in FollowSpec::judge,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,129,crates/gordian-run/src/stream/arms/noticer_follow.rs:129:70: replace > with < in FollowSpec::judge,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,129,crates/gordian-run/src/stream/arms/noticer_follow.rs:129:70: replace > with >= in FollowSpec::judge,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,132,crates/gordian-run/src/stream/arms/noticer_follow.rs:132:26: replace >= with < in FollowSpec::judge,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,141,crates/gordian-run/src/stream/arms/noticer_follow.rs:141:9: replace FollowSpec::settle -> Verdict with Default::default(),Unviable
+crates/gordian-run/src/stream/arms/noticer_follow.rs,141,crates/gordian-run/src/stream/arms/noticer_follow.rs:141:31: replace && with || in FollowSpec::settle,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,141,crates/gordian-run/src/stream/arms/noticer_follow.rs:141:26: replace >= with < in FollowSpec::settle,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,141,crates/gordian-run/src/stream/arms/noticer_follow.rs:141:44: replace >= with < in FollowSpec::settle,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,180,crates/gordian-run/src/stream/arms/noticer_follow.rs:180:9: replace Follower::opened -> u64 with 0,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,180,crates/gordian-run/src/stream/arms/noticer_follow.rs:180:9: replace Follower::opened -> u64 with 1,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,185,crates/gordian-run/src/stream/arms/noticer_follow.rs:185:9: replace Follower::watching -> usize with 0,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,185,crates/gordian-run/src/stream/arms/noticer_follow.rs:185:9: replace Follower::watching -> usize with 1,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,190,crates/gordian-run/src/stream/arms/noticer_follow.rs:190:9: replace Follower::open with (),CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,190,crates/gordian-run/src/stream/arms/noticer_follow.rs:190:21: replace += with -= in Follower::open,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,190,crates/gordian-run/src/stream/arms/noticer_follow.rs:190:21: replace += with *= in Follower::open,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,207,"crates/gordian-run/src/stream/arms/noticer_follow.rs:207:9: replace Follower::feed -> Vec<(u32, Verdict)> with vec![]",CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,207,"crates/gordian-run/src/stream/arms/noticer_follow.rs:207:9: replace Follower::feed -> Vec<(u32, Verdict)> with vec![(0, Default::default())]",Unviable
+crates/gordian-run/src/stream/arms/noticer_follow.rs,207,"crates/gordian-run/src/stream/arms/noticer_follow.rs:207:9: replace Follower::feed -> Vec<(u32, Verdict)> with vec![(1, Default::default())]",Unviable
+crates/gordian-run/src/stream/arms/noticer_follow.rs,209,crates/gordian-run/src/stream/arms/noticer_follow.rs:209:59: replace == with != in Follower::feed,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,210,crates/gordian-run/src/stream/arms/noticer_follow.rs:210:29: replace += with -= in Follower::feed,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,210,crates/gordian-run/src/stream/arms/noticer_follow.rs:210:29: replace += with *= in Follower::feed,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,223,"crates/gordian-run/src/stream/arms/noticer_follow.rs:223:9: replace Follower::expire -> Vec<(u32, Verdict)> with vec![]",CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,223,"crates/gordian-run/src/stream/arms/noticer_follow.rs:223:9: replace Follower::expire -> Vec<(u32, Verdict)> with vec![(0, Default::default())]",Unviable
+crates/gordian-run/src/stream/arms/noticer_follow.rs,223,"crates/gordian-run/src/stream/arms/noticer_follow.rs:223:9: replace Follower::expire -> Vec<(u32, Verdict)> with vec![(1, Default::default())]",Unviable
+crates/gordian-run/src/stream/arms/noticer_follow.rs,227,crates/gordian-run/src/stream/arms/noticer_follow.rs:227:31: replace >= with < in Follower::expire,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,235,crates/gordian-run/src/stream/arms/noticer_follow.rs:235:9: replace Follower::conclude with (),CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,236,crates/gordian-run/src/stream/arms/noticer_follow.rs:236:47: replace != with == in Follower::conclude,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,237,crates/gordian-run/src/stream/arms/noticer_follow.rs:237:19: replace == with != in Follower::conclude,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,246,crates/gordian-run/src/stream/arms/noticer_follow.rs:246:9: replace Follower::retain with (),CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,252,crates/gordian-run/src/stream/arms/noticer_follow.rs:252:9: replace Follower::is_withdrawn -> bool with true,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,252,crates/gordian-run/src/stream/arms/noticer_follow.rs:252:9: replace Follower::is_withdrawn -> bool with false,CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,257,crates/gordian-run/src/stream/arms/noticer_follow.rs:257:9: replace Follower::withdrawn -> impl Iterator<Item = u32>+'_ with ::std::iter::empty(),CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,257,crates/gordian-run/src/stream/arms/noticer_follow.rs:257:9: replace Follower::withdrawn -> impl Iterator<Item = u32>+'_ with ::std::iter::once(0),CaughtMutant
+crates/gordian-run/src/stream/arms/noticer_follow.rs,257,crates/gordian-run/src/stream/arms/noticer_follow.rs:257:9: replace Follower::withdrawn -> impl Iterator<Item = u32>+'_ with ::std::iter::once(1),CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,70,crates/gordian-run/src/stream/arms/public_change.rs:70:9: replace <impl EscalationRule for PublicChange>::id -> PolicyId with Default::default(),Unviable
+crates/gordian-run/src/stream/arms/public_change.rs,74,crates/gordian-run/src/stream/arms/public_change.rs:74:9: replace <impl EscalationRule for PublicChange>::targets -> Vec<u32> with vec![],CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,74,crates/gordian-run/src/stream/arms/public_change.rs:74:9: replace <impl EscalationRule for PublicChange>::targets -> Vec<u32> with vec![0],CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,74,crates/gordian-run/src/stream/arms/public_change.rs:74:9: replace <impl EscalationRule for PublicChange>::targets -> Vec<u32> with vec![1],CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,79,crates/gordian-run/src/stream/arms/public_change.rs:79:17: replace && with || in <impl EscalationRule for PublicChange>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,78,crates/gordian-run/src/stream/arms/public_change.rs:78:17: replace && with || in <impl EscalationRule for PublicChange>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,77,crates/gordian-run/src/stream/arms/public_change.rs:77:27: replace == with != in <impl EscalationRule for PublicChange>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,78,crates/gordian-run/src/stream/arms/public_change.rs:78:26: replace >= with < in <impl EscalationRule for PublicChange>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_change.rs,79,crates/gordian-run/src/stream/arms/public_change.rs:79:31: replace >= with < in <impl EscalationRule for PublicChange>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,78,crates/gordian-run/src/stream/arms/public_threshold.rs:78:9: replace PublicThreshold::unresolved -> bool with true,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,78,crates/gordian-run/src/stream/arms/public_threshold.rs:78:9: replace PublicThreshold::unresolved -> bool with false,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,80,crates/gordian-run/src/stream/arms/public_threshold.rs:80:40: replace >= with < in PublicThreshold::unresolved,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,82,crates/gordian-run/src/stream/arms/public_threshold.rs:82:34: replace && with || in PublicThreshold::unresolved,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,82,crates/gordian-run/src/stream/arms/public_threshold.rs:82:13: delete ! in PublicThreshold::unresolved,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,82,crates/gordian-run/src/stream/arms/public_threshold.rs:82:43: replace >= with < in PublicThreshold::unresolved,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,83,crates/gordian-run/src/stream/arms/public_threshold.rs:83:23: replace || with && in PublicThreshold::unresolved,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,89,crates/gordian-run/src/stream/arms/public_threshold.rs:89:9: replace <impl EscalationRule for PublicThreshold>::id -> PolicyId with Default::default(),Unviable
+crates/gordian-run/src/stream/arms/public_threshold.rs,93,crates/gordian-run/src/stream/arms/public_threshold.rs:93:9: replace <impl EscalationRule for PublicThreshold>::monitors -> bool with false,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,97,crates/gordian-run/src/stream/arms/public_threshold.rs:97:9: replace <impl EscalationRule for PublicThreshold>::targets -> Vec<u32> with vec![],CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,97,crates/gordian-run/src/stream/arms/public_threshold.rs:97:9: replace <impl EscalationRule for PublicThreshold>::targets -> Vec<u32> with vec![0],CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,97,crates/gordian-run/src/stream/arms/public_threshold.rs:97:9: replace <impl EscalationRule for PublicThreshold>::targets -> Vec<u32> with vec![1],CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,102,crates/gordian-run/src/stream/arms/public_threshold.rs:102:21: replace && with || in <impl EscalationRule for PublicThreshold>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,101,crates/gordian-run/src/stream/arms/public_threshold.rs:101:21: replace && with || in <impl EscalationRule for PublicThreshold>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,100,crates/gordian-run/src/stream/arms/public_threshold.rs:100:28: replace == with != in <impl EscalationRule for PublicThreshold>::targets,CaughtMutant
+crates/gordian-run/src/stream/arms/public_threshold.rs,101,crates/gordian-run/src/stream/arms/public_threshold.rs:101:30: replace >= with < in <impl EscalationRule for PublicThreshold>::targets,CaughtMutant
