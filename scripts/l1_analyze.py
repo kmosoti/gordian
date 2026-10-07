@@ -14,6 +14,10 @@ writes experiments/exploration/l1-*.csv (l1-dev-*.csv for the dev stage):
              background, and the differences of the curve slopes over the first 50, 100 and 200
              streams (a curve that rises while early noise dilutes rises for an arm that does not
              learn too; the difference against a control that does not learn is what the learner adds)
+  perstream  every arm's per-stream counts (notices on background, all notices, hard non-leak
+             incidents and anchor-correct, leaks and noticed): the raw material of every curve, and
+             of the post-hoc background-by-stream reading in the report (not a clause, and chosen
+             after the clauses were seen to be unable to show a learner that settles within a stream)
   curves     W1's sample-efficiency curves read at 5, 10, 20, 25, 50, 100, 150 and 200 streams
   curves-full  every arm's whole curve
 
@@ -150,6 +154,17 @@ def main():
                     pr.append({"learned_minus": other, "measure": f"curve_slope_{kind}_per_100_streams",
                                "window": f"first{k}", "difference": d, "lower": lo, "higher": hi})
     pd.DataFrame(pr).to_csv(C.OUT / f"{PREFIX}-paired.csv", index=False)
+
+    # ---- per-stream counts
+    ps = []
+    for arm in arms:
+        short = arm[len("sel_"):-len("_privileged")]
+        i = m.row[arm]
+        for j, sd in enumerate(seeds):
+            ps.append({"arm": short, "stream": j + 1, "seed": sd,
+                       **{c: int(m.col[c][i][j]) for c in ("notices_background", "notices", "hard_n",
+                                                           "hard_correct", "leak_n", "leak_noticed")}})
+    pd.DataFrame(ps).to_csv(C.OUT / f"{PREFIX}-perstream.csv", index=False)
 
     # ---- curves
     cr, full = [], []

@@ -78,7 +78,8 @@ RAMP_SPLIT = "ramp_split_over_re2"
 
 def ramp_split_over_re2():
     """B3's `sel_ramp_split_over_re2_privileged` noticer, from the recorded selection."""
-    sel = json.load(open(OUT / "b3-selected.json"))
+    with open(OUT / "b3-selected.json") as fh:
+        sel = json.load(fh)
     return B3.composed("re2", ramp=sel["ramp"]["chosen"]["params"],
                        split=sel["split_re2"]["chosen"]["params"])
 
