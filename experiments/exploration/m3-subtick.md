@@ -324,12 +324,21 @@ build and its hash at both commits; the byte-identity gate (two independent chec
 reproduction of eight rows against M2's and B3's run directories; the held-out run; every table
 here, generated from the run directory by `m3_analyze.py`, `m3_posthoc.py` and
 `m3_reproduce.py`; the B3 rows' spelling against B3's held-out manifest (identical); the gates
-listed at the end of the report message.
+below.
 
 Assumed, not rerun: the predecessor's tuning runs and tables (their logs and archives exist and
 the selection follows from `m3-tuning-points.csv` by `m3_select.py`, which I did not rerun); the
 equivalence arguments rest on reading the code paths named, not on an exhaustive search; that
 `--test stream_medium` was the predecessor's deliberate scope for the arm's mutation runs.
+
+## Gates (on exit codes, under the cgroup runner, on `d689af0`; this report's text was committed after)
+
+`cargo fmt --all -- --check` 0; `cargo clippy --locked --workspace --all-targets -- -D warnings`
+0 (it failed first, 101, on a predecessor's mutation test, `for_kv_map`; fixed in `d689af0`,
+tests only); `cargo test --locked --workspace --no-fail-fast` 0 (875 passed, 0 failed, 10
+ignored); `bash scripts/check-no-oracle.sh` 0; `PYTHONPATH=analysis .venv/bin/python -W error -m
+pytest -q analysis` 0 (450 passed, 4 deselected). No source file changed between the binary's
+commit `12ba61f` and `d689af0`.
 
 ## Hidden record
 
