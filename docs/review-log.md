@@ -4,6 +4,60 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## E1 memory measures and the public record rung — merged (Lab 2); the status quo finds the same shape the engram did
+
+**Provenance.** Eighteen commits on `memory-measures`, then a merge of main (A1c, A1d) resolved
+by the lab with the gates rerun (merge commit 106ff76, head ccbeda2: E1 and A1c had built the gated-recall seam twice; the lab kept Lab 1's implementation and its step order, kept its own `recall_source`, and added `gated_recalls_in` with a default that preserves the engram's override; the lab replayed R6 (62 of 62), A1a's 8, A1c's 15 and A1d's 15 arms and its own held-out run after the merge, all byte-identical on the logical files; the chief's own gates on main follow in the commit after this entry). The chief recomputed from the held-out run's
+`memory_incidents.csv`: 83 hard recurrences on 40000–40199 (W2's count, from the evaluator's
+own `recurrence_of`); unasked-correct among them 0 (re-anchor), 7 (site-keyed, kinds, reset),
+17 (family-keyed, timing, carried), 4 (family, reset); `stale_wrong` 0 / 6 / 539 / 8; plain
+unasked-wrong 732 against 1019 for the carried family form (+1.435 per stream). R6's held-out
+replay 62 of 62 under the stripped-column reading (chief's hashes on the fourth replay, after
+the lab reran the one that overlapped Lab 1's build). cargo-mutants on `memory.rs` 104 of 108
+caught, 4 unviable; the V1 back-test byte-identical after the schema extensions. Runs kept in
+`artifacts/runs/e1/`, including the failed first tuning attempt (a harness defect in judging a
+carried source, fixed, kept and labelled). Two process breaches disclosed by the lab (an early
+`cargo check` during Lab 1's run; an identity replay overlapped by Lab 1's build, rerun).
+
+**Verdict: E1 passes its criterion** (measures K1–K10 with fixtures and mutation, the harness
+source record and the two new columns, the record rung in both forms with three policies, the
+schema extensions, identity, the held-out table with W2's ceiling beside it).
+
+**What the record rung shows (objective, environment).**
+
+| Form (held-out, 200 streams) | Hard recurrences unasked-correct (of 83; ceiling 41) | Collision share of recalls | Stale errors plain / hard / decoy | Cost against the re-anchor |
+|---|---|---|---|---|
+| Site-keyed, reset per stream | 7 = 0.084 [0.038, 0.138] | 0.11 (1 in 200 streams) | 2 / 3 / 1 | about equal |
+| Family-keyed, carried across streams | 17 = 0.205 [0.135, 0.278] | 0.81 (1.52 per stream) | 372 / 47 / 120 | −27.6% |
+| Family-keyed, reset | 4 | — | 6 / 2 / 0 | — |
+
+- **The status quo finds exactly the shape the engram found.** Within a stream, memory is
+  clean and small (7 of 41 reachable, one collision in 200 streams); across streams, a key
+  made of invariant features recalls more and is wrong four times in five, on plain incidents
+  and decoys, from sources in earlier streams (654 of 661 recalls). This is the world's
+  structure, reached now by the comparator from the public side, and by Lab 1 four times.
+- **No cell meets W2's stale-error bound and captures a useful share.** The chief's A1b draft
+  specification, evaluated with the record rung standing in for the engram, returns the
+  outcome "stale errors exceed the bound". The comparator fails the clause that would have
+  been asked of the medium.
+- **The gate finding is the same as A1c's**: the public checker's verdict admits recalls on
+  plain incidents.
+- **Why only 7 of 41** site-reachable recurrences are recalled is undiagnosed (no arm-internal
+  counters); the lab says so. The confirm-every-second policy is worse than never confirming
+  and is undiagnosed. Both are the first things an A1b on this form would have to measure.
+
+**Decided.**
+
+1. The within-stream memory question on this world is answered to within the power the world
+   offers: a clean lever of at most 8.5% of the bill, of which a simple public table takes
+   about a sixth. The chief withdraws the recommendation that A1b be the within-stream unit
+   unless the user wants the engram measured against the 7-of-41 row for completeness; the
+   value is low and the draft specification would be fixed from this table.
+2. The cross-stream learning line (option 2 of the synthesis: the reasoner's law) is the
+   chief's recommendation, pending the user.
+3. E1's measures and the record rung stay as instruments for any memory claim on any later
+   world; `recall_source` with age is a requirement on any arm that claims memory.
+
 ## A1d the engram under a non-privileged selector — merged (Lab 1); negative experience does not help, and the chief's causal claim was wrong
 
 **Provenance.** Five commits in the required order (design b64c24d, code b98492e, scripts and
