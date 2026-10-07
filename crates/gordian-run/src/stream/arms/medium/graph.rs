@@ -239,6 +239,11 @@ pub struct MediumParams {
     /// what it was. Not written when absent, so a manifest written before A1a is the same text.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub engram: Option<super::engram::EngramConfig>,
+    /// The anticipation layer (work item A2, [`super::anticipation`]); absent, none, and the
+    /// noticer is what it was. Not written when absent, so a manifest written before A2 is the
+    /// same text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anticipation: Option<super::anticipation::AnticipationConfig>,
 }
 
 fn yes() -> bool {
@@ -297,6 +302,7 @@ impl Default for MediumParams {
             hold_ns: 6_000_000_000,
             rhythms: false,
             engram: None,
+            anticipation: None,
         }
     }
 }
@@ -372,6 +378,9 @@ impl MediumParams {
         }
         if self.coincidence == CoincidenceForm::Binned && !self.rhythms {
             return Err("noticer medium: a binned coincidence needs the rhythms".to_owned());
+        }
+        if let Some(a) = &self.anticipation {
+            a.validate(self.tick_ns)?;
         }
         if let Some(engram) = &self.engram {
             engram.validate(self.tick_ns)?;

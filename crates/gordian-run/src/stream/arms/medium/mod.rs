@@ -38,14 +38,23 @@
 //! declaration made strictly after the checker's last consistent verdict (the rung says which
 //! declarations stand). [`trace`]: the engram layer's counters as marks on its medium's trace port,
 //! written to the arm's own trace file.
+//!
+//! # Anticipation of hidden edges (work item A2)
+//!
+//! [`anticipation`]: pair cells per ordered pair of services the public graph does not connect,
+//! holding a decayed net count of how often one's unexplained alarms follow the other's; a
+//! prediction from a learned edge, to the layer's own trace file only; and the attach switch (off
+//! by default) by which a learned edge may extend the anomaly's attach rule.
 
 pub mod adapters;
+pub mod anticipation;
 pub mod engram;
 pub mod gate;
 pub mod graph;
 pub mod noticing;
 pub mod trace;
 
+pub use anticipation::AnticipationConfig;
 pub use engram::{ConfirmPolicy, EngramConfig, EngramLayer, SiteMode};
 pub use gate::{Reading, RecallGate};
 pub use graph::{

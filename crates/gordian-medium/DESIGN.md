@@ -1152,6 +1152,27 @@ observation belongs to exactly one incident or none, PUBLIC.md section 5).
 - No three-service edges, no edge kinds, no features of the alarm beyond its instant and
   service (invariant: no id, no value).
 
+### Departures and choices as built (A2)
+
+Numbering continues A1d's. Each is a place where the build differs from the section above (written
+before the code) or fills a gap it left.
+
+78. **The layer's sense port keeps events by tick** (`ScriptedSense`), not in delivery order as
+    `DeliveredSense` does: a follow is known when the partner's alarm is delivered, a miss only
+    when its window has closed, so evidence is not produced in time order. Each event still enters
+    its own instant's tick, or the next tick to run when that one has run.
+79. **Trials and predictions are resolved in time order at each observation**: before an
+    observation at `t` is taken, every trial and prediction whose window closed before `t` is
+    resolved (and at each step, before its ticks, those closed before the step's instant).
+80. **The trace's `level_end` reads** at the end of a segment are counted like every read but come
+    after the arm's last charge, so they are never billed; they exist only with `trace` on, and
+    every read that precedes a decision or a prediction is made whatever the trace switch says
+    (a test checks that the charge is the same with the trace on and off).
+81. **Two read-only accessors on the rung's `Tracked`** (`burst_open_at`, `last_site_at`, in Lab
+    2's `noticer.rs`): the attach switch needs when an anomaly's current burst began and whether
+    its site is still speaking; both fields were private. Nothing else outside Lab 1's files
+    changed.
+
 ## Mutation checks
 
 ### M3 (cargo-mutants 27.1.0; the M2 arm and the M3 sub-tick code)
