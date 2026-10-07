@@ -1520,7 +1520,7 @@ fn the_layout_names_each_services_emitters_and_nothing_else() {
         assert_eq!(layout.emitter_node(layout.notice[i]), Some(i as u32));
         assert_eq!(layout.emitter_node(layout.ramp_notice[i]), Some(i as u32));
     }
-    for (cell, _) in &layout.latches {
+    for cell in layout.latches.keys() {
         assert_eq!(layout.emitter_node(*cell), None);
     }
 }
