@@ -4,6 +4,79 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A1a the engram, build phase — merged (Lab 1); the mechanism exists, and its first values collide exactly as W2 predicted
+
+**Provenance.** Eight commits on `engram` in the order the brief required: design into
+`DESIGN.md` (a82c38c) before code (55be9db); key and confirmation policy fixed (715a700);
+W2's four constraints applied before any arm ran (efcaa89); identity recorded twice; the smoke
+run's manifest names `65ddb7f`. The chief recomputed: R6's held-out replay on the final engram
+code matches all 62 arms' `results.csv` and `incidents.csv` hashes in
+`experiments/exploration/r6-results-sha256.csv`; the smoke counts from `incidents.csv` (hard
+unasked-correct 3 / 0 / 0, hard escalated 28 / 40 / 40, plain unasked-wrong 204 / 53 / 53 for
+the main form, bind-off and M3) match the lab's table; no family or mode name appears in the
+engram code. Hooks in Lab 2's territory (`noticer.rs` two default methods, `rung.rs` a
+passthrough, `arms/mod.rs` a `Source::Recall` variant and a never-escalate filter) are inert for
+every noticer without memory, which the identity shows; accepted, and Lab 2 told. Gates on the
+merged tree under the runner: see the commit. Runs kept in `artifacts/runs/a1a/` (ignored).
+Not done, recorded: mutation testing; `total_cost_ns` omits the noticer's charge for every
+medium arm since M2 (the bill has it).
+
+**Verdict: A1a delivers** (mechanism, adapter, both key forms, three confirmation policies,
+identity, smoke, report). No criterion was set and none is claimed.
+
+**What the smoke shows (failure, mechanism, objective).** First values, 20 tuning streams,
+nothing adjusted:
+
+| Arm | Hard unasked-correct | Hard escalated | Plain unasked-wrong |
+|---|---|---|---|
+| M3 (no layer) and bind off | 0 | 40 | 53 |
+| Family form, generalising | 3 | 28 | 204 |
+| Family form, exact keys | 0 | 40 | 57 |
+| Site-keyed, reset per stream | 0 | 40 | 53 |
+| Site-keyed, carried (control) | 0 | 40 | 61 |
+| Family form, confirm every 4th | 3 | 34 | 127 |
+
+- **The collision W2 predicted is real and immediate.** The generalising family form recalls
+  on plain incidents 151 times more than the control in 20 streams and displaces 42 correct
+  cheap declarations, and the count rises with streams. "Evidence after 2 s" is not the
+  rule-breaking evidence; plain incidents produce late evidence too. Exact keys never recur;
+  generalised keys do not discriminate. The PI's hypothesis (two or three surviving features,
+  one early alarm kind and one late band, shared with plain incidents) is plausible and
+  untested.
+- **The within-stream site form recalls nothing** on 20 streams (W2: 0.44 hard recurrences
+  per stream, reachable only after a correct answer), and the carried form only adds errors,
+  as W2 said it would by construction.
+- **The three correct recalls are all slow leaks**, the one hard family whose evidence sits at
+  a single service. Cascade and split brain put decisive evidence at two services, and a
+  one-node coincidence cannot key them. This is a structural limit of the engram as built.
+- **Under the selection oracle nothing corrects a plain-incident recall**, because plain
+  anomalies are never asked about, so no contradiction ever arrives. The learner's errors are
+  invisible to it. That is a property of the privileged selector, and one more reason EXP-101's
+  non-privileged selector matters for the learning claim too.
+
+**Coordinator reading.** The purpose's danger case (charter 1.2, "stale errors grow with
+experience") appeared in the first twenty streams, before any tuning, which is the right time
+to see it. It says what the recall gate must be: not a time since the anchor but the public
+rules' own verdict that the evidence cannot be explained (the rung's consistency checker,
+`contradicted_since`), which is the public meaning of "rule-breaking". Gated so, a recall can
+fire only where the cheap rung would have returned no hypothesis, so it displaces nothing. The
+PI named this and left it out as scope; it is the next unit.
+
+**Decided.**
+
+1. **A1c (Lab 1), before any A1b run:** the recall gate on the public consistency checker; a
+   two-site key (the anomaly's service and the service whose alarm the public graph cannot
+   connect to it, with their timing) so that cascades and split brains are keyable; identity;
+   the same smoke, reported against A1a's table. No tuning. Brief in the queue.
+2. **A1b's criterion** will bound plain-incident unasked-wrong declarations as the paired excess
+   over the memoryless arm (the measure the PI asked for) before any other clause, and will
+   report recall timing against the selector's ask instant.
+3. **E1 gains** the `Source::Recall` reading: a declaration whose source is a recall is counted
+   on its own in `results.csv` (today it is folded into the cheap rung's count), so the
+   memory's declarations are a column, not a ledger search.
+4. **M-cost:** `total_cost_ns` for medium arms is a known omission since M2; A1b's cost column
+   is read from the bill, and the fix is queued into E1 as a column, not a redefinition.
+
 ## W2 the learnable laws — merged (Lab 3); the recurrence lever is small, the family law is the large one
 
 **Provenance.** Seven commits on `world-laws`; a hidden-side accessor (`oracle::rebuilt_incident`,

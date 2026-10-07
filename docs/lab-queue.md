@@ -41,7 +41,8 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | M5 | 1 | A less redundant graph at M4's anchoring and precision, in counted operations and wall time against C1's rows | M4 | queued |
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | stopped (reservoir built, identity passed) |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
-| A1 | 1 | The engram: memory in the medium (A1a build and identity; A1b the run, criterion fixed after W2 and E1) | M3 | running (A1a) |
+| A1 | 1 | The engram: memory in the medium (A1a build and identity; A1b the run, criterion fixed after W2, E1 and A1c) | M3 | A1a merged; A1b queued |
+| A1c | 1 | The recall gate on the public consistency checker; a two-site key; identity; the smoke against A1a's table | A1a | running |
 | W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | merged |
 | W3 | 3 | World C (three times the hard share) for A1b's power; the phase-2-keyed collision floor | W2 | queued |
 | V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | queued |
@@ -652,6 +653,10 @@ ids inside a stream only. (c) The reset at the stream boundary is a switch on bo
 held-out table reports each form with and without it. (d) The rung waits for evidence after the
 first phase before recalling, and the module docs say what it waits for. (e) Its experience
 curve across streams is reported for the family form (the only form that can have one).
+(f) Amended after A1a: `results.csv` gains a `recall_declarations` column (declarations whose
+source is `Source::Recall`, today folded into `cheap_declarations`), and `total_cost_ns` for
+every arm includes the noticer's charge as a new column `noticer_ns` beside it, the existing
+column unchanged so that byte identity holds.
 
 ## A2 Anticipation (Lab 1, after A1 and E1)
 
@@ -675,3 +680,30 @@ the hidden graph. Brief and criterion to be written after A1b reports.
 **Acceptance (fixed 2026-10-07).** As W2's: every number reproduces from the script and the
 manifest, names its range and side; the report says which of A1b's proposed bounds the new
 floor moves and by how much.
+
+## A1c The recall gate and the two-site key (Lab 1, after A1a)
+
+A1a's smoke (review log) shows the generalising family form recalling on plain incidents 151
+times more than the control in 20 streams, because "evidence after 2 s" is not the
+rule-breaking evidence. No tuning; this is a mechanism unit with identity and a smoke.
+
+1. **The recall gate.** A recall may fire only on an anomaly the public rules cannot explain:
+   the rung's consistency checker (`AnomalyView::contradicted_since`, the public meaning of
+   rule-breaking evidence). The gate lives in the arm (`arms/medium/`), where that view is
+   visible. A recall gated so fires only where the cheap rung would have returned no
+   hypothesis, so it displaces no correct cheap declaration; make that a test. The
+   "late feature" requirement in the key stays as a switch, default off, reported both ways.
+2. **The two-site key.** A key spanning the anomaly's service and one other service whose
+   alarm the public graph does not connect to it, with the order and gap of their first alarms
+   in bands, built from the invariant features of both. The engram's coincidence must span
+   two nodes for this; record the design in `DESIGN.md` before the code.
+3. **Identity:** R6's held-out replay 62 of 62; the existing identity tests unchanged; gates.
+4. **The smoke:** A1a's manifest (seeds 10000–10019, the same eight arm roles plus the gated
+   forms), reported beside A1a's table from `incidents.csv`, with the gated family form's
+   plain unasked-wrong count as the first number. Nothing adjusted after seeing it.
+5. **Report:** `experiments/exploration/a1c-recall-gate.md`, as A1a's.
+
+**Acceptance (fixed 2026-10-07).** Deliverables, identity, the displacement test, the smoke
+table. A gated family form whose plain unasked-wrong count exceeds the control's by more than
+5 in 20 streams is reported as such and A1b's design is reconsidered before its criterion is
+fixed; a count within 5 is the expected outcome. No claim either way.
