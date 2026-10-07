@@ -31,10 +31,11 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | M1b | 1 | The oscillome: nested oscillations, phase gates, binding by phase, local oscillators, schedules; calibrated prices | M1 | merged |
 | B2 | 2 | Site check and notice precision in the evaluator; notice-relative selection delay; a public later-re-anchor noticer | B1 | merged |
 | B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | merged |
-| B4 | 2 | A non-privileged selector; decoy-notice accounting; leak-versus-decoy separation | B3 | running |
+| B4 | 2 | A non-privileged selector; decoy-notice accounting; leak-versus-decoy separation | B3 | merged |
 | M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | running |
 | L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | merged |
-| C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | queued |
+| C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | running |
+| B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | queued |
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | queued |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 

@@ -4,6 +4,74 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## B4 public selectors and decoy accounting — merged (Lab 2); on this world, public selection is always-escalate
+
+**Provenance.** Two interruptions (an API limit, then the disk restart); the final PI found one
+mutated line left in the tree by a killed cargo-mutants run and reverted it, redid the mutation
+tallies (48 of 48 hand mutants; cargo-mutants 38 of 44 and 58 of 66 caught, the rest unviable,
+none missed), reran the byte-identity gate (62 of 62, recomputed), and verified the held-out
+run's manifest against the frozen choices and its binary against a rebuild at HEAD, bit for bit.
+**The chief could not verify the table from raw files:** the PI deleted the held-out run
+directory after confirming its CSVs, following the chief's disk instruction. **Coordinator
+error, recorded (seventh):** that instruction removed the evidence the chief's own review
+depends on. The rule is fixed below. What the chief verified: the committed tables are
+internally consistent with the report, and the merged tree passes every gate (fmt, clippy
+`--locked`, 828 Rust tests, the oracle guard, 450 analysis tests). The merge's seam conflict
+(B4's extended `Composed` arms against L1's `Learned` variant) was first resolved wrongly by
+the chief (both arms kept, the stale one winning, two tests failing) and then correctly as B4's
+file plus L1's four additions, with every gate rerun.
+
+**What the table says** (200 held-out streams; the comparator is ramp + split over the
+re-anchor; hard-incident quality with 90% intervals).
+
+| Selector over the comparator's anomalies | Hard quality | Calls / stream | Cost s / stream |
+|---|---|---|---|
+| Selection oracle (labelled ceiling) | 0.562 [0.517, 0.608] | 2.6 | 0.79 |
+| Public threshold rule | 0.570 [0.524, 0.616] | 26.4 | 7.95 |
+| Public change rule | 0.556 | 25.5 | 7.56 |
+| Always escalate | 0.562 | 27.0 | 7.81 |
+
+Medium at 100 ms minus the comparator: under the oracle +0.030 [+0.000, +0.060] hard quality
+for +1.05 s; under the threshold rule +0.027 [−0.003, +0.057] for +0.94 s [+0.79, +1.09]; under
+the change rule −0.027 for −0.11 s. Leak quality is lower for the medium under every asking
+selector (intervals exclude zero).
+
+**What it means (objective, environment, failure).**
+
+- **Public selection has no selectivity on this world.** The rung's checker contradicts about
+  97% of plain anomalies (R5), so a rule that escalates "when the rung is contradicted or
+  silent" escalates nearly everything: 90–98% of always-escalate's calls. The bill is 4–12× the
+  oracle's and 79% of it is plain incidents, shared by every arm. A cost claim under these
+  selectors would be a claim about the selector, not the noticer. This is R5's finding seen
+  from the other side: selection is where the cost lives, and nothing public does it.
+- **The selection oracle is not a quality ceiling.** Public selectors beat it on plain accuracy
+  (+0.06 to +0.075) and critical misses, because it never asks about plain incidents. "Ceiling"
+  holds for hard-incident quality only, and is labelled so from here.
+- **The medium's extra anomalies are neither shown paid for nor unpaid for.** +0.027 of hard
+  quality for +12% of cost, with the interval touching zero at n = 200.
+- **Decoy and late-plain notices cost 4–6% of the bill** once charged; the ramp's own
+  addition is about 2.4%. Leaks and decoys separate weakly after five readings (AUC 0.63 on
+  the statistic tried), and the follow-up rule tuned to lose no leak on 100 tuning streams lost
+  7 on held-out. The rule is not retained.
+- **Feasible EXP-101 margins at n = 200:** hard quality about 0.05, cost about 5%, anchoring
+  the public row minus 0.02. Not resolvable: 1% cost across noticer families, 0.02 quality, or
+  the decoy cost itself.
+
+**Decided.**
+
+1. **Rule fix:** a lab keeps its held-out run directory and byte-identity directory until the
+   chief has verified them; only tuning directories are deleted for disk. Recorded in
+   `docs/local-test-plan.md`.
+2. **EXP-101's cost axis is call-budgeted.** Arms are compared at a matched number of reasoner
+   calls per stream (a public score ranks a noticer's anomalies; the top k per stream are
+   asked), with k swept, so that what differs between arms is which anomalies they ask about,
+   not how many. **B5 (Lab 2, after C1):** the call-budgeted selector, a delay sweep (the 16 s
+   delay is a hidden selector), and the public score's feature AUCs for hard against plain at
+   the ask instant.
+3. EXP-101's primary measure is verified decisions (plain and hard) and critical misses per
+   stream at a matched call budget, with hard quality and anchoring bounded; the draft comes to
+   the user before the freeze, after B5's table sets the margins.
+
 ## L1 the learned noticer — merged (Lab 3); learning is real, fast, and stops short of the hand design
 
 **Provenance.** Two interruptions (an API limit, then the disk restart); the final PI verified

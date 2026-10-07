@@ -1144,6 +1144,9 @@ Two workers may hold worktrees at once. The driver refuses to start a run while 
   disk under 4 GB and the container restarted. At most two labs run concurrently while free disk
   is under 12 GB; the chief removes the main checkout's `target/` between gate runs and keeps
   run outputs trimmed. A lab checks `df -h /home/user` before every build and run, as before.
+- **A lab keeps its held-out run directory and its byte-identity directory until the chief has
+  verified them from the raw files**; only tuning directories are deleted for disk (B4's
+  held-out run was deleted under an earlier instruction, and the chief could not verify it).
 - A worker never kills another worker's process.
 - A worker keeps its scratch files in its own subdirectory of the session scratchpad, named by
   its worktree, and never writes to another's (a PI's helper was overwritten by another lab).
