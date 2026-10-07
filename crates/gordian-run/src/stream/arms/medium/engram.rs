@@ -6,6 +6,15 @@
 //! was written and committed before any run of the arm. A change after a run is recorded in
 //! `experiments/exploration/a1a-engram.md` with its reason, never edited in here silently.
 //!
+//! **Amendment W2 (before any run of the arm; the first form was committed at `715a700`).** The
+//! chief relayed four findings of W2 (Lab 3, the world's laws measured from the hidden side): ids
+//! of services and free-form messages are regenerated per stream, so they recur only inside one;
+//! the law that reaches across streams is the family's, in stream-invariant features; a key made
+//! of an incident's first phase collides with plain incidents and decoys; the reasoner is right
+//! about half the time on hard incidents at this setting, so one answer is not a memory. The key,
+//! the strength rule, the carry and the first values below are the amended ones; what changed is
+//! listed in the report (`a1a-engram.md`, "Amendment W2"). No arm had run under the first form.
+//!
 //! # What the layer is
 //!
 //! A second medium beside the noticing graph, held by the same noticer
@@ -38,24 +47,44 @@
 //!   [`super::adapters::abnormal_kind_tag`]), and, for a counter, its **band** (the shape of the
 //!   counters: band 0 below `2 * HIGH`, band 1 below `4 * HIGH`, band 2 from `4 * HIGH`, with
 //!   `HIGH` the public alarm line, per counter name);
-//! - a message, abnormal or not: its **message id** ([`super::adapters::message_tag`]; a
-//!   catalogue id exactly, a free-form id folded to 31 bits as the sense adapter folds it).
+//! - a catalogue message, abnormal or not: its **message id** (a catalogue id is the first
+//!   world's public vocabulary, the same in every stream);
+//! - a free-form message: its id ([`super::adapters::message_tag`], folded to 31 bits as the sense
+//!   adapter folds it), **in a site-keyed key only**. A free-form id is regenerated per stream
+//!   (W2), so it may enter only a key that does not leave the stream (below, "Carry").
 //!
-//! Repeats are dropped and the first 8 distinct features are kept (the slots of a coincidence).
-//! A key of fewer than `min_features` features is not bound. The **site** is a variable
-//! (`site: family`: the features must recur together at one service, whichever) or fixed
-//! (`site: site`: at service `s`). Nothing else enters the key: no tier, no label, no incident, no
-//! evaluator measure; only bytes this noticer was delivered and the public alarm line. Whether a
-//! message id marks a family is for the arm to find out from its own history: an id that was in
-//! one key by chance does not recur, and with `generalise` on, a later bind with the same outcome
-//! drops it (generalisation by intersection, `DESIGN.md`).
+//! A feature is **late** when its first occurrence in the span is more than `onset_ns` after
+//! `t0`: evidence that arrived after the incident's first phase. The first phase is read
+//! publicly as the first burst at the site (`onset_ns`, the rung's `burst_gap_ns`); what makes a
+//! hard incident hard has, by the brief's own description of a decoy, not arrived by then.
+//! **A key with no late feature is not bound**: a key of first-phase evidence alone is what a
+//! plain incident or a decoy shows too (W2: about 1.9 wrong recalls per stream). Repeats are
+//! dropped and the first 8 distinct features are kept (the slots of a coincidence), with the
+//! first late feature kept in place of the eighth when none of the first eight is late. A key of
+//! fewer than `min_features` features is not bound. The **site** is a variable (`site: family`:
+//! the features must recur together at one service, whichever) or fixed (`site: site`: at service
+//! `s`). Nothing else enters the key: no tier, no label, no incident, no evaluator measure; only
+//! bytes this noticer was delivered and the public alarm line.
+//!
+//! **What a recall waits for.** A recall is the coincidence of every live feature of its key at
+//! one service within `key_span_ns`, and every bound key holds a late feature, so a recall waits
+//! until evidence beyond the first phase has arrived; with generalisation on, an engram is never
+//! narrowed to a key without one of its late features (`Key::with_marks`, `DESIGN.md`).
+//!
+//! **Not in the key, and why** (W2 names them as invariant): a feature at another service (the
+//! partner of a cascade, the second primary of a split brain, and the timing between a site's
+//! alarm and its partner's) needs a coincidence across two services, and the engram's key cells
+//! bind one service each; probe answers do not cross the noticing seam (the rung admits them to
+//! the anomaly that bought them). Both are what a relational key would add, and are not built.
 //!
 //! # The outcome
 //!
 //! The answer's diagnosis as a tag ([`outcome_tag`]: 0 for "not an incident", 1 to 5 the known
 //! kinds, 6 to 9 the hard kinds, in their declaration order) and a site: none for "not an
 //! incident"; the recall's support (substituted at recall) when the diagnosed site is the
-//! anomaly's site `s`; otherwise that service, fixed.
+//! anomaly's site `s`; otherwise that service, fixed, and **only in a site-keyed key**: a service
+//! number means nothing in another stream (W2), so a family-keyed answer naming another site than
+//! the anomaly's is not bound (counted).
 //!
 //! # Recall and declaration
 //!
@@ -93,14 +122,17 @@
 //!
 //! | Parameter | First value | Why |
 //! |---|---|---|
-//! | `key_span_ns` | 2 s | the rung's `burst_gap_ns`: how long a site must be silent before its next alarm begins a new burst, so 2 s from the anchor is the incident's first burst at its site and little of the next |
+//! | `onset_ns` | 2 s | the first phase: the rung's `burst_gap_ns`, how long a site must be silent before its next alarm begins a new burst, so 2 s from the anchor is the incident's first burst at its site |
+//! | `key_span_ns` | 10 s | half the shortest public hard deadline (20 s, a critical hard incident): a recall that waits for the whole key still leaves half the window for the declaration to land in time |
 //! | coincidence window | `key_span_ns` in ticks, rounded up | a recall needs the features within the span they were collected over |
 //! | `min_features` | 2 | one feature (one alarm kind) recurs at every incident of that kind; a pattern needs two |
-//! | `gain`, `threshold` | 1, 0.5 | one answer suffices to recall (as the record rung's "the diagnosis last obtained") |
-//! | `max_strength` | 4 | four agreeing answers |
-//! | `penalty` | 1 | one disagreeing answer cancels one agreeing one |
-//! | `decay`, `decay_period_ns` | 0.95 per 100 s | the slow rhythm (section 4b); a single answer stays above the threshold for 13 cycles (about two 600 s streams), four agreeing answers for 40 (about seven) |
+//! | `gain`, `threshold` | 1, 1.5 | the strength is a net count of answers (agreeing minus disagreeing, decayed): one answer is not a memory when the reasoner is right about half the time on hard incidents (W2); a recall needs two more agreeing than disagreeing |
+//! | `max_strength` | 4 | four net agreeing answers |
+//! | `penalty` | 1 | one disagreeing answer cancels one agreeing one (the vote) |
+//! | `decay`, `decay_period_ns` | 0.99 per 100 s | the slow rhythm (section 4b); the family law holds across streams (W2), so forgetting is for a regime change, whose rate is unknown: a strength halves in about 69 cycles (about 11 streams of 600 s) |
 //! | `refractory_ns` | 6 s | the rung's `quiet_ns`: one recall per engram per anomaly's life |
+//! | `generalise` | on | the count must aggregate over binds of one pattern although its keys differ by background features; intersection is how they aggregate, and it never drops the last late feature |
+//! | `carry_site` | off | below |
 //!
 //! None was chosen against a measure; A1a tunes nothing. A1b may tune them, on its tuning seeds,
 //! under its criterion.
@@ -114,6 +146,12 @@
 //! structure and weights: the engrams carry, their activity does not. With `carry` off the layer
 //! starts empty every segment; with `bind` off it never binds, so it never recalls (the control
 //! with the layer's cost and no memory).
+//!
+//! **A site-keyed layer starts empty at every segment** (a segment is one stream, and service
+//! numbers and free-form message ids are regenerated per stream, W2: a site-keyed engram carried
+//! into the next stream is wrong by construction). `carry_site: true` carries it anyway; that
+//! form is a labelled control, never the default. A family-keyed layer carries (its keys hold
+//! stream-invariant features only, and its outcome sites are relative).
 //!
 //! Variable sites range over services 0 to 11 (`MAX_SERVICES`, the public bound on a stream's
 //! graph), so an engram built on a stream of 8 services still recalls on a stream of 12.
@@ -136,7 +174,7 @@ use gordian_medium::{
     NoTrace, OpCounts, Outcome, OutcomeSite, Ports, Prices, Recall, Tag,
 };
 use gordian_stream::{Diagnosis, HardKind, StreamHypothesis, StreamKind};
-use gordian_world::physics::{HIGH, MAX_SERVICES};
+use gordian_world::physics::{CATALOGUE_LIMIT, HIGH, MAX_SERVICES};
 use gordian_world::{CounterName, FaultKind, Observation, ServiceId};
 use serde::{Deserialize, Serialize};
 
@@ -181,9 +219,14 @@ pub struct EngramConfig {
     /// Whether answers are bound (off: the layer runs and never binds).
     #[serde(default = "yes")]
     pub bind: bool,
-    /// Whether the layer's state is carried across segments.
+    /// Whether the layer's state is carried across segments (a site-keyed layer's only with
+    /// `carry_site`).
     #[serde(default = "yes")]
     pub carry: bool,
+    /// Carry a site-keyed layer across segments too: a labelled control (module documentation,
+    /// "Carry"), never the default.
+    #[serde(default)]
+    pub carry_site: bool,
     /// Family-keyed or site-keyed.
     pub site: SiteMode,
     /// Generalisation by intersection.
@@ -191,6 +234,9 @@ pub struct EngramConfig {
     pub generalise: bool,
     /// The confirmation policy.
     pub confirm: ConfirmPolicy,
+    /// The first phase: a feature first seen more than this after the anchor is late, and a key
+    /// needs a late feature, nanoseconds.
+    pub onset_ns: u64,
     /// How long after the anchor the key's features are collected, nanoseconds; also the
     /// coincidence window (in ticks, rounded up).
     pub key_span_ns: u64,
@@ -217,22 +263,25 @@ fn yes() -> bool {
 }
 
 impl Default for EngramConfig {
-    /// The first values (module documentation), family-keyed, exact keys, never confirming.
+    /// The first values (module documentation, as amended), family-keyed, generalising, never
+    /// confirming.
     fn default() -> Self {
         Self {
             state_key: 0,
             bind: true,
             carry: true,
+            carry_site: false,
             site: SiteMode::Family,
-            generalise: false,
+            generalise: true,
             confirm: ConfirmPolicy::Never,
-            key_span_ns: 2_000_000_000,
+            onset_ns: 2_000_000_000,
+            key_span_ns: 10_000_000_000,
             min_features: 2,
             gain: 1.0,
-            threshold: 0.5,
+            threshold: 1.5,
             max_strength: 4.0,
             penalty: 1.0,
-            decay: 0.95,
+            decay: 0.99,
             decay_period_ns: 100_000_000_000,
             refractory_ns: 6_000_000_000,
         }
@@ -240,6 +289,12 @@ impl Default for EngramConfig {
 }
 
 impl EngramConfig {
+    /// Whether the layer's state carries across segments: `carry`, and for a site-keyed layer
+    /// also `carry_site`.
+    pub fn carries(&self) -> bool {
+        self.carry && (self.site == SiteMode::Family || self.carry_site)
+    }
+
     /// The crate's parameters for a tick of `tick_ns`.
     pub fn params(&self, tick_ns: u64) -> EngramParams {
         let tick = tick_ns.max(1);
@@ -266,8 +321,8 @@ impl EngramConfig {
         if let ConfirmPolicy::Every { k: 0 } = self.confirm {
             return err("confirm every k needs k >= 1");
         }
-        if self.key_span_ns == 0 {
-            return err("key_span_ns must be positive");
+        if self.key_span_ns == 0 || self.onset_ns >= self.key_span_ns {
+            return err("key_span_ns must be positive and longer than onset_ns");
         }
         if self.decay_period_ns <= tick_ns {
             return err("decay_period_ns must be longer than the tick");
@@ -352,21 +407,37 @@ pub fn senses(held: &Held) -> bool {
 }
 
 /// The key features of the observations `held` (already those about the site, in the span, in
-/// delivery order): kinds, bands and message ids, distinct, at most 8, in order.
-pub fn features<'a>(held: impl IntoIterator<Item = &'a Held>) -> Vec<Tag> {
+/// delivery order), each with whether it is late (first seen after `onset_end`): kinds, bands,
+/// catalogue message ids, and free-form message ids when `free_form` (a site-keyed key). Not
+/// deduplicated or capped: [`Key::with_marks`] does that.
+pub fn features<'a>(
+    held: impl IntoIterator<Item = &'a Held>,
+    onset_end: Instant,
+    free_form: bool,
+) -> Vec<(Tag, bool)> {
     let mut out = Vec::new();
     for h in held {
+        let late = h.at.0 > onset_end.0;
         if h.abnormal {
-            out.push(abnormal_kind_tag(&h.obs));
+            out.push((abnormal_kind_tag(&h.obs), late));
             if let Some(b) = band_tag(&h.obs) {
-                out.push(b);
+                out.push((b, late));
             }
         }
-        if let Observation::Message { text_id, .. } = h.obs {
-            out.push(message_tag(text_id));
+        if let Observation::Message { text_id, .. } = h.obs
+            && (free_form || text_id < CATALOGUE_LIMIT)
+        {
+            out.push((message_tag(text_id), late));
         }
     }
-    Key::new(out, KeySite::Variable).features().to_vec()
+    // A feature is late only if it was not seen in the first phase: its first occurrence counts.
+    let mut first: Vec<(Tag, bool)> = Vec::new();
+    for (t, late) in out {
+        if !first.iter().any(|(x, _)| *x == t) {
+            first.push((t, late));
+        }
+    }
+    first
 }
 
 /// What the layer counted over the segment, for diagnostics and tests.
@@ -378,6 +449,10 @@ pub struct EngramLayerStats {
     pub answers_unheld: u64,
     /// Binds made (whatever their result).
     pub binds: u64,
+    /// Answers not bound: the key had no late feature.
+    pub no_late: u64,
+    /// Answers not bound: a family-keyed answer naming another site than the anomaly's.
+    pub elsewhere: u64,
     /// Recalls the engram medium made.
     pub recalls: u64,
     /// Recalls handed to the arm.
@@ -441,7 +516,7 @@ impl EngramLayer {
         };
         let mut stats = EngramLayerStats::default();
         let mut recall_count = 0;
-        let (medium, engrams) = match cfg.carry.then(|| carry::load(cfg.state_key)).flatten() {
+        let (medium, engrams) = match cfg.carries().then(|| carry::load(cfg.state_key)).flatten() {
             None => empty()?,
             Some((count, bytes)) => match restore_pair(&bytes)
                 .ok()
@@ -558,18 +633,27 @@ impl EngramLayer {
         out
     }
 
-    /// Bind `features` at `site` to `diagnosis` (an answer about an anomaly at `site`). Nothing
-    /// when binding is off or the layer has stopped.
-    pub fn bind(&mut self, features: Vec<Tag>, site: ServiceId, diagnosis: &Diagnosis) {
+    /// Bind `features` (with their late marks) at `site` to `diagnosis` (an answer about an
+    /// anomaly at `site`). Nothing when binding is off or the layer has stopped, when no feature
+    /// is late, or, family-keyed, when the diagnosis names another site.
+    pub fn bind(&mut self, features: Vec<(Tag, bool)>, site: ServiceId, diagnosis: &Diagnosis) {
         self.stats.answers += 1;
         if !self.cfg.bind || self.stopped {
+            return;
+        }
+        if !features.iter().any(|(_, late)| *late) {
+            self.stats.no_late += 1;
+            return;
+        }
+        if self.cfg.site == SiteMode::Family && diagnosis.is_some_and(|h| h.site != site) {
+            self.stats.elsewhere += 1;
             return;
         }
         let key_site = match self.cfg.site {
             SiteMode::Family => KeySite::Variable,
             SiteMode::Site => KeySite::Fixed(u16::try_from(site.0).unwrap_or(u16::MAX)),
         };
-        let key = Key::new(features, key_site);
+        let key = Key::with_marks(features, key_site);
         self.engrams
             .bind(&mut self.medium, &key, outcome_of(diagnosis, site));
         self.stats.binds += 1;
@@ -643,7 +727,7 @@ impl EngramLayer {
     }
 
     fn save_if_dirty(&mut self) {
-        if self.dirty && self.cfg.carry {
+        if self.dirty && self.cfg.carries() {
             carry::store(
                 self.cfg.state_key,
                 self.recall_count,

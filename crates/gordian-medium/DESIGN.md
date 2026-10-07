@@ -699,6 +699,14 @@ before the code) or fills a gap it left.
     still runs (200 ns) when only dropped features arrive. Removing the synapse would renumber
     every later synapse (the section above, "nothing is removed").
 
+65. **Marked features (added before any arm run, after W2's findings reached the lab).** A key's
+    features may be marked (`Key::with_marks`); the A1a adapter marks evidence that arrived after
+    an incident's first phase. Generalisation never narrows an engram that has marked features to
+    a key without one of them, so an engram cannot be generalised into a first-phase pattern that
+    plain incidents and decoys share. A capped key keeps its first marked feature in place of its
+    eighth. Marks are persisted in the table (one byte per feature, before the live flags); the
+    table's version stays 1 because no table had been persisted by a run before the change.
+
 What `docs/medium-ports.md` said and A1a changes: section 6's plasticity port "may change the
 weights of plastic synapses" and DESIGN departure 30 kept it from adding cells; A1a's bind adds
 cells and synapses and changes parameters through the same validation as a spec (above). Section

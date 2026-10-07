@@ -456,3 +456,56 @@ fn grow_appends_and_keeps_existing_state_and_set_params_validates() {
         m.to_bytes()
     );
 }
+
+#[test]
+fn a_marked_key_keeps_a_marked_feature_and_generalisation_never_drops_the_last() {
+    let pairs = (1..=10u32).map(|t| (Tag(t), t == 10));
+    let k = Key::with_marks(pairs, KeySite::Variable);
+    assert_eq!(k.features().len(), 8);
+    assert_eq!(
+        k.features()[7],
+        Tag(10),
+        "the first marked replaces the last kept"
+    );
+    assert_eq!(k.marks().iter().filter(|m| **m).count(), 1);
+    // A repeat is marked if any occurrence is.
+    let k = Key::with_marks(
+        [(Tag(1), false), (Tag(2), false), (Tag(1), true)],
+        KeySite::Variable,
+    );
+    assert_eq!(
+        (k.features(), k.marks()),
+        (&[Tag(1), Tag(2)][..], &[true, false][..])
+    );
+
+    let mut p = params();
+    p.generalise = true;
+    let (mut m, mut e) = fresh(p, Limits::default());
+    let marked = |tags: &[(u32, bool)]| {
+        Key::with_marks(tags.iter().map(|(t, m)| (Tag(*t), *m)), KeySite::Variable)
+    };
+    e.bind(
+        &mut m,
+        &marked(&[(10, false), (11, false), (20, true)]),
+        OUT_A,
+    );
+    // Shares 10 and 11 but not the marked 20: not narrowed to the first phase; a new engram.
+    let b = e.bind(
+        &mut m,
+        &marked(&[(10, false), (11, false), (21, true)]),
+        OUT_A,
+    );
+    assert_eq!(b.result, BindResult::Created(1));
+    assert_eq!(e.engrams()[0].live_features().len(), 3);
+    // Shares 10 and the marked 20: narrowed to them.
+    let b = e.bind(
+        &mut m,
+        &marked(&[(10, false), (20, true), (22, true)]),
+        OUT_A,
+    );
+    assert_eq!(b.result, BindResult::Generalised(0));
+    assert_eq!(e.engrams()[0].live_features(), vec![Tag(10), Tag(20)]);
+    // The marks survive persistence.
+    let (_, e2) = restore_pair(&pair_bytes(&m, &e)).unwrap();
+    assert_eq!(e2.engrams()[0].key.marks(), &[false, false, true]);
+}

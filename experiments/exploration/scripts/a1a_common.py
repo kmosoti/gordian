@@ -50,20 +50,23 @@ def frozen():
     return n
 
 
-# The first values of the adapter's module documentation, "Parameters", copied (not chosen here).
+# The first values of the adapter's module documentation, "Parameters", as amended after W2 and
+# before any run of the arm (copied, not chosen here).
 FIRST_VALUES = {
     "bind": True,
     "carry": True,
+    "carry_site": False,
     "site": "family",
-    "generalise": False,
+    "generalise": True,
     "confirm": "never",
-    "key_span_ns": 2_000 * MS,
+    "onset_ns": 2_000 * MS,
+    "key_span_ns": 10_000 * MS,
     "min_features": 2,
     "gain": 1.0,
-    "threshold": 0.5,
+    "threshold": 1.5,
     "max_strength": 4.0,
     "penalty": 1.0,
-    "decay": 0.95,
+    "decay": 0.99,
     "decay_period_ns": 100_000 * MS,
     "refractory_ns": 6_000 * MS,
 }
@@ -78,16 +81,17 @@ def with_engram(key, **over):
 
 
 def arms():
-    """(name, noticer) of the smoke run. Every switch of the brief, each once, at the first
-    values: the site switch (family, site), generalisation (off, on), the three confirmation
-    policies, and two controls (no layer; the layer with bind off)."""
+    """(name, noticer) of the smoke run: the main form (family-keyed, generalising, never
+    confirming); each switch of the brief once (exact keys, site-keyed, the two other confirmation
+    policies); the labelled control of W2's finding 1 (site-keyed carried across streams); and two
+    controls (no layer; the layer with bind off)."""
     return [
         ("m3", frozen()),
         ("eng_off", with_engram(1100, bind=False)),
         ("eng_family", with_engram(1101)),
-        ("eng_site", with_engram(1102, site="site")),
-        ("eng_family_gen", with_engram(1103, generalise=True)),
-        ("eng_site_gen", with_engram(1104, site="site", generalise=True)),
+        ("eng_family_exact", with_engram(1102, generalise=False)),
+        ("eng_site", with_engram(1103, site="site")),
+        ("eng_site_carried", with_engram(1104, site="site", carry_site=True)),
         ("eng_family_k4", with_engram(1105, confirm={"every": {"k": 4}})),
         ("eng_family_contra", with_engram(1106, confirm="on_contradiction")),
     ]

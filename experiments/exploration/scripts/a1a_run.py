@@ -1,7 +1,7 @@
 """Run A1a manifests one after another through `scripts/run-driver.sh`, logging each run (L1's
 `scripts/l1_run.py`, with A1a's directories).
 
-Usage: a1a_run.py MANIFEST...
+Usage: a1a_run.py [--name NAME] MANIFEST...   (--name: the run directory's name, one manifest)
 
 Needs a clean tree whose HEAD is each manifest's `source_revision` and the release binary built
 from that tree. The machine is shared with other labs: before each run this waits, polling every
@@ -31,13 +31,16 @@ def busy():
 
 def main():
     args = sys.argv[1:]
-    if not args:
+    out_name = None
+    if args[:1] == ["--name"]:
+        out_name, args = args[1], args[2:]
+    if not args or (out_name and len(args) != 1):
         sys.exit(__doc__)
     LOGS.mkdir(parents=True, exist_ok=True)
     log = open(LOGS / "a1a-runs.log", "a")
     for m in args:
         rid = json.load(open(m))["run_id"]
-        name = rid if not rid.startswith("r6-") else f"a1a-xcheck-{rid}"
+        name = out_name or (rid if not rid.startswith("r6-") else f"a1a-xcheck-{rid}")
         waits = 0
         while (who := busy()):
             print(f"{name} waiting-for {' '.join(who)} {time.strftime('%FT%T')}", file=log, flush=True)

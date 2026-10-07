@@ -556,10 +556,17 @@ impl Noticer for MediumNoticer {
             None => layer.unheld(),
             Some(a) => {
                 let (from, site) = (a.anchor_at.0, a.site);
-                let to = from.saturating_add(layer.config().key_span_ns);
-                let feats = features(self.recent.iter().filter(|h| {
-                    h.at.0 >= from && h.at.0 <= to && service_of(&h.obs) == Some(site)
-                }));
+                let cfg = *layer.config();
+                let to = from.saturating_add(cfg.key_span_ns);
+                let onset_end = Instant(from.saturating_add(cfg.onset_ns));
+                let free_form = cfg.site == super::engram::SiteMode::Site;
+                let feats = features(
+                    self.recent.iter().filter(|h| {
+                        h.at.0 >= from && h.at.0 <= to && service_of(&h.obs) == Some(site)
+                    }),
+                    onset_end,
+                    free_form,
+                );
                 layer.bind(feats, site, &diagnosis);
             }
         }

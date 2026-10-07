@@ -130,29 +130,47 @@ impl KeySite {
     }
 }
 
-/// A key: distinct feature tags, at most [`MAX_FEATURES`], in the order given, and a site.
+/// A key: distinct feature tags, at most [`MAX_FEATURES`], in the order given, each **marked** or
+/// not, and a site. A marked feature is one the adapter calls distinguishing (A1a: evidence that
+/// arrived after an incident's first phase); generalisation never narrows an engram that has
+/// marked features to a key without one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Key {
     features: Vec<Tag>,
+    marked: Vec<bool>,
     /// Where the features must occur.
     pub site: KeySite,
 }
 
 impl Key {
     /// A key from `features` (repeats dropped, the first [`MAX_FEATURES`] distinct kept, in the
-    /// order given) at `site`.
+    /// order given), none marked, at `site`.
     pub fn new(features: impl IntoIterator<Item = Tag>, site: KeySite) -> Key {
-        let mut out: Vec<Tag> = Vec::new();
-        for t in features {
-            if out.len() == MAX_FEATURES {
-                break;
-            }
-            if !out.contains(&t) {
-                out.push(t);
+        Key::with_marks(features.into_iter().map(|t| (t, false)), site)
+    }
+
+    /// A key from `(feature, marked)` pairs in order: repeats dropped (a feature is marked if any
+    /// of its occurrences is), the first [`MAX_FEATURES`] distinct kept, except that when none of
+    /// those is marked and a later one is, the last kept is replaced by the first marked one, so a
+    /// key given a marked feature keeps one.
+    pub fn with_marks(pairs: impl IntoIterator<Item = (Tag, bool)>, site: KeySite) -> Key {
+        let mut all: Vec<(Tag, bool)> = Vec::new();
+        for (t, m) in pairs {
+            match all.iter_mut().find(|(x, _)| *x == t) {
+                Some(e) => e.1 |= m,
+                None => all.push((t, m)),
             }
         }
+        let first_marked = all.iter().position(|(_, m)| *m);
+        if all.len() > MAX_FEATURES {
+            if let Some(i) = first_marked.filter(|i| *i >= MAX_FEATURES) {
+                all[MAX_FEATURES - 1] = all[i];
+            }
+            all.truncate(MAX_FEATURES);
+        }
         Key {
-            features: out,
+            features: all.iter().map(|(t, _)| *t).collect(),
+            marked: all.iter().map(|(_, m)| *m).collect(),
             site,
         }
     }
@@ -160,6 +178,11 @@ impl Key {
     /// The features, in order.
     pub fn features(&self) -> &[Tag] {
         &self.features
+    }
+
+    /// Per feature: marked.
+    pub fn marks(&self) -> &[bool] {
+        &self.marked
     }
 }
 
@@ -437,7 +460,8 @@ impl Engrams {
                 contradicted,
             };
         }
-        // 3. Generalisation: the engram with this outcome sharing the most features.
+        // 3. Generalisation: the engram with this outcome sharing the most features (and, if it
+        // has marked features, keeping at least one of them).
         if self.params.generalise {
             let min = usize::from(self.params.min_features);
             let mut best: Option<(usize, usize)> = None;
@@ -445,13 +469,13 @@ impl Engrams {
                 if e.outcome != outcome || e.key.site != key.site {
                     continue;
                 }
-                let shared = e
-                    .live_features()
-                    .iter()
-                    .filter(|t| feats.contains(t))
-                    .count();
-                if shared >= min && best.is_none_or(|(_, b)| shared > b) {
-                    best = Some((i, shared));
+                let shared: Vec<usize> = (0..e.key.features.len())
+                    .filter(|&f| e.live[f] && feats.contains(&e.key.features[f]))
+                    .collect();
+                let keeps_mark =
+                    !e.key.marked.iter().any(|m| *m) || shared.iter().any(|&f| e.key.marked[f]);
+                if shared.len() >= min && keeps_mark && best.is_none_or(|(_, b)| shared.len() > b) {
+                    best = Some((i, shared.len()));
                 }
             }
             if let Some((i, _)) = best
@@ -466,7 +490,7 @@ impl Engrams {
             }
         }
         // 4. A new engram.
-        match self.create(medium, &feats, key.site, outcome) {
+        match self.create(medium, key, outcome) {
             Ok(i) => {
                 self.stats.created += 1;
                 Bind {
@@ -528,10 +552,10 @@ impl Engrams {
     fn create(
         &mut self,
         medium: &mut Medium,
-        feats: &[Tag],
-        site: KeySite,
+        key: &Key,
         outcome: Outcome,
     ) -> Result<usize, SpecError> {
+        let (feats, site) = (key.features.as_slice(), key.site);
         let p = self.params;
         let nodes: Vec<u16> = match site {
             KeySite::Fixed(n) => vec![n],
@@ -623,10 +647,7 @@ impl Engrams {
         let i = self.engrams.len();
         self.by_emit.insert(emit, i);
         self.engrams.push(Engram {
-            key: Key {
-                features: feats.to_vec(),
-                site,
-            },
+            key: key.clone(),
             live: vec![true; k],
             outcome,
             strength,
@@ -721,7 +742,7 @@ impl Engrams {
     ///        decays, recalls (u64 each)
     /// senses: count u32, then node u16, tag u32, cell u32 (ascending by (node, tag))
     /// engrams: count u32, then per engram: site (u8 0 variable | 1 fixed + u16), features
-    ///          (count u8, tag u32 each), live (u8 each), outcome tag u32, outcome site (u8 0
+    ///          (count u8, tag u32 each), marks (u8 each), live (u8 each), outcome tag u32, outcome site (u8 0
     ///          none | 1 support | 2 fixed + u16), strength f32 bits, binds, contradictions,
     ///          recalls (u32 each), coincidences (count u32, node u16 + cell u32 each), inputs
     ///          (count u32, u32 each), latch u32, emit u32, strength synapse u32
@@ -771,6 +792,9 @@ impl Engrams {
             w.u8(e.key.features.len() as u8);
             for t in &e.key.features {
                 w.u32(t.0);
+            }
+            for m in &e.key.marked {
+                w.u8(u8::from(*m));
             }
             for l in &e.live {
                 w.u8(u8::from(*l));
@@ -882,6 +906,7 @@ impl Engrams {
                 return Err(DecodeError::Inconsistent("engram key too long"));
             }
             let features: Vec<Tag> = (0..k).map(|_| r.u32().map(Tag)).collect::<Result<_, _>>()?;
+            let marked: Vec<bool> = (0..k).map(|_| r.flag()).collect::<Result<_, _>>()?;
             let live: Vec<bool> = (0..k).map(|_| r.flag()).collect::<Result<_, _>>()?;
             let tag = Tag(r.u32()?);
             let osite = match r.u8()? {
@@ -906,7 +931,11 @@ impl Engrams {
             let emit = cell(r.u32()?, Archetype::Emit)?;
             let strength_synapse = SynapseId(r.u32()?);
             let e = Engram {
-                key: Key { features, site },
+                key: Key {
+                    features,
+                    marked,
+                    site,
+                },
                 live,
                 outcome: Outcome { tag, site: osite },
                 strength,

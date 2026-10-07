@@ -3,10 +3,11 @@ rho = 0.7, replayed with this branch's binary under its own run id (only `source
 changed), writes `results.csv` and `incidents.csv` whose SHA-256 equals R6's recorded ones, for all
 62 arms.
 
-Usage:
-  a1a_gate.py manifest   write the manifest (R6's, `source_revision` replaced by HEAD, run id kept)
+Usage (TAG empty for the first replay, e.g. "2" for a later one, which gets its own directory and
+its own regression file a1a-regression-TAG.csv):
+  a1a_gate.py manifest [TAG]  write the manifest (R6's, `source_revision` replaced by HEAD, run id kept)
                          to artifacts/runs/_manifests/a1a-xcheck-r6-heldout-b5-rho0.7.json
-  a1a_gate.py check      compare artifacts/runs/a1a/a1a-xcheck-r6-heldout-b5-rho0.7 with
+  a1a_gate.py check [TAG] compare artifacts/runs/a1a/a1a-xcheck-r6-heldout-b5-rho0.7 with
                          experiments/exploration/r6-results-sha256.csv; write
                          experiments/exploration/a1a-regression.csv; exit 1 unless 62 of 62 match
 """
@@ -20,7 +21,8 @@ import sys
 import a1a_common as C
 
 RID = f"r6-heldout-{C.setting_id(*C.PRIMARY)}"
-NAME = f"a1a-xcheck-{RID}"
+TAG = sys.argv[2] if len(sys.argv) > 2 else ""
+NAME = f"a1a-xcheck{TAG}-{RID}"
 DIR = C.SMOKE_DIR / NAME
 
 
@@ -56,7 +58,7 @@ def check():
             "results_identical": sha(DIR / a / "results.csv") == w.get("results_sha256"),
             "incidents_identical": sha(DIR / a / "incidents.csv") == w.get("incidents_sha256"),
         })
-    with open(C.OUT / "a1a-regression.csv", "w", newline="") as fh:
+    with open(C.OUT / f"a1a-regression{'-' + TAG if TAG else ''}.csv", "w", newline="") as fh:
         out = csv.DictWriter(fh, ["run", "arm", "results_identical", "incidents_identical"])
         out.writeheader()
         out.writerows(rows)

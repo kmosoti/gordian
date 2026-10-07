@@ -61,7 +61,8 @@ fn public() -> StreamPublic {
 }
 
 /// A burst at `site`: two alarms, a catalogue message, a free-form message and a third alarm,
-/// within 40 ms (the onset path notices three alarms at once).
+/// within 40 ms (the onset path notices three alarms at once), then, 3 s later (after the first
+/// phase), an alarm of another kind.
 fn burst(site: u32, t: u64) -> Vec<(u64, Observation)> {
     vec![
         (t, counter(site, CounterName::ErrorRate, 80)),
@@ -69,6 +70,7 @@ fn burst(site: u32, t: u64) -> Vec<(u64, Observation)> {
         (t + 20, message(site, SignalText::OutOfResource.text_id())),
         (t + 30, message(site, 0x00AB_CDEF_0123_4567)),
         (t + 40, counter(site, CounterName::ErrorRate, 85)),
+        (t + 3_000, counter(site, CounterName::Saturation, 90)),
     ]
 }
 
@@ -153,6 +155,12 @@ impl Drive {
     }
 }
 
+/// Two agreeing answers: the strength a recall needs (threshold 1.5).
+fn answer_twice(d: &mut Drive, focus: ObsId, diagnosis: Diagnosis) {
+    d.noticer.answered(focus, diagnosis);
+    d.noticer.answered(focus, diagnosis);
+}
+
 fn script(sites: &[(u32, u64)]) -> Vec<(u64, Observation)> {
     let mut out: Vec<(u64, Observation)> = sites.iter().flat_map(|(s, t)| burst(*s, *t)).collect();
     out.sort_by_key(|(t, _)| *t);
@@ -162,40 +170,45 @@ fn script(sites: &[(u32, u64)]) -> Vec<(u64, Observation)> {
 // ---- the key and the outcome
 
 #[test]
-fn the_key_is_kinds_bands_and_message_ids_in_order_without_repeats() {
+fn the_key_is_kinds_bands_and_message_ids_marked_late_after_the_first_phase() {
     let p = public();
     let hs: Vec<Held> = burst(2, 1_000)
         .into_iter()
         .enumerate()
         .map(|(i, (t, o))| held(i as u32, t, o, &p))
         .collect();
-    let f = features(&hs);
-    assert_eq!(
-        f,
-        vec![
-            Tag(ABNORMAL_KIND),            // error rate
-            Tag(BAND),                     // error rate 80: band 0
-            Tag(ABNORMAL_KIND + 1),        // latency
-            Tag(BAND + 4 + 1),             // latency 120: band 1
-            abnormal_kind_tag(&hs[2].obs), // a message
-            message_tag(SignalText::OutOfResource.text_id()),
-            message_tag(0x00AB_CDEF_0123_4567), // a benign free-form message
-        ]
-    );
-    // The repeated error-rate alarm (band 0 again) adds nothing.
+    let onset_end = Instant(3_000 * MS);
+    let early = |t: Tag| (t, false);
+    let family = features(&hs, onset_end, false);
+    let expected = vec![
+        early(Tag(ABNORMAL_KIND)),
+        early(Tag(BAND)),
+        early(Tag(ABNORMAL_KIND + 1)),
+        early(Tag(BAND + 4 + 1)),
+        early(abnormal_kind_tag(&hs[2].obs)),
+        early(message_tag(SignalText::OutOfResource.text_id())),
+        (Tag(ABNORMAL_KIND + 2), true),
+        (Tag(BAND + 8), true),
+    ];
+    assert_eq!(family, expected, "a family key holds no free-form id");
+    let site = features(&hs, onset_end, true);
+    assert_eq!(site.len(), 9);
+    assert_eq!(site[6], early(message_tag(0x00AB_CDEF_0123_4567)));
     assert!(!hs[3].abnormal, "a free-form message is benign");
-    // Bands: below 2 HIGH, below 4 HIGH, from 4 HIGH; nothing below HIGH or for a message.
+    // A feature seen in the first phase is not late when it repeats later.
+    let again = held(9, 5_000, counter(2, CounterName::ErrorRate, 70), &p);
+    let f = features(hs.iter().chain([&again]), onset_end, false);
+    assert_eq!(
+        f.iter().filter(|(t, _)| *t == Tag(ABNORMAL_KIND)).count(),
+        1
+    );
+    assert!(!f[0].1);
     let b = |v| band_tag(&counter(0, CounterName::Restarts, v));
     assert_eq!(b(HIGH - 1), None);
     assert_eq!(b(HIGH), Some(Tag(BAND + 16)));
     assert_eq!(b(2 * HIGH), Some(Tag(BAND + 17)));
     assert_eq!(b(4 * HIGH), Some(Tag(BAND + 18)));
     assert_eq!(band_tag(&hs[2].obs), None);
-    // At most eight.
-    let many: Vec<Held> = (0..12)
-        .map(|i| held(i, 100 + u64::from(i), message(0, 70_000 + u64::from(i)), &p))
-        .collect();
-    assert_eq!(features(&many).len(), 8);
 }
 
 #[test]
@@ -241,15 +254,25 @@ fn an_answer_binds_and_the_same_pattern_elsewhere_is_recalled_with_the_site_subs
         &p,
         &script(&[(0, 1_000), (1, 20_000)]),
     );
-    d.until(3_000);
+    d.until(4_500);
     assert_eq!(d.notices.len(), 1);
     let (_, _, anchor, site) = d.notices[0];
     assert_eq!(site, ServiceId(0));
     d.noticer.answered(anchor, hard(HardKind::Compound, 0));
     let layer = d.noticer.engram().unwrap();
     assert_eq!(layer.engrams().engrams().len(), 1);
-    assert_eq!(layer.engrams().engrams()[0].key.features().len(), 7);
+    assert_eq!(layer.engrams().engrams()[0].key.features().len(), 8);
+    assert_eq!(layer.engrams().engrams()[0].strength, 1.0);
+    // One answer is not a memory; a second agreeing one makes the strength 2.
+    d.noticer.answered(anchor, hard(HardKind::Compound, 0));
+    let s = d.noticer.engram().unwrap().engrams().engrams()[0].strength;
+    assert_eq!(s, 2.0);
     assert!(d.recalls.is_empty());
+    d.until(21_000);
+    assert!(
+        d.recalls.is_empty(),
+        "the recall waits for the late feature"
+    );
     d.until(25_000);
     let second = d.notices.iter().find(|n| n.3 == ServiceId(1)).unwrap();
     assert_eq!(
@@ -263,8 +286,10 @@ fn an_answer_binds_and_the_same_pattern_elsewhere_is_recalled_with_the_site_subs
     let stats = d.noticer.engram().unwrap().stats();
     assert_eq!(
         (stats.binds, stats.recalls, stats.recalls_matched),
-        (1, 1, 1)
+        (2, 1, 1)
     );
+    // Recalled once the late feature (at 23 s) had arrived.
+    assert_eq!(d.recalls[0].0, 23_500);
     carry::reset(9_001);
 }
 
@@ -277,9 +302,9 @@ fn a_site_keyed_engram_recalls_at_its_own_service_only() {
         &p,
         &script(&[(0, 1_000), (1, 20_000), (0, 40_000)]),
     );
-    d.until(3_000);
+    d.until(4_500);
     let (_, _, anchor, _) = d.notices[0];
-    d.noticer.answered(anchor, hard(HardKind::SplitBrain, 0));
+    answer_twice(&mut d, anchor, hard(HardKind::SplitBrain, 0));
     d.until(30_000);
     assert!(d.recalls.is_empty(), "not at another service");
     d.until(45_000);
@@ -296,9 +321,9 @@ fn without_bind_or_without_the_layer_nothing_is_recalled() {
     off.bind = false;
     for params in [with_engram(Some(off)), with_engram(None)] {
         let mut d = Drive::new(params, &p, &obs);
-        d.until(3_000);
+        d.until(4_500);
         let (_, _, anchor, _) = d.notices[0];
-        d.noticer.answered(anchor, hard(HardKind::Compound, 0));
+        answer_twice(&mut d, anchor, hard(HardKind::Compound, 0));
         d.until(25_000);
         assert!(d.recalls.is_empty());
         assert_eq!(d.notices.len(), 2);
@@ -320,27 +345,57 @@ fn an_answer_about_an_anomaly_no_longer_held_binds_nothing() {
 }
 
 #[test]
-fn engrams_carry_to_the_next_segment_under_their_key_and_not_without_carry() {
+fn family_engrams_carry_to_the_next_segment_and_site_keyed_ones_do_not_by_default() {
     let p = public();
-    for carry_on in [true, false] {
-        let mut cfg = engram(9_005, SiteMode::Family, ConfirmPolicy::Never);
+    // (site mode, carry, carry_site, carried)
+    let cases = [
+        (SiteMode::Family, true, false, true),
+        (SiteMode::Family, false, false, false),
+        (SiteMode::Site, true, false, false),
+        (SiteMode::Site, true, true, true),
+    ];
+    for (mode, carry_on, carry_site, carried) in cases {
+        let mut cfg = engram(9_005, mode, ConfirmPolicy::Never);
         cfg.carry = carry_on;
+        cfg.carry_site = carry_site;
         let mut first = Drive::new(with_engram(Some(cfg)), &p, &script(&[(0, 1_000)]));
-        first.until(3_000);
+        first.until(4_500);
         let (_, _, anchor, _) = first.notices[0];
-        first.noticer.answered(anchor, hard(HardKind::Cascade, 0));
-        // The next segment: a fresh noticer, the clock from 0 again.
-        let mut next = Drive::new(with_engram(Some(cfg)), &p, &script(&[(2, 5_000)]));
-        next.until(8_000);
-        if carry_on {
-            assert_eq!(next.recalls.len(), 1);
-            assert_eq!(next.recalls[0].1.diagnosis, hard(HardKind::Cascade, 2));
+        answer_twice(&mut first, anchor, hard(HardKind::Cascade, 0));
+        // The next segment: a fresh noticer, the clock from 0 again; the same service number in
+        // the site-keyed case, so that only the carry decides.
+        let site = if mode == SiteMode::Family { 2 } else { 0 };
+        let mut next = Drive::new(with_engram(Some(cfg)), &p, &script(&[(site, 5_000)]));
+        next.until(10_000);
+        if carried {
+            assert_eq!(next.recalls.len(), 1, "{mode:?}");
+            assert_eq!(next.recalls[0].1.diagnosis, hard(HardKind::Cascade, site));
             assert_eq!(next.noticer.engram().unwrap().recall_count(), 1);
         } else {
-            assert!(next.recalls.is_empty());
+            assert!(next.recalls.is_empty(), "{mode:?} carry {carry_on}");
         }
         carry::reset(9_005);
     }
+}
+
+#[test]
+fn an_answer_with_no_late_evidence_or_a_family_answer_elsewhere_is_not_bound() {
+    let p = public();
+    let early_only: Vec<(u64, Observation)> = burst(0, 1_000).into_iter().take(5).collect();
+    let cfg = engram(9_012, SiteMode::Family, ConfirmPolicy::Never);
+    let mut d = Drive::new(with_engram(Some(cfg)), &p, &early_only);
+    d.until(4_500);
+    let (_, _, anchor, _) = d.notices[0];
+    d.noticer.answered(anchor, hard(HardKind::Compound, 0));
+    let stats = *d.noticer.engram().unwrap().stats();
+    assert_eq!((stats.no_late, stats.binds), (1, 0));
+    let mut d = Drive::new(with_engram(Some(cfg)), &p, &script(&[(0, 1_000)]));
+    d.until(4_500);
+    let (_, _, anchor, _) = d.notices[0];
+    d.noticer.answered(anchor, hard(HardKind::Cascade, 3));
+    let stats = *d.noticer.engram().unwrap().stats();
+    assert_eq!((stats.elsewhere, stats.binds), (1, 0));
+    carry::reset(9_012);
 }
 
 #[test]
@@ -352,9 +407,9 @@ fn every_kth_recall_is_confirmed() {
         &p,
         &script(&[(0, 1_000), (1, 20_000), (2, 40_000), (3, 60_000)]),
     );
-    d.until(3_000);
+    d.until(4_500);
     let (_, _, anchor, _) = d.notices[0];
-    d.noticer.answered(anchor, hard(HardKind::Compound, 0));
+    answer_twice(&mut d, anchor, hard(HardKind::Compound, 0));
     d.until(65_000);
     let confirms: Vec<bool> = d.recalls.iter().map(|(_, r)| r.confirm).collect();
     assert_eq!(confirms, vec![false, true, false]);
@@ -370,21 +425,23 @@ fn a_contradicted_or_disputed_recall_is_confirmed_under_on_contradiction() {
         &p,
         &script(&[(0, 1_000), (0, 20_000), (1, 40_000)]),
     );
-    d.until(3_000);
+    d.until(4_500);
     let (_, _, a0, _) = d.notices[0];
-    d.noticer.answered(a0, hard(HardKind::Compound, 0));
-    d.noticer.answered(a0, hard(HardKind::Compound, 0)); // strength 2
-    d.until(23_000);
+    for _ in 0..4 {
+        d.noticer.answered(a0, hard(HardKind::Compound, 0)); // strength 4
+    }
+    d.until(25_000);
     // The same pattern at the same service is recalled (not confirmed: no contradiction yet)...
     assert_eq!(d.recalls.len(), 1);
     assert!(!d.recalls[0].1.confirm);
-    // ... and answered otherwise: the engram is contradicted (strength 1), a second engram is
-    // bound with the other outcome (strength 1).
+    // ... and answered otherwise, twice: the engram is contradicted twice (strength 2), and a
+    // second engram is bound with the other outcome (strength 2).
     let (_, _, a1, _) = *d.notices.last().unwrap();
-    d.noticer.answered(a1, hard(HardKind::Cascade, 0));
+    answer_twice(&mut d, a1, hard(HardKind::Cascade, 0));
     let engrams = d.noticer.engram().unwrap().engrams().engrams().to_vec();
     assert_eq!(engrams.len(), 2);
-    assert_eq!((engrams[0].strength, engrams[0].contradictions), (1.0, 1));
+    assert_eq!((engrams[0].strength, engrams[0].contradictions), (2.0, 2));
+    assert_eq!(engrams[1].strength, 2.0);
     d.until(45_000);
     // Both recall at service 1; the first (equal strength, lower id) is taken, and confirmed.
     assert_eq!(d.recalls.len(), 2);
@@ -412,7 +469,7 @@ fn the_layer_is_charged_its_ticks_and_its_plasticity_work() {
     // With bind on, the bind's cells and synapses are charged when it happens.
     let on = engram(9_008, SiteMode::Family, ConfirmPolicy::Never);
     let mut d = Drive::new(with_engram(Some(on)), &p, &obs);
-    d.until(3_000);
+    d.until(4_500);
     d.noticer.take_cost();
     let (_, _, anchor, _) = d.notices[0];
     d.noticer.answered(anchor, hard(HardKind::Compound, 0));
@@ -470,14 +527,15 @@ struct ArmDrive {
 }
 
 impl ArmDrive {
-    fn new(engram: Option<EngramConfig>) -> Self {
+    /// `always_escalate` with `delay_ns` after notice, over the medium with `engram`.
+    fn new(engram: Option<EngramConfig>, delay_ns: u64) -> Self {
         let p = params(0, 150);
         let public = public_of(&p);
         let rung = RungConfig {
             noticer: NoticerSpec::Medium(with_engram(engram)),
             ..RungConfig::default()
         };
-        let spec = StreamPolicySpec::from_id("always_escalate").unwrap();
+        let spec = StreamPolicySpec::Always { delay_ns };
         let arm = build_public(&spec, &rung, &public, "always_escalate", 0).unwrap();
         let ids = gordian_run::stream::arms::rung::cheap_component_ids();
         Self {
@@ -574,30 +632,34 @@ fn escalated_focus(actions: &[(u64, Source, StreamAction)]) -> Vec<ObsId> {
         .collect()
 }
 
+/// The escalations about the second burst (observations 6 and later).
+fn asked_about_second(actions: &[(u64, Source, StreamAction)]) -> Vec<ObsId> {
+    escalated_focus(actions)
+        .into_iter()
+        .filter(|o| o.0 >= 6)
+        .collect()
+}
+
 #[test]
 fn a_recall_is_declared_with_no_escalation_and_the_control_escalates() {
     let b0 = burst(0, 1_000);
     let b1 = burst(1, 20_000);
     for with in [true, false] {
         let cfg = engram(9_010, SiteMode::Family, ConfirmPolicy::Never);
-        let mut d = ArmDrive::new(with.then_some(cfg));
-        let first = d.play(&b0, 0, 4_000);
-        let asked = escalated_focus(&first);
-        assert_eq!(
-            asked,
-            vec![ObsId(0)],
-            "always_escalate asks about the first burst"
-        );
-        // The answer arrives: declared as the reasoner's, and bound.
+        // The rule asks 5 s after notice: after the second burst's late evidence (3 s).
+        let mut d = ArmDrive::new(with.then_some(cfg), 5_000 * MS);
+        d.play(&b0, 0, 4_000);
+        // Two answers about the first burst arrive (two calls agreeing: the strength a recall
+        // needs); the first is declared as the reasoner's and both are bound.
         let answer = Answer {
             focus: ObsId(0),
             diagnosis: hard(HardKind::Compound, 0),
         };
-        let declared = d.step(4_500, &[], &[answer]);
+        let declared = d.step(4_500, &[], &[answer, answer]);
         assert!(declared.iter().any(|(s, a)| *s == Source::Reasoner
             && matches!(a, StreamAction::Declare { diagnosis, .. } if *diagnosis == answer.diagnosis)));
         let second = d.play(&b1, 5_000, 30_000);
-        let asked = escalated_focus(&second);
+        let asked = asked_about_second(&second);
         let recalled: Vec<&(u64, Source, StreamAction)> = second
             .iter()
             .filter(|(_, s, _)| *s == Source::Recall)
@@ -608,14 +670,19 @@ fn a_recall_is_declared_with_no_escalation_and_the_control_escalates() {
                 "a recalled anomaly is never escalated: {asked:?}"
             );
             assert_eq!(recalled.len(), 1);
-            let (_, _, StreamAction::Declare { anchor, diagnosis }) = recalled[0] else {
+            let (at, _, StreamAction::Declare { anchor, diagnosis }) = recalled[0] else {
                 panic!("a recall is a declaration");
             };
             assert_eq!(*diagnosis, hard(HardKind::Compound, 1));
-            assert!(anchor.0 >= 5, "anchored in the second burst");
+            assert!(anchor.0 >= 6, "anchored in the second burst");
+            assert_eq!(
+                *at, 23_500,
+                "after the late evidence, before the rule's 25.5 s"
+            );
             // The shared rule never declares for it after the recall.
-            assert!(!second.iter().any(|(_, s, a)| *s == Source::CheapRung
-                && matches!(a, StreamAction::Declare { anchor: x, .. } if x.0 >= 5)));
+            assert!(!second.iter().any(|(t, s, a)| *s == Source::CheapRung
+                && *t >= 23_500
+                && matches!(a, StreamAction::Declare { anchor: x, .. } if x.0 >= 6)));
         } else {
             assert_eq!(asked.len(), 1, "the control asks about the second burst");
             assert!(recalled.is_empty());
@@ -625,27 +692,47 @@ fn a_recall_is_declared_with_no_escalation_and_the_control_escalates() {
 }
 
 #[test]
-fn a_confirmed_recall_is_asked_about_and_not_declared() {
-    let cfg = engram(9_011, SiteMode::Family, ConfirmPolicy::Every { k: 1 });
-    let mut d = ArmDrive::new(Some(cfg));
+fn a_rule_that_asks_at_notice_is_not_preempted_by_a_recall_that_waits_for_late_evidence() {
+    let cfg = engram(9_013, SiteMode::Family, ConfirmPolicy::Never);
+    let mut d = ArmDrive::new(Some(cfg), 0);
     d.play(&burst(0, 1_000), 0, 4_000);
     let answer = Answer {
         focus: ObsId(0),
         diagnosis: hard(HardKind::Compound, 0),
     };
-    d.step(4_500, &[], &[answer]);
+    d.step(4_500, &[], &[answer, answer]);
+    let second = d.play(&burst(1, 20_000), 5_000, 30_000);
+    // Asked at notice, before the late evidence: the recall comes after the question and the
+    // arm drops it (an anomaly already asked about is not recalled).
+    assert_eq!(asked_about_second(&second).len(), 1);
+    assert!(second.iter().all(|(_, s, _)| *s != Source::Recall));
+    carry::reset(9_013);
+}
+
+#[test]
+fn a_confirmed_recall_is_asked_about_and_not_declared() {
+    let cfg = engram(9_011, SiteMode::Family, ConfirmPolicy::Every { k: 1 });
+    let mut d = ArmDrive::new(Some(cfg), 5_000 * MS);
+    d.play(&burst(0, 1_000), 0, 4_000);
+    let answer = Answer {
+        focus: ObsId(0),
+        diagnosis: hard(HardKind::Compound, 0),
+    };
+    d.step(4_500, &[], &[answer, answer]);
     let second = d.play(&burst(1, 20_000), 5_000, 30_000);
     assert!(second.iter().all(|(_, s, _)| *s != Source::Recall));
-    let asked = escalated_focus(&second);
-    assert_eq!(asked.len(), 1);
-    // Asked at the step the recall was made, which is the step of the notice: the rule's own
-    // escalation would have come at the same step (always_escalate has no delay), so the
-    // question is the same one, asked once.
-    let contexts = second
+    // Asked once, at the recall (23.5 s), not at the rule's 25.5 s.
+    let asked: Vec<u64> = second
         .iter()
-        .filter(|(_, _, a)| matches!(a, StreamAction::Escalate { .. }))
-        .count();
-    assert_eq!(contexts, 1);
+        .filter_map(|(t, _, a)| match a {
+            StreamAction::Escalate {
+                question: Question::Diagnose { focus },
+                ..
+            } if focus.0 >= 6 => Some(*t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(asked, vec![23_500]);
     let _ = ObsRef::Passive(ObsId(0));
     carry::reset(9_011);
 }
