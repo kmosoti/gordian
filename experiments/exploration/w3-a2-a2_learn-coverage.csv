@@ -1,0 +1,7 @@
+arm,seeds,side,group,true_partner_alarms,lead_within_10s,plus_predicting_alarm_counted,lost_site_alarm_explained_by_an_upstream_burst,lost_site_alarm_not_a_first_alarm,plus_partner_quiet_trial_licensed,edge_held_at_some_read_of_the_stream,covered,covered_loose,coverage_of_all,coverage_of_lead_within_10s,coverage_of_trial_openable,coverage_of_trial_licensed,median_lead_true_s,median_lead_of_covered_s
+a2_learn,10000-10019,hidden joined to public,all true partner alarms,29,25,17,4,4,10,5,0,0,0.000,0.000,0.000,0.000,0.043,
+a2_learn,10000-10019,hidden joined to public,added_edge plain,17,17,11,3,3,7,3,0,0,0.000,0.000,0.000,0.000,0.016,
+a2_learn,10000-10019,hidden joined to public,cascade decoy contradict,3,3,1,1,1,0,1,0,0,0.000,0.000,0.000,,0.070,
+a2_learn,10000-10019,hidden joined to public,cascade hard contradict,4,4,4,0,0,3,1,0,0,0.000,0.000,0.000,0.000,0.058,
+a2_learn,10000-10019,hidden joined to public,cascade hard mimic,5,1,1,0,0,0,0,0,0,0.000,0.000,0.000,,12.636,
+a2_learn,10000-10019,hidden joined to public,hard cascades and added-edge (no decoys),26,22,16,3,3,10,4,0,0,0.000,0.000,0.000,0.000,0.033,

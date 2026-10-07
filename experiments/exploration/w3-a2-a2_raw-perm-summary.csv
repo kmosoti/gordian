@@ -1,0 +1,2 @@
+arm,seeds,predictions,permutations,uniform_true_edge_precision_mean,uniform_true_edge_precision_p05,uniform_true_edge_precision_p95,uniform_followed_mean,uniform_followed_p05,uniform_followed_p95,observed_true_edge,observed_followed_hidden,p_true_edge_ge_observed_uniform,p_followed_ge_observed_uniform
+a2_raw,10000-10019,775,2000,0.0669,0.0581,0.0762,0.2284,0.2116,0.2452,49,173,0.775,0.707

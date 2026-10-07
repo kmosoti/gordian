@@ -1,0 +1,16 @@
+arm,seeds,side,group,predictions,on_true_edge_pair,precision_pair,pair_lo90,pair_hi90,chance_pair_expected,event_hits,event_hit_share,followed_hidden,followed_share,followed_lo90,followed_hi90,followed_public,chance_followed_expected,lead_from_alarm_median_s,lead_from_made_median_s,permutation_p_true_edge_uniform,mc_true_edge_mean
+a2_raw,10000-10019,hidden joined to public,all predictions,775,49,0.063,0.034,0.095,0.067,0,0.000,173,0.223,0.196,0.253,173,0.228,0.695,0.416,0.775,0.0669
+a2_raw,10000-10019,hidden joined to public,band 0.4 s,181,18,0.099,0.032,0.183,0.090,0,0.000,10,0.055,0.040,0.073,10,0.064,0.128,-0.025,,
+a2_raw,10000-10019,hidden joined to public,band 2 s,582,31,0.053,0.033,0.075,0.061,0,0.000,153,0.263,0.229,0.297,153,0.268,0.695,0.417,,
+a2_raw,10000-10019,hidden joined to public,band 10 s,12,0,0.000,0.000,0.000,0.000,0,0.000,10,0.833,0.500,0.944,10,0.799,1.403,1.039,,
+a2_raw,10000-10019,hidden joined to public,pair relation cascade,23,23,1.000,1.000,1.000,,0,0.000,2,0.087,0.000,0.161,2,,0.181,-0.141,,
+a2_raw,10000-10019,hidden joined to public,pair relation added_edge,26,26,1.000,1.000,1.000,,0,0.000,3,0.115,0.000,0.214,3,,1.356,1.014,,
+a2_raw,10000-10019,hidden joined to public,pair relation cascade_rev,18,0,0.000,0.000,0.000,,0,0.000,2,0.111,0.000,0.214,2,,0.139,-0.113,,
+a2_raw,10000-10019,hidden joined to public,pair relation added_edge_rev,10,0,0.000,0.000,0.000,,0,0.000,1,0.100,0.000,0.143,1,,0.196,-0.140,,
+a2_raw,10000-10019,hidden joined to public,pair relation peer,41,0,0.000,0.000,0.000,,0,0.000,13,0.317,0.120,0.538,13,,1.561,1.076,,
+a2_raw,10000-10019,hidden joined to public,pair relation none,657,0,0.000,0.000,0.000,,0,0.000,152,0.231,0.204,0.261,152,,0.662,0.397,,
+a2_raw,10000-10019,hidden joined to public,first 10 streams,384,21,0.055,0.018,0.094,0.059,0,0.000,84,0.219,0.181,0.263,84,0.230,0.614,0.296,,
+a2_raw,10000-10019,hidden joined to public,last 10 streams,391,28,0.072,0.028,0.123,0.074,0,0.000,89,0.228,0.189,0.272,89,0.227,0.817,0.558,,
+a2_raw,10000-10019,hidden joined to public,alarm at 0-200 s,164,2,0.012,0.000,0.028,0.023,0,0.000,37,0.226,0.160,0.295,37,0.250,0.651,0.472,,
+a2_raw,10000-10019,hidden joined to public,alarm at 200-400 s,331,11,0.033,0.008,0.058,0.033,0,0.000,77,0.233,0.186,0.289,77,0.221,0.644,0.328,,
+a2_raw,10000-10019,hidden joined to public,alarm at 400-601 s,280,36,0.129,0.060,0.216,0.132,0,0.000,59,0.211,0.160,0.256,59,0.225,0.816,0.417,,

@@ -286,11 +286,11 @@ def precision_rows(sc: pd.DataFrame, mc: dict, label: str, seeds_label: str) -> 
         eh = d["event_hit"].sum()
         row = {"arm": label, "seeds": seeds_label, "side": "hidden joined to public", "group": group, "predictions": n,
                "on_true_edge_pair": int(d["true_edge"].sum()), "precision_pair": pct(te), "pair_lo90": pct(tlo), "pair_hi90": pct(thi),
-               "chance_pair_expected": pct(d["chance_true_edge"].mean()),
+               "chance_pair_expected": "" if group.startswith("pair relation") else pct(d["chance_true_edge"].mean()),
                "event_hits": int(eh), "event_hit_share": pct(eh / n),
                "followed_hidden": int(d["followed_hidden"].sum()), "followed_share": pct(fp), "followed_lo90": pct(flo), "followed_hi90": pct(fhi),
                "followed_public": int((d["followed_public"] == 1).sum()),
-               "chance_followed_expected": pct(d["chance_followed"].mean())}
+               "chance_followed_expected": "" if group.startswith("pair relation") else pct(d["chance_followed"].mean())}
         lf = d.loc[d["followed_hidden"], "lead_from_alarm_ns"] / NS
         lm = d.loc[d["followed_hidden"], "lead_from_made_ns"] / NS
         row.update({"lead_from_alarm_median_s": pct(lf.median()) if len(lf) else "", "lead_from_made_median_s": pct(lm.median()) if len(lm) else ""})
@@ -376,6 +376,10 @@ def coverage(ev: pd.DataFrame, pred: pd.DataFrame, sc: pd.DataFrame, fa: pd.Data
                             & (H.alarms["at_ns"] < e.t_b)]
         counted_here = [int(o) for o in alarms_a["obs"] if counted.get((seed, int(o)), 0) == 1] if fa is not None else None
         trial_open = (len(counted_here) > 0) if fa is not None else None
+        status = ""
+        if fa is not None:
+            rows_fa = [counted[(seed, int(o))] for o in alarms_a["obs"] if (seed, int(o)) in counted]
+            status = "counted" if counted_here else ("explained by an upstream burst" if rows_fa else "not a first alarm")
         quiet = None
         if trial_open:
             ts = [int(alarms_a.loc[alarms_a["obs"] == o, "at_ns"].iloc[0]) for o in counted_here]
@@ -393,7 +397,7 @@ def coverage(ev: pd.DataFrame, pred: pd.DataFrame, sc: pd.DataFrame, fa: pd.Data
                     for p, _ in preds_by.get((seed, a), []))
         held_ever = any((seed, a, t) in held_pair for t in tgt) if edges is not None else None
         rows.append({"seed": e.seed, "incident": e.incident, "kind": e.kind, "a": a, "b": e.b, "lead_true_s": e.lead_true_ns / NS,
-                     "coverable_by_a_band": coverable, "trial_openable_counted_alarm": trial_open, "partner_quiet": quiet,
+                     "coverable_by_a_band": coverable, "trial_openable_counted_alarm": trial_open, "site_alarm_status": status, "partner_quiet": quiet,
                      "edge_held_ever_in_stream": held_ever, "covered": covered, "covered_loose": loose,
                      "lead_pred_s": lead_pred, "t_a": e.t_a})
     return pd.DataFrame(rows)
@@ -418,6 +422,8 @@ def coverage_rows(cv: pd.DataFrame, label: str, seeds_label: str) -> list[dict]:
                      "true_partner_alarms": n,
                      "lead_within_10s": len(f1),
                      "plus_predicting_alarm_counted": len(f2) if have_fa else "",
+                     "lost_site_alarm_explained_by_an_upstream_burst": int((f1["site_alarm_status"] == "explained by an upstream burst").sum()) if have_fa else "",
+                     "lost_site_alarm_not_a_first_alarm": int((f1["site_alarm_status"] == "not a first alarm").sum()) if have_fa else "",
                      "plus_partner_quiet_trial_licensed": len(f3) if have_fa else "",
                      "edge_held_at_some_read_of_the_stream": int((d["edge_held_ever_in_stream"] == True).sum()) if d["edge_held_ever_in_stream"].notna().any() else "",  # noqa: E712
                      "covered": int(d["covered"].sum()), "covered_loose": int(d["covered_loose"].sum()),
@@ -460,7 +466,7 @@ def run(pred_path, hidden, fa_path=None, edges_path=None, arm="a2", perms=2000):
     fa = pd.read_csv(fa_path) if fa_path else None
     edges = pd.read_csv(edges_path) if edges_path else None
     ev = true_partner_events(H)
-    ev = ev[ev["seed"].isin(pred["seed"].unique())]
+    ev = ev[ev["seed"].isin(H.alarms["seed"].unique())]  # every stream of the smoke, whether or not the arm predicted in it
     cv = coverage(ev, pred, sc, fa, edges, H)
     out = {"predictions_scored": sc, "precision": pd.DataFrame(precision_rows(sc, mc, arm, seeds_label)),
            "coverage": pd.DataFrame(coverage_rows(cv, arm, seeds_label)), "coverage_events": cv, "mc": mc}

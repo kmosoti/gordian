@@ -84,7 +84,7 @@ class ScoreTest(unittest.TestCase):
         root = pathlib.Path(cls.tmp.name)
         build(root)
         preds().to_csv(root / "pred.csv", index=False)
-        pd.DataFrame([(1, int(t * NS), s, o, c) for t, s, o, c in [(10.0, 0, 100, 1), (200.0, 1, 300, 0), (320.0, 2, 200, 1), (450.0, 3, 400, 1)]],
+        pd.DataFrame([(1, int(t * NS), s, o, c) for t, s, o, c in [(10.0, 0, 100, 1), (200.0, 1, 300, 0), (320.0, 2, 200, 1)]],
                      columns=["seed", "at_ns", "service", "obs", "counted"]).to_csv(root / "fa.csv", index=False)
         pd.DataFrame([(1, 0, 2, 0, 10 * NS), (1, 2, 4, 1, 320 * NS)], columns=["seed", "a", "b", "band", "first_held_at_ns"]).to_csv(root / "edges.csv", index=False)
         cls.out = S.run(root / "pred.csv", root, root / "fa.csv", root / "edges.csv", "toy", perms=400)
@@ -145,12 +145,14 @@ class ScoreTest(unittest.TestCase):
         self.assertTrue(cv.loc[0, "covered"] and cv.loc[3, "covered"])
         self.assertFalse(cv.loc[1, "covered"] or cv.loc[4, "covered"])
         self.assertFalse(cv.loc[4, "coverable_by_a_band"])
+        self.assertEqual(list(cv.loc[[0, 1, 3, 4], "site_alarm_status"]), ["counted", "explained by an upstream burst", "counted", "not a first alarm"])
         self.assertTrue(cv.loc[1, "coverable_by_a_band"] and not cv.loc[1, "trial_openable_counted_alarm"])
         row = self.out["coverage"].set_index("group").loc["all true partner alarms"]
         self.assertEqual((row["true_partner_alarms"], row["lead_within_10s"], row["plus_predicting_alarm_counted"],
                           row["plus_partner_quiet_trial_licensed"], row["covered"]), (4, 3, 2, 2, 2))
         self.assertAlmostEqual(float(row["coverage_of_all"]), 0.5)
         self.assertAlmostEqual(float(row["coverage_of_trial_openable"]), 1.0)
+        self.assertEqual((row["lost_site_alarm_explained_by_an_upstream_burst"], row["lost_site_alarm_not_a_first_alarm"]), (1, 0))
 
     def test_edges(self):
         e = self.out["edges"].set_index("group").loc["all learned edges (seed, a, b, band)"]

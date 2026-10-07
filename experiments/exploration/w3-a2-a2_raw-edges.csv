@@ -1,0 +1,5 @@
+arm,seeds,side,group,edges,on_true_edge_pair,precision,lo90,hi90,chance_expected,relation_cascade,relation_added_edge,relation_cascade_rev,relation_added_edge_rev,relation_peer,relation_none
+a2_raw,10000-10019,hidden joined to public,"all learned edges (seed, a, b, band)",302,14,0.046,0.028,0.067,0.056,8,6,11,5,13,259
+a2_raw,10000-10019,hidden joined to public,band index 0,87,5,0.057,0.023,0.099,0.073,2,3,6,2,3,71
+a2_raw,10000-10019,hidden joined to public,band index 1,207,9,0.043,0.028,0.060,0.051,6,3,5,3,9,181
+a2_raw,10000-10019,hidden joined to public,band index 2,8,0,0.000,0.000,0.000,0.000,0,0,0,0,1,7

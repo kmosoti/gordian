@@ -22,9 +22,7 @@ use gordian_core::Instant;
 use gordian_stream::oracle::{ObsLabel, StreamTruth};
 use gordian_stream::{ObsId, Stream};
 use gordian_world::graph::dependents_mask;
-use gordian_world::physics::{
-    CATALOGUE_LIMIT, HIGH, SignalText, consistent_hypotheses, signature,
-};
+use gordian_world::physics::{CATALOGUE_LIMIT, HIGH, SignalText, consistent_hypotheses, signature};
 use gordian_world::{Observation, Service, ServiceId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -96,10 +94,7 @@ fn counter_name(obs: &Observation) -> Option<String> {
 
 /// The verdict of the public checker on `ev`: `C` for no consistent hypothesis, else the sorted
 /// distinct kinds left open (`-` for "no fault").
-fn verdict(
-    public: &gordian_world::episode::PublicInfo,
-    ev: &[(Instant, Observation)],
-) -> String {
+fn verdict(public: &gordian_world::episode::PublicInfo, ev: &[(Instant, Observation)]) -> String {
     let open = consistent_hypotheses(public, ev);
     if open.is_empty() {
         return "C".to_string();
@@ -124,10 +119,7 @@ struct Abn {
 
 /// First prefix of `abn` (in order) whose evidence the checker finds contradictory, as the instant
 /// of the observation that completed it.
-fn gate_of(
-    public: &gordian_world::episode::PublicInfo,
-    abn: &[&Abn],
-) -> Option<u64> {
+fn gate_of(public: &gordian_world::episode::PublicInfo, abn: &[&Abn]) -> Option<u64> {
     let mut ev: Vec<(Instant, Observation)> = Vec::new();
     for a in abn {
         ev.push((Instant(a.at), a.obs.clone()));
@@ -247,10 +239,7 @@ pub fn emit(
         )
         .unwrap();
         // Every tier is described the same way; the tier is joined from incidents.csv.
-        let mut cuts: Vec<(String, u64)> = CUTS_S
-            .iter()
-            .map(|c| (c.to_string(), c * S))
-            .collect();
+        let mut cuts: Vec<(String, u64)> = CUTS_S.iter().map(|c| (c.to_string(), c * S)).collect();
         if let Some(g) = gate_att {
             cuts.push(("snap".to_string(), g - t0 + SETTLE_NS));
         }
@@ -309,7 +298,11 @@ pub fn emit(
                     if !unconnected {
                         continue;
                     }
-                    let pf = abn_c.iter().find(|a| a.service == pid).map(|a| a.at).unwrap();
+                    let pf = abn_c
+                        .iter()
+                        .find(|a| a.service == pid)
+                        .map(|a| a.at)
+                        .unwrap();
                     let gap = pf as i64 - sf as i64;
                     if gap.unsigned_abs() > 10 * S {
                         continue;
@@ -358,9 +351,7 @@ pub fn emit(
                 if *at > end {
                     break;
                 }
-                if let Observation::Counter {
-                    service, value, ..
-                } = ob
+                if let Observation::Counter { service, value, .. } = ob
                     && *service == site
                 {
                     if *value < HIGH {

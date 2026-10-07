@@ -25,6 +25,10 @@ a-tune,10000-10099,hidden,incident-labelled observations per stream,1551.1,1503.
 a-tune,10000-10099,hidden,free-form messages per stream,910.0,905.3,914.7
 a-tune,10000-10099,hidden,critical share of hard incidents,0.2922,0.2372,0.3459
 a-tune,10000-10099,hidden,critical share of plain incidents,0.1664,0.1485,0.1855
+a-tune,10000-10099,hidden,hard cascades per stream (a hidden partner),0.6300,0.4700,0.8000
+a-tune,10000-10099,hidden,decoy cascades per stream (partner alarms in phase 1 when they contradict early),0.5900,0.4400,0.7500
+a-tune,10000-10099,hidden,"incidents altered by the added edge, per stream",0.9900,0.8300,1.1500
+a-tune,10000-10099,hidden,"incidents exposed to the added edge (a service newly downstream of their site), per stream",1.0900,0.9200,1.2700
 a-tune,10000-10099,hidden,"arrivals with an eligible template, per stream",21.5500,20.7500,22.3300
 a-tune,10000-10099,hidden,share of hard incidents after the last regime change,0.2634,0.2227,0.3041
 a-heldout,40000-40199,hidden,incidents per stream,26.7200,26.1550,27.2800
@@ -53,6 +57,10 @@ a-heldout,40000-40199,hidden,incident-labelled observations per stream,1579.1,15
 a-heldout,40000-40199,hidden,free-form messages per stream,909.1,905.8,912.5
 a-heldout,40000-40199,hidden,critical share of hard incidents,0.3262,0.2863,0.3675
 a-heldout,40000-40199,hidden,critical share of plain incidents,0.1578,0.1458,0.1697
+a-heldout,40000-40199,hidden,hard cascades per stream (a hidden partner),0.6600,0.5600,0.7600
+a-heldout,40000-40199,hidden,decoy cascades per stream (partner alarms in phase 1 when they contradict early),0.5450,0.4450,0.6550
+a-heldout,40000-40199,hidden,"incidents altered by the added edge, per stream",0.9700,0.8700,1.0700
+a-heldout,40000-40199,hidden,"incidents exposed to the added edge (a service newly downstream of their site), per stream",1.0900,0.9850,1.2000
 a-heldout,40000-40199,hidden,"arrivals with an eligible template, per stream",21.7550,21.2350,22.2700
 a-heldout,40000-40199,hidden,share of hard incidents after the last regime change,0.2461,0.2179,0.2744
 c-tune,60000-60099,hidden,incidents per stream,25.8100,24.9000,26.6900
@@ -81,6 +89,10 @@ c-tune,60000-60099,hidden,incident-labelled observations per stream,1596.4,1537.
 c-tune,60000-60099,hidden,free-form messages per stream,934.5,928.8,940.1
 c-tune,60000-60099,hidden,critical share of hard incidents,0.3155,0.2817,0.3508
 c-tune,60000-60099,hidden,critical share of plain incidents,0.1580,0.1400,0.1761
+c-tune,60000-60099,hidden,hard cascades per stream (a hidden partner),1.5200,1.3100,1.7400
+c-tune,60000-60099,hidden,decoy cascades per stream (partner alarms in phase 1 when they contradict early),0.6000,0.4700,0.7500
+c-tune,60000-60099,hidden,"incidents altered by the added edge, per stream",1.1700,1.0000,1.3500
+c-tune,60000-60099,hidden,"incidents exposed to the added edge (a service newly downstream of their site), per stream",1.3800,1.1700,1.6100
 c-tune,60000-60099,hidden,"arrivals with an eligible template, per stream",20.8500,20.0700,21.6200
 c-tune,60000-60099,hidden,share of hard incidents after the last regime change,0.2519,0.2264,0.2779
 c-heldout,70000-70199,hidden,incidents per stream,26.7050,26.1300,27.2700
@@ -109,5 +121,9 @@ c-heldout,70000-70199,hidden,incident-labelled observations per stream,1645.3,16
 c-heldout,70000-70199,hidden,free-form messages per stream,929.8,926.3,933.3
 c-heldout,70000-70199,hidden,critical share of hard incidents,0.3186,0.2949,0.3426
 c-heldout,70000-70199,hidden,critical share of plain incidents,0.1518,0.1388,0.1649
+c-heldout,70000-70199,hidden,hard cascades per stream (a hidden partner),1.3950,1.2400,1.5500
+c-heldout,70000-70199,hidden,decoy cascades per stream (partner alarms in phase 1 when they contradict early),0.5850,0.4850,0.6850
+c-heldout,70000-70199,hidden,"incidents altered by the added edge, per stream",0.9550,0.8550,1.0600
+c-heldout,70000-70199,hidden,"incidents exposed to the added edge (a service newly downstream of their site), per stream",1.1350,1.0250,1.2450
 c-heldout,70000-70199,hidden,"arrivals with an eligible template, per stream",21.3800,20.8650,21.9000
 c-heldout,70000-70199,hidden,share of hard incidents after the last regime change,0.2731,0.2546,0.2917

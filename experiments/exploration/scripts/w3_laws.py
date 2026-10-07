@@ -101,6 +101,13 @@ def world_compare(name: str, t: dict) -> list[dict]:
     add("critical share of hard incidents", per_stream(inc, h & (inc["critical"] == 1), seeds), per_stream(inc, h, seeds))
     add("critical share of plain incidents", per_stream(inc, (inc["tier"] == "plain") & (inc["critical"] == 1), seeds),
         per_stream(inc, inc["tier"] == "plain", seeds))
+    # What A2 can learn from: the incidents that carry a hidden edge.
+    casc = (inc["family"] == "cascade") & (inc["tier"] == "hard")
+    add("hard cascades per stream (a hidden partner)", per_stream(inc, casc, seeds))
+    add("decoy cascades per stream (partner alarms in phase 1 when they contradict early)",
+        per_stream(inc, (inc["family"] == "cascade") & (inc["tier"] == "decoy"), seeds))
+    add("incidents altered by the added edge, per stream", per_stream(inc, inc["edge_altered"] == 1, seeds))
+    add("incidents exposed to the added edge (a service newly downstream of their site), per stream", per_stream(inc, inc["edge_exposed"] == 1, seeds))
     # The generator's own tier mix is per arrival; the first incident has no template to repeat.
     elig = inc["eligible_templates"] > 0
     add("arrivals with an eligible template, per stream", per_stream(inc, elig, seeds))

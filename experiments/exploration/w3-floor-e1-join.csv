@@ -1,0 +1,13 @@
+arm,seeds,side,form,level,reset,e1_recalls,e1_recalls_on_incidents_with_my_snapshot,e1_by_tier_plain/hard/decoy,floor_recalls_answered,floor_by_tier_plain/hard/decoy,in_both,e1_only,floor_only,e1_same_stream_recalls_with_both_keys,of_which_hidden_keys_of_source_and_target_equal
+sel_rec_site_kinds_never_reset_privileged,40000-40199,run vs hidden,site,kinds,True,15,11,2/12/1,26,2/23/1,11,4,15,11,11
+sel_rec_site_kinds_never_carry_sens_privileged,40000-40199,run vs hidden,site,kinds,False,468,110,282/95/91,197,29/101/67,96,372,101,6,6
+sel_rec_site_bands_never_reset_sens_privileged,40000-40199,run vs hidden,site,bands,True,9,6,2/7/0,17,2/15/0,6,3,11,6,6
+sel_rec_site_bands_never_carry_sens_privileged,40000-40199,run vs hidden,site,bands,False,336,99,189/75/72,168,27/84/57,84,252,84,4,4
+sel_rec_site_timing_never_reset_sens_privileged,40000-40199,run vs hidden,site,timing,True,5,5,0/5/0,15,2/13/0,5,0,10,5,5
+sel_rec_site_timing_never_carry_privileged,40000-40199,run vs hidden,site,timing,False,107,49,45/32/30,136,27/62/47,45,62,91,4,4
+sel_rec_family_kinds_never_reset_sens_privileged,40000-40199,run vs hidden,family,kinds,True,46,23,28/15/3,55,16/32/7,20,26,35,23,22
+sel_rec_family_kinds_never_carry_sens_privileged,40000-40199,run vs hidden,family,kinds,False,1788,278,1339/230/219,392,131/154/107,260,1528,132,7,7
+sel_rec_family_bands_never_reset_sens_privileged,40000-40199,run vs hidden,family,bands,True,31,15,22/9/0,42,16/23/3,12,19,30,15,14
+sel_rec_family_bands_never_carry_sens_privileged,40000-40199,run vs hidden,family,bands,False,1373,253,978/198/197,359,125/140/94,229,1144,130,5,5
+sel_rec_family_timing_never_reset_privileged,40000-40199,run vs hidden,family,timing,True,12,9,6/6/0,34,16/17/1,7,5,27,9,8
+sel_rec_family_timing_never_carry_privileged,40000-40199,run vs hidden,family,timing,False,625,175,372/128/125,344,125/126/93,167,458,177,5,4

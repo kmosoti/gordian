@@ -67,7 +67,9 @@ mod real {
     use std::process::ExitCode;
 
     fn usage() -> ExitCode {
-        eprintln!("usage: laws [--seed-from N] [--count K] [--world a|b|c] --out-dir DIR [--owners] [--floor] [--alarms]");
+        eprintln!(
+            "usage: laws [--seed-from N] [--count K] [--world a|b|c] --out-dir DIR [--owners] [--floor] [--alarms]"
+        );
         ExitCode::from(2)
     }
 
