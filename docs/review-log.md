@@ -4,6 +4,72 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## C1 the incremental-dataflow noticer — merged (Lab 2); exact reproduction, and the medium is not the cheap one
+
+**Provenance.** The engine choice was recorded before any code: a hand-written incremental
+relational core (206 code lines; ordered tables with counted probes, writes and scans; no
+dependency, hash, thread or clock) rather than timely/differential dataflow, whose operators
+cannot be counted from outside and which were not in the lockfile or registry cache; the unit
+therefore measures this engine and makes no claim about those libraries. Reproduction checked
+three ways: per-call differential tests against the hand-written noticers on the 100 tuning and
+200 held-out streams (10,828 notices, 10,737 retirements, no difference), eight base/ramp/split
+combinations and 240 randomized scenarios; and the harness's own files. The chief recomputed
+from the kept held-out directory: the dataflow arm's `notice_incidents.csv` equals the B3 row's,
+the notice files differ only in the noticer's id label, `results.csv` only in the bill, and
+`incidents.csv` only in two clock columns by microseconds, because charging the noticer advances
+the logical clock within a step; the unbilled control is identical to B3 in every result file.
+Byte identity 62 of 62 (chief's hashes). 22 hand mutants caught after six boundary unit tests
+were added; cargo-mutants not run. Gates under the runner on the merged tree: fmt, clippy
+`--locked`, 851 Rust tests, the oracle guard, 450 analysis tests. The benchmark ran three times
+under the cgroup. Outputs in `artifacts/runs/c1/` (ignored).
+
+**Verdict as written: C1 passes** (exact reproduction, cost reported with calibrated prices).
+
+**What it means (structure, environment, objective).**
+
+- **The public rules are folds, not joins.** Attach reads the anomalies as the last observation
+  left them; chain ties break by arrival order; a moved anchor resets a burst timestamp a
+  rebuild would not. Reproducing them exactly on relations meant writing each quirk down as a
+  reading and keeping the step's evaluation order; the engine contributed nothing to that. What
+  it made easier is index upkeep (four projections maintained in one place) and counting.
+- **Per stream, in wall time on the same streams: hand-written rules 1.95 ms, dataflow 5.6 ms,
+  medium 10.5 ms.** The medium's own operations are 16 cell updates per observation, nearly all
+  its bill; its ticks are 7%. The dataflow noticer's 46 counted operations per observation are
+  mostly clock-driven scans of score windows and live anomalies, which an expiry-driven engine
+  would make incremental. **On this world and at this scale the medium's sparsity buys no wall
+  time over either alternative**; its larger operation count comes from the graph's redundancy,
+  not from the substrate. None of this is the reasoner bill, which dominates every arm by three
+  orders of magnitude.
+- **Prices are a judgement within the band, not a fit.** The isolating workloads price only
+  part of the program's time (7–9 ns per operation against 11–13 in program workloads), the
+  fire operation is inlined away, and in situ the noticer runs at 2.0× its model. The medium's
+  in-situ ratio is 0.6–0.7. Only the wall columns compare like with like, and the lab said so.
+- **Billing changes the clock.** Any billed noticer advances the logical instant by its charge
+  within a step; on this run it moved `first_correct_at_ns` by 0.7–30 µs on every row and
+  changed no notice and no result. A declaration landing within microseconds of a step
+  boundary could in principle flip. Recorded as a harness property for EXP-101's registration:
+  every arm in a comparison is billed, or none is.
+- **Code.** 1,441 lines for the dataflow noticer (engine 206, relations 795, rules 210, seam
+  184) against 840 hand-written; the medium's graph and adapters 956 on a 3,207-line engine
+  crate.
+
+**For the aim.** C1 removes a claim the medium might have made: that event-driven sparsity is
+cheaper than incremental rules. It is not, here. What the medium still has over both rule
+substrates is what C1 did not test (ports, the oscillome, learning) and the operating point M3
+found (precision at parity anchoring). The improved question the PI left is the right one:
+which rules are folds and which are joins, and does sparsity pay on the joins.
+
+**Decided.**
+
+1. The dataflow noticer is a labelled row in EXP-101's table, billed like the medium, with the
+   hand-written B3 row unbilled beside it so that the billing's clock effect is visible.
+2. C2 (Lab 2, after B5): an expiry-driven score window in the engine, and one genuinely
+   relational rule (a join over many services) on both substrates, to answer the folds-or-joins
+   question. Queued, criterion to be fixed before code.
+3. The medium's operation count per observation (16 updates) is a target for M5: a graph with
+   less redundancy at the same anchoring and precision, measured in counted operations and wall
+   time against C1's rows.
+
 ## M3 sub-tick support and strict precision — merged (Lab 1); the mechanism works, the criterion fails
 
 **Provenance.** Two interruptions; the final PI verified the inherited state, committed the two

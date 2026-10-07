@@ -35,8 +35,10 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | merged |
 | M4 | 1 | The anchoring-against-precision frontier; a ramp inhibit that spares ramp-noticed anomalies; parity with the best public row on all three measures | M3 | running |
 | L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | merged |
-| C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | running |
-| B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | queued |
+| C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | merged |
+| B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | running |
+| C2 | 2 | An expiry-driven score window; one relational rule on both substrates (folds or joins) | B5 | queued |
+| M5 | 1 | A less redundant graph at M4's anchoring and precision, in counted operations and wall time against C1's rows | M4 | queued |
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | queued |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 
@@ -323,6 +325,36 @@ bound above −0.03; strict precision ≥ 0.693; background notices per stream �
 Feasibility: M3's 500 ms medium meets the anchoring and precision parts and misses the leak by
 0.094 with a named cause; both outcomes are reachable. Cost per stream and leak anchor-correct
 are reported beside, never in the criterion.
+
+## B5 A call-budgeted public selector, a delay sweep, feature AUCs (Lab 2, after C1)
+
+B4 showed that public selection rules on this world are nearly always-escalate, because the
+cheap rung contradicts almost every plain anomaly; the cost column under them is the shared
+plain-incident bill. EXP-101's cost axis is therefore call-budgeted: arms compared at a matched
+number of reasoner calls per stream, asking about the anomalies a public score ranks highest.
+B5 builds that selector and the two measurements EXP-101's margins need.
+
+1. **The budgeted selector** as an `EscalationRule`: a public score per live anomaly at the ask
+   instant (from the rung's own state: contradiction, silence, abnormal count, services
+   involved, age, and the noticer's strict-precision proxy where it exists), a per-stream budget
+   of `k` calls, ask about the top `k` by score as they become ready; `k` ∈ {2, 4, 8, 16} and
+   the score's weights tuned on seeds 10000–10099 for verified decisions (plain and hard) per
+   stream at each `k`, rule fixed before the run.
+2. **A delay sweep** on the comparator (ramp + split over the re-anchor), the re-anchor and the
+   medium at 100 ms and 500 ms (M2's and M3's frozen media): delays 8, 12, 16, 20 s after
+   notice, with the selection oracle, so that the 16 s delay is no longer a hidden selector.
+3. **Feature AUCs** at the ask instant, hard against plain anomalies and leak against decoy, for
+   each public score feature, on the tuning streams, so that the selector's ceiling is known.
+4. **The table** on the 200 held-out streams: every B3 row, C1's dataflow row (billed) and the
+   B3 row unbilled, M2's and M3's media, under the budgeted selector at each `k`: verified
+   decisions per stream (plain and hard), critical misses, hard quality, calls and cost per
+   stream, with 90% cluster-bootstrap intervals and paired differences against the comparator at
+   the same `k`; the selection oracle as the labelled hard-quality ceiling.
+
+**Acceptance (fixed 2026-10-07).** Byte identity on R6's held-out run; the selector's readings
+and tuning rule fixed before the run; the table; the delay sweep; the AUCs; no claim about which
+arm is better. The table's paired half-widths set EXP-101's margins, which the chief fixes in the
+registration draft after this unit.
 
 ## C1 An incremental-dataflow noticer (Lab 2, after B4)
 
