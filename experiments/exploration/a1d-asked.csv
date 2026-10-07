@@ -1,0 +1,16 @@
+arm,selector,form,eval_calls_background,eval_calls_plain,eval_calls_hard,eval_calls_leak,eval_calls_decoy,arm_answers_not_incident,arm_answers_known,arm_answers_hard
+thr_t1_m3,thr,m3,28,446,51,7,52,,,
+thr_t1_eng_off,thr,eng_off,28,446,51,7,52,69,484,31
+thr_t1_eng_family,thr,eng_family,25,371,46,7,46,60,408,27
+thr_t1_eng_2site,thr,eng_2site,25,245,31,7,38,56,272,18
+thr_t1_eng_site,thr,eng_site,28,441,51,7,52,69,479,31
+chg_k12_m3,chg,m3,11,419,35,6,33,,,
+chg_k12_eng_off,chg,eng_off,11,419,35,6,33,34,448,22
+chg_k12_eng_family,chg,eng_family,11,339,29,6,27,29,365,18
+chg_k12_eng_2site,chg,eng_2site,11,237,20,6,21,21,262,12
+chg_k12_eng_site,chg,eng_site,11,415,34,6,33,34,444,21
+sel_m3_privileged,sel,m3,0,0,54,7,0,,,
+sel_eng_off_privileged,sel,eng_off,0,0,54,7,0,6,23,32
+sel_eng_family_privileged,sel,eng_family,0,0,47,6,0,6,20,27
+sel_eng_2site_privileged,sel,eng_2site,0,0,51,7,0,6,22,30
+sel_eng_site_privileged,sel,eng_site,0,0,54,7,0,6,23,32
