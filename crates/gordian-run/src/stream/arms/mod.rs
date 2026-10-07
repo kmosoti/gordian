@@ -486,9 +486,11 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
             let views = self.rung.views(now);
             for r in recalls {
                 let Some(view) = views.iter().find(|v| v.id == r.anomaly) else {
+                    self.rung.recall_declared(now, r.anomaly, false);
                     continue;
                 };
                 if view.attempts > 0 || view.answered > 0 {
+                    self.rung.recall_declared(now, r.anomaly, false);
                     continue;
                 }
                 if r.confirm {
@@ -505,8 +507,10 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
                     });
                 } else {
                     self.recalled.insert(r.anomaly);
-                    if let Some(mut proposed) = self.rung.declare_recognized(r.anomaly, r.diagnosis)
-                    {
+                    let declared = self.rung.declare_recognized(r.anomaly, r.diagnosis);
+                    self.rung
+                        .recall_declared(now, r.anomaly, declared.is_some());
+                    if let Some(mut proposed) = declared {
                         proposed.source = Source::Recall;
                         out.push(proposed);
                     }

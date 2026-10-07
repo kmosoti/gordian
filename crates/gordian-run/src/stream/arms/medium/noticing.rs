@@ -62,7 +62,9 @@
 
 use super::adapters::{DeliveredSense, TickClock, TickLedger, encode};
 use super::engram::{EngramLayer, diagnosis_of, features, pair_features};
+use super::gate::Reading;
 use super::graph::{KIND_NOTICE, KIND_RETIRE, Layout, MediumParams, spec};
+use super::trace::{BindNote, NONE, TraceKind};
 use crate::stream::arms::noticer::{
     MemoryRecall, Notice, Noticer, NoticerCost, Scorer, Tracked, attach_target,
 };
@@ -137,6 +139,8 @@ pub struct MediumNoticer {
     recalls_out: Vec<MemoryRecall>,
     /// Recalls waiting for the gate (A1c), in the order they were resolved.
     gate_pending: Vec<GatedRecall>,
+    /// The noticed anomalies that carry a standing declaration, as the rung last said (A1d).
+    standing: BTreeSet<u32>,
 }
 
 /// A recall waiting for the gate (A1c).
@@ -148,6 +152,11 @@ struct GatedRecall {
     diagnosis: Diagnosis,
     engram: usize,
     disagreed: bool,
+    /// The recall's anchor and outcome tag, for the trace (A1d).
+    anchor: u32,
+    tag: gordian_medium::Tag,
+    /// What the gate read at the latest step it read this recall (A1d).
+    last: Reading,
 }
 
 impl std::fmt::Debug for MediumNoticer {
@@ -204,6 +213,7 @@ impl MediumNoticer {
             recalled: BTreeSet::new(),
             recalls_out: Vec::new(),
             gate_pending: Vec::new(),
+            standing: BTreeSet::new(),
         })
     }
 
@@ -438,13 +448,31 @@ impl MediumNoticer {
                 None if now.0 <= at.0.saturating_add(REOFFER_NS) => {
                     self.pending_recalls.push_back((at, r));
                 }
-                None => layer.note_unmatched(),
+                None => {
+                    layer.note_unmatched();
+                    layer.mark_recall(
+                        TraceKind::Unmatched,
+                        NONE,
+                        r.anchor.seq,
+                        r.outcome.tag,
+                        r.engram,
+                    );
+                }
             }
         }
         let gated = layer.config().gate.needs_verdicts();
         for (id, mut rs) in by_anomaly {
             if self.recalled.contains(&id) || self.gate_pending.iter().any(|g| g.anomaly == id) {
-                rs.iter().for_each(|_| layer.note_redundant());
+                for r in &rs {
+                    layer.note_redundant();
+                    layer.mark_recall(
+                        TraceKind::Redundant,
+                        id,
+                        r.anchor.seq,
+                        r.outcome.tag,
+                        r.engram,
+                    );
+                }
                 continue;
             }
             rs.sort_by(|a, b| {
@@ -454,7 +482,16 @@ impl MediumNoticer {
             });
             let best = rs.swap_remove(0);
             let disagreed = rs.iter().any(|r| r.outcome != best.outcome);
-            rs.iter().for_each(|_| layer.note_redundant());
+            for r in &rs {
+                layer.note_redundant();
+                layer.mark_recall(
+                    TraceKind::Redundant,
+                    id,
+                    r.anchor.seq,
+                    r.outcome.tag,
+                    r.engram,
+                );
+            }
             let site = match (best.outcome.site, best.fired.and_then(pair_of)) {
                 (OutcomeSite::None, _) => None,
                 // A pair engram's support site is the pair's first node (A1c).
@@ -464,10 +501,13 @@ impl MediumNoticer {
                 }
                 (OutcomeSite::Fixed(n), _) => Some(ServiceId(u32::from(n))),
             };
-            let Some(diagnosis) = diagnosis_of(best.outcome.tag, site) else {
+            let (anchor, tag) = (best.anchor.seq, best.outcome.tag);
+            let Some(diagnosis) = diagnosis_of(tag, site) else {
                 layer.note_unmatched();
+                layer.mark_recall(TraceKind::Unmatched, id, anchor, tag, best.engram);
                 continue;
             };
+            layer.mark_recall(TraceKind::Offered, id, anchor, tag, best.engram);
             if gated {
                 // Waits for the arm's views after the step's checks (A1c).
                 layer.note_gate_offered();
@@ -477,10 +517,17 @@ impl MediumNoticer {
                     diagnosis,
                     engram: best.engram,
                     disagreed,
+                    anchor,
+                    tag,
+                    last: Reading::Consistent,
                 });
                 continue;
             }
+            layer.mark_recall(TraceKind::Admitted, id, anchor, tag, best.engram);
             let confirm = layer.acted_on(best.engram, disagreed);
+            if confirm {
+                layer.mark_recall(TraceKind::Confirmed, id, anchor, tag, best.engram);
+            }
             self.recalled.insert(id);
             self.recalls_out.push(MemoryRecall {
                 anomaly: id,
@@ -620,8 +667,12 @@ impl Noticer for MediumNoticer {
             return;
         };
         match self.anomalies.iter().find(|a| a.owns(focus)) {
-            None => layer.unheld(),
+            None => {
+                layer.unheld();
+                layer.mark_answer(NONE, focus.0, &diagnosis, BindNote::Unheld);
+            }
             Some(a) => {
+                let anomaly = a.id;
                 let (from, site) = (a.anchor_at.0, a.site);
                 let cfg = *layer.config();
                 let to = from.saturating_add(cfg.key_span_ns);
@@ -648,7 +699,8 @@ impl Noticer for MediumNoticer {
                         relation_late,
                         onset_end,
                     );
-                    layer.bind_roles(feats, site, &diagnosis);
+                    let note = layer.bind_roles(feats, site, &diagnosis);
+                    layer.mark_answer(anomaly, focus.0, &diagnosis, note);
                     self.engram = Some(layer);
                     return;
                 }
@@ -659,7 +711,8 @@ impl Noticer for MediumNoticer {
                     onset_end,
                     free_form,
                 );
-                layer.bind(feats, site, &diagnosis);
+                let note = layer.bind(feats, site, &diagnosis);
+                layer.mark_answer(anomaly, focus.0, &diagnosis, note);
             }
         }
         self.engram = Some(layer);
@@ -686,26 +739,70 @@ impl Noticer for MediumNoticer {
         let gate = layer.config().gate;
         let wait = self.cfg.review_ns;
         let mut keep = Vec::new();
-        for g in std::mem::take(&mut self.gate_pending) {
-            match views.iter().find(|v| v.id == g.anomaly) {
-                None => layer.note_gate_overtaken(),
-                Some(v) if v.attempts > 0 || v.answered > 0 => layer.note_gate_overtaken(),
-                Some(_) if now.0 > g.at.0.saturating_add(wait) => layer.note_gate_closed(),
-                Some(v) if gate.admits(v) => {
-                    layer.note_gate_admitted();
-                    let confirm = layer.acted_on(g.engram, g.disagreed);
-                    self.recalled.insert(g.anomaly);
-                    self.recalls_out.push(MemoryRecall {
-                        anomaly: g.anomaly,
-                        diagnosis: g.diagnosis,
-                        confirm,
-                    });
+        for mut g in std::mem::take(&mut self.gate_pending) {
+            let mark = |layer: &mut EngramLayer, kind: TraceKind, g: &GatedRecall| {
+                layer.mark_recall(kind, g.anomaly, g.anchor, g.tag, g.engram);
+            };
+            let view = views.iter().find(|v| v.id == g.anomaly);
+            match view {
+                None => {
+                    layer.note_gate_overtaken();
+                    mark(&mut layer, TraceKind::Overtaken, &g);
                 }
-                Some(_) => keep.push(g),
+                Some(v) if v.attempts > 0 || v.answered > 0 => {
+                    layer.note_gate_overtaken();
+                    mark(&mut layer, TraceKind::Overtaken, &g);
+                }
+                Some(_) if now.0 > g.at.0.saturating_add(wait) => {
+                    layer.note_gate_closed();
+                    let kind = match g.last {
+                        Reading::Standing => TraceKind::GatedStanding,
+                        _ => TraceKind::GatedConsistent,
+                    };
+                    mark(&mut layer, kind, &g);
+                }
+                Some(v) => match gate.reading(v, self.standing.contains(&g.anomaly)) {
+                    Reading::Admit => {
+                        layer.note_gate_admitted();
+                        mark(&mut layer, TraceKind::Admitted, &g);
+                        let confirm = layer.acted_on(g.engram, g.disagreed);
+                        if confirm {
+                            mark(&mut layer, TraceKind::Confirmed, &g);
+                        }
+                        self.recalled.insert(g.anomaly);
+                        self.recalls_out.push(MemoryRecall {
+                            anomaly: g.anomaly,
+                            diagnosis: g.diagnosis,
+                            confirm,
+                        });
+                    }
+                    reading => {
+                        g.last = reading;
+                        keep.push(g);
+                    }
+                },
             }
         }
         self.gate_pending = keep;
         self.engram = Some(layer);
         std::mem::take(&mut self.recalls_out)
+    }
+
+    /// The rung's standing declarations, read by the `stale` gate (A1d).
+    fn standing_declarations(&mut self, ids: &[u32]) {
+        if self
+            .engram
+            .as_ref()
+            .is_some_and(|l| l.config().gate.reads_declarations())
+        {
+            self.standing = ids.iter().copied().collect();
+        }
+    }
+
+    /// The arm's decision on a recall, for the trace (A1d).
+    fn recall_declared(&mut self, now: Instant, anomaly: u32, declared: bool) {
+        if let Some(layer) = self.engram.as_mut() {
+            layer.mark_declared(now, anomaly, declared);
+        }
     }
 }

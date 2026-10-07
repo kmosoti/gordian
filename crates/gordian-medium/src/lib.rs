@@ -56,9 +56,9 @@ pub use oscillome::{
 pub use persist::DecodeError;
 pub use ports::{
     Clock, CollectingEffector, ConstantField, CountingLedger, DiscardingEffector, Effector,
-    FieldSource, InMemoryPersist, Ledger, NoPlasticity, NoResource, NoTrace, Persist, Plasticity,
-    Ports, Resource, ResourceCall, ResourceReply, SamplingTrace, ScriptedSense, Sense, StepClock,
-    Trace,
+    FieldSource, InMemoryPersist, Ledger, Mark, MarkLog, NoPlasticity, NoResource, NoTrace,
+    Persist, Plasticity, Ports, Resource, ResourceCall, ResourceReply, SamplingTrace,
+    ScriptedSense, Sense, StepClock, Trace,
 };
 pub use spec::{CellSpec, MediumBuilder, MediumSpec, SenseMode, SpecError, SynapseSpec};
 pub use types::{

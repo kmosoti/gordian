@@ -104,6 +104,44 @@ pub trait Trace {
     fn wants(&mut self, tick: u64) -> bool;
     /// The trace of a sampled tick.
     fn record(&mut self, trace: TickTrace);
+    /// A note by the medium's owner (work item A1d): something it counted at an instant, on the
+    /// same port as the tick traces. The medium itself never marks. Nothing, by default.
+    fn mark(&mut self, _mark: Mark) {}
+}
+
+/// A note an adapter writes on the trace port beside the medium's tick traces (work item A1d).
+/// World-agnostic: every field but the instant is the adapter's to define.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mark {
+    /// When, in nanoseconds of the adapter's time.
+    pub at_ns: u64,
+    /// What happened (the adapter's code).
+    pub kind: u16,
+    /// What it concerns (the adapter's id).
+    pub subject: u32,
+    /// The event it cites (an event's `seq`).
+    pub event: u32,
+    /// A tag.
+    pub tag: u32,
+    /// A value.
+    pub value: i64,
+}
+
+/// Samples no tick and keeps every mark it is given, in order (work item A1d).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MarkLog {
+    /// The marks, in the order they were given.
+    pub marks: Vec<Mark>,
+}
+
+impl Trace for MarkLog {
+    fn wants(&mut self, _tick: u64) -> bool {
+        false
+    }
+    fn record(&mut self, _trace: TickTrace) {}
+    fn mark(&mut self, mark: Mark) {
+        self.marks.push(mark);
+    }
 }
 
 /// Runs once at the end of every tick with the tick's summary, or, when the oscillome names a

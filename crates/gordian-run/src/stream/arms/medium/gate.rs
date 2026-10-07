@@ -54,6 +54,21 @@
 //! condition at the recall's instant, and how often plain anomalies are contradicted *then* is
 //! what the smoke measures.
 
+//!
+//! # A1d: where a recall may speak (`stale`)
+//!
+//! Written and committed before any run of an A1d arm (`DESIGN.md` of `gordian-medium`, "The
+//! engram under a non-privileged selector (A1d)", committed before this code). The gate `stale` is
+//! `contradicted` and one more condition: **the anomaly carries no declaration made strictly after
+//! the checker's last consistent verdict on it** (the rung keeps both instants and hands the ids
+//! whose declaration stands to the noticer before each reading,
+//! [`crate::stream::arms::noticer::Noticer::standing_declarations`]). A declaration made when the
+//! checker last explained the evidence, or before, has since been contradicted (it is stale) and a
+//! recall may speak beside it; a declaration made after (or with no consistent verdict ever) stands,
+//! and the recall does not speak. The wait and what a dropped recall leaves are `contradicted`'s.
+//! A recall dropped at the end of its wait is counted by the last reason it was read with: a
+//! consistent verdict, or a standing declaration.
+
 use crate::stream::arms::rung::AnomalyView;
 use serde::{Deserialize, Serialize};
 
@@ -67,6 +82,9 @@ pub enum RecallGate {
     /// Only a recall of an anomaly whose latest public consistency check found no consistent
     /// hypothesis ([`AnomalyView::contradicted_since`] set).
     Contradicted,
+    /// `Contradicted`, and only on an anomaly with no standing declaration (work item A1d; the
+    /// module documentation, "A1d").
+    Stale,
 }
 
 impl RecallGate {
@@ -80,11 +98,40 @@ impl RecallGate {
         self != RecallGate::None
     }
 
-    /// Whether a recall of the anomaly `view` is admitted now.
+    /// Whether the gate reads standing declarations (A1d).
+    pub fn reads_declarations(self) -> bool {
+        self == RecallGate::Stale
+    }
+
+    /// Whether a recall of the anomaly `view` is admitted now, on the verdict alone (for
+    /// `stale`, the condition on declarations is [`RecallGate::reading`]'s).
     pub fn admits(self, view: &AnomalyView) -> bool {
         match self {
             RecallGate::None => true,
-            RecallGate::Contradicted => view.contradicted_since.is_some(),
+            RecallGate::Contradicted | RecallGate::Stale => view.contradicted_since.is_some(),
         }
     }
+
+    /// What the gate reads of the anomaly `view`, given whether it carries a standing declaration
+    /// (`standing`; read only by `stale`).
+    pub fn reading(self, view: &AnomalyView, standing: bool) -> Reading {
+        if !self.admits(view) {
+            Reading::Consistent
+        } else if self.reads_declarations() && standing {
+            Reading::Standing
+        } else {
+            Reading::Admit
+        }
+    }
+}
+
+/// What the gate read of an anomaly at one step (A1d).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reading {
+    /// Admitted.
+    Admit,
+    /// Not admitted: the latest verdict found a consistent hypothesis (or none was made).
+    Consistent,
+    /// Not admitted: contradicted, but the anomaly carries a standing declaration (`stale` only).
+    Standing,
 }

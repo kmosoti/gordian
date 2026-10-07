@@ -961,7 +961,30 @@ beside the run's arm directories, named by the arm's state key.
 Numbering continues A1c's. Each is a place where the build differs from the section above (written
 before the code) or fills a gap it left.
 
-(None yet.)
+71. **The gate's reading is a value** (`gate::Reading`: admit, consistent, standing), so a recall
+    dropped at the end of its wait is marked by the last reason it was read with; for A1c's
+    `contradicted` gate the reading is exactly its old condition (declarations are not read).
+72. **`bind` and `bind_roles` return what they did** (`trace::BindNote`; they returned nothing),
+    so that the noticer, which knows the anomaly and the focus, writes the `answer` mark and, after
+    it, the `contradicted` mark with the same subject and event. Callers that ignore the value are
+    unchanged.
+73. **An answer's instant.** Marks of answers (and their contradictions) take the instant of the
+    layer's next step; answers taken in the arm's final call, after which no step runs, keep the
+    last step's instant.
+74. **`declared` and `not_declared` are also marked when the arm skips a recall** before trying to
+    declare it (its anomaly is gone, asked about or answered), not only when `declare_recognized`
+    declines: every recall handed to the arm ends in exactly one of the two.
+75. **The file is written by `Drop`** of the layer (the end of its segment), with a `segment_end`
+    mark carrying the number of engrams held; a write failure is counted in a process-wide counter
+    and never stops the arm. The writer takes its directory as an argument (`trace::append_to`);
+    only `trace::append` reads the environment.
+76. **The declaration instant is the rung's `now`** (the instant of the step it last took in),
+    recorded wherever `cheap_declared` is set, including when the same diagnosis was already
+    declared at the anchor and no new declaration is proposed: the anomaly carries that
+    declaration either way.
+77. **B4's constants were tuned on M2's medium** (`medium_t100`); A1d's arms use M3's frozen
+    medium, as A1a's and A1c's do. The constants are applied to it unchanged (the brief: nothing
+    retuned).
 
 ## Mutation checks
 

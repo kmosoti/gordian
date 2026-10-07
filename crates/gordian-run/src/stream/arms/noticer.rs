@@ -441,6 +441,16 @@ pub trait Noticer {
     fn gated_recalls(&mut self, _now: Instant, _views: &[AnomalyView]) -> Vec<MemoryRecall> {
         self.recalls()
     }
+
+    /// The noticed anomalies (by id) that carry a standing declaration: one made strictly after
+    /// the consistency checker's last consistent verdict on them (work item A1d), given before
+    /// [`Noticer::gated_recalls`]. Nothing, by default.
+    fn standing_declarations(&mut self, _ids: &[u32]) {}
+
+    /// The arm acted on this noticer's recall of anomaly `anomaly` at `now`: it declared the
+    /// recalled diagnosis, or it did not (work item A1d, the trace's counters). Nothing, by
+    /// default.
+    fn recall_declared(&mut self, _now: Instant, _anomaly: u32, _declared: bool) {}
 }
 
 /// A recall by a noticer's memory (work item A1a): a diagnosis for the noticed anomaly
