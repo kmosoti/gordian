@@ -1,0 +1,17 @@
+range,seeds,side,memory,incident_tier,incidents,site_in_memory,share_site_in_memory,recalled_right,recalled_wrong,wrong_share_of_recalls,right_that_are_recurrences
+a-tune,10000-10099,hidden,"site-only, most recent hard incident, same stream",all,2643,193,0.0730,45,148,0.7668,42
+a-tune,10000-10099,hidden,"site-only, most recent hard incident, same stream",plain,2110,112,0.0531,0,112,1.0000,0
+a-tune,10000-10099,hidden,"site-only, most recent hard incident, same stream",hard,243,61,0.2510,45,16,0.2623,42
+a-tune,10000-10099,hidden,"site-only, most recent hard incident, same stream",decoy,290,20,0.0690,0,20,1.0000,0
+a-tune,10000-10099,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",all,2360,2330,0.9873,31,2299,0.9867,4
+a-tune,10000-10099,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",plain,1884,1862,0.9883,0,1862,1.0000,0
+a-tune,10000-10099,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",hard,216,214,0.9907,31,183,0.8551,4
+a-tune,10000-10099,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",decoy,260,254,0.9769,0,254,1.0000,0
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident, same stream",all,5344,466,0.0872,86,380,0.8155,80
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident, same stream",plain,4304,321,0.0746,0,321,1.0000,0
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident, same stream",hard,512,114,0.2227,86,28,0.2456,80
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident, same stream",decoy,528,31,0.0587,0,31,1.0000,0
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",all,5094,5020,0.9855,80,4940,0.9841,10
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",plain,4105,4046,0.9856,0,4046,1.0000,0
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",hard,494,486,0.9838,80,406,0.8354,10
+a-heldout,40000-40199,hidden,"site-only, most recent hard incident in earlier streams (after the first 10)",decoy,495,488,0.9859,0,488,1.0000,0

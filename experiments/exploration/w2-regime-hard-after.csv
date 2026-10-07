@@ -1,0 +1,19 @@
+range,seeds,side,measure,value,n
+a-tune,10000-10099,hidden,streams with at least one hard incident affected by signature_shift,0.1800,100
+a-tune,10000-10099,hidden,streams with at least one hard incident affected by edge_add,0.0700,100
+a-tune,10000-10099,hidden,share of hard incidents with onset at or after the first change,0.6214,243
+a-tune,10000-10099,hidden,  90% interval (first change),"[0.5730, 0.6716]",
+a-tune,10000-10099,hidden,share of hard incidents with onset at or after the last change,0.2634,243
+a-tune,10000-10099,hidden,  90% interval (last change),"[0.2227, 0.3041]",
+a-heldout,40000-40199,hidden,streams with at least one hard incident affected by signature_shift,0.1900,200
+a-heldout,40000-40199,hidden,streams with at least one hard incident affected by edge_add,0.1050,200
+a-heldout,40000-40199,hidden,share of hard incidents with onset at or after the first change,0.6172,512
+a-heldout,40000-40199,hidden,  90% interval (first change),"[0.5846, 0.6496]",
+a-heldout,40000-40199,hidden,share of hard incidents with onset at or after the last change,0.2461,512
+a-heldout,40000-40199,hidden,  90% interval (last change),"[0.2179, 0.2744]",
+b,50000-50099,hidden,streams with at least one hard incident affected by signature_shift,0.1900,100
+b,50000-50099,hidden,streams with at least one hard incident affected by edge_add,0.1700,100
+b,50000-50099,hidden,share of hard incidents with onset at or after the first change,0.6990,289
+b,50000-50099,hidden,  90% interval (first change),"[0.6597, 0.7384]",
+b,50000-50099,hidden,share of hard incidents with onset at or after the last change,0.4325,289
+b,50000-50099,hidden,  90% interval (last change),"[0.3920, 0.4764]",

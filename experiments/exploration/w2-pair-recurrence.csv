@@ -1,0 +1,9 @@
+range,seeds,side,family,tier,incidents,per_stream,flagged_recurrences,pair_seen_earlier_ordered,pair_seen_earlier_unordered,root_seen_earlier,share_pair_seen_earlier,share_flagged,unflagged_pair_repeats,mean_incomparable_pairs_per_graph
+a-tune,10000-10099,hidden,cascade,hard,63,0.6300,13,13,14,14,0.2063,0.2063,0,16.53
+a-tune,10000-10099,hidden,cascade,decoy,59,0.5900,9,9,10,9,0.1525,0.1525,0,16.53
+a-tune,10000-10099,hidden,split_brain,hard,64,0.6400,10,10,10,11,0.1562,0.1562,0,16.53
+a-tune,10000-10099,hidden,split_brain,decoy,77,0.7700,15,15,15,16,0.1948,0.1948,0,16.53
+a-heldout,40000-40199,hidden,cascade,hard,132,0.6600,15,16,17,18,0.1212,0.1136,1,16.42
+a-heldout,40000-40199,hidden,cascade,decoy,109,0.5450,23,24,24,27,0.2202,0.2110,1,16.42
+a-heldout,40000-40199,hidden,split_brain,hard,149,0.7450,26,26,26,28,0.1745,0.1745,0,16.42
+a-heldout,40000-40199,hidden,split_brain,decoy,131,0.6550,22,22,24,24,0.1679,0.1679,0,16.42

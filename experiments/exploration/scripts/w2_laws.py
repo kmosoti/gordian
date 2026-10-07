@@ -568,6 +568,64 @@ def collisions(name: str, t: dict) -> list[dict]:
     return rows
 
 
+def phase1_class(r) -> str:
+    """The class of an incident's first seconds as the public rules see them (code-derived, from
+    `present.rs` and `incident.rs`, not measured): a hard incident or decoy that mimics presents
+    exactly as a plain incident of the imitated kind; a decoy presents as the hard family it pretends
+    to be, until it resolves. Equal classes are indistinguishable by the evidence of phase 1."""
+    if r.tier == "plain":
+        return "duo" if r.duo == 1 else f"id:{r.known_kind}"
+    if r.family == "compound":
+        return f"id:{r.kind_a}" if r.mode == "mimic" else "union:" + "+".join(sorted([r.kind_a, r.kind_b]))
+    if r.family == "cascade":
+        return f"id:{r.kind_a}" if r.mode == "mimic" else f"cascade:{r.kind_a}+partner"
+    if r.family == "split_brain":
+        return "mixed" if r.mode == "mimic" else "mixed+peer"
+    return "leak"
+
+
+def truth_class(r) -> str:
+    """What is true of an incident, without its site: a hard family, `none` for a decoy, or the
+    known kind of a plain incident."""
+    if r.tier == "decoy":
+        return "none"
+    return f"plain:{r.known_kind}" if r.tier == "plain" else f"hard:{r.family}"
+
+
+def phase1_collisions(name: str, t: dict) -> list[dict]:
+    """A memory that fires on the evidence of phase 1 (before the phase-2 evidence arrives), on the
+    reasoner's answer for the most recent earlier hard incident or decoy of the same key, within a
+    stream. Site-keyed form (site and class) and family-keyed form (class only, the site taken from
+    the new incident). Right when the recalled truth equals the new incident's."""
+    inc, seeds, rng_label = t["inc"], t["seeds"], C.seed_range(t["seeds"])
+    res = {"site+class": [], "class only": []}
+    for _, g in inc.groupby("seed"):
+        mem_site: dict[tuple, str] = {}
+        mem_class: dict[str, str] = {}
+        for r in g.itertuples():
+            pc, tc = phase1_class(r), truth_class(r)
+            ks = (r.site, pc)
+            for form, mem, key in (("site+class", mem_site, ks), ("class only", mem_class, pc)):
+                rec = mem.get(key)
+                res[form].append((r.tier, rec is not None, rec is not None and rec == tc))
+            if r.tier in ("hard", "decoy"):
+                mem_site[ks] = tc
+                mem_class[pc] = tc
+    rows = []
+    for form, data in res.items():
+        df = pd.DataFrame(data, columns=["tier", "recalled", "right"])
+        for tier in ("all", "plain", "hard", "decoy"):
+            d = df if tier == "all" else df[df["tier"] == tier]
+            rows.append({"range": name, "seeds": rng_label, "side": "hidden",
+                         "memory": f"phase-1 {form}, most recent hard incident or decoy, same stream",
+                         "incident_tier": tier, "incidents": len(d), "recalled": int(d["recalled"].sum()),
+                         "share_recalled": f(d["recalled"].mean()), "recalled_right": int(d["right"].sum()),
+                         "recalled_wrong": int((d["recalled"] & ~d["right"]).sum()),
+                         "wrong_share_of_recalls": f((d["recalled"] & ~d["right"]).sum() / max(d["recalled"].sum(), 1)),
+                         "wrong_per_stream": f((d["recalled"] & ~d["right"]).sum() / len(seeds))})
+    return rows
+
+
 # ---- driver ---------------------------------------------------------------------------------
 
 
@@ -581,7 +639,7 @@ def main(argv=None) -> int:
         "recurrence-summary", "recurrence-eligibility", "recurrence-gaps", "experience-curve",
         "experience-stream-order", "stale", "family-elsewhere", "regime-effects", "regime-hard-after",
         "regime-shifted-kinds", "cascade-delays", "edgeadd", "pair-recurrence", "vocabulary",
-        "vocabulary-precision", "site-collisions")}
+        "vocabulary-precision", "site-collisions", "phase1-collisions")}
     for name in C.RANGES:
         t = prepare(C.read_range(args.hidden_root, name))
         world_b = C.RANGES[name]["world"] == "b"
@@ -607,6 +665,7 @@ def main(argv=None) -> int:
         tables["vocabulary"] += v
         tables["vocabulary-precision"] += pr
         tables["site-collisions"] += collisions(name, t)
+        tables["phase1-collisions"] += phase1_collisions(name, t)
     for k, rows in tables.items():
         C.write_csv(args.out_dir / f"w2-{k}.csv", rows)
     return 0

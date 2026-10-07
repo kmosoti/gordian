@@ -1,0 +1,5 @@
+range,against,file,rows_run,rows_l1,identical_modulo_run_id
+a-heldout,"L1 fresh run, sel_reanchor_privileged",incidents.csv,5344,5344,True
+a-heldout,"L1 fresh run, sel_reanchor_privileged",results.csv,200,200,True
+a-heldout,"L1 fresh run, sel_reanchor_privileged",notice_incidents.csv,5344,5344,True
+a-heldout,"L1 fresh run, sel_reanchor_privileged",notices.csv,200,200,True

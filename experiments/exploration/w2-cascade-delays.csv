@@ -1,0 +1,25 @@
+range,seeds,side,tier,family,mode,partner_is_dependent,n,unit,mean,min,p10,p50,p90,max
+a-tune,10000-10099,hidden,decoy,cascade,contradict,0,34,ms,84.29,20.37,27.77,91.43,128.50,150.40
+a-tune,10000-10099,hidden,decoy,split_brain,contradict,0,21,ms,101.71,39.03,65.87,102.12,144.04,148.94
+a-tune,10000-10099,hidden,decoy,split_brain,contradict,1,22,ms,46.36,22.67,25.27,43.04,59.28,132.09
+a-tune,10000-10099,hidden,decoy,split_brain,mimic,1,4,ms (s for mimic),0.03,0.02,0.02,0.03,0.05,0.05
+a-tune,10000-10099,hidden,hard,cascade,contradict,0,34,ms,89.79,22.32,48.23,94.33,144.08,150.28
+a-tune,10000-10099,hidden,hard,cascade,mimic,0,29,ms (s for mimic),11.09,6.15,7.05,11.19,14.92,15.90
+a-tune,10000-10099,hidden,hard,split_brain,contradict,0,22,ms,86.02,25.78,35.59,92.69,136.81,142.24
+a-tune,10000-10099,hidden,hard,split_brain,contradict,1,10,ms,41.09,24.57,27.02,41.14,54.53,63.86
+a-tune,10000-10099,hidden,hard,split_brain,mimic,0,19,ms (s for mimic),10.33,6.08,7.44,9.35,14.26,15.98
+a-tune,10000-10099,hidden,hard,split_brain,mimic,1,13,ms (s for mimic),5.91,0.02,0.04,0.05,14.15,14.54
+a-tune,10000-10099,hidden,decoy,cascade,mimic,,25,no partner alarm,,,,,,
+a-tune,10000-10099,hidden,decoy,split_brain,mimic,,30,no partner alarm,,,,,,
+a-heldout,40000-40199,hidden,decoy,cascade,contradict,0,43,ms,88.87,21.83,35.80,91.44,143.04,151.38
+a-heldout,40000-40199,hidden,decoy,split_brain,contradict,0,46,ms,83.33,20.99,37.57,77.79,133.80,148.14
+a-heldout,40000-40199,hidden,decoy,split_brain,contradict,1,28,ms,51.96,23.20,25.64,38.61,87.82,142.52
+a-heldout,40000-40199,hidden,decoy,split_brain,mimic,1,12,ms (s for mimic),0.04,0.02,0.02,0.04,0.06,0.06
+a-heldout,40000-40199,hidden,hard,cascade,contradict,0,73,ms,84.38,21.70,27.73,83.91,143.76,150.08
+a-heldout,40000-40199,hidden,hard,cascade,mimic,0,59,ms (s for mimic),11.42,6.21,7.33,11.65,14.78,15.82
+a-heldout,40000-40199,hidden,hard,split_brain,contradict,0,40,ms,88.20,20.81,33.47,92.92,132.39,146.90
+a-heldout,40000-40199,hidden,hard,split_brain,contradict,1,23,ms,50.65,21.80,23.15,41.80,94.23,137.15
+a-heldout,40000-40199,hidden,hard,split_brain,mimic,0,64,ms (s for mimic),10.75,6.01,6.98,10.61,15.15,15.99
+a-heldout,40000-40199,hidden,hard,split_brain,mimic,1,22,ms (s for mimic),6.00,0.04,0.04,6.72,13.50,14.04
+a-heldout,40000-40199,hidden,decoy,cascade,mimic,,66,no partner alarm,,,,,,
+a-heldout,40000-40199,hidden,decoy,split_brain,mimic,,45,no partner alarm,,,,,,

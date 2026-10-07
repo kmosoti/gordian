@@ -1,0 +1,17 @@
+range,seeds,side,memory,incident_tier,incidents,recalled,share_recalled,recalled_right,recalled_wrong,wrong_share_of_recalls,wrong_per_stream
+a-tune,10000-10099,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",all,2643,142,0.0537,120,22,0.1549,0.2200
+a-tune,10000-10099,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",plain,2110,13,0.0062,0,13,1.0000,0.1300
+a-tune,10000-10099,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",hard,243,54,0.2222,47,7,0.1296,0.0700
+a-tune,10000-10099,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",decoy,290,75,0.2586,73,2,0.0267,0.0200
+a-tune,10000-10099,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",all,2643,386,0.1460,151,235,0.6088,2.3500
+a-tune,10000-10099,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",plain,2110,187,0.0886,0,187,1.0000,1.8700
+a-tune,10000-10099,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",hard,243,89,0.3663,63,26,0.2921,0.2600
+a-tune,10000-10099,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",decoy,290,110,0.3793,88,22,0.2000,0.2200
+a-heldout,40000-40199,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",all,5344,259,0.0485,221,38,0.1467,0.1900
+a-heldout,40000-40199,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",plain,4304,21,0.0049,0,21,1.0000,0.1050
+a-heldout,40000-40199,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",hard,512,97,0.1895,87,10,0.1031,0.0500
+a-heldout,40000-40199,hidden,"phase-1 site+class, most recent hard incident or decoy, same stream",decoy,528,141,0.2670,134,7,0.0496,0.0350
+a-heldout,40000-40199,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",all,5344,670,0.1254,285,385,0.5746,1.9250
+a-heldout,40000-40199,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",plain,4304,284,0.0660,0,284,1.0000,1.4200
+a-heldout,40000-40199,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",hard,512,162,0.3164,111,51,0.3148,0.2550
+a-heldout,40000-40199,hidden,"phase-1 class only, most recent hard incident or decoy, same stream",decoy,528,224,0.4242,174,50,0.2232,0.2500
