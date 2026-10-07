@@ -13,6 +13,7 @@
 //! {"policy": "contradiction_escalation", "delay_ns": 8000000000, "persist_ns": 2000000000}
 //! {"policy": "public_threshold", "delay_ns": 16000000000, "persist_ns": 2000000000}
 //! {"policy": "public_change", "delay_ns": 16000000000, "k": 5}
+//! {"policy": "public_budgeted", "delay_ns": 16000000000, "k": 8, "score": {"threshold": 0.5, "contradiction": 0.0, "silence": 0.0, "evidence": 1.0, "services": 1.0, "age": 0.0}}
 //! {"policy": "oracle_selection", "delay_ns": 8000000000}
 //! {"policy": "oracle_selection", "delay_ns": 8000000000, "hold_until_asked": true}
 //! {"policy": "oracle_selection_context", "delay_ns": 8000000000}
@@ -29,6 +30,11 @@
 //! and, like a zero delay, it is not written. `k` (`public_change`, work item B4) is the growth in
 //! an anomaly's attached evidence, in observations, that makes the arm escalate it; it is at least
 //! 1 and always written.
+//!
+//! `k` and `score` (`public_budgeted`, work item B5) are the budget of questions per segment and the
+//! score's threshold and five weights (`arms/public_budgeted.rs`); `k` is at least 1 and always
+//! written, `score` is always written (an absent `score` parses as all zeros: the first `k` anomalies
+//! that become ready).
 //!
 //! `hold_until_asked` (`oracle_selection` only, work item B2) keeps an anomaly the oracle will ask
 //! about live until it has asked (see `oracle.rs`); its default is false and, like a zero delay,
@@ -54,6 +60,7 @@ use super::arms::change::{self, Change};
 use super::arms::contradiction::{self, Contradiction};
 use super::arms::never::{self, Never};
 use super::arms::periodic::{self, Periodic};
+use super::arms::public_budgeted::{self, PublicBudgeted, Score};
 use super::arms::public_change::{self, PublicChange};
 use super::arms::public_threshold::{self, PublicThreshold};
 use super::arms::random::{self, Random};
@@ -77,6 +84,7 @@ pub const KNOWN: &[&str] = &[
     contradiction::ID,
     public_threshold::ID,
     public_change::ID,
+    public_budgeted::ID,
     privileged::ID,
     privileged::SELECTION_ID,
     privileged::DECOY_ID,
@@ -136,6 +144,16 @@ pub enum StreamPolicySpec {
         delay_ns: u64,
         /// Observations the anomaly's attached evidence must have grown by since notice.
         k: u32,
+    },
+    /// `public_budgeted` (work item B5) with its delay after notice, its budget of questions and
+    /// its score.
+    PublicBudgeted {
+        /// Nanoseconds after notice before an anomaly is ready to be asked about.
+        delay_ns: u64,
+        /// The most questions asked per segment.
+        k: u32,
+        /// The score's threshold and weights.
+        score: Score,
     },
     /// `oracle_escalation`: privileged.
     Oracle,
@@ -290,6 +308,14 @@ impl StreamPolicySpec {
                     k: k.ok_or_else(|| "policy \"public_change\" needs k".to_owned())?,
                 }
             }
+            public_budgeted::ID => {
+                only(&["delay_ns", "k"])?;
+                Self::PublicBudgeted {
+                    delay_ns: delay_ns.unwrap_or(0),
+                    k: k.ok_or_else(|| "policy \"public_budgeted\" needs k".to_owned())?,
+                    score: Score::default(),
+                }
+            }
             ablation::ID => {
                 only(&[])?;
                 Self::Ablation
@@ -335,6 +361,12 @@ impl StreamPolicySpec {
             Self::PublicChange { k: 0, .. } => {
                 Err("public_change needs k of at least 1".to_owned())
             }
+            Self::PublicBudgeted { k: 0, .. } => {
+                Err("public_budgeted needs k of at least 1".to_owned())
+            }
+            Self::PublicBudgeted { score, .. } if !score.is_finite() => {
+                Err("public_budgeted needs a finite threshold and finite weights".to_owned())
+            }
             _ => Ok(()),
         }
     }
@@ -350,6 +382,7 @@ impl StreamPolicySpec {
             Self::Contradiction { .. } => contradiction::ID,
             Self::PublicThreshold { .. } => public_threshold::ID,
             Self::PublicChange { .. } => public_change::ID,
+            Self::PublicBudgeted { .. } => public_budgeted::ID,
             Self::Oracle => privileged::ID,
             Self::OracleSelection { .. } => privileged::SELECTION_ID,
             Self::OracleDecoy => privileged::DECOY_ID,
@@ -398,6 +431,8 @@ struct Tagged {
     hold_until_asked: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     k: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    score: Option<Score>,
 }
 
 #[derive(Deserialize)]
@@ -419,6 +454,7 @@ impl Serialize for StreamPolicySpec {
             persist_ns,
             hold_until_asked: None,
             k: None,
+            score: None,
         };
         // A delay of zero is the arm as it was before the parameter existed and is not written.
         let delay = |d: u64| (d != 0).then_some(d);
@@ -441,6 +477,12 @@ impl Serialize for StreamPolicySpec {
             }
             Self::PublicChange { delay_ns, k } => Tagged {
                 k: Some(*k),
+                ..tagged(None, None, None, None, delay(*delay_ns), None)
+            }
+            .serialize(serializer),
+            Self::PublicBudgeted { delay_ns, k, score } => Tagged {
+                k: Some(*k),
+                score: Some(*score),
                 ..tagged(None, None, None, None, delay(*delay_ns), None)
             }
             .serialize(serializer),
@@ -490,7 +532,15 @@ impl<'de> Deserialize<'de> for StreamPolicySpec {
                 t.persist_ns,
                 t.hold_until_asked,
                 t.k,
-            ),
+            )
+            .and_then(|spec| match (spec, t.score) {
+                (spec, None) => Ok(spec),
+                (Self::PublicBudgeted { delay_ns, k, .. }, Some(score)) => {
+                    let spec = Self::PublicBudgeted { delay_ns, k, score };
+                    spec.validate().map(|()| spec)
+                }
+                (_, Some(_)) => Err(format!("policy {:?} has no parameter \"score\"", t.policy)),
+            }),
         };
         result.map_err(serde::de::Error::custom)
     }
@@ -574,6 +624,11 @@ pub fn build_public(
         )),
         StreamPolicySpec::PublicChange { delay_ns, k } => Box::new(StreamArm::with(
             PublicChange::new(*delay_ns, *k),
+            public,
+            config,
+        )),
+        StreamPolicySpec::PublicBudgeted { delay_ns, k, score } => Box::new(StreamArm::with(
+            PublicBudgeted::new(*delay_ns, *k, *score),
             public,
             config,
         )),
