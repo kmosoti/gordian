@@ -4,6 +4,37 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Stop order, 2026-10-07 — M4, B5 and L2 stopped mid-unit; evidence merged, criteria undecided
+
+**What happened.** The user ordered the labs stopped. Each unit's branch was committed as left
+(the in-progress files committed unreviewed under a message saying so), pushed to origin, and
+merged into main under the full gates. None of the three reached its held-out or main run, so
+**none of the three criteria is decided**, and nothing below is a result against them.
+
+| Unit | Reached | Not reached | Gates on the merge |
+|---|---|---|---|
+| M4 (Lab 1) | switchable precision devices; the ramp inhibit's sparing form; tuning stages a–c on seeds 10000–10099; the frontier table; the selected configuration (`m4-selected.json`) | pinning, freeze, byte identity, held-out run, report | fmt, clippy, 905 Rust tests, guard, 450 analysis |
+| B5 (Lab 2) | the call-budgeted selector with its readings in the module docs; tests; byte identity 62 of 62; a hand-mutant script | mutation runs, AUCs, tuning, delay sweep, held-out table, report | fmt, clippy (one lint fixed by the chief in the mid-edit test), 923 Rust tests, guard, 470 analysis |
+| L2 (Lab 3) | the echo state network noticer with update rule, priors and residual rule in the module docs; tests; byte identity 62 of 62 | tuning, merge, main run on seeds 40000–40199, analysis, report | fmt, clippy (index-loop lints in the mid-edit numerics allowed with a note for the PI, not rewritten), 951 Rust tests, guard, 476 analysis |
+
+**Evidence recorded.** M4's tuning tables and frontier (`experiments/exploration/m4-*.csv`);
+B5's and L2's byte-identity records; every run log and manifest under
+`artifacts/runs/stopped-*` (ignored); the branches `precision-frontier`, `budgeted-selector` and
+`reservoir-noticer` on origin at the stopped heads.
+
+**What the chief did not do.** Verify any tuning number from raw files (the tuning directories
+were deleted by the PIs under the retention rule, which keeps held-out runs only); review the
+in-progress files for correctness beyond the gates. The three units resume from their branches
+with a fresh PI reading the stop commit first; their criteria stand as fixed.
+
+**State of the program at the stop.** Merged and verified: Stage A, Stage B, R1–R10, W1, M1,
+M1b, M2, M3, B1–B4, L1, C1. Decided: EXP-101 is reframed to escalation control at matched
+noticing under a call-budgeted selector (B5 was building the instrument). Open: whether the
+medium reaches parity with the best public noticer on anchoring, leak and precision at once
+(M4); whether a generic temporal learner reaches the hand design (L2); whether a public score
+has any selectivity on this world (B5). The last cross-lab synthesis stands (after W1, M1, B1),
+with the additions recorded in the M2, B3, L1, B4, M3 and C1 entries.
+
 ## C1 the incremental-dataflow noticer — merged (Lab 2); exact reproduction, and the medium is not the cheap one
 
 **Provenance.** The engine choice was recorded before any code: a hand-written incremental
