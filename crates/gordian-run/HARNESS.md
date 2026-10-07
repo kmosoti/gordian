@@ -810,6 +810,59 @@ spelling of an entry of `noticers`) or the evaluator.
   ramp noticer's work is counted by `RampDetector::readings_seen` and `comparisons`
   (`tests/stream_b3_probe.rs`, `ramp_operations`).
 
+**B4: public selectors, a follow-up rule, and the selection files.** The selection oracle never asks
+about a notice anchored on a decoy or on a late plain incident, both precision measures count such a
+notice as correct and the background budget does not charge it, so no earlier column shows what noticing
+it costs a selector that must decide. B4 builds the instrument that does, and changes nothing that an
+arm which does not use it records (R6's held-out run replays byte for byte for all 62 arms,
+`b4-regression.csv`).
+
+- *`public_threshold`* (`arms/public_threshold.rs`) and *`public_change`* (`arms/public_change.rs`):
+  escalation rules over any noticer's anomalies, public information only, at R5's delay after notice
+  and with the rung's context, so that the only thing that differs from `oracle_selection` is which
+  anomalies are asked about. The threshold rule asks when the rung's conclusion is contradictory (the
+  consistency checker finds no hypothesis, as `contradiction_escalation` reads it) or silent (the rung
+  has declared nothing) for `persist_ns`; the change rule when the anomaly's attached evidence
+  (`AnomalyView::evidence`, a new field: the count of attached abnormal observations) has grown by `k`
+  since notice. Each asks once per anomaly. The readings of "contradictory", "silent", "grown" and
+  "after notice" are in the files' documentation, written before any tuning. Spelling:
+  `{"policy": "public_threshold", "delay_ns", "persist_ns"?}` and `{"policy": "public_change",
+  "delay_ns"?, "k"}`.
+- *The follow-up rule* (`arms/noticer_follow.rs`, part of the ramp noticer's spec: `ramp.follow`):
+  after the ramp noticer opens an anomaly, the rule reads the counter's later readings (every reading
+  at the chain's key, whether or not it continues the chain) and keeps the anomaly or withdraws it,
+  once: after `readings` readings, or `horizon_ns` after the completing reading, the anomaly is kept if
+  the latest reading is at least `min_gain` above the completing reading's value; a reading more than
+  `max_fall` below the highest value since the completing reading withdraws it at once. A withdrawn
+  anomaly is retired by the rung as any quiet one is (the rule's final call, then forgotten), at the
+  next step nothing is pending for it. The notice stays on the record; only whether the anomaly lives
+  on to be asked about changes. The id written to the run output gains `_follow`
+  (`noticer::composed_id_with`: `ramp_follow`, `ramp_split_follow_reanchor`, ...). With the rule
+  absent the spelling is B3's, byte for byte.
+- *The retirement cause* (`noticer::RetireCause`, `NoticeLogEntry::cause`): `quiet` for every
+  retirement of every noticer before B4 and for any noticer without the rule, `followup` for one the
+  rule made. `notice_events.csv` does not carry it (its columns are B1's and B2's).
+- *The selection record.* The harness hands the evaluator (`score_selection`, rules E1 to E8 of
+  `gordian-stream-eval/RULES.md`) the notices, the retirements with their cause and every accepted
+  escalation with the instant of the **step** that made it (the instant the notice record uses: the
+  clock advances within a step as components run, so the instant a call is applied at is later than
+  the step's, and a retirement logged at the step's instant would otherwise come before a call made
+  in the same step) and the cost the stream declared for it. Two files per arm, beside the five above,
+  which they leave as they were: `selection.csv` (one row per stream: calls, tokens and modelled
+  nanoseconds by the class of the focus, and the notices, those escalated, retired before escalation,
+  retired by the rule and retired by it before escalation, by the class of the anchor, and the calls
+  about no notice) and `selection_notices.csv` (one row per notice in the order recorded: its class,
+  the calls about it, the instants of the first call and of its retirement, the cause, and whether it
+  was retired before escalation). The classes are background, plain, hard (outside the slow-leak
+  family), leak and decoy. Schema: `SELECTION_HEADER` and `SELECTION_NOTICES_HEADER` in
+  `src/stream/results.rs`; the loader's guard compares against them and checks that the classes' calls,
+  tokens and modelled nanoseconds add up to `results.csv`'s reasoner totals and that the notices by
+  class are the notice files'. Hidden-side facts, as the notice files: evaluator output for the
+  analysis, never an input to an arm.
+- *Cost.* As B3: the harness bills the components, the shared rule and the reasoner. The contradiction
+  checker a `public_threshold` arm keeps current runs through the meter and is in the substrate columns.
+  No noticer's own work is billed but the medium's.
+
 *Choosing a noticer.* `rung.noticer` is the default for every arm and `noticers` (a map of the
 manifest, arm name to noticer) overrides it per arm, so that an interleaved run can play one arm per
 noticer. It is a map of the manifest and not a field of `StreamArmSpec` so that the specification the

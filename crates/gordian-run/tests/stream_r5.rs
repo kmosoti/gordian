@@ -62,6 +62,7 @@ fn view(id: u32) -> AnomalyView {
         last_attempt_digest: None,
         cheap_declared: false,
         delivered: 100,
+        evidence: 6,
         contradicted_since: None,
     }
 }

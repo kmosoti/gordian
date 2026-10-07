@@ -21,6 +21,7 @@ mod bridge;
 mod error;
 mod notice;
 mod score;
+mod select;
 mod step;
 mod timeserde;
 mod verdict;
@@ -32,6 +33,10 @@ pub use notice::{
     NoticeTrace, NoticeVerdict, RetireEntry, score_notices,
 };
 pub use score::score_stream;
+pub use select::{
+    ByClass, EscalationEntry, EscalationTotals, IncidentClass, NoticeFates, NoticeOutcome,
+    SelectionError, SelectionRetire, SelectionTrace, SelectionVerdict, score_selection,
+};
 pub use step::{CallSummary, StreamStep};
 pub use verdict::{
     EscalationCounts, IncidentVerdict, ReasonerUsage, ScoredCounts, StreamTotals, StreamVerdict,

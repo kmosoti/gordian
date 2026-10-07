@@ -180,6 +180,7 @@ fn build(spec: &Spec) -> Scenario {
             deadline_ns: (!decoy).then_some(onset + inc.window_s * S),
             truth: (!decoy).then_some(inc.truth),
             occupies: Vec::new(),
+            hard_kind: None,
         });
     }
     // Labels, in a shuffled order.
@@ -633,6 +634,7 @@ fn one(
         deadline_ns: Some(deadline),
         truth: Some(hypothesis),
         occupies: Vec::new(),
+        hard_kind: None,
     };
     One {
         truth: hand_truth(DURATION, &[incident], &[Some(0)]),

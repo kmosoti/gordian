@@ -17,6 +17,15 @@
 //! rung keeps current only for a rule that asks ([`EscalationRule::monitors`]). It reads nothing the
 //! other arms do not, and its context is the rung's.
 //!
+//! # The public selectors (work item B4)
+//!
+//! `public_threshold` and `public_change` are the non-privileged counterparts of the selection
+//! oracle: escalation rules over any noticer's anomalies that choose which to ask about, at R5's
+//! delay after notice and with the rung's context, from public information only
+//! ([`public_threshold`], [`public_change`]). Their readings are stated in their module
+//! documentation. They are the instrument that charges every notice, decoys and late plain ones
+//! included, which the selection oracle never asks about.
+//!
 //! # What an arm may see
 //!
 //! A [`StepInput`]: the observations and reasoner answers the stream delivered, the probe results
@@ -38,15 +47,19 @@ pub mod always;
 pub mod change;
 pub mod context;
 pub mod contradiction;
+pub mod learned;
 pub mod medium;
 pub mod never;
 pub mod noticer;
 pub mod noticer_change;
+pub mod noticer_follow;
 pub mod noticer_ramp;
 pub mod noticer_reanchor;
 pub mod noticer_rung;
 pub mod noticer_split;
 pub mod periodic;
+pub mod public_change;
+pub mod public_threshold;
 pub mod random;
 pub mod rung;
 pub mod threshold;

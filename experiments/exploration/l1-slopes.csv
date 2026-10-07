@@ -1,0 +1,109 @@
+arm,streams,outcome,reading,slope,lower,higher,incidents
+frozen,50,anchor,"R3b incident-level, per 100 incidents seen",-0.010788650339842486,-0.16346535160483305,0.12814549687336324,92
+frozen,50,anchor,"R3 curve, per 100 streams",0.11383137354742498,-0.005973120955700881,0.33285442780023095,92
+frozen,50,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,37
+frozen,50,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,37
+frozen,100,anchor,"R3b incident-level, per 100 incidents seen",-0.0025038726563751936,-0.03796735470232818,0.031854182051637606,193
+frozen,100,anchor,"R3 curve, per 100 streams",0.03357337165749975,-0.03513077612017503,0.11706264701334979,193
+frozen,100,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,50
+frozen,100,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,50
+frozen,200,anchor,"R3b incident-level, per 100 incidents seen",-0.0005710261883078772,-0.01205469454578941,0.010147758514916618,398
+frozen,200,anchor,"R3 curve, per 100 streams",0.008665124381274826,-0.015560742214273032,0.038117849887737656,398
+frozen,200,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,114
+frozen,200,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,114
+learned_nocarry,50,anchor,"R3b incident-level, per 100 incidents seen",-0.010788650339842486,-0.16346535160483305,0.12814549687336324,92
+learned_nocarry,50,anchor,"R3 curve, per 100 streams",0.11383137354742498,-0.005973120955700881,0.33285442780023095,92
+learned_nocarry,50,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,37
+learned_nocarry,50,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,37
+learned_nocarry,100,anchor,"R3b incident-level, per 100 incidents seen",-0.01235243843811762,-0.05212083489468589,0.02413547578108063,193
+learned_nocarry,100,anchor,"R3 curve, per 100 streams",0.017935436991997976,-0.05595883066728107,0.10205251025891252,193
+learned_nocarry,100,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,50
+learned_nocarry,100,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,50
+learned_nocarry,200,anchor,"R3b incident-level, per 100 incidents seen",-0.0068998997753868495,-0.02116985815103316,0.0061649878799764695,398
+learned_nocarry,200,anchor,"R3 curve, per 100 streams",-0.0021303096128872136,-0.02865055726444572,0.028461748730752173,398
+learned_nocarry,200,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,114
+learned_nocarry,200,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,114
+learned_off,50,anchor,"R3b incident-level, per 100 incidents seen",-0.010788650339842486,-0.16346535160483305,0.12814549687336324,92
+learned_off,50,anchor,"R3 curve, per 100 streams",0.11383137354742498,-0.005973120955700881,0.33285442780023095,92
+learned_off,50,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,37
+learned_off,50,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,37
+learned_off,100,anchor,"R3b incident-level, per 100 incidents seen",-0.0176940334383847,-0.05889330456545623,0.019573303364872296,193
+learned_off,100,anchor,"R3 curve, per 100 streams",0.009739681461862468,-0.06624710543613047,0.09493279364912292,193
+learned_off,100,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,50
+learned_off,100,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,50
+learned_off,200,anchor,"R3b incident-level, per 100 incidents seen",-0.010059578017357101,-0.025169837866197135,0.0038556886042352204,398
+learned_off,200,anchor,"R3 curve, per 100 streams",-0.009215352031777528,-0.03652148738778167,0.021793655068672216,398
+learned_off,200,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,114
+learned_off,200,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,114
+learned_p080,50,anchor,"R3b incident-level, per 100 incidents seen",-0.010788650339842486,-0.16346535160483305,0.12814549687336324,92
+learned_p080,50,anchor,"R3 curve, per 100 streams",0.11383137354742498,-0.005973120955700881,0.33285442780023095,92
+learned_p080,50,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,37
+learned_p080,50,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,37
+learned_p080,100,anchor,"R3b incident-level, per 100 incidents seen",-0.0025038726563751936,-0.03796735470232818,0.031854182051637606,193
+learned_p080,100,anchor,"R3 curve, per 100 streams",0.03357337165749975,-0.03513077612017503,0.11706264701334979,193
+learned_p080,100,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,50
+learned_p080,100,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,50
+learned_p080,200,anchor,"R3b incident-level, per 100 incidents seen",-0.0005710261883078772,-0.01205469454578941,0.010147758514916618,398
+learned_p080,200,anchor,"R3 curve, per 100 streams",0.008665124381274826,-0.015560742214273032,0.038117849887737656,398
+learned_p080,200,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,114
+learned_p080,200,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,114
+learned,50,anchor,"R3b incident-level, per 100 incidents seen",-0.010788650339842486,-0.16346535160483305,0.12814549687336324,92
+learned,50,anchor,"R3 curve, per 100 streams",0.11383137354742498,-0.005973120955700881,0.33285442780023095,92
+learned,50,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,37
+learned,50,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,37
+learned,100,anchor,"R3b incident-level, per 100 incidents seen",-0.0003338496875166925,-0.035159257319182506,0.034125917945178615,193
+learned,100,anchor,"R3 curve, per 100 streams",0.042954579773119575,-0.021213736892484812,0.1258274416405377,193
+learned,100,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,50
+learned,100,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,50
+learned,200,anchor,"R3b incident-level, per 100 incidents seen",-0.003264366376493364,-0.014965725343109394,0.00761035740440742,398
+learned,200,anchor,"R3 curve, per 100 streams",0.01029188851356961,-0.013869008819467616,0.0397066099736492,398
+learned,200,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,114
+learned,200,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,114
+learned_w050,50,anchor,"R3b incident-level, per 100 incidents seen",-0.010788650339842486,-0.16346535160483305,0.12814549687336324,92
+learned_w050,50,anchor,"R3 curve, per 100 streams",0.11383137354742498,-0.005973120955700881,0.33285442780023095,92
+learned_w050,50,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,37
+learned_w050,50,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,37
+learned_w050,100,anchor,"R3b incident-level, per 100 incidents seen",-0.0003338496875166925,-0.035159257319182506,0.034125917945178615,193
+learned_w050,100,anchor,"R3 curve, per 100 streams",0.042954579773119575,-0.021213736892484812,0.1258274416405377,193
+learned_w050,100,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,50
+learned_w050,100,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,50
+learned_w050,200,anchor,"R3b incident-level, per 100 incidents seen",-0.003264366376493364,-0.014965725343109394,0.00761035740440742,398
+learned_w050,200,anchor,"R3 curve, per 100 streams",0.01029188851356961,-0.013869008819467616,0.0397066099736492,398
+learned_w050,200,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,114
+learned_w050,200,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,114
+learned_w1000,50,anchor,"R3b incident-level, per 100 incidents seen",-0.010788650339842486,-0.16346535160483305,0.12814549687336324,92
+learned_w1000,50,anchor,"R3 curve, per 100 streams",0.11383137354742498,-0.005973120955700881,0.33285442780023095,92
+learned_w1000,50,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,37
+learned_w1000,50,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,37
+learned_w1000,100,anchor,"R3b incident-level, per 100 incidents seen",-0.0003338496875166925,-0.035159257319182506,0.034125917945178615,193
+learned_w1000,100,anchor,"R3 curve, per 100 streams",0.042954579773119575,-0.021213736892484812,0.1258274416405377,193
+learned_w1000,100,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,50
+learned_w1000,100,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,50
+learned_w1000,200,anchor,"R3b incident-level, per 100 incidents seen",-0.003264366376493364,-0.014965725343109394,0.00761035740440742,398
+learned_w1000,200,anchor,"R3 curve, per 100 streams",0.01029188851356961,-0.013869008819467616,0.0397066099736492,398
+learned_w1000,200,leak,"R3b incident-level, per 100 incidents seen",0.0,0.0,0.0,114
+learned_w1000,200,leak,"R3 curve, per 100 streams",0.0,0.0,0.0,114
+ramp_split_over_re2,50,anchor,"R3b incident-level, per 100 incidents seen",-0.03621904042661406,-0.15809141073435196,0.08997732829478128,92
+ramp_split_over_re2,50,anchor,"R3 curve, per 100 streams",-0.005005428257555761,-0.20092641105928588,0.22265248465775425,92
+ramp_split_over_re2,50,leak,"R3b incident-level, per 100 incidents seen",0.3082029397818872,0.0,0.8179564012083042,37
+ramp_split_over_re2,50,leak,"R3 curve, per 100 streams",0.02657655324647156,-0.044561641238254825,0.2012361613997882,37
+ramp_split_over_re2,100,anchor,"R3b incident-level, per 100 incidents seen",-0.0025038726563751936,-0.04463315660739016,0.03960828567186871,193
+ramp_split_over_re2,100,anchor,"R3 curve, per 100 streams",-0.016770798745175175,-0.09513117206030436,0.07189962696761204,193
+ramp_split_over_re2,100,leak,"R3b incident-level, per 100 incidents seen",0.1872749099639856,0.0,0.49970647873030055,50
+ramp_split_over_re2,100,leak,"R3 curve, per 100 streams",0.04404267448057888,0.0,0.12596186594143785,50
+ramp_split_over_re2,200,anchor,"R3b incident-level, per 100 incidents seen",0.007280583900925433,-0.007102179590722837,0.02205326590417815,398
+ramp_split_over_re2,200,anchor,"R3 curve, per 100 streams",0.006093122062963833,-0.019054654851558557,0.0365143867914493,398
+ramp_split_over_re2,200,leak,"R3b incident-level, per 100 incidents seen",0.03564123853303902,-0.012979706451340391,0.11062398415905013,114
+ramp_split_over_re2,200,leak,"R3 curve, per 100 streams",0.017098246505228943,-0.016260047690046298,0.058048483677889076,114
+reanchor,50,anchor,"R3b incident-level, per 100 incidents seen",-0.048548926529291186,-0.21702640991933764,0.10852867961564454,92
+reanchor,50,anchor,"R3 curve, per 100 streams",-0.0332548657774962,-0.2270038965596284,0.20332815838046175,92
+reanchor,50,leak,"R3b incident-level, per 100 incidents seen",0.6164058795637744,-1.0839406977140527,1.9865032742638042,37
+reanchor,50,leak,"R3 curve, per 100 streams",0.7461276705697499,-0.21769797678275463,1.2393656776014934,37
+reanchor,100,anchor,"R3b incident-level, per 100 incidents seen",-0.002170022968858501,-0.05262715981730352,0.047504940836938486,193
+reanchor,100,anchor,"R3 curve, per 100 streams",-0.026139590710477546,-0.11420610991186676,0.06945930233803305,193
+reanchor,100,leak,"R3b incident-level, per 100 incidents seen",0.6098439375750301,-0.2635512463059493,1.4951520748380904,50
+reanchor,100,leak,"R3 curve, per 100 streams",0.28368841529029115,-0.040097755827649614,0.4929506480005624,50
+reanchor,200,anchor,"R3b incident-level, per 100 incidents seen",0.01324780756874275,-0.0026915949123386892,0.029815555212331795,398
+reanchor,200,anchor,"R3 curve, per 100 streams",0.004038358081529518,-0.025624641869105503,0.03897321532007735,398
+reanchor,200,leak,"R3b incident-level, per 100 incidents seen",-0.006075211113586197,-0.2511485634678279,0.24114425449839197,114
+reanchor,200,leak,"R3 curve, per 100 streams",0.0730009714802219,-0.04156992834269975,0.15857885325877036,114

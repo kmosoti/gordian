@@ -4,6 +4,147 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## B4 public selectors and decoy accounting — merged (Lab 2); on this world, public selection is always-escalate
+
+**Provenance.** Two interruptions (an API limit, then the disk restart); the final PI found one
+mutated line left in the tree by a killed cargo-mutants run and reverted it, redid the mutation
+tallies (48 of 48 hand mutants; cargo-mutants 38 of 44 and 58 of 66 caught, the rest unviable,
+none missed), reran the byte-identity gate (62 of 62, recomputed), and verified the held-out
+run's manifest against the frozen choices and its binary against a rebuild at HEAD, bit for bit.
+**The chief could not verify the table from raw files:** the PI deleted the held-out run
+directory after confirming its CSVs, following the chief's disk instruction. **Coordinator
+error, recorded (seventh):** that instruction removed the evidence the chief's own review
+depends on. The rule is fixed below. What the chief verified: the committed tables are
+internally consistent with the report, and the merged tree passes every gate (fmt, clippy
+`--locked`, 828 Rust tests, the oracle guard, 450 analysis tests). The merge's seam conflict
+(B4's extended `Composed` arms against L1's `Learned` variant) was first resolved wrongly by
+the chief (both arms kept, the stale one winning, two tests failing) and then correctly as B4's
+file plus L1's four additions, with every gate rerun.
+
+**What the table says** (200 held-out streams; the comparator is ramp + split over the
+re-anchor; hard-incident quality with 90% intervals).
+
+| Selector over the comparator's anomalies | Hard quality | Calls / stream | Cost s / stream |
+|---|---|---|---|
+| Selection oracle (labelled ceiling) | 0.562 [0.517, 0.608] | 2.6 | 0.79 |
+| Public threshold rule | 0.570 [0.524, 0.616] | 26.4 | 7.95 |
+| Public change rule | 0.556 | 25.5 | 7.56 |
+| Always escalate | 0.562 | 27.0 | 7.81 |
+
+Medium at 100 ms minus the comparator: under the oracle +0.030 [+0.000, +0.060] hard quality
+for +1.05 s; under the threshold rule +0.027 [−0.003, +0.057] for +0.94 s [+0.79, +1.09]; under
+the change rule −0.027 for −0.11 s. Leak quality is lower for the medium under every asking
+selector (intervals exclude zero).
+
+**What it means (objective, environment, failure).**
+
+- **Public selection has no selectivity on this world.** The rung's checker contradicts about
+  97% of plain anomalies (R5), so a rule that escalates "when the rung is contradicted or
+  silent" escalates nearly everything: 90–98% of always-escalate's calls. The bill is 4–12× the
+  oracle's and 79% of it is plain incidents, shared by every arm. A cost claim under these
+  selectors would be a claim about the selector, not the noticer. This is R5's finding seen
+  from the other side: selection is where the cost lives, and nothing public does it.
+- **The selection oracle is not a quality ceiling.** Public selectors beat it on plain accuracy
+  (+0.06 to +0.075) and critical misses, because it never asks about plain incidents. "Ceiling"
+  holds for hard-incident quality only, and is labelled so from here.
+- **The medium's extra anomalies are neither shown paid for nor unpaid for.** +0.027 of hard
+  quality for +12% of cost, with the interval touching zero at n = 200.
+- **Decoy and late-plain notices cost 4–6% of the bill** once charged; the ramp's own
+  addition is about 2.4%. Leaks and decoys separate weakly after five readings (AUC 0.63 on
+  the statistic tried), and the follow-up rule tuned to lose no leak on 100 tuning streams lost
+  7 on held-out. The rule is not retained.
+- **Feasible EXP-101 margins at n = 200:** hard quality about 0.05, cost about 5%, anchoring
+  the public row minus 0.02. Not resolvable: 1% cost across noticer families, 0.02 quality, or
+  the decoy cost itself.
+
+**Decided.**
+
+1. **Rule fix:** a lab keeps its held-out run directory and byte-identity directory until the
+   chief has verified them; only tuning directories are deleted for disk. Recorded in
+   `docs/local-test-plan.md`.
+2. **EXP-101's cost axis is call-budgeted.** Arms are compared at a matched number of reasoner
+   calls per stream (a public score ranks a noticer's anomalies; the top k per stream are
+   asked), with k swept, so that what differs between arms is which anomalies they ask about,
+   not how many. **B5 (Lab 2, after C1):** the call-budgeted selector, a delay sweep (the 16 s
+   delay is a hidden selector), and the public score's feature AUCs for hard against plain at
+   the ask instant.
+3. EXP-101's primary measure is verified decisions (plain and hard) and critical misses per
+   stream at a matched call budget, with hard quality and anchoring bounded; the draft comes to
+   the user before the freeze, after B5's table sets the margins.
+
+## L1 the learned noticer — merged (Lab 3); learning is real, fast, and stops short of the hand design
+
+**Provenance.** Two interruptions (an API limit, then the disk restart); the final PI verified
+the inherited state, rebuilt the release binary and found its hash equal to the one the main run
+used, regenerated every analysis CSV from the run outputs byte-identically, and reran the
+byte-identity gate (62 of 62, recomputed independently). The update rule and priors were
+committed before any run; two amendments were made on development seeds before the main run
+and are recorded. Gates under the runner on the merged tree: fmt, clippy `--locked`, 790 Rust
+tests, the oracle guard, 417 analysis tests. Outputs in `artifacts/runs/l1/` (ignored). Not done:
+mutation testing of the learner.
+
+**Re-verified from the run outputs** (seeds 40000–40199, never used for tuning; chief's own
+bootstraps): clause 1, learned minus frozen anchor-correct over the last 100 streams, 0.000
+[−0.011, +0.010], holds; clause 3, learning-off minus frozen, −0.039 [−0.064, −0.015], holds;
+clause 2, the slope of the cumulative curve over the first 100 streams, +0.053 [−0.037,
++0.085] (lab: +0.043 [−0.021, +0.126]), lower bound below zero, **fails**. End states match the
+lab exactly: learned 0.980 anchor-correct at 8.76 background notices per stream; frozen 0.980
+at 5.53; learning-off 0.941 at 31.55.
+
+**Verdict as written: the learned arm does not count toward the aim** (the clauses are
+conjunctive).
+
+**What it means (causality, objective, failure, meta).**
+
+- **Something was learned, from public structure alone.** The coincidence window goes
+  400 ms → 100 ms → 49 ms → 30 ms within four streams, read from the excess over independence
+  of same-service abnormal pairs by gap bin; the ramp threshold settles at 2.5. Against the same
+  graph with learning off, learning is worth 22.8 fewer background notices per stream and
+  +0.039 anchor-correct. The prior does not matter (50 ms and 1,000 ms priors reach the same
+  end state). This is the first evidence in the program that a public statistic of the stream
+  carries the knowledge the hand constants encode.
+- **It stops short of the hand design, and pays in false notices.** The learner's 30 ms window
+  against the hand-tuned 20 ms costs 3.2 more background notices per stream (8.76, above M2's
+  6.82 bound) and 0.07 of strict precision. Anchor parity was bought by firing more. The
+  background and precision bounds, not the clauses, show the learner is worse than the hand
+  design.
+- **The missing knowledge sits in one knob.** The learner's "precision demanded" parameter
+  `p` decides where it stops: at 0.5 it stops at 30 ms and 2.5; at 0.8 (a pre-planned
+  sensitivity arm) it recovers M2's 20 ms and 3.0 exactly, with the frozen graph's background
+  and precision to the digit. So the hand tuning was moved up one level, not removed. The stream
+  gives no feedback, so the learner has no way to set `p` from its own history; a public
+  yield or cost signal (how many of its notices attach further evidence, or retire quickly) is
+  what a stronger learner would need, and that is the design question the next learned unit
+  must answer.
+- **The criterion's slope clause cannot register fast learning.** The four medium arms make
+  identical decisions on all 92 incidents in the first 50 streams, because the prior's cost
+  only shows after the learner has already converged and the cumulative ratio has diluted it.
+  A least-squares slope over 100 streams of a cumulative ratio is a poor instrument for a
+  learner that finishes in four. **Coordinator error, recorded (sixth):** I fixed a clause
+  whose statistic could not see the effect it was meant to detect at the speed the effect
+  actually has; the feasibility note considered only whether a slope was measurable, not over
+  what horizon. The clause stands for L1 as written; L2's criterion is amended below, before any
+  L2 code.
+- **One world, one seed, one setting, three differing incidents in 398.** The parity claim is
+  exactly as thin as that.
+
+**Decided.**
+
+1. **L2's criterion is amended** (before any L2 code): clause 2 becomes "background notices per
+   stream and strict precision against streams seen, with the endpoint fixed at stream 20: the
+   learner's background over streams 21–40 is at most the learning-off control's minus 10, with
+   the paired lower bound below −5", so that learning completed in a few streams is visible,
+   and clause 1 adds the background bound (≤ 6.82) and strict-precision bound (≥ 0.67) as
+   conditions, so that anchoring bought with false notices does not pass.
+2. **L3 (Lab 3, after L2):** a learner that sets its own precision demand from a public yield
+   signal, on a distribution-shifted stream (burst spacing and ramp rate changed from the
+   defaults) where the frozen graph is wrong and there is something to catch up to; against a
+   conventional online tuner (a grid search on the first N streams) as the matched
+   conventional learner the charter's proxy 2 names. Criterion to be fixed before code, with the
+   amended clause 2's horizon.
+3. The L1 learner's window statistic is kept as the first public, label-free estimator of the
+   world's burst spacing; it enters C1's engine as a derived relation if it proves useful there.
+
 ## B3 the public leak noticer and splitting noticer — merged (Lab 2); the status quo closes the leak too
 
 **Provenance.** The unit was interrupted by the container restart after tuning and before the

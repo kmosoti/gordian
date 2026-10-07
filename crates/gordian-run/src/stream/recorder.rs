@@ -27,9 +27,10 @@
 use super::harness::{StreamHarnessError, run_segment, run_segment_privileged};
 use super::manifest::StreamManifest;
 use super::results::{
-    MEASURED_HEADER, NOTICE_EVENTS_HEADER, NOTICE_INCIDENTS_HEADER, NOTICES_HEADER, incident_rows,
-    incidents_header, measured_row, notice_event_rows, notice_incident_rows, notices_row,
-    results_header, results_row,
+    MEASURED_HEADER, NOTICE_EVENTS_HEADER, NOTICE_INCIDENTS_HEADER, NOTICES_HEADER,
+    SELECTION_HEADER, SELECTION_NOTICES_HEADER, incident_rows, incidents_header, measured_row,
+    notice_event_rows, notice_incident_rows, notices_row, results_header, results_row,
+    selection_notice_rows, selection_row,
 };
 use super::spec::{build_public, privileged_factory};
 use crate::drift::{DRIFT_HEADER, Workload, drift_row};
@@ -192,12 +193,16 @@ struct ArmOut {
     notices_path: PathBuf,
     notice_incidents_path: PathBuf,
     notice_events_path: PathBuf,
+    selection_path: PathBuf,
+    selection_notices_path: PathBuf,
     results: String,
     incidents: String,
     measured: String,
     notices: String,
     notice_incidents: String,
     notice_events: String,
+    selection: String,
+    selection_notices: String,
     events: Option<BufWriter<File>>,
     summary: StreamRunSummary,
 }
@@ -256,12 +261,16 @@ pub fn execute_stream(
             notices_path: dir.join("notices.csv"),
             notice_incidents_path: dir.join("notice_incidents.csv"),
             notice_events_path: dir.join("notice_events.csv"),
+            selection_path: dir.join("selection.csv"),
+            selection_notices_path: dir.join("selection_notices.csv"),
             results: format!("{}\n", results_header()),
             incidents: format!("{}\n", incidents_header()),
             measured: format!("{MEASURED_HEADER}\n"),
             notices: format!("{NOTICES_HEADER}\n"),
             notice_incidents: format!("{NOTICE_INCIDENTS_HEADER}\n"),
             notice_events: format!("{NOTICE_EVENTS_HEADER}\n"),
+            selection: format!("{SELECTION_HEADER}\n"),
+            selection_notices: format!("{SELECTION_NOTICES_HEADER}\n"),
             events: None,
             summary: StreamRunSummary::default(),
         };
@@ -273,6 +282,8 @@ pub fn execute_stream(
             &arm.notices_path,
             &arm.notice_incidents_path,
             &arm.notice_events_path,
+            &arm.selection_path,
+            &arm.selection_notices_path,
         ] {
             if path.exists() {
                 return Err(StreamRunError::Io(format!(
@@ -349,6 +360,12 @@ pub fn execute_stream(
                 arm.notice_events.push_str(&line);
                 arm.notice_events.push('\n');
             }
+            arm.selection.push_str(&selection_row(&arm.run_id, &record));
+            arm.selection.push('\n');
+            for line in selection_notice_rows(&arm.run_id, &record) {
+                arm.selection_notices.push_str(&line);
+                arm.selection_notices.push('\n');
+            }
             arm.summary.segments += 1;
             arm.summary.step_capped +=
                 usize::from(record.stop == super::harness::StreamStop::StepCap);
@@ -390,6 +407,10 @@ pub fn execute_stream(
             .map_err(|e| io_error("cannot write", &arm.notice_incidents_path, e))?;
         fs::write(&arm.notice_events_path, &arm.notice_events)
             .map_err(|e| io_error("cannot write", &arm.notice_events_path, e))?;
+        fs::write(&arm.selection_path, &arm.selection)
+            .map_err(|e| io_error("cannot write", &arm.selection_path, e))?;
+        fs::write(&arm.selection_notices_path, &arm.selection_notices)
+            .map_err(|e| io_error("cannot write", &arm.selection_notices_path, e))?;
         total.add(&arm.summary);
         summaries.push((arm.name, arm.summary));
     }
