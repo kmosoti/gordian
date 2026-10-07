@@ -7,6 +7,9 @@
 //! and [`calls_from_sim`]. The rules are numbered in `RULES.md`; hand-written cases that pin each
 //! rule are in `fixtures/stream-cases.json`.
 //!
+//! Memory (work item E1): [`score_memory`] scores what an arm declared from memory, with the
+//! observation each memory was bound at, rules K1 onward in `RULES.md`.
+//!
 //! Not built, and not claimed: a verdict says what a trajectory did against a stream, not
 //! whether a policy is good. The evaluator never judges an outcome with a model.
 //!
@@ -19,6 +22,7 @@
 
 mod bridge;
 mod error;
+mod memory;
 mod notice;
 mod score;
 mod select;
@@ -28,6 +32,10 @@ mod verdict;
 
 pub use bridge::{calls_from_sim, truth_from_stream};
 pub use error::StreamEvalError;
+pub use memory::{
+    IncidentMemory, MemoryError, MemoryTotals, MemoryVerdict, RecallCells, RecallEntry,
+    RecallSource, SourceClass, score_memory,
+};
 pub use notice::{
     ANCHOR_WINDOW_NS, IncidentNotices, NoticeEntry, NoticeEvalError, NoticeScore, NoticeTotals,
     NoticeTrace, NoticeVerdict, RetireEntry, score_notices,

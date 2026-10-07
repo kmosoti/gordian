@@ -79,6 +79,8 @@ fn build(spec: &Spec) -> (gordian_stream::oracle::StreamTruth, SelectionTrace) {
                 } else {
                     HardKind::Compound
                 }),
+                recurrence_of: None,
+                contradicts_early: None,
             }
         })
         .collect();

@@ -31,6 +31,13 @@ pub struct CompactIncident {
     /// none by default.
     #[serde(default)]
     pub hard_kind: Option<HardKind>,
+    /// The incident this one repeats (the memory fixtures' K1); none by default.
+    #[serde(default)]
+    pub recurrence_of: Option<u32>,
+    /// A hard incident's mode (the memory fixtures' K2): `true` breaks the public rules at once,
+    /// `false` imitates a known kind first, none for the slow leak and by default.
+    #[serde(default)]
+    pub contradicts_early: Option<bool>,
 }
 
 /// The fixture form of a truth: duration, incidents, and one label per observation (`null` for
@@ -68,13 +75,13 @@ pub fn hand_truth(
             difficulty: 0.0,
             live_end_ns: c.deadline_ns.unwrap_or(c.onset_ns),
             busy_until_ns: c.deadline_ns.unwrap_or(c.onset_ns),
-            recurrence_of: None,
+            recurrence_of: c.recurrence_of,
             occupies: c.occupies.iter().map(|s| ServiceId(*s)).collect(),
             shape: ShapeTruth {
                 known_kind: None,
                 duo: false,
                 hard_kind: c.hard_kind,
-                contradicts_early: None,
+                contradicts_early: c.contradicts_early,
                 other: None,
                 mimics: None,
                 pair: None,

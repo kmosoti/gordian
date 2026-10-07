@@ -269,3 +269,81 @@ not here.
    units, as S26: it does not include the cheap components the rung runs to decide whether to ask
    (the contradiction checker a selector monitors with), which are in `results.csv`'s substrate
    columns.
+
+## Memory (work item E1)
+
+`score_memory(truth, trajectory, recalls)` says what an arm declared without asking, and which of
+those declarations it made from memory and from where. It is a separate pure function with its own
+inputs: the truth, the trajectory `score_stream` scores (the accepted `Declare` and `Escalate`
+steps are read; a refused step is nothing, S3) and a record of **recalls**, one `RecallEntry` per
+declaration the harness marked as made from memory (`Source::Recall`): the index of its step in
+the trajectory and, when the memory says so, its **source**, the observation the stored answer was
+about and the answer as stored. It adds nothing to `score_stream`'s verdict and moves none.
+`fixtures/memory-cases.json` pins each rule (K1 to K10), and `tests/memory_fixtures.rs` fails if a rule here is
+pinned by no case or a case names a rule that is not here. Rule ids start with `K`.
+
+The brief's `unasked_correct` and `stale_wrong` are defined here as the amended brief (W2, after
+the first draft) has them: an unasked wrong declaration counts every error an arm makes without
+asking, the cheap rung's own included (W2 section 7.5: 17% of plain incidents and 73% of decoys at
+no memory at all), so a memory's own errors are the declarations the harness marks as recalls,
+classed by their source.
+
+| Id | Rule |
+|---|---|
+| K1 | **Recurrence.** `recurrence_of` is the truth's flag, the index of the incident this one repeats, for an incident of any tier; `None` when it repeats none. Hidden side; not an arm input. |
+| K2 | **Same family earlier.** The *class* of a hard incident is its hard kind (`shape.hard_kind`) and its mode (`shape.contradicts_early`: `Some(true)` the evidence breaks the public rules at once, `Some(false)` it imitates a known kind first, `None` for the slow leak, which has no mode): seven classes, as W2 fixed them. An incident has `same_family_earlier` when it is hard, has a class and a site (K9), and an *earlier* hard incident (a lower id) of the same class at *another* site exists. A recurrence of an incident at the same site does not make it true; an incident that is both a recurrence and has an earlier same-class incident elsewhere is true. A decoy and a plain incident are never true, and a decoy does not count as the earlier incident (W2 item 2). |
+| K3 | **Unasked correct.** An incident's declarations are the accepted declarations whose anchor belongs to it (S2), and its escalations the accepted escalations whose focus belongs to it (S13). It is `unasked_correct` when it has at least one correct declaration (S4, S5; for a decoy, a dismissal, S15) and no escalation, at any instant: a declaration made before an escalation does not count if an escalation about the incident follows. Defined for every tier; the population that carries the claim is the hard incidents. |
+| K4 | **Unasked wrong.** An incident is `unasked_wrong` when it has at least one wrong declaration (S11; for a decoy, a false alarm, S14) and no escalation. It counts every wrong declaration whoever made it (the shared rule, a recogniser or a memory), so it is read as the **paired excess over the memoryless arm** on the same incidents (analysis, "Derived measures"), never as a memory's error rate. |
+| K5 | **A recall, its outcome and its source.** A recall is *correct* when its declaration equals the truth of the incident its anchor belongs to (S4, S5; `None` is correct on background and on a decoy, S15, S18), and *wrong* otherwise. Its *source class* is *right* when the source's stored diagnosis equals the truth of the incident the source observation belongs to (`None`, "not an incident", for an observation of background and for a decoy's), *wrong* when it does not, and *unknown* when no source was recorded (the medium's engram does not record one; the record rung does). The source's incident is read as S2 reads an anchor; its instant is not read. |
+| K6 | **The six cells and stale wrong.** Each recall falls in one of six cells: correct or wrong, crossed with source right, wrong or unknown. A **wrong recall with a right source** is a *collision or staleness*: the stored answer was right for its own incident and wrong for this one (the key matched another truth, or the physics had changed since). A **wrong recall with a wrong source** is *inherited*: the memory repeated the reasoner's error. The two are never merged. An incident is `stale_wrong` when it has at least one wrong recall and no escalation (K3's reading of "unasked"); its `recalls` cells count its recalls, over every recall anchored on it, escalated or not. |
+| K7 | **Totals.** `recalls` is the six cells over every recall; `recalls_on_plain`, `_on_hard`, `_on_decoy` and `_on_background` split them by what the anchor belongs to and add to `recalls`. `unasked_correct`, `unasked_wrong` and `stale_wrong` count incidents by tier. `hard_recurrences` counts hard incidents with K1 set, `hard_elsewhere` hard incidents with no K1 and K2 set, `hard_reachable` hard incidents with either; each has an `_unasked_correct` count of those that are K3. The three populations are W2's: a site-keyed memory can reach the first, a family-keyed one all three. Ratios are pooled from counts across streams by the analysis, never averaged per stream (a stream has about 0.4 hard recurrences). |
+| K8 | **Errors, not verdicts.** The record is refused, with no verdict, in this order: for each recall in order, its step does not exist (`StepOutOfRange`), is not an accepted declaration (`NotADeclaration`), or is named by an earlier recall (`StepRepeated`); then for each accepted step in order, a declaration's anchor or an escalation's focus is not an observation of the stream (`UnknownObservation`); then for each recall in order, its source observation is not an observation of the stream (`UnknownObservation`). The other checks of `score_stream` (S27 to S37) are `score_stream`'s, which the harness runs on the same trajectory first. |
+| K9 | **A site** is the first service the incident occupies (N13). An incident that occupies nothing has no site, and K2 is false for it. |
+| K10 | **Purity.** The verdict is a function of the three inputs; it reads no clock, no randomness, nothing else. Recalls are not steps, are never charged and move no score of `score_stream`. |
+
+### Derived measures (the analysis's, from the rows)
+
+Not rows; computed from `memory_incidents.csv`, `memory.csv`, `recalls.csv` and the other
+evaluator files by `analysis/gordian_analysis/memory.py`:
+
+- **Unasked-correct share** of a population: the K3 count over the population's size, pooled across
+  streams (hard recurrences, same-family-elsewhere, reachable, all hard incidents).
+- **Collision share:** wrong recalls with a right source over all recalls with a right source
+  (`wrong_source_right / (correct_source_right + wrong_source_right)`), pooled; and per stream, the
+  wrong-recall count with a right source. W2's bound for A1b is at most 0.20 of such recalls and
+  at most 0.25 per stream.
+- **Inherited errors:** wrong recalls with a wrong source, as a count per stream and as a share of
+  recalls with a wrong source.
+- **Paired excess over the memoryless arm:** for two arms that played the same streams, the sum over
+  incidents of `unasked_wrong(arm) - unasked_wrong(control)`, joined by (seed, incident), also by
+  tier. The cheap rung's own errors cancel; what is left is what the memory added or removed.
+- **Calls per correct decision:** `reasoner_calls` over `correct_plain + correct_hard` (S6, S20) from
+  `results.csv`, the correct decisions by their deadline whoever made them, pooled across streams.
+  Not an evaluator output.
+- **Experience curves:** the cumulative unasked-correct counts (K3), and the cumulative recalls by
+  cell (K6), against the incidents seen in stream order (id order within a stream, seed order
+  across streams), from the per-incident rows. Not an evaluator output.
+
+### Where the memory rules are a judgement
+
+1. **"Right for its own incident" compares the stored answer with the truth of the source's
+   incident, kind and site (K5).** A family-keyed memory that substitutes the new anomaly's site
+   into a stored kind declares the right kind at a new site; its stored answer is still compared at
+   its own site, which is what the reasoner was asked about. A source whose answer was right in
+   kind and wrong in site is wrong by this rule, and so is a recall it makes of that kind
+   (W2 section 7.6 counts the family-keyed wrong share as an upper estimate for the same reason).
+2. **The source is the memory's, not the world's (K5).** A recall whose source is right and which
+   is wrong is called a collision or staleness, the two together; the evaluator does not separate a
+   key that matched another family from a key whose physics had since changed (that needs W2's
+   rebuilt incidents, a hidden-side script, not a rule here). The recall's time after a regime
+   change is in `recalls.csv` for whoever wants to cut it.
+3. **A recall that was followed by an escalation about its incident is still a recall (K6).** The
+   arm's confirmation policies ask instead of declaring, so a recall that is declared is not
+   escalated by the arms built so far; an arm that does both has its recall counted in the cells
+   and not as `stale_wrong`.
+4. **Unasked is a property of the incident, not of the declaration (K3).** A correct declaration
+   made by the cheap rung on a plain incident the selector never asked about is unasked correct, as
+   it should be: 85.5% of plain recurrences are, with no memory at all (W2 7.5), which is why the
+   clause that carries the memory claim is on hard incidents.
+5. **A decoy's "correct" declaration is a dismissal (K3, S15)**, and a recall that declares an
+   incident on a decoy is wrong, as S14 says.

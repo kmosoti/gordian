@@ -1,0 +1,3968 @@
+[
+ {
+  "name": "recurrence/the-truths-flag-is-read-for-every-tier",
+  "rules": [
+   "K1",
+   "K7"
+  ],
+  "note": "Three incidents: a plain one, a plain one that repeats incident 0, and a decoy that repeats incident 0. K1 reads the flag as it is, for every tier; nothing was declared.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     }
+    },
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "recurrence_of": 0
+    },
+    {
+     "tier": "Decoy",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": null,
+     "truth": null,
+     "recurrence_of": 0
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2
+   ]
+  },
+  "trajectory": [],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Plain",
+      "recurrence_of": 0,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Decoy",
+      "recurrence_of": 0,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 0,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "family/same-class-at-another-site-and-the-mode-matters",
+  "rules": [
+   "K2",
+   "K7",
+   "K9"
+  ],
+  "note": "Four hard cascades at sites 1, 2, 3, 1. Incident 0 is first, so it has nothing earlier. Incident 1 (contradict, site 2) has incident 0 (contradict, site 1) earlier: true. Incident 2 is a mimic: no earlier mimic, false. Incident 3 repeats incident 0 at its site and has incident 1 (contradict, site 2) earlier at another site: true, though it is a recurrence. Totals: one recurrence (3), one elsewhere (1: no recurrence, true), two reachable (1 and 3). Nothing declared, so nothing is unasked correct.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Cascade",
+     "contradicts_early": true
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ],
+     "hard_kind": "Cascade",
+     "contradicts_early": true
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ],
+     "hard_kind": "Cascade",
+     "contradicts_early": false
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Cascade",
+     "contradicts_early": true,
+     "recurrence_of": 0
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  "trajectory": [],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 3,
+      "tier": "Hard",
+      "recurrence_of": 0,
+      "same_family_earlier": true,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 1,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 1,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 2,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "family/the-slow-leak-has-no-mode-and-a-decoy-is-not-an-earlier-incident",
+  "rules": [
+   "K2"
+  ],
+  "note": "A decoy that imitates a slow leak (incident 0), then a slow leak at site 2 (incident 1), a slow leak at site 4 (incident 2), a plain incident (3). Incident 1 has only a decoy before it, which is not an earlier hard incident: false. Incident 2 has incident 1 earlier at another site, and both have no mode, so the class is the same: true. The plain incident is false.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Decoy",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": null,
+     "truth": null,
+     "occupies": [
+      1
+     ],
+     "hard_kind": "SlowLeak"
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "SlowLeak"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ],
+     "hard_kind": "SlowLeak"
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "SlowLeak"
+      },
+      "site": 4
+     },
+     "occupies": [
+      4
+     ],
+     "hard_kind": "SlowLeak"
+    },
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 6
+     },
+     "occupies": [
+      6
+     ]
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  "trajectory": [],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Decoy",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 3,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 1,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 1,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "family/the-same-site-and-no-site-are-not-another-site",
+  "rules": [
+   "K2",
+   "K9"
+  ],
+  "note": "Three hard cascades (contradict). Incident 1 is at the same site as incident 0: false, nothing earlier at another site. Incident 2 occupies nothing, so it has no site: false.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 5
+     },
+     "occupies": [
+      5
+     ],
+     "hard_kind": "Cascade",
+     "contradicts_early": true
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 5
+     },
+     "occupies": [
+      5
+     ],
+     "hard_kind": "Cascade",
+     "contradicts_early": true
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 5
+     },
+     "occupies": [],
+     "hard_kind": "Cascade",
+     "contradicts_early": true
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2
+   ]
+  },
+  "trajectory": [],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 0,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "family/a-hard-incident-without-a-hard-kind-has-no-class",
+  "rules": [
+   "K2"
+  ],
+  "note": "Two hard incidents with no hard kind recorded (a hand-built truth), at sites 1 and 2: no class, so false for both.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ]
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Cascade"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ]
+    }
+   ],
+   "labels": [
+    0,
+    1
+   ]
+  },
+  "trajectory": [],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 0,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "unasked/correct-with-no-escalation-at-any-instant",
+  "rules": [
+   "K3",
+   "K7"
+  ],
+  "note": "Six incidents. 0 hard, declared correctly, never asked: unasked correct. 1 hard, asked, then declared correctly: not. 2 hard, declared correctly and then asked: not, K3 reads 'no escalation' at any instant. 3 plain declared correctly, never asked: unasked correct. 4 plain declared wrongly only: not. 5 decoy dismissed: unasked correct, in the decoy count. Observation i belongs to incident i.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 4
+     },
+     "occupies": [
+      4
+     ]
+    },
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 5
+     },
+     "occupies": [
+      5
+     ]
+    },
+    {
+     "tier": "Decoy",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": null,
+     "truth": null,
+     "occupies": [
+      6
+     ]
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 1
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 20000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 1
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Escalated": {
+      "call": 0,
+      "ready_at": 22000000000,
+      "cost": {
+       "calls": 1,
+       "tokens": 400,
+       "modelled_ns": 100000000,
+       "latency_ns": 2000000000
+      }
+     }
+    }
+   },
+   {
+    "at": 25000000000,
+    "action": {
+     "Declare": {
+      "anchor": 1,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 2
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 1
+     }
+    }
+   },
+   {
+    "at": 26000000000,
+    "action": {
+     "Declare": {
+      "anchor": 2,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 2
+     }
+    }
+   },
+   {
+    "at": 30000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 2
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Escalated": {
+      "call": 1,
+      "ready_at": 32000000000,
+      "cost": {
+       "calls": 1,
+       "tokens": 400,
+       "modelled_ns": 100000000,
+       "latency_ns": 2000000000
+      }
+     }
+    }
+   },
+   {
+    "at": 27000000000,
+    "action": {
+     "Declare": {
+      "anchor": 3,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 4
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 3
+     }
+    }
+   },
+   {
+    "at": 28000000000,
+    "action": {
+     "Declare": {
+      "anchor": 4,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 9
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 4
+     }
+    }
+   },
+   {
+    "at": 29000000000,
+    "action": {
+     "Declare": {
+      "anchor": 5,
+      "diagnosis": null
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 5
+     }
+    }
+   }
+  ],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 1,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 1,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 3,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 4,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 1,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": true,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 5,
+      "tier": "Decoy",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 1,
+      "hard": 1,
+      "decoy": 1
+     },
+     "unasked_wrong": {
+      "plain": 1,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 2,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 2,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "unasked/wrong-counts-every-origin-and-is-cleared-by-an-escalation",
+  "rules": [
+   "K4",
+   "K7"
+  ],
+  "note": "Four incidents. 0 plain declared wrongly, no escalation: unasked wrong. 1 hard declared wrongly and then correctly, no escalation: both unasked correct and unasked wrong (K3 and K4 are independent). 2 decoy declared as an incident (a false alarm), no escalation: unasked wrong. 3 plain declared wrongly and then asked: not unasked wrong.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ]
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Decoy",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": null,
+     "truth": null,
+     "occupies": [
+      3
+     ]
+    },
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 4
+     },
+     "occupies": [
+      4
+     ]
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 8
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 21000000000,
+    "action": {
+     "Declare": {
+      "anchor": 1,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Cascade"
+       },
+       "site": 2
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 1
+     }
+    }
+   },
+   {
+    "at": 22000000000,
+    "action": {
+     "Declare": {
+      "anchor": 1,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 2
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 2
+     }
+    }
+   },
+   {
+    "at": 23000000000,
+    "action": {
+     "Declare": {
+      "anchor": 2,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 3
+     }
+    }
+   },
+   {
+    "at": 24000000000,
+    "action": {
+     "Declare": {
+      "anchor": 3,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 8
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 4
+     }
+    }
+   },
+   {
+    "at": 25000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 3
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Escalated": {
+      "call": 0,
+      "ready_at": 27000000000,
+      "cost": {
+       "calls": 1,
+       "tokens": 400,
+       "modelled_ns": 100000000,
+       "latency_ns": 2000000000
+      }
+     }
+    }
+   }
+  ],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 1,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": true,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 1,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": true,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Decoy",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 1,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": true,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 3,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 1,
+      "escalations": 1,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 1,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 1,
+      "hard": 1,
+      "decoy": 1
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 0,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "unasked/refused-steps-are-not-read",
+  "rules": [
+   "K3",
+   "K4"
+  ],
+  "note": "A refused declaration and a refused escalation about incident 0 change nothing (S3): it has no declaration and no escalation, so it is neither unasked correct nor unasked wrong. Incident 1 has an accepted correct declaration and a refused escalation: unasked correct.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ],
+     "hard_kind": "Compound"
+    }
+   ],
+   "labels": [
+    0,
+    1
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 1
+      }
+     }
+    },
+    "outcome": {
+     "Refused": "PastDuration"
+    }
+   },
+   {
+    "at": 31000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 0
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Refused": {
+      "ReasonerBudgetExceeded": {
+       "needed_ns": 100000000
+      }
+     }
+    }
+   },
+   {
+    "at": 32000000000,
+    "action": {
+     "Declare": {
+      "anchor": 1,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 2
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 33000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 1
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Refused": {
+      "ReasonerBudgetExceeded": {
+       "needed_ns": 100000000
+      }
+     }
+    }
+   }
+  ],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 1,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 1,
+     "hard_elsewhere_unasked_correct": 1,
+     "hard_reachable": 1,
+     "hard_reachable_unasked_correct": 1
+    }
+   }
+  }
+ },
+ {
+  "name": "unasked/the-three-populations-count-their-unasked-correct",
+  "rules": [
+   "K1",
+   "K2",
+   "K3",
+   "K7"
+  ],
+  "note": "Five hard incidents, all unasked correct but the last. 0 compound at 1 (first). 1 compound at 2, recurrence_of none: elsewhere. 2 compound at 1, recurrence of 0, and the class exists at another site earlier (1 at site 2): in the recurrences and also same_family_earlier, so reachable and not 'elsewhere'. 3 split brain at 7: alone, in no population. 4 compound at 9, elsewhere, but asked: not unasked correct.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound",
+     "contradicts_early": true
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ],
+     "hard_kind": "Compound",
+     "contradicts_early": true
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound",
+     "contradicts_early": true,
+     "recurrence_of": 0
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "SplitBrain"
+      },
+      "site": 7
+     },
+     "occupies": [
+      7
+     ],
+     "hard_kind": "SplitBrain",
+     "contradicts_early": true
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 9
+     },
+     "occupies": [
+      9
+     ],
+     "hard_kind": "Compound",
+     "contradicts_early": true
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 1
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 1,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 2
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 1
+     }
+    }
+   },
+   {
+    "at": 21000000000,
+    "action": {
+     "Declare": {
+      "anchor": 2,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 1
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 2
+     }
+    }
+   },
+   {
+    "at": 22000000000,
+    "action": {
+     "Declare": {
+      "anchor": 3,
+      "diagnosis": {
+       "kind": {
+        "Hard": "SplitBrain"
+       },
+       "site": 7
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 3
+     }
+    }
+   },
+   {
+    "at": 23000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 4
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Escalated": {
+      "call": 0,
+      "ready_at": 25000000000,
+      "cost": {
+       "calls": 1,
+       "tokens": 400,
+       "modelled_ns": 100000000,
+       "latency_ns": 2000000000
+      }
+     }
+    }
+   },
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 4,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 9
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 4
+     }
+    }
+   }
+  ],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Hard",
+      "recurrence_of": 0,
+      "same_family_earlier": true,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 3,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 4,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 1,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 4,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 1,
+     "hard_recurrences_unasked_correct": 1,
+     "hard_elsewhere": 2,
+     "hard_elsewhere_unasked_correct": 1,
+     "hard_reachable": 3,
+     "hard_reachable_unasked_correct": 2
+    }
+   }
+  }
+ },
+ {
+  "name": "recall/the-six-cells-and-where-each-recall-is-anchored",
+  "rules": [
+   "K5",
+   "K6",
+   "K7",
+   "K2"
+  ],
+  "note": "Four incidents (0 and 1 hard compounds at sites 1 and 2, 2 plain, 3 decoy) and a background observation 4; observation i belongs to incident i. Six recalls and one declaration that is not a recall (step 6). Step 0: anchor 1 declares compound at 2, correct; its source is observation 0 with the stored compound at 1, which is incident 0's truth: correct, source right. Step 1: anchor 2 (plain, ConfigDrift at 3) declares compound at 3: wrong; same source, right: a collision (wrong, source right). Step 2: anchor 3 (decoy) declares compound at 3: wrong; source observation 1 stored compound at 1 but incident 1's truth is compound at 2: source wrong: inherited. Step 3: anchor 0 declares compound at 1, correct; source observation 1, stored compound at 1, wrong source: correct with a wrong source. Step 4: anchor 4 (background) declares 'not an incident': correct, no source. Step 5: anchor 4 declares compound at 3: wrong (S18), no source. Step 6 is the cheap rung's correct declaration for the plain incident, not a recall: it makes incident 2 both unasked correct and unasked wrong.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 2
+     },
+     "occupies": [
+      2
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    },
+    {
+     "tier": "Decoy",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": null,
+     "truth": null,
+     "occupies": [
+      4
+     ]
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    2,
+    3,
+    null
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 1,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 2
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 21000000000,
+    "action": {
+     "Declare": {
+      "anchor": 2,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 1
+     }
+    }
+   },
+   {
+    "at": 22000000000,
+    "action": {
+     "Declare": {
+      "anchor": 3,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 2
+     }
+    }
+   },
+   {
+    "at": 23000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 1
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 3
+     }
+    }
+   },
+   {
+    "at": 24000000000,
+    "action": {
+     "Declare": {
+      "anchor": 4,
+      "diagnosis": null
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 4
+     }
+    }
+   },
+   {
+    "at": 25000000000,
+    "action": {
+     "Declare": {
+      "anchor": 4,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 5
+     }
+    }
+   },
+   {
+    "at": 26000000000,
+    "action": {
+     "Declare": {
+      "anchor": 2,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 6
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": {
+     "obs": 0,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     }
+    }
+   },
+   {
+    "step": 1,
+    "source": {
+     "obs": 0,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     }
+    }
+   },
+   {
+    "step": 2,
+    "source": {
+     "obs": 1,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     }
+    }
+   },
+   {
+    "step": 3,
+    "source": {
+     "obs": 1,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     }
+    }
+   },
+   {
+    "step": 4,
+    "source": null
+   },
+   {
+    "step": 5,
+    "source": null
+   }
+  ],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 1,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": true,
+      "correct_declarations": 1,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 1,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 2,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 1,
+      "wrong_declarations": 1,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": true,
+      "stale_wrong": true,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 1,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 3,
+      "tier": "Decoy",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 1,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": true,
+      "stale_wrong": true,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 1,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 1,
+      "correct_source_wrong": 1,
+      "correct_source_unknown": 1,
+      "wrong_source_right": 1,
+      "wrong_source_wrong": 1,
+      "wrong_source_unknown": 1
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 1,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 1,
+      "correct_source_wrong": 1,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 1,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 1,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 1
+     },
+     "unasked_correct": {
+      "plain": 1,
+      "hard": 2,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 1,
+      "hard": 0,
+      "decoy": 1
+     },
+     "stale_wrong": {
+      "plain": 1,
+      "hard": 0,
+      "decoy": 1
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 1,
+     "hard_elsewhere_unasked_correct": 1,
+     "hard_reachable": 1,
+     "hard_reachable_unasked_correct": 1
+    }
+   }
+  }
+ },
+ {
+  "name": "recall/a-wrong-recall-that-was-asked-about-is-not-stale-wrong",
+  "rules": [
+   "K6"
+  ],
+  "note": "One hard compound. A wrong recall (compound at 5, source right: observation 1 is an incident-0 observation whose stored answer is incident 0's truth) and then an escalation about the same incident. The recall is in the cells, wrong with a right source; the incident is not stale_wrong and not unasked_wrong (an escalation exists), and it has no correct declaration.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound"
+    }
+   ],
+   "labels": [
+    0,
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Hard": "Compound"
+       },
+       "site": 5
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 30000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 0
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Escalated": {
+      "call": 0,
+      "ready_at": 32000000000,
+      "cost": {
+       "calls": 1,
+       "tokens": 400,
+       "modelled_ns": 100000000,
+       "latency_ns": 2000000000
+      }
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": {
+     "obs": 1,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     }
+    }
+   }
+  ],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 1,
+      "escalations": 1,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 1,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 1,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 1,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 0,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "recall/the-source-on-background-or-on-a-decoy-is-judged-against-not-an-incident",
+  "rules": [
+   "K5"
+  ],
+  "note": "A plain incident 0 (observations 0), a decoy 1 (observation 1), background observation 2. Three correct recalls on the plain incident, each with a source: observation 2 (background) stored 'not an incident': right. Observation 1 (the decoy's) stored 'not an incident': right. Observation 2 stored compound at 1: wrong (background's truth is 'not an incident').",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    },
+    {
+     "tier": "Decoy",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": null,
+     "truth": null,
+     "occupies": [
+      4
+     ]
+    }
+   ],
+   "labels": [
+    0,
+    1,
+    null
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 21000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 1
+     }
+    }
+   },
+   {
+    "at": 22000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 2
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": {
+     "obs": 2,
+     "diagnosis": null
+    }
+   },
+   {
+    "step": 1,
+    "source": {
+     "obs": 1,
+     "diagnosis": null
+    }
+   },
+   {
+    "step": 2,
+    "source": {
+     "obs": 2,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     }
+    }
+   }
+  ],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 3,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 2,
+       "correct_source_wrong": 1,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Decoy",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 2,
+      "correct_source_wrong": 1,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 2,
+      "correct_source_wrong": 1,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 1,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 0,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "recall/a-recall-the-stream-refused-is-not-a-declaration",
+  "rules": [
+   "K8"
+  ],
+  "note": "The recall names step 0, a declaration the stream refused: NotADeclaration.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Refused": "PastDuration"
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": null
+   }
+  ],
+  "expected": {
+   "Error": {
+    "NotADeclaration": {
+     "step": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "errors/a-recall-names-a-step-that-does-not-exist",
+  "rules": [
+   "K8"
+  ],
+  "note": "One declaration and a recall that names step 1.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 1,
+    "source": null
+   }
+  ],
+  "expected": {
+   "Error": {
+    "StepOutOfRange": {
+     "step": 1
+    }
+   }
+  }
+ },
+ {
+  "name": "errors/a-recall-names-an-escalation",
+  "rules": [
+   "K8"
+  ],
+  "note": "The recall names step 0, an accepted escalation: NotADeclaration.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 0
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Escalated": {
+      "call": 0,
+      "ready_at": 32000000000,
+      "cost": {
+       "calls": 1,
+       "tokens": 400,
+       "modelled_ns": 100000000,
+       "latency_ns": 2000000000
+      }
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": null
+   }
+  ],
+  "expected": {
+   "Error": {
+    "NotADeclaration": {
+     "step": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "errors/two-recalls-name-the-same-step",
+  "rules": [
+   "K8"
+  ],
+  "note": "Two recalls, both naming step 0.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": null
+   },
+   {
+    "step": 0,
+    "source": null
+   }
+  ],
+  "expected": {
+   "Error": {
+    "StepRepeated": {
+     "step": 0
+    }
+   }
+  }
+ },
+ {
+  "name": "errors/a-declaration-anchored-beyond-the-labels",
+  "rules": [
+   "K8"
+  ],
+  "note": "A declaration (not a recall) whose anchor is observation 5 of a stream with one: UnknownObservation, found in the trajectory pass.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 5,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   }
+  ],
+  "recalls": [],
+  "expected": {
+   "Error": {
+    "UnknownObservation": {
+     "step": 0,
+     "obs": 5
+    }
+   }
+  }
+ },
+ {
+  "name": "errors/an-escalation-focused-beyond-the-labels",
+  "rules": [
+   "K8"
+  ],
+  "note": "An accepted escalation whose focus is observation 7: UnknownObservation.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Escalate": {
+      "context": [],
+      "question": {
+       "Diagnose": {
+        "focus": 7
+       }
+      }
+     }
+    },
+    "outcome": {
+     "Escalated": {
+      "call": 0,
+      "ready_at": 32000000000,
+      "cost": {
+       "calls": 1,
+       "tokens": 400,
+       "modelled_ns": 100000000,
+       "latency_ns": 2000000000
+      }
+     }
+    }
+   }
+  ],
+  "recalls": [],
+  "expected": {
+   "Error": {
+    "UnknownObservation": {
+     "step": 0,
+     "obs": 7
+    }
+   }
+  }
+ },
+ {
+  "name": "errors/a-source-beyond-the-labels",
+  "rules": [
+   "K8"
+  ],
+  "note": "A recall whose source is observation 9: UnknownObservation, with the step of the recall.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": {
+     "obs": 9,
+     "diagnosis": null
+    }
+   }
+  ],
+  "expected": {
+   "Error": {
+    "UnknownObservation": {
+     "step": 0,
+     "obs": 9
+    }
+   }
+  }
+ },
+ {
+  "name": "errors/the-recall-record-is-checked-before-the-trajectory",
+  "rules": [
+   "K8"
+  ],
+  "note": "Step 0 is a declaration anchored beyond the labels and the recall names step 3 that does not exist: the recall record is checked first, so StepOutOfRange.",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 30000000000,
+    "action": {
+     "Declare": {
+      "anchor": 5,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 3,
+    "source": null
+   }
+  ],
+  "expected": {
+   "Error": {
+    "StepOutOfRange": {
+     "step": 3
+    }
+   }
+  }
+ },
+ {
+  "name": "purity/no-recall-and-no-declaration-gives-a-quiet-stream",
+  "rules": [
+   "K10",
+   "K7"
+  ],
+  "note": "A stream with a hard recurrence and nothing done: every unasked count is zero, the populations are counted (one recurrence, nothing else).",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound"
+    },
+    {
+     "tier": "Hard",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "occupies": [
+      1
+     ],
+     "hard_kind": "Compound",
+     "recurrence_of": 0
+    }
+   ],
+   "labels": [
+    0,
+    1
+   ]
+  },
+  "trajectory": [],
+  "recalls": [],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Hard",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     },
+     {
+      "id": 1,
+      "tier": "Hard",
+      "recurrence_of": 0,
+      "same_family_earlier": false,
+      "correct_declarations": 0,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": false,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 0,
+       "correct_source_wrong": 0,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 1,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 1,
+     "hard_reachable_unasked_correct": 0
+    }
+   }
+  }
+ }
+]

@@ -181,6 +181,8 @@ fn build(spec: &Spec) -> Scenario {
             truth: (!decoy).then_some(inc.truth),
             occupies: Vec::new(),
             hard_kind: None,
+            recurrence_of: None,
+            contradicts_early: None,
         });
     }
     // Labels, in a shuffled order.
@@ -635,6 +637,8 @@ fn one(
         truth: Some(hypothesis),
         occupies: Vec::new(),
         hard_kind: None,
+        recurrence_of: None,
+        contradicts_early: None,
     };
     One {
         truth: hand_truth(DURATION, &[incident], &[Some(0)]),
