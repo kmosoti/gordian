@@ -83,6 +83,7 @@ fn escalate(tag: u64, refs: &[ObsId], focus: ObsId) -> Proposed {
             question: Question::Diagnose { focus },
         },
         source: Source::Escalation,
+        recall: None,
     }
 }
 

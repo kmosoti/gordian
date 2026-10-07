@@ -122,8 +122,9 @@ pub enum Source {
     /// A probe bought by the shared rule.
     Probe,
     /// A declaration recalled by a noticer's memory, made with no reasoner call (work item A1a).
-    /// Counted with the cheap rung's in `results.csv`, whose columns are unchanged; the ledger
-    /// names it.
+    /// Counted with the cheap rung's in `results.csv`'s `cheap_declarations` as before, and by
+    /// itself in `recall_declarations` (work item E1); the ledger names it, and the run output's
+    /// `recalls.csv` records the observation the memory was bound at.
     Recall,
 }
 
@@ -149,6 +150,9 @@ pub struct Proposed {
     pub action: StreamAction,
     /// Where it came from.
     pub source: Source,
+    /// For a declaration made from memory ([`Source::Recall`]): what the memory was bound at, when
+    /// it says (work item E1). `None` for everything else, and for a memory that does not say.
+    pub recall: Option<noticer::RecallSource>,
 }
 
 /// What an arm is: compared, privileged or an ablation. Written into every output.
@@ -381,7 +385,9 @@ impl<E: EscalationRule> StreamArm<E> {
     /// `rule` over a fresh rung for a stream with `public` information.
     pub fn with(rule: E, public: &StreamPublic, config: RungConfig) -> Self {
         let mut rung = Rung::new(public, config);
-        rung.set_monitor(rule.monitors());
+        // A rule that reads the consistency verdicts, or a noticer whose memory waits for evidence
+        // the public rules cannot explain (work item E1), has the rung keep them.
+        rung.set_monitor(rule.monitors() || rung.noticer_wants_consistency());
         Self {
             rule,
             rung,
@@ -405,6 +411,52 @@ impl<E: EscalationRule> StreamArm<E> {
 
     fn view_of(&mut self, id: u32, now: Instant) -> Option<AnomalyView> {
         self.rung.views(now).into_iter().find(|v| v.id == id)
+    }
+
+    /// Act on the recalls of the noticer's memory (work item A1a): a recalled anomaly that has had
+    /// no escalation and no answer is declared now, with the source the memory says it was bound
+    /// at (work item E1), and never escalated; when the recall is to be confirmed it is asked
+    /// about now instead.
+    fn handle_recalls(
+        &mut self,
+        recalls: Vec<noticer::MemoryRecall>,
+        now: Instant,
+        out: &mut Vec<Proposed>,
+    ) {
+        if recalls.is_empty() {
+            return;
+        }
+        let views = self.rung.views(now);
+        for r in recalls {
+            let Some(view) = views.iter().find(|v| v.id == r.anomaly) else {
+                continue;
+            };
+            if view.attempts > 0 || view.answered > 0 {
+                continue;
+            }
+            if r.confirm {
+                let context = self.rung.context(r.anomaly);
+                let tag = self.tag(Outstanding::Escalation { anomaly: r.anomaly });
+                self.rung.note_attempt(r.anomaly, now, view.digest);
+                out.push(Proposed {
+                    tag,
+                    action: StreamAction::Escalate {
+                        context,
+                        question: Question::Diagnose { focus: view.anchor },
+                    },
+                    source: Source::Escalation,
+                    recall: None,
+                });
+            } else {
+                self.recalled.insert(r.anomaly);
+                let source = self.rung.recall_source(r.anomaly);
+                if let Some(mut proposed) = self.rung.declare_recognized(r.anomaly, r.diagnosis) {
+                    proposed.source = Source::Recall;
+                    proposed.recall = source;
+                    out.push(proposed);
+                }
+            }
+        }
     }
 }
 
@@ -449,6 +501,7 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
                         diagnosis,
                     },
                     source: Source::Reasoner,
+                    recall: None,
                 });
             }
         }
@@ -468,42 +521,22 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
         // has had no escalation and no answer is declared now and never escalated, unless the
         // recall is to be confirmed, in which case it is asked about now instead.
         let recalls = self.rung.take_recalls();
-        if !recalls.is_empty() {
-            let views = self.rung.views(now);
-            for r in recalls {
-                let Some(view) = views.iter().find(|v| v.id == r.anomaly) else {
-                    continue;
-                };
-                if view.attempts > 0 || view.answered > 0 {
-                    continue;
-                }
-                if r.confirm {
-                    let context = self.rung.context(r.anomaly);
-                    let tag = self.tag(Outstanding::Escalation { anomaly: r.anomaly });
-                    self.rung.note_attempt(r.anomaly, now, view.digest);
-                    out.push(Proposed {
-                        tag,
-                        action: StreamAction::Escalate {
-                            context,
-                            question: Question::Diagnose { focus: view.anchor },
-                        },
-                        source: Source::Escalation,
-                    });
-                } else {
-                    self.recalled.insert(r.anomaly);
-                    if let Some(mut proposed) = self.rung.declare_recognized(r.anomaly, r.diagnosis)
-                    {
-                        proposed.source = Source::Recall;
-                        out.push(proposed);
-                    }
-                }
-            }
-        }
+        self.handle_recalls(recalls, now, &mut out);
 
         // Consistency checks, for a rule that reads them (`contradiction_escalation`; the list is
         // empty for every other arm): before the views, so the rule sees this step's verdicts.
         for id in self.rung.due_checks(now) {
             self.rung.check(id, now, meter);
+        }
+
+        // Memory that waits for evidence the public rules cannot explain (work item E1; nothing for
+        // a noticer whose memory is not gated): after the checks, so that this step's verdicts are
+        // the ones it reads, and before the rule's targets, so that a recalled anomaly is not
+        // asked about at this step.
+        if self.rung.noticer_wants_consistency() {
+            let views = self.rung.views(now);
+            let recalls = self.rung.take_gated_recalls(now, &views);
+            self.handle_recalls(recalls, now, &mut out);
         }
 
         // Dismissals: before the reviews, so that a dismissed anomaly is not concluded about.
@@ -534,6 +567,7 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
                     question: Question::Diagnose { focus: view.anchor },
                 },
                 source: Source::Escalation,
+                recall: None,
             });
         }
         for request in self.rule.direct(&DirectCtx {
@@ -551,6 +585,7 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
                     },
                 },
                 source: Source::Escalation,
+                recall: None,
             });
         }
 
@@ -642,6 +677,7 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
                         diagnosis,
                     },
                     source: Source::Reasoner,
+                    recall: None,
                 });
             }
         }

@@ -426,6 +426,50 @@ pub trait Noticer {
     fn recalls(&mut self) -> Vec<MemoryRecall> {
         Vec::new()
     }
+
+    /// What the memory behind the recall of anomaly `anomaly` was bound at (work item E1): the
+    /// observation the stored answer was about and the answer as stored. Asked by the arm for each
+    /// recall it declares, right after taking it, so that the harness records the source of every
+    /// declaration made from memory. `None`, the default, says the memory does not say (the
+    /// engram of work item A1a does not).
+    fn recall_source(&self, _anomaly: u32) -> Option<RecallSource> {
+        None
+    }
+
+    /// Whether the noticer's memory recalls only on anomalies the public rules cannot explain
+    /// (work item E1): the rung then keeps the consistency checker's verdict on each noticed
+    /// anomaly current ([`super::rung::Rung::set_monitor`]) and hands it to
+    /// [`Noticer::gated_recalls`]. False, the default, and then nothing here runs.
+    fn wants_consistency(&self) -> bool {
+        false
+    }
+
+    /// The recalls of a memory that waits for evidence the public rules cannot explain (work item
+    /// E1), after the step's consistency checks: `contradicted` lists the noticed anomalies for
+    /// which every check since `since` found no hypothesis consistent with the evidence attached
+    /// to them ([`super::rung::AnomalyView::contradicted_since`]), by id. `store` holds what has
+    /// been delivered. None, by default.
+    fn gated_recalls(
+        &mut self,
+        _now: Instant,
+        _store: &Store,
+        _contradicted: &[(u32, Instant)],
+    ) -> Vec<MemoryRecall> {
+        Vec::new()
+    }
+}
+
+/// What a memory's stored answer was bound at (work item E1): the observation the reasoner was
+/// asked about, and the diagnosis it gave, as the memory stored it. The harness records it with
+/// every declaration made from memory, and the evaluator reads the truth of the incident the
+/// observation belongs to, so that a wrong recall whose stored answer was right (a collision, or
+/// staleness) is told from one whose stored answer was wrong (an inherited error).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecallSource {
+    /// The observation the answer was about.
+    pub obs: ObsId,
+    /// The diagnosis the memory stored.
+    pub diagnosis: Diagnosis,
 }
 
 /// A recall by a noticer's memory (work item A1a): a diagnosis for the noticed anomaly

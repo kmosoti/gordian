@@ -177,7 +177,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 0,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -417,7 +418,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 2,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -644,7 +646,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 1,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -842,7 +845,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 0,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -999,7 +1003,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 0,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -1459,7 +1464,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 2,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -1806,7 +1812,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 0,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -2043,7 +2050,8 @@
      "hard_elsewhere_unasked_correct": 1,
      "hard_reachable": 1,
      "hard_reachable_unasked_correct": 1
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -2443,7 +2451,8 @@
      "hard_elsewhere_unasked_correct": 1,
      "hard_reachable": 3,
      "hard_reachable_unasked_correct": 2
-    }
+    },
+    "per_recall": []
    }
   }
  },
@@ -2859,7 +2868,57 @@
      "hard_elsewhere_unasked_correct": 1,
      "hard_reachable": 1,
      "hard_reachable_unasked_correct": 1
-    }
+    },
+    "per_recall": [
+     {
+      "step": 0,
+      "incident": 1,
+      "tier": "Hard",
+      "correct": true,
+      "source": "Right",
+      "source_incident": 0
+     },
+     {
+      "step": 1,
+      "incident": 2,
+      "tier": "Plain",
+      "correct": false,
+      "source": "Right",
+      "source_incident": 0
+     },
+     {
+      "step": 2,
+      "incident": 3,
+      "tier": "Decoy",
+      "correct": false,
+      "source": "Wrong",
+      "source_incident": 1
+     },
+     {
+      "step": 3,
+      "incident": 0,
+      "tier": "Hard",
+      "correct": true,
+      "source": "Wrong",
+      "source_incident": 1
+     },
+     {
+      "step": 4,
+      "incident": null,
+      "tier": null,
+      "correct": true,
+      "source": "Unknown",
+      "source_incident": null
+     },
+     {
+      "step": 5,
+      "incident": null,
+      "tier": null,
+      "correct": false,
+      "source": "Unknown",
+      "source_incident": null
+     }
+    ]
    }
   }
  },
@@ -3040,7 +3099,17 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 0,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": [
+     {
+      "step": 0,
+      "incident": 0,
+      "tier": "Hard",
+      "correct": false,
+      "source": "Right",
+      "source_incident": 0
+     }
+    ]
    }
   }
  },
@@ -3278,7 +3347,33 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 0,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": [
+     {
+      "step": 0,
+      "incident": 0,
+      "tier": "Plain",
+      "correct": true,
+      "source": "Right",
+      "source_incident": null
+     },
+     {
+      "step": 1,
+      "incident": 0,
+      "tier": "Plain",
+      "correct": true,
+      "source": "Right",
+      "source_incident": 1
+     },
+     {
+      "step": 2,
+      "incident": 0,
+      "tier": "Plain",
+      "correct": true,
+      "source": "Wrong",
+      "source_incident": null
+     }
+    ]
    }
   }
  },
@@ -3961,7 +4056,8 @@
      "hard_elsewhere_unasked_correct": 0,
      "hard_reachable": 1,
      "hard_reachable_unasked_correct": 0
-    }
+    },
+    "per_recall": []
    }
   }
  }

@@ -207,6 +207,25 @@ fn expected_verdicts_are_internally_consistent() {
             + t.recalls_on_decoy.total()
             + t.recalls_on_background.total();
         assert_eq!(anchored, t.recalls.total(), "{name}");
+        // K5: one score per recall, in the order recorded, and its flags are the cells' content.
+        assert_eq!(v.per_recall.len(), case.recalls.len(), "{name}");
+        for (score, entry) in v.per_recall.iter().zip(&case.recalls) {
+            assert_eq!(score.step, entry.step, "{name}");
+            assert_eq!(score.tier.is_some(), score.incident.is_some(), "{name}");
+            assert_eq!(
+                score.source == SourceClass::Unknown,
+                entry.source.is_none(),
+                "{name}"
+            );
+        }
+        let correct = v.per_recall.iter().filter(|s| s.correct).count() as u32;
+        assert_eq!(correct, t.recalls.correct(), "{name}");
+        let right = v
+            .per_recall
+            .iter()
+            .filter(|s| s.source == SourceClass::Right)
+            .count() as u32;
+        assert_eq!(right, t.recalls.source_right(), "{name}");
         // K6: the per-incident cells add to the total minus what is anchored on background.
         let per_incident: u32 = v.per_incident.iter().map(|i| i.recalls.total()).sum();
         assert_eq!(

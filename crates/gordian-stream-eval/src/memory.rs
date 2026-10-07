@@ -115,6 +115,23 @@ impl RecallCells {
     }
 }
 
+/// The score of one recall (K5, K6, K7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecallScore {
+    /// The trajectory step of the recall.
+    pub step: usize,
+    /// The incident its anchor belongs to; `None` for background.
+    pub incident: Option<u32>,
+    /// That incident's tier.
+    pub tier: Option<Tier>,
+    /// Whether it equals the truth of what its anchor belongs to (K5).
+    pub correct: bool,
+    /// Whether its stored answer was right for the incident it was about (K5).
+    pub source: SourceClass,
+    /// The incident the source observation belongs to; `None` for background or no source.
+    pub source_incident: Option<u32>,
+}
+
 /// The memory score of one incident (K1 to K7).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IncidentMemory {
@@ -181,6 +198,8 @@ pub struct MemoryTotals {
 pub struct MemoryVerdict {
     /// One entry per incident of the truth, in id order.
     pub per_incident: Vec<IncidentMemory>,
+    /// One entry per recall, in the order recorded.
+    pub per_recall: Vec<RecallScore>,
     /// Totals over the stream.
     pub totals: MemoryTotals,
 }
@@ -366,6 +385,7 @@ pub fn score_memory(
     }
 
     // K5, K6: each recall, in the order recorded.
+    let mut per_recall = Vec::with_capacity(recalls.len());
     for r in recalls {
         let step = &trajectory[r.step];
         let StreamAction::Declare { anchor, diagnosis } = &step.action else {
@@ -392,6 +412,14 @@ pub fn score_memory(
                 }
             }
         };
+        per_recall.push(RecallScore {
+            step: r.step,
+            incident,
+            tier: incident.map(|id| truth.incidents[id as usize].tier),
+            correct,
+            source: class,
+            source_incident: r.source.and_then(|source| truth.incident_of(source.obs)),
+        });
         totals.recalls.add(correct, class);
         match incident.map(|id| truth.incidents[id as usize].tier) {
             Some(Tier::Plain) => totals.recalls_on_plain.add(correct, class),
@@ -464,6 +492,7 @@ pub fn score_memory(
 
     Ok(MemoryVerdict {
         per_incident,
+        per_recall,
         totals,
     })
 }

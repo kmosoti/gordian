@@ -546,6 +546,38 @@ impl Rung {
         self.noticer.recalls()
     }
 
+    /// What the noticer's memory behind the recall of anomaly `anomaly` was bound at
+    /// ([`Noticer::recall_source`]; work item E1). `None` for every noticer whose memory does not
+    /// say, and for every noticer without memory.
+    pub fn recall_source(&self, anomaly: u32) -> Option<noticer::RecallSource> {
+        self.noticer.recall_source(anomaly)
+    }
+
+    /// Whether the noticer's memory waits for evidence the public rules cannot explain
+    /// ([`Noticer::wants_consistency`]; work item E1), so the rung must keep the consistency
+    /// verdicts.
+    pub fn noticer_wants_consistency(&self) -> bool {
+        self.noticer.wants_consistency()
+    }
+
+    /// The recalls of a memory gated on the consistency checker ([`Noticer::gated_recalls`]; work
+    /// item E1), given the verdicts as the views hold them. Empty for every noticer whose memory is
+    /// not gated.
+    pub fn take_gated_recalls(
+        &mut self,
+        now: Instant,
+        views: &[AnomalyView],
+    ) -> Vec<noticer::MemoryRecall> {
+        if !self.noticer.wants_consistency() {
+            return Vec::new();
+        }
+        let contradicted: Vec<(u32, Instant)> = views
+            .iter()
+            .filter_map(|v| v.contradicted_since.map(|since| (v.id, since)))
+            .collect();
+        self.noticer.gated_recalls(now, &self.store, &contradicted)
+    }
+
     /// Every notice and retirement so far, in order: the record the harness writes.
     pub fn notice_log(&self) -> &[NoticeLogEntry] {
         &self.log
@@ -869,6 +901,7 @@ impl Rung {
             tag,
             action: StreamAction::Declare { anchor, diagnosis },
             source: Source::CheapRung,
+            recall: None,
         })
     }
 
@@ -899,6 +932,7 @@ impl Rung {
             tag: 0,
             action: StreamAction::Declare { anchor, diagnosis },
             source: Source::CheapRung,
+            recall: None,
         })
     }
 
@@ -1073,6 +1107,7 @@ impl Rung {
                     target: probe.target,
                 },
                 source: Source::Probe,
+                recall: None,
             }),
         }
     }
