@@ -129,7 +129,14 @@ impl Weights {
     /// not multiplied. Returns the operations executed: `n * (fan_in + nz + 7)` (a multiply-add
     /// for each recurrent and each non-zero input entry, and seven for the bias, the leak and the
     /// activation).
-    pub fn step(&self, x: &[f64], u: &[f64; N_IN], nz: &[usize], leak: f64, out: &mut [f64]) -> u64 {
+    pub fn step(
+        &self,
+        x: &[f64],
+        u: &[f64; N_IN],
+        nz: &[usize],
+        leak: f64,
+        out: &mut [f64],
+    ) -> u64 {
         let keep = 1.0 - leak;
         for i in 0..self.n {
             let mut acc = self.bias[i];

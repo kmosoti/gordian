@@ -100,7 +100,11 @@ fn counter_index(name: CounterName) -> usize {
 /// Entries `7..12`: the last reading of each counter in the tick over [`VALUE_UNIT`], at most
 /// [`VALUE_CAP`], whether or not the public rules call it abnormal. Entry `12`: abnormal
 /// observations at the other nodes, at most [`POPULATION_CAP`], over four.
-pub fn input_of(cell_abnormal: &[u32; N_KINDS], cell_values: &[f64; N_COUNTERS], others: u32) -> ([f64; N_IN], Vec<usize>) {
+pub fn input_of(
+    cell_abnormal: &[u32; N_KINDS],
+    cell_values: &[f64; N_COUNTERS],
+    others: u32,
+) -> ([f64; N_IN], Vec<usize>) {
     let mut u = [0.0; N_IN];
     for (k, slot) in u.iter_mut().take(N_KINDS).enumerate() {
         *slot = f64::from(cell_abnormal[k].min(ABNORMAL_CAP)) / 2.0;
@@ -159,7 +163,11 @@ impl ReservoirNoticer {
     /// A noticer for the public graph `services`, with the rung's parameters `cfg`. Starts from
     /// the readout carried under `params.state_key` if the arm learns and carries and there is
     /// one of the right size, else from the initial readout.
-    pub fn new(params: ReservoirParams, cfg: RungConfig, services: &[Service]) -> Result<Self, String> {
+    pub fn new(
+        params: ReservoirParams,
+        cfg: RungConfig,
+        services: &[Service],
+    ) -> Result<Self, String> {
         params.validate()?;
         let n = params.size as usize;
         let nodes = services.len();
@@ -345,7 +353,9 @@ impl ReservoirNoticer {
             }
             // The state moves on, and a new prediction is made for the next tick.
             let x = &mut self.state[node * n..(node + 1) * n];
-            self.ops += self.weights.step(x, &u, &nz, self.params.leak, &mut self.scratch_state);
+            self.ops += self
+                .weights
+                .step(x, &u, &nz, self.params.leak, &mut self.scratch_state);
             x.copy_from_slice(&self.scratch_state);
             fill_regressor(&mut self.regressor[node * d..(node + 1) * d], x, &u);
             self.ops += self.readout.predict(
