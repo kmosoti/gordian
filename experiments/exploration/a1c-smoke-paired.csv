@@ -1,0 +1,16 @@
+arm,newly_wrong,newly_wrong_also_correct,displaced
+m3,0,0,0
+eng_off,0,0,0
+eng_family,151,111,42
+eng_family_exact,4,4,0
+eng_site,0,0,0
+eng_site_carried,8,3,5
+eng_family_k4,79,63,18
+eng_family_contra,133,102,33
+eng_off_gated,0,0,0
+eng_family_gated,127,118,9
+eng_family_gated_2site,77,68,8
+eng_site_gated,0,0,0
+eng_family_gated_late,108,100,8
+eng_family_gated_2site_late,59,52,6
+eng_site_gated_late,0,0,0

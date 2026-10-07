@@ -386,9 +386,10 @@ impl<E: EscalationRule> StreamArm<E> {
     /// `rule` over a fresh rung for a stream with `public` information.
     pub fn with(rule: E, public: &StreamPublic, config: RungConfig) -> Self {
         let mut rung = Rung::new(public, config);
-        // A rule that reads the consistency verdicts, or a noticer whose memory waits for evidence
-        // the public rules cannot explain (work item E1), has the rung keep them.
-        rung.set_monitor(rule.monitors() || rung.noticer_wants_consistency());
+        // A noticer that gates its recalls on the checker's verdict (work item A1c; the record rung
+        // of work item E1 is one) needs it kept.
+        let monitor = rule.monitors() || rung.noticer_needs_verdicts();
+        rung.set_monitor(monitor);
         Self {
             rule,
             rung,
@@ -430,9 +431,11 @@ impl<E: EscalationRule> StreamArm<E> {
         let views = self.rung.views(now);
         for r in recalls {
             let Some(view) = views.iter().find(|v| v.id == r.anomaly) else {
+                self.rung.recall_declared(now, r.anomaly, false);
                 continue;
             };
             if view.attempts > 0 || view.answered > 0 {
+                self.rung.recall_declared(now, r.anomaly, false);
                 continue;
             }
             if r.confirm {
@@ -451,7 +454,10 @@ impl<E: EscalationRule> StreamArm<E> {
             } else {
                 self.recalled.insert(r.anomaly);
                 let source = self.rung.recall_source(r.anomaly);
-                if let Some(mut proposed) = self.rung.declare_recognized(r.anomaly, r.diagnosis) {
+                let declared = self.rung.declare_recognized(r.anomaly, r.diagnosis);
+                self.rung
+                    .recall_declared(now, r.anomaly, declared.is_some());
+                if let Some(mut proposed) = declared {
                     proposed.source = Source::Recall;
                     proposed.recall = source;
                     out.push(proposed);
@@ -518,27 +524,24 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
             self.rung.noticer_refused();
         }
 
-        // Memory (work item A1a; nothing for a noticer without memory): a recalled anomaly that
-        // has had no escalation and no answer is declared now and never escalated, unless the
-        // recall is to be confirmed, in which case it is asked about now instead.
-        let recalls = self.rung.take_recalls();
-        self.handle_recalls(recalls, now, &mut out);
-
-        // Consistency checks, for a rule that reads them (`contradiction_escalation`; the list is
-        // empty for every other arm): before the views, so the rule sees this step's verdicts.
+        // Consistency checks, for a rule that reads them (`contradiction_escalation`) or a noticer
+        // whose recalls are gated on them (work item A1c); the list is empty for every other arm.
+        // Before the recalls and the views, so both see this step's verdicts.
         for id in self.rung.due_checks(now) {
             self.rung.check(id, now, meter);
         }
 
-        // Memory that waits for evidence the public rules cannot explain (work item E1; nothing for
-        // a noticer whose memory is not gated): after the checks, so that this step's verdicts are
-        // the ones it reads, and before the rule's targets, so that a recalled anomaly is not
-        // asked about at this step.
-        if self.rung.noticer_wants_consistency() {
-            let views = self.rung.views(now);
-            let recalls = self.rung.take_gated_recalls(now, &views);
-            self.handle_recalls(recalls, now, &mut out);
-        }
+        // Memory (work item A1a; nothing for a noticer without memory): a recalled anomaly that
+        // has had no escalation and no answer is declared now and never escalated, unless the
+        // recall is to be confirmed, in which case it is asked about now instead. A gated noticer
+        // (A1c, and E1's record rung) hands over only the recalls its gate admits on this step's
+        // views.
+        let recalls = if self.rung.noticer_needs_verdicts() {
+            self.rung.take_gated_recalls(now)
+        } else {
+            self.rung.take_recalls()
+        };
+        self.handle_recalls(recalls, now, &mut out);
 
         // Dismissals: before the reviews, so that a dismissed anomaly is not concluded about.
         let views = self.rung.views(now);

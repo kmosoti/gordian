@@ -26,9 +26,9 @@
 //! no hypothesis consistent with the evidence attached to it
 //! ([`super::rung::AnomalyView::contradicted_since`], the first world's own word for
 //! "contradictory"; the public meaning of rule-breaking evidence). The rung keeps that verdict
-//! only when asked ([`noticer::Noticer::wants_consistency`], which this noticer answers yes), runs
+//! only when asked ([`noticer::Noticer::needs_verdicts`], which this noticer answers yes), runs
 //! the consistency verifier through the meter (charged and counted like every component call) and
-//! hands the verdicts to [`noticer::Noticer::gated_recalls`] after each step's checks. An anomaly
+//! hands the verdicts to [`noticer::Noticer::gated_recalls_in`] after each step's checks. An anomaly
 //! the public rules can explain is never recalled for, which is why a recall displaces no
 //! declaration the shared rule would have made on such an anomaly (a plain incident the public rules
 //! settle), and why a key built from the first seconds of evidence alone, which a plain incident
@@ -163,7 +163,7 @@ use super::noticer::{
 };
 use super::noticer_reanchor::ReanchorNoticer;
 use super::noticer_rung::RungNoticer;
-use super::rung::{Held, RungConfig, Store};
+use super::rung::{AnomalyView, Held, RungConfig, Store};
 use gordian_core::Instant;
 use gordian_stream::{Diagnosis, ObsId, StreamHypothesis};
 use gordian_world::physics::{CATALOGUE_LIMIT, HIGH, signature};
@@ -628,11 +628,28 @@ impl<B: Noticer> Noticer for RecordNoticer<B> {
         self.sources.get(&anomaly).copied()
     }
 
-    fn wants_consistency(&self) -> bool {
+    fn needs_verdicts(&self) -> bool {
         true
     }
 
-    fn gated_recalls(
+    fn gated_recalls_in(
+        &mut self,
+        now: Instant,
+        store: &Store,
+        views: &[AnomalyView],
+    ) -> Vec<MemoryRecall> {
+        let contradicted: Vec<(u32, Instant)> = views
+            .iter()
+            .filter_map(|v| v.contradicted_since.map(|since| (v.id, since)))
+            .collect();
+        self.gated_by(now, store, &contradicted)
+    }
+}
+
+impl<B: Noticer> RecordNoticer<B> {
+    /// The recalls at `now` for the noticed anomalies named in `contradicted` (id and the time
+    /// the checker first found no consistent hypothesis, [`AnomalyView::contradicted_since`]).
+    pub fn gated_by(
         &mut self,
         now: Instant,
         store: &Store,

@@ -24,13 +24,30 @@
 //! ([`super::noticer::Noticer::answered`], [`super::noticer::Noticer::recalls`]) and is declared
 //! without an escalation. The key definition and the confirmation policy are in [`engram`]'s
 //! documentation.
+//!
+//! # The recall gate and the two-site key (work item A1c)
+//!
+//! [`gate`]: a recall is acted on only for an anomaly whose latest public consistency check found
+//! no consistent hypothesis (the rung keeps the verdict for a gated noticer). The two-site key, a
+//! key over the anomaly's service and one service the public graph does not connect to it, is in
+//! [`engram`]'s documentation, "A1c".
+
+//! # Where a recall may speak, and its counters (work item A1d)
+//!
+//! [`gate`]'s `stale` value: a recall speaks only on a contradicted anomaly that carries no
+//! declaration made strictly after the checker's last consistent verdict (the rung says which
+//! declarations stand). [`trace`]: the engram layer's counters as marks on its medium's trace port,
+//! written to the arm's own trace file.
 
 pub mod adapters;
 pub mod engram;
+pub mod gate;
 pub mod graph;
 pub mod noticing;
+pub mod trace;
 
 pub use engram::{ConfirmPolicy, EngramConfig, EngramLayer, SiteMode};
+pub use gate::{Reading, RecallGate};
 pub use graph::{
     CoincidenceForm, Confirm, InhibitForm, KIND_NOTICE, KIND_RETIRE, Layout, MediumParams,
 };

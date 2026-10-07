@@ -355,6 +355,12 @@ struct Down {
     last_check: Option<Instant>,
     /// See [`AnomalyView::contradicted_since`].
     contradicted_since: Option<Instant>,
+    /// When the rung last declared for this anomaly (work item A1d; set where `cheap_declared`
+    /// is).
+    declared_at: Option<Instant>,
+    /// When the consistency checker last found a hypothesis consistent with its evidence (work
+    /// item A1d; only set when the rung monitors).
+    consistent_at: Option<Instant>,
 }
 
 impl Down {
@@ -380,6 +386,8 @@ impl Down {
             monitor_dirty: false,
             last_check: None,
             contradicted_since: None,
+            declared_at: None,
+            consistent_at: None,
         }
     }
 }
@@ -448,13 +456,14 @@ fn verdict_is_empty(output: &ComponentOutput) -> bool {
 }
 
 /// Record a verdict: the start of a run of empty verdicts is remembered, and a verdict with a
-/// hypothesis ends the run.
+/// hypothesis ends the run (and is remembered as the latest consistent one, work item A1d).
 fn record_verdict(
     empty: bool,
     now: Instant,
     dirty: &mut bool,
     last_check: &mut Option<Instant>,
     since: &mut Option<Instant>,
+    consistent: &mut Option<Instant>,
 ) {
     *dirty = false;
     *last_check = Some(now);
@@ -462,6 +471,7 @@ fn record_verdict(
         since.get_or_insert(now);
     } else {
         *since = None;
+        *consistent = Some(now);
     }
 }
 
@@ -553,29 +563,39 @@ impl Rung {
         self.noticer.recall_source(anomaly)
     }
 
-    /// Whether the noticer's memory waits for evidence the public rules cannot explain
-    /// ([`Noticer::wants_consistency`]; work item E1), so the rung must keep the consistency
-    /// verdicts.
-    pub fn noticer_wants_consistency(&self) -> bool {
-        self.noticer.wants_consistency()
+    /// Whether the noticer gates its recalls on the consistency checker's verdict
+    /// ([`Noticer::needs_verdicts`]; work item A1c). False for every noticer without a gate.
+    pub fn noticer_needs_verdicts(&self) -> bool {
+        self.noticer.needs_verdicts()
     }
 
-    /// The recalls of a memory gated on the consistency checker ([`Noticer::gated_recalls`]; work
-    /// item E1), given the verdicts as the views hold them. Empty for every noticer whose memory is
-    /// not gated.
-    pub fn take_gated_recalls(
-        &mut self,
-        now: Instant,
-        views: &[AnomalyView],
-    ) -> Vec<noticer::MemoryRecall> {
-        if !self.noticer.wants_consistency() {
-            return Vec::new();
-        }
-        let contradicted: Vec<(u32, Instant)> = views
+    /// The noticer's recalls since the last call, gated on the views at `now`
+    /// ([`Noticer::gated_recalls`]; work item A1c).
+    pub fn take_gated_recalls(&mut self, now: Instant) -> Vec<noticer::MemoryRecall> {
+        let views = self.views(now);
+        let standing = self.standing();
+        self.noticer.standing_declarations(&standing);
+        self.noticer.gated_recalls_in(now, &self.store, &views)
+    }
+
+    /// The anomalies (by id) that carry a declaration made strictly after the consistency
+    /// checker's last consistent verdict on them, or with no consistent verdict at all (work item
+    /// A1d, the rule of where a recall may speak; `DESIGN.md` of `gordian-medium`, "A1d").
+    pub fn standing(&self) -> Vec<u32> {
+        self.down
             .iter()
-            .filter_map(|v| v.contradicted_since.map(|since| (v.id, since)))
-            .collect();
-        self.noticer.gated_recalls(now, &self.store, &contradicted)
+            .filter(|(_, a)| {
+                a.declared_at
+                    .is_some_and(|d| a.consistent_at.is_none_or(|c| d.0 > c.0))
+            })
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// The arm acted on a recall of anomaly `id` at `now`: declared it or not (work item A1d;
+    /// [`Noticer::recall_declared`]).
+    pub fn recall_declared(&mut self, now: Instant, id: u32, declared: bool) {
+        self.noticer.recall_declared(now, id, declared);
     }
 
     /// Every notice and retirement so far, in order: the record the harness writes.
@@ -892,6 +912,7 @@ impl Rung {
             return None;
         }
         a.cheap_declared = true;
+        a.declared_at = Some(self.now);
         let anchor = self.noticer.tracked(id)?.anchor_for(&diagnosis);
         if self.declared.get(&anchor) == Some(&diagnosis) {
             return None;
@@ -923,6 +944,7 @@ impl Rung {
         a.recognized.push(diagnosis);
         a.cheap_done = true;
         a.cheap_declared = true;
+        a.declared_at = Some(self.now);
         let anchor = self.noticer.tracked(id)?.anchor_for(&diagnosis);
         if self.declared.get(&anchor) == Some(&diagnosis) {
             return None;
@@ -996,6 +1018,7 @@ impl Rung {
                 &mut a.monitor_dirty,
                 &mut a.last_check,
                 &mut a.contradicted_since,
+                &mut a.consistent_at,
             );
         }
         let call = meter.rule_call(&mut cheap.decider, &cheap.state, &outputs, false);
@@ -1068,6 +1091,7 @@ impl Rung {
                 &mut a.monitor_dirty,
                 &mut a.last_check,
                 &mut a.contradicted_since,
+                &mut a.consistent_at,
             );
         }
     }

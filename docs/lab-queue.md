@@ -42,12 +42,13 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | stopped (reservoir built, identity passed) |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 | A1 | 1 | The engram: memory in the medium (A1a build and identity; A1b the run, criterion fixed after W2, E1 and A1c) | M3 | A1a merged; A1b queued |
-| A1c | 1 | The recall gate on the public consistency checker; a two-site key; identity; the smoke against A1a's table | A1a | running |
+| A1c | 1 | The recall gate on the public consistency checker; a two-site key; identity; the smoke against A1a's table | A1a | merged (negative branch) |
+| A1d | 1 | The engram under a non-privileged selector: plain outcomes bound, memory speaks only where no later declaration stands, trace counters; identity; the smoke on decision columns | A1c | merged (negative) |
 | W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | merged |
 | W3 | 3 | World C (three times the hard share) for A1b's power; the phase-2-keyed collision floor | W2 | queued |
 | V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | merged |
 | E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | running |
-| A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions scored against the hidden graph | A1, E1 | queued |
+| A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions through the trace port, scored from the hidden side by Lab 3 | A1d | running |
 
 **Priority after the resumption of 2026-10-07** (charter section 1.2): A1, W2, V1, E1, then A1b and
 A2. C2 and M5 stay queued behind them; M4, B5 and L2 stay `stopped`, resumable from their origin
@@ -548,7 +549,7 @@ report and before any A1b run.
    departed from `docs/medium-ports.md` and `DESIGN.md`, the smoke counts, what the PI is least
    sure of, and what A1b should measure that the chief's brief does not name.
 
-**A1b, the run (brief to follow W2 and E1).** Tuning on seeds 10000–10099 under a stale-error
+**A1b (after A1d, 2026-10-07): the form of A1b is the user's decision; see the synthesis in the review log. The chief's recommendation is the within-stream memory unit keyed on the stream's own ids.** The earlier text stands as the record of the plan before A1d:  A1b runs under B4's public selector, not the selection oracle, for every arm (review log, A1c): the memory must be able to bind plain outcomes and be contradicted. The selection-oracle rows are labelled ceilings. The first clause bounds displaced correct plain decisions (by deadline), paired against the memoryless arm under the same selector. Tuning on seeds 10000–10099 under a stale-error
 bound and the cost column; held-out on seeds 40000–40199 in stream order; arms: the medium with
 engrams (family-keyed and site-keyed), the medium with bind switched off, E1's record rung in
 both forms, the re-anchor with no memory. Measures: E1's. Criterion to be fixed then, in
@@ -661,11 +662,37 @@ source is `Source::Recall`, today folded into `cheap_declarations`), and `total_
 every arm includes the noticer's charge as a new column `noticer_ns` beside it, the existing
 column unchanged so that byte identity holds.
 
-## A2 Anticipation (Lab 1, after A1 and E1)
+## A2 Anticipation: hidden edges (Lab 1, after A1d)
 
-A hidden edge is learned from co-alarm timing in the arm's own history and used to predict the
-partner's alarm before it arrives; predictions are recorded by the harness and scored against
-the hidden graph. Brief and criterion to be written after A1b reports.
+The second half of the purpose (charter 1.2): acting before the decisive evidence. The public
+graph lacks edges the world uses: a cascade alarms a partner the graph does not connect to the
+root, and from an unannounced instant an added edge makes a new dependent alarm. Both are
+visible only as co-alarm timing in the arm's own history. No tuning; a mechanism unit with
+identity, a committed prediction and a smoke; Lab 3 scores from the hidden side.
+
+1. **The learner, in the medium.** From the arm's own history, a pair cell for (site a, site b)
+   that the public graph does not connect accumulates evidence that an alarm at b follows an
+   alarm at a within a band (the same bands as A1c's relation feature: 0.4 s, 2 s, 10 s), as a
+   net count with decay; when it exceeds a threshold the arm holds a learned edge a → b.
+   Invariant features only inside the pair (the pair itself is per stream and resets at the
+   boundary; across streams nothing carries, by W2's finding). Design in `DESIGN.md` before code.
+2. **The prediction.** On a first alarm at a with a learned edge a → b and no alarm at b yet,
+   the arm emits a prediction (b, within band) through the medium's trace port into its own
+   file, with the instant, never into the harness's outputs (E1 owns those). A prediction has no
+   effect on the arm's actions in this unit.
+3. **Use (switch, default off):** a learned edge may also extend the anomaly's attach rule so
+   that b's later alarm attaches to a's anomaly; off in the smoke, built so A2b can turn it on.
+4. **Identity:** R6's held-out replay 62 of 62; A1a/A1c/A1d smoke arms reproduce exactly; gates.
+5. **The smoke:** seeds 10000–10019 under the selection oracle, the memoryless arm and the
+   learner, first values; the trace file of predictions kept under `artifacts/runs/a2/`; the
+   PI's prediction of how many edges are learned and how many predictions are made, committed
+   before the run. Lab 3 (W3) scores the predictions against the hidden graph: precision, lead
+   time, and the share of partner alarms predicted.
+6. **Report:** `experiments/exploration/a2-anticipation.md`.
+
+**Acceptance (fixed 2026-10-07).** Deliverables, identity, the committed prediction, the
+trace file. No claim; the criterion for A2b (the use of learned edges) is fixed after Lab 3's
+scoring.
 
 ## W3 World C and the phase-2 collision floor (Lab 3, after W2)
 
@@ -679,6 +706,13 @@ the hidden graph. Brief and criterion to be written after A1b reports.
    rules define it), for the site-keyed and the invariant family-keyed forms, with and without
    the stream reset. This is the floor against which A1b's collision bound is read.
 3. **Hidden-side only**, as W2; nothing reaches an arm.
+4. **Scoring A2's predictions** (added 2026-10-07): join A2's trace file of predictions
+   (`artifacts/runs/a2/`, when it exists) to the hidden incidents and graph: for each
+   prediction, whether an alarm at the predicted service followed within the band, its lead
+   time, and whether the edge predicted is a true hidden edge (cascade partner or added
+   edge); and for each true partner alarm, whether it was predicted. Report precision, lead
+   time and coverage, by edge kind and by stream position, with the chance level under a
+   permutation of predicted services.
 
 **Acceptance (fixed 2026-10-07).** As W2's: every number reproduces from the script and the
 manifest, names its range and side; the report says which of A1b's proposed bounds the new
@@ -710,3 +744,32 @@ rule-breaking evidence. No tuning; this is a mechanism unit with identity and a 
 table. A gated family form whose plain unasked-wrong count exceeds the control's by more than
 5 in 20 streams is reported as such and A1b's design is reconsidered before its criterion is
 fixed; a count within 5 is the expected outcome. No claim either way.
+
+## A1d The engram under a non-privileged selector (Lab 1, after A1c)
+
+A1c showed the memory learns from a one-sided teacher: under the selection oracle only hard
+incidents are asked about, so nothing plain is ever bound or contradicted. No tuning; a
+mechanism unit with identity and a smoke on the decision columns.
+
+1. **The selector.** The engram arm runs under B4's public selector (`public_threshold.rs`
+   and `public_change.rs`, with B4's tuned constants as merged, nothing retuned), so that plain
+   anomalies are sometimes asked about. Every answer, plain kinds included, feeds bind; the
+   vote weakens a key whose outcomes disagree. Keep the selection-oracle form as a switch.
+2. **Where memory may speak.** A recall declares only on an anomaly that carries no
+   declaration made after the checker's last consistent verdict: memory corrects a cheap
+   declaration the rules have since contradicted, and never adds to one that stands. Test it.
+3. **Counters.** Through the medium's trace port into the arm's own trace file (not
+   `results.csv`, which is E1's): recalls offered, gated, admitted, declared, with instants;
+   binds by outcome tier as the arm sees it (kind only; the arm does not know tiers).
+4. **Identity:** R6's held-out replay 62 of 62; A1a's and A1c's smoke arms reproduce exactly;
+   gates.
+5. **The smoke:** seeds 10000–10019, the memoryless arm and the engram forms (family,
+   two-site, site) under the public selector and under the oracle, first values, nothing
+   adjusted; reported on the decision columns (`correct_by_deadline`, `missed`,
+   `critical_miss`, calls, cost) by tier, paired against the memoryless arm under the same
+   selector, with the A1c declaration count beside for continuity.
+6. **Report:** `experiments/exploration/a1d-negative-experience.md`.
+
+**Acceptance (fixed 2026-10-07).** Deliverables, identity, the test in item 2, the smoke
+table on decision columns. The expected outcome is stated as a prediction by the PI before
+the run; whatever the table shows is reported. No claim.

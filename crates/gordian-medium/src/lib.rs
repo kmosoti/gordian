@@ -44,8 +44,8 @@ pub mod types;
 
 pub use archetype::{Archetype, ParamError};
 pub use engram::{
-    Bind, BindResult, Engram, EngramParams, EngramStats, Engrams, Key, KeySite, Outcome,
-    OutcomeSite, Recall,
+    Bind, BindResult, Engram, EngramParams, EngramStats, Engrams, FeatureRole, Key, KeySite,
+    Outcome, OutcomeSite, Recall, pair_node, pair_of,
 };
 pub use medium::{
     Cell, Medium, StepError, Synapse, TickSummary, TickTrace, TraceItem, Truncation, WeightError,
@@ -56,9 +56,9 @@ pub use oscillome::{
 pub use persist::DecodeError;
 pub use ports::{
     Clock, CollectingEffector, ConstantField, CountingLedger, DiscardingEffector, Effector,
-    FieldSource, InMemoryPersist, Ledger, NoPlasticity, NoResource, NoTrace, Persist, Plasticity,
-    Ports, Resource, ResourceCall, ResourceReply, SamplingTrace, ScriptedSense, Sense, StepClock,
-    Trace,
+    FieldSource, InMemoryPersist, Ledger, Mark, MarkLog, NoPlasticity, NoResource, NoTrace,
+    Persist, Plasticity, Ports, Resource, ResourceCall, ResourceReply, SamplingTrace,
+    ScriptedSense, Sense, StepClock, Trace,
 };
 pub use spec::{CellSpec, MediumBuilder, MediumSpec, SenseMode, SpecError, SynapseSpec};
 pub use types::{

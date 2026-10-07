@@ -4,6 +4,154 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A1d the engram under a non-privileged selector — merged (Lab 1); negative experience does not help, and the chief's causal claim was wrong
+
+**Provenance.** Five commits in the required order (design b64c24d, code b98492e, scripts and
+prediction 1e91217, identity 43061d4, report 7f2e061); the prediction text has no removed
+lines after its commit (chief's diff). The chief recomputed: R6's held-out replay 62 of 62;
+decision columns per arm from `incidents.csv` and `results.csv` match the lab's table (family
+form under the threshold selector against the memoryless arm: plain correct by deadline 388
+against 393, hard 21 against 24, calls 495 against 584, reasoner cost −25.8 s). A1c's fifteen
+and A1a's eight smoke arms reproduce their kept runs (lab's check). Gates on the merged tree:
+see the commit. Runs kept in `artifacts/runs/a1d/`. **Process breach, recorded:** the PI's
+release build at 08:27 started while Lab 2's run was live and did not wait; Lab 2 told.
+
+**Verdict: A1d delivers; the table is a clean negative.** Under both public selectors and the
+oracle, in every form, the memory gained no decision (one hard incident under the oracle
+excepted) and lost a few; of 58 recalls on plain incidents under the threshold rule, 51 added
+a wrong declaration and none a correct one. The family form's own cost is small (+0.16 s of
+bill per 20 streams); the two-site form's is not (+6.4 s) and it loses the most decisions.
+Every prediction the PI committed fell inside its 80% range except the two-site form's.
+
+**The chief's causal claim in the A1c entry was wrong, and this is the test that showed it.**
+I wrote that the one-sided teacher was "the causal root". With plain outcomes bound and
+contradictions available, the memory recalls wrongly on plain incidents at the same rate. The
+root is not the teacher; it is the key. Recorded as the chief's wrong lead (not a procedural
+error; the claim was tested by the next unit as it should be).
+
+## Synthesis after W2, A1a, A1c, A1d and V1 — what the engram line has shown, and where the purpose now points
+
+**Representation.** The engram's key is a set of stream-invariant public features at one
+service (abnormal kinds, counter bands, catalogue message ids), optionally a second service
+and a timing band. Four units, every key form, two selectors, two gates: it never
+distinguishes a hard family from a plain incident well enough to gain a decision. The
+experimenter-side reason is in the world's hidden record (sections 4 and 5): each hard family
+presents, half the time, as exactly a plain incident at the single-site invariant level, by
+design; the evidence that separates them is the stream-local vocabulary (regenerated per
+stream, so no invariant key can hold it) or multi-site structure (cascade partner, split-brain
+peer), which is rare enough that 20 streams cannot teach it. The chief may say this because the
+chief reads the hidden side; no lab encoded it, and the result was reached from the public
+side four times.
+
+**Objective.** The family law carried across streams, W2's 97.8% ceiling, is not reachable on
+this world by any single-site invariant key. That is a property of the world, not of the
+medium or of memory in general, and it was the world's stated design (hard and decoy
+indistinguishable at first). What remains reachable by memory on this world is the within-
+stream vocabulary law (ids determine the family with full mutual information inside a stream;
+reach at most 26% of hard incidents and 13% of the bill) and structure (hidden edges, A2).
+
+**Causality, inverted.** The law that does transfer across streams on this world is the
+reasoner's: an answer is right with probability h only when the decisive evidence is in the
+context, and that law is the same in every stream. A learner that learns when an answer can
+be trusted and what to include learns something invariant; that is the aim's proxy 2 applied
+to EXP-101 and EXP-102, and it has not been tried as learning.
+
+**Environment.** The non-privileged selector costs ten times the oracle (584 calls against 61
+in 20 streams) for +18 plain decisions and −2 hard ones; B4's result restated on decisions.
+Any learning claim under it is a claim about a far more expensive regime.
+
+**Failure and meta.** Three coordinator errors were found by the verifier this round and one
+causal claim by the next unit. The program's correction loop is working; the chief's priors
+about where the lever is have been wrong twice in a day (recurrence; the teacher). The honest
+reading is that on this world memory over public patterns is a small lever and the medium has
+not yet shown a mechanism the status quo lacks for it.
+
+**Options for the user (the chief recommends 1 and 2; 3 proceeds as already approved).**
+
+1. **A1b becomes the within-stream memory unit:** keys on the stream's own ids (site- and
+   family-keyed inside a stream, reset at the boundary), under both selectors, against E1's
+   record rung with the same keys, criterion as code, with W2's within-stream reach as the
+   ceiling. Small, bounded, and it closes the memory question on this world honestly either
+   way.
+2. **The cross-stream learning line moves to the reasoner's law:** a learned selector and
+   context builder (what to ask about, what to include, when to trust an answer and declare),
+   under hard limits, measured by decisions per unit cost and by improvement per incident
+   seen against B4's tuned public selector and the rung's context, in the medium and as a
+   conventional learner. This is EXP-101 and EXP-102 as learning experiments, and the first
+   place on this world where a law learned in one stream applies in the next.
+3. **A2, anticipation of hidden edges**, proceeds now (Lab 1), with Lab 3 scoring predictions
+   from the hidden side; W3 gives it power.
+4. **A labelled learnability world** (the vocabulary persisting across streams) would test the
+   engram mechanism on a world built to be learnable; it could not be claimed as this world's
+   law and the chief does not recommend it before 1 and 2.
+
+## A1c the recall gate and the two-site key — merged (Lab 1); the public checker does not separate plain from hard, and the chief's acceptance measure was the wrong one
+
+**Provenance.** Five commits in order (design 33a31e8, code 43e0648, scripts with the PI's
+prediction before any run ceb4a99, identity b25468c, report feae28d). The chief recomputed:
+R6's held-out replay 62 of 62 on both files; the smoke counts from `incidents.csv` match the
+lab's table (gated family 180 plain unasked-wrong, 1 hard unasked-correct; A1a's eight arms
+unchanged; the gated site form recalls nothing). Gates on the merged tree under the runner: see
+the commit. Runs kept in `artifacts/runs/a1c/`. Not done, recorded: gate counters and recall
+instants in the run output (E1's territory); mutation tests; no held-out run (none briefed).
+
+**Verdict: A1c delivers; its acceptance clause triggers the negative branch** (180 exceeds
+53 + 5), so A1b's design is reconsidered here before its criterion is fixed.
+
+**Coordinator error (thirteenth).** The acceptance measure I fixed, "plain incidents with a
+wrong unasked declaration", counts a wrong declaration made beside a correct one, which the
+decision scoring ignores. The chief's recomputation on the decision columns:
+
+| Arm (20 tuning streams) | Plain correct by deadline (of 434) | Plain wrong only | Hard correct by deadline (of 40) | Calls | Cost |
+|---|---|---|---|---|---|
+| M3, no memory | 375 | 22 | 26 | 61 | 16.4 s |
+| A1a family form, ungated | 333 | 63 | 20 | 45 | 12.0 s |
+| A1c gated family form | 366 | 31 | 24 | 51 | 13.5 s |
+| A1c gated two-site, late on | 369 | 29 | 24 | 55 | 14.9 s |
+
+On decisions, the gate cut the memory's damage from 42 displaced plain decisions to 9 and the
+hard loss from 6 to 2, at 18% less cost; that is the result the measure hid. The measure was
+not wrong to exist (E1 keeps it as a declaration-level count), but a bound on it is not a bound
+on the purpose's quantity. Lesson, the same as the tenth: the quantity bounded must be the one
+the charter names (decisions, by deadline), and A1b's specification bounds displaced correct
+decisions, paired, not declarations.
+
+**What it shows (mechanism, failure, causality).**
+
+- **The public rules' verdict does not separate plain from hard.** R5 measured that the
+  checker contradicts 97% of plain anomalies at some point; so a gate on it admits a recall on
+  a plain incident as soon as stray evidence arrives, typically after the cheap rung has already
+  declared correctly. The lab inferred the order from counts and said so; the chief accepts the
+  inference as the best model and not as observed.
+- **The memory learns from a one-sided teacher.** Under the selection oracle the reasoner is
+  asked about hard incidents only, so every bind is a hard outcome and no plain pattern is ever
+  bound or contradicted. A learner that is never shown what plain looks like cannot learn the
+  difference; the vote mechanism built in A1a has nothing to vote against. This is the causal
+  root, and it is the selector, not the engram. A1a's PI noted it, A1c's PI listed it third; the
+  chief now treats it as the design decision.
+- **The two-site key** recalled nothing on cascades and split brains in 20 streams, as power
+  predicts (about two binds per stream); its fewer plain errors may be specificity. Unknown.
+
+**Decided.**
+
+1. **A1b runs under a non-privileged selector, not the selection oracle.** The arm asks the
+   reasoner through B4's public selector (tuned under cost, as B4 built it), so that plain
+   anomalies are sometimes asked about, plain outcomes are bound, and a wrong plain recall can
+   be contradicted. The record rung (E1) runs under the same selector. The selection-oracle
+   rows are kept as labelled ceilings. This also makes A1b the first unit whose cost column is
+   honest in the sense B3's review asked for.
+2. **A1d (Lab 1), before A1b:** the engram arm under B4's public selector; bind of every
+   answer including plain kinds; a recall never speaks on an anomaly that already carries a
+   declaration made after the checker's last consistent verdict (so memory corrects a stale
+   cheap declaration and does not add to a standing correct one); gate counters and recall
+   instants through the medium's trace port into its own file; identity; the same smoke on the
+   decision columns. Brief in the queue.
+3. **A1b's specification** will bound, first, displaced correct plain decisions as a paired
+   excess over the memoryless arm under the same selector; the A1c declaration-level count is
+   reported, not bounded.
+4. **W3 stays queued** behind the two-lab rule; it is the power lever and runs as soon as a lab
+   is free.
+
 ## V1 criteria as code — merged (Lab 2); the verifier exists, and its first act was to catch the chief
 
 **Provenance.** Six commits on `criteria`: the schema and the four specifications (f3c407a)

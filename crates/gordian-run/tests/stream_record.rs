@@ -156,8 +156,7 @@ impl Drive {
     ) -> Vec<gordian_run::stream::arms::noticer::MemoryRecall> {
         let store = self.store();
         let open: Vec<(u32, Instant)> = gate.iter().map(|(a, ms)| (*a, Instant(ms * MS))).collect();
-        self.noticer
-            .gated_recalls(Instant(now_ms * MS), &store, &open)
+        self.noticer.gated_by(Instant(now_ms * MS), &store, &open)
     }
 
     /// The id of the anomaly whose anchor is the first observation delivered at or after `obs`.

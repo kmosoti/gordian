@@ -3,7 +3,9 @@
 Work items M1, M1b and M3 (`docs/lab-queue.md`), built from `docs/medium-ports.md` (the design).
 M1b, the oscillome (section 4b), is recorded in its own section below, with departures 34 to 52;
 M3's sub-tick support in its own, with departures 53 to 57; A1a's engram in its own, written
-before its code, with departures from 58. This file
+before its code, with departures 58 to 65; A1c's two-site key in its own, written before its code,
+with departures 66 to 70; A1d's rule of where a recall may speak and its trace marks in its own,
+written before its code, with departures from 71. This file
 records every place the build departs from the design or fills a gap in it, and why. The tick's
 total order is in `src/medium.rs`'s module documentation; the archetypes' parameters and state are
 in the table in `src/archetype.rs`.
@@ -714,6 +716,275 @@ cells and synapses and changes parameters through the same validation as a spec 
 privileged where it is" does not apply to the engram's outcome: an engram's outcome is the
 reasoner's answer, which the stream delivers to the arm as an `Answered` event the arm paid for,
 not the stream's truth; nothing about whether the answer was right reaches the medium.
+
+## The two-site key and the recall gate (A1c): design, written before the code
+
+Work item A1c (`docs/lab-queue.md`, "## A1c"). A1a's smoke showed two limits of the engram as
+built (review log, "A1a the engram"): a one-node coincidence cannot key the hard families whose
+evidence sits at two services, and "evidence after 2 s" is not the rule-breaking evidence, so the
+generalising family form recalled on plain incidents 151 times more than the control. A1c adds a
+key that spans two nodes (in the crate, world-agnostic) and a gate on the public consistency
+checker (in the arm, `gordian-run/src/stream/arms/medium/`). This section was committed before
+any A1c code; what the build changes against it is added below as numbered departures from 66.
+
+### What the crate adds: keys over a pair of nodes
+
+- **Roles.** Every feature of a key has a role: `Site` (the feature must occur at the key's first
+  node), `Partner` (at its second node) or `Relation` (at the **edge node** of the ordered pair,
+  below). A one-site key (A1a's) has only `Site` features, and everything A1a built treats it as
+  before: same cells, same synapses, same bytes.
+- **Edge nodes.** The ordered pair `(a, b)` has the node `pair_node(a, b) = 0x8000 | a << 7 | b`.
+  An event addressed to it is an event *about the relation of `a` to `b`*; what the relation is
+  (here: the order and the gap of two alarms) belongs to the adapter, which emits such events.
+  The crate knows only the address arithmetic. For it to be defined, a store's nodes must be
+  below 128 (`Engrams::new` refuses others; A1a's adapter uses 0 to 11).
+- **A pair site**, `KeySite::Pair`: the key's first node `a` and second node `b` range over every
+  ordered pair of the store's nodes with `a != b` (family-keyed; the services are variables, as
+  A1a's `Variable`). No fixed pair is built (no A1c arm needs one).
+- **The cells of a pair engram.** As a one-site engram's (`DESIGN.md`, "The engram"), except that
+  there is one key cell `key[e, (a, b)]` per ordered pair, `n (n - 1)` of them for `n` nodes (132
+  for A1a's twelve), each a sliding `Coincidence` of all the key's live features within `w`
+  ticks; its input for a feature with role `Site` is `feat[t, a]`, with role `Partner`
+  `feat[t, b]`, with role `Relation` `feat[t, pair_node(a, b)]`. Feature cells are shared as
+  before (an edge node's feature cell is an ordinary presence `Sense` cell whose pattern names the
+  edge node). The latch, the emitter and the strength synapse are unchanged. **The coincidence
+  spans two nodes**: it fires only when every live feature of the key has occurred at `a`, at `b`
+  and at their edge within the window.
+- **Bind on pair keys.** Features are compared as `(role, tag)` pairs everywhere (contradiction,
+  exact match, generalisation); for a one-site key this is the comparison A1a made. A one-site
+  engram is contradicted by a pair pattern whose `Site` features hold its key (it would recall on
+  that pattern at the pair's first node); a pair engram is never contradicted by a one-site
+  pattern (it holds no `Relation` feature). Generalisation narrows only an engram of the same site
+  kind, and **never narrows a pair engram to a key without its `Relation` feature or without a
+  `Partner` feature**: a narrowed pair engram still spans two nodes (the rule A1a gave marked
+  features, departure 65, applied to the span).
+- **Which pair fired.** `Engrams::recall_in(&Medium, &Proposal)` resolves a proposal as `recall`
+  does and also names the node of the key cell that fired at the medium's last tick (the key
+  cell of the engram whose `last_active` is that tick with a positive activation; the lowest
+  such cell if several did): for a pair engram, the edge node of the pair. The adapter must call
+  it after each tick. A recall's anchor is the earliest event of the coincidence and may be the
+  partner's, so the anchor's node does not say which node is the key's first; the fired cell
+  does.
+- **Persistence.** A pair engram's site is written as tag 2, followed by one role byte per
+  feature after the marks; a one-site engram's bytes are A1a's, unchanged, and the table's
+  version stays 1 (no table is persisted outside a process). Decoding checks a pair engram's
+  wiring against the medium as A1a's check does, with the role's node per input.
+- **Cost.** A pair engram has `n (n - 1)` key cells, so a feature event reaches up to `n - 1` key
+  cells per engram that names it (A1a's: one). Every cell update and traversal is counted and
+  priced as before; nothing is hidden. The hard limits (65,536 cells, 2^20 synapses) bound the
+  number of pair engrams at about 450 with twelve nodes; a bind past them is refused and counted.
+
+### What the adapter builds on it (A1c; details in the adapter's module documentation)
+
+- **Relation events.** With the two-site key on, at every abnormal observation at a service `s`
+  that begins a burst there (the first abnormal at `s`, or one at least `burst_gap_ns` after the
+  previous one at `s`: the rung's own rule), for every service `u` that the **public graph does not
+  connect to `s`** (neither is a transitive dependent of the other, `dependents_mask`) and every
+  burst start of `u` in the last `key_span_ns`, two events at that instant: at
+  `pair_node(s, u)` and at `pair_node(u, s)`, each tagged with the **order** of the two first
+  alarms seen from the edge's first node (the partner's came first, or not) and the **band** of
+  their gap (below `burst_ns`, 0.4 s, what propagation looks like; below `burst_gap_ns`, 2 s, one
+  burst; up to `key_span_ns`, 10 s). No service id and no free-form id enters a tag.
+- **The two-site key.** For an answer about an anomaly at `A` (first alarm `t_A`, the latest burst
+  start at `A` not after its anchor): the partner `B` is the service unconnected to `A` whose burst
+  start is nearest to `t_A` within `key_span_ns` (ties: the earlier, then the lower index, which is
+  used only to choose and never enters the key). The key is the relation tag, then `B`'s and
+  `A`'s invariant features (A1a's family features: kinds, bands, catalogue ids) over
+  `[min(t_A, t_B), min(t_A, t_B) + key_span_ns]` with roles `Partner` and `Site`, at most eight in
+  all (the relation and one partner feature always kept). An anomaly with no unconnected partner
+  keeps A1a's one-site family key. The outcome site is relative (`Support`), resolved at recall to
+  the pair's first node.
+- **The recall gate** (in the arm, not the crate): a recall is acted on only for an anomaly whose
+  latest public consistency check found no hypothesis consistent with its evidence
+  (`AnomalyView::contradicted_since` set), read after the step's checks and for at most one
+  review period of the rung after the recall; otherwise it is dropped and counted. A1a's
+  "late feature" requirement becomes a switch, off by default in a gated layer.
+
+### Not built, and why
+
+- No fixed (site-keyed) pair: no A1c arm needs one, and a site-keyed two-site engram would be
+  wrong in the next stream by construction (W2).
+- No relation other than the order and gap of two first alarms; no key over three or more
+  nodes (the brief names two).
+- No removal of the `n (n - 1)` key cells that a stream with fewer services never uses: they cost
+  a cell update only when one of their features arrives.
+
+### Departures and choices as built (A1c)
+
+Numbering continues A1a's. Each is a place where the build differs from the section above (written
+before the code) or fills a gap it left.
+
+66. **`recall_in` beside `recall`, not in place of it.** `Engrams::recall` keeps its signature and
+    leaves `Recall::fired` empty, so A1a's callers and tests are unchanged; `recall_in` takes the
+    medium and fills it. "The lowest such cell" is the first in the engram's own order of key
+    cells, which is ascending cell id (first node major for a pair).
+67. **The adapter resolves recalls after every tick** (A1a resolved all of a step's proposals after
+    its last tick). The same recalls in the same order; only `recall_in` needs the per-tick medium.
+    A one-site recall's `fired` is filled but not used: its support site stays the anchor's node
+    (A1a's rule), so a one-site layer does exactly what it did.
+68. **Relation events' address and sequence numbers.** The edge node is the address's node; the
+    channel is 4 (`CH_RELATION`, after the four of `adapters.rs`); `seq` counts from `0x8000_0000`
+    per segment, a space apart from observation ids, so a relation event never names an
+    observation (the noticer's owner lookups skip it) and never shares an `EventRef` with one.
+69. **A pair engram keeps a relation and a partner feature under generalisation, by role** (the
+    design said "its `Relation` feature or a `Partner` feature"): the shared features must hold at
+    least one feature of each role; since a two-site key has exactly one relation feature, sharing
+    it means the same order and gap band.
+70. **The gate's wait is checked before the gate** (adapter, `noticing.rs`): a recall is admitted
+    at a step no later than one review period after it was resolved, and dropped at the first step
+    past that, whatever the verdict there. Without the order the wait would be one step longer
+    than one review period (found by the test `the_gate_waits_one_review_period_then_drops_the_recall`
+    before any run).
+
+## The engram under a non-privileged selector (A1d): design, written before the code
+
+Work item A1d (`docs/lab-queue.md`, "## A1d"). A1c showed the memory learning from a one-sided
+teacher: under the selection oracle only hard incidents are asked about, so nothing plain is ever
+bound or contradicted (review log, "A1c"). A1d runs the engram arm under B4's public selectors and
+adds three things: a rule for where a recall may speak, a trace of the layer's counters, and the
+hooks they need. This section was committed before any A1d code; what the build changes against
+it is added below as numbered departures from 71.
+
+### The selector (manifest only; no code)
+
+The engram arm's escalation rule is chosen in the manifest, as every arm's is. Under B4's public
+selectors (`public_threshold`, `public_change`, at R5's 16 s delay with the rung's context) plain
+anomalies are asked about, and the `Answered` events that come back already feed bind through the
+seam's memory hook (A1a): every answer the arm receives is bound, plain kinds and "not an
+incident" included, with A1a's three structural exceptions unchanged (the anomaly is no longer
+held; a family-keyed answer naming another service than the anomaly's; a key with fewer than
+`min_features` features). The vote (A1a: each disagreeing answer about a pattern an engram keys
+takes one from its strength) is what weakens a key whose outcomes disagree; nothing new is built
+for it. The constants are B4's merged choices for the medium row (`b4-selected.json`,
+`medium_t100`: threshold `t` = 1 s, change `k` = 12), read and not retuned. The selection oracle
+stays: it is the same arm under `oracle_selection`, a labelled ceiling.
+
+**What the selector cannot be told.** A recalled anomaly is never escalated (A1a's rule, in
+`StreamArm::step`): once the memory speaks on an anomaly, the selector's question about it is not
+asked and no answer about it is bound. So the memory's own recalls are never contradicted by an
+answer about the same anomaly; only answers about anomalies it did not recall (or recalled and the
+gate dropped) vote on its engrams. This is charter section 9's selective evidence inside the arm,
+stated before the run and measured by the trace (recalls admitted against answers bound).
+
+### Where a recall may speak (the rule of item 2)
+
+**The rule.** A recall is declared only on an anomaly that (a) A1c's gate admits (the latest
+public consistency check found no consistent hypothesis, `AnomalyView::contradicted_since` set)
+and (b) carries no declaration made **strictly after** the checker's last consistent verdict on
+it. Written with `d` the instant of the latest declaration the rung made for the anomaly and `c`
+the instant of the latest check that found a consistent hypothesis:
+
+- no declaration (`d` none): the recall may speak (A1c's case);
+- `d` and no consistent verdict ever (`c` none): the declaration was made on evidence the checker
+  never explained; it **stands**; the recall does not speak;
+- `d > c`: the declaration was made after the checker last explained the evidence; it **stands**
+  (the contradiction is not news to it); the recall does not speak;
+- `d <= c`: the checker explained the evidence at or after the declaration, and has since found
+  it contradictory (by (a)); the declaration is **stale**; the recall may speak, beside it.
+
+The equal case is stale because the rung's review runs the checker at the instant it concludes:
+a cheap declaration made on a consistent verdict has `d = c`, and a later contradiction is what
+makes it stale. That is the brief's "memory corrects a cheap declaration the rules have since
+contradicted, and never adds to one that stands". (a) is kept because (b) alone would let a
+recall add to a declaration whose latest check is consistent (`d <= c` and no contradiction
+since), which stands by any reading.
+
+**What it does not stop.** A stale declaration may be correct. A recall beside it adds a second
+declaration; under the evaluator's rule S11 a wrong declaration never cancels a correct one, so the
+incident's decision (correct by its deadline) is unchanged, and its `wrong_declarations` rises.
+This is A1c's "118 also correct" channel, which the rule keeps open by construction: the rule
+decides on the public verdict's history, never on whether the declaration was right, which no arm
+can know. And a recall still preempts the selector's later question about the anomaly (above).
+
+**Where it lives.** The rung keeps, per anomaly, the instant of its latest declaration (where it
+sets `cheap_declared`) and the instant of its latest consistent verdict (where it records a
+verdict, in a review or a check; only while it monitors). It hands the ids whose declaration
+stands to the noticer before the gate reads the views (a new default method on the `Noticer` seam,
+a no-op for every other noticer). The gate is a new value of the layer's `gate` switch,
+`stale` (A1c's `contradicted` and `none` are unchanged); the wait is A1c's (one review period of
+the rung, read at each step).
+
+### Counters, through the trace port
+
+**In the crate (world-agnostic).** A `Mark`: an instant in nanoseconds, a kind (`u16`, the
+adapter's), a subject (`u32`), an event (`u32`), a tag (`u32`) and a value (`i64`), all the
+adapter's to define. `Trace` gains `mark(&mut self, mark)`, a default method that does nothing, so
+every existing trace (`NoTrace`, `SamplingTrace`) is what it was. A `MarkLog` trace samples no
+tick and keeps the marks it is given, in order. The medium never writes a mark: marks are notes by
+the medium's owner, on the same port as its tick traces, so that everything the medium's side
+reports leaves by one outlet.
+
+**In the adapter.** The engram layer holds a `MarkLog` as its medium's trace port (it samples no
+tick, so the engram medium does exactly what it did under `NoTrace`) and marks, with the step's
+instant:
+
+| Mark | When | Subject | Event | Tag | Value |
+|---|---|---|---|---|---|
+| `answer` | an answer reached the layer | the anomaly (or none, unheld) | the answer's focus | the outcome tag (0 not an incident, 1 to 5 known kinds, 6 to 9 hard kinds) | what bind did: created, strengthened, generalised, too few features, refused, no late feature, elsewhere, off, unheld |
+| `contradicted` | the bind weakened engrams | the anomaly | the focus | the outcome tag | how many |
+| `recall` | the engram medium recalled | none | the recall's anchor | the outcome tag | the engram |
+| `offered` | a recall was resolved to an anomaly (to the gate, or acted on when ungated) | the anomaly | the anchor | the outcome tag | the engram |
+| `admitted` | the gate (or no gate) let it through | the anomaly | the anchor | the outcome tag | the engram |
+| `gated_consistent`, `gated_standing` | dropped after the wait; the last reading was a consistent verdict, or a standing declaration | the anomaly | the anchor | the outcome tag | the engram |
+| `overtaken` | dropped: asked about, answered or retired while it waited | the anomaly | the anchor | the outcome tag | the engram |
+| `unmatched`, `redundant` | no anomaly owned it in time; another recall of the anomaly won or came first | the anomaly if any | the anchor | the outcome tag | the engram |
+| `confirmed` | the confirmation policy asked instead | the anomaly | the anchor | the outcome tag | the engram |
+| `declared`, `not_declared` | the arm declared the recall, or did not (asked or answered already; the same declaration already made) | the anomaly | none | none | none |
+| `segment_end` | the layer is dropped at the end of its segment | none | none | none | engrams held |
+
+`not_declared` and `declared` need the arm's answer: a third default method on the `Noticer` seam,
+called by `StreamArm::step` after it acts on a recall (a no-op for every other noticer). An answer
+arrives between steps, so an `answer` mark takes the instant of the next step the layer runs (the
+step at which the rung took the answer).
+
+**The file.** With the layer's switch `trace` on (default off, not written when off, so A1a's and
+A1c's configurations are the same text) and the environment variable `GORDIAN_ENGRAM_TRACE_DIR`
+naming a directory, the layer appends its marks, at its end, to
+`<dir>/engram-trace-<state_key>.csv` (one file per arm, since every engram arm of a manifest has
+its own key), one row per mark, with a segment ordinal counted per key in the process (segments
+are played in stream order, so ordinal `i` is the manifest's `i`-th seed). The run script sets the
+variable to a directory inside the run directory. This is I/O in the adapter, at the arm's
+boundary, and output only: nothing read back, nothing that changes a decision, and no I/O in the
+crate. The brief asks for "the arm's own trace file"; the recorder, which writes the arm's
+directory, is Lab 2's and is being changed by E1, and the medium's parameters are `Copy` through
+the `Noticer` seam's manifest type (Lab 2's), so a path cannot travel in them; the file is written
+beside the run's arm directories, named by the arm's state key.
+
+### Not built, and why
+
+- No new column in `results.csv` or `incidents.csv`, and nothing in the evaluator (E1's).
+- No change to bind, recall, the key, the vote, the strength rule or any first value.
+- No confirmation of recalls by the selector: a recalled anomaly stays unasked (A1a's rule).
+
+### Departures and choices as built (A1d)
+
+Numbering continues A1c's. Each is a place where the build differs from the section above (written
+before the code) or fills a gap it left.
+
+71. **The gate's reading is a value** (`gate::Reading`: admit, consistent, standing), so a recall
+    dropped at the end of its wait is marked by the last reason it was read with; for A1c's
+    `contradicted` gate the reading is exactly its old condition (declarations are not read).
+72. **`bind` and `bind_roles` return what they did** (`trace::BindNote`; they returned nothing),
+    so that the noticer, which knows the anomaly and the focus, writes the `answer` mark and, after
+    it, the `contradicted` mark with the same subject and event. Callers that ignore the value are
+    unchanged.
+73. **An answer's instant.** Marks of answers (and their contradictions) take the instant of the
+    layer's next step; answers taken in the arm's final call, after which no step runs, keep the
+    last step's instant.
+74. **`declared` and `not_declared` are also marked when the arm skips a recall** before trying to
+    declare it (its anomaly is gone, asked about or answered), not only when `declare_recognized`
+    declines: every recall handed to the arm ends in exactly one of the two.
+75. **The file is written by `Drop`** of the layer (the end of its segment), with a `segment_end`
+    mark carrying the number of engrams held; a write failure is counted in a process-wide counter
+    and never stops the arm. The writer takes its directory as an argument (`trace::append_to`);
+    only `trace::append` reads the environment.
+76. **The declaration instant is the rung's `now`** (the instant of the step it last took in),
+    recorded wherever `cheap_declared` is set, including when the same diagnosis was already
+    declared at the anchor and no new declaration is proposed: the anomaly carries that
+    declaration either way.
+77. **B4's constants were tuned on M2's medium** (`medium_t100`); A1d's arms use M3's frozen
+    medium, as A1a's and A1c's do. The constants are applied to it unchanged (the brief: nothing
+    retuned).
 
 ## Mutation checks
 

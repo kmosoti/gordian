@@ -47,7 +47,7 @@
 use super::noticer_ramp::{RampNoticer, RampSpec};
 use super::noticer_rung::RungBased;
 use super::noticer_split::{SplitNoticer, SplitSpec};
-use super::rung::{Held, RungConfig, Store};
+use super::rung::{AnomalyView, Held, RungConfig, Store};
 use gordian_core::Instant;
 use gordian_stream::{Diagnosis, ObsId};
 use gordian_world::graph::dependents_mask;
@@ -443,26 +443,43 @@ pub trait Noticer {
         None
     }
 
-    /// Whether the noticer's memory recalls only on anomalies the public rules cannot explain
-    /// (work item E1): the rung then keeps the consistency checker's verdict on each noticed
-    /// anomaly current ([`super::rung::Rung::set_monitor`]) and hands it to
-    /// [`Noticer::gated_recalls`]. False, the default, and then nothing here runs.
-    fn wants_consistency(&self) -> bool {
+    /// Whether the noticer's recalls are gated on the public consistency checker's verdict
+    /// (work item A1c), so that the rung must keep [`super::rung::AnomalyView::contradicted_since`]
+    /// up to date for this arm ([`super::rung::Rung::set_monitor`]). False, by default.
+    fn needs_verdicts(&self) -> bool {
         false
     }
 
-    /// The recalls of a memory that waits for evidence the public rules cannot explain (work item
-    /// E1), after the step's consistency checks: `contradicted` lists the noticed anomalies for
-    /// which every check since `since` found no hypothesis consistent with the evidence attached
-    /// to them ([`super::rung::AnomalyView::contradicted_since`]), by id. `store` holds what has
-    /// been delivered. None, by default.
-    fn gated_recalls(
+    /// The noticer's recalls since the last call, given the noticed anomalies as the arm sees
+    /// them at `now`, after the step's consistency checks (work item A1c): a noticer that gates
+    /// its recalls on the verdict decides here which to hand over. [`Noticer::recalls`], by
+    /// default.
+    fn gated_recalls(&mut self, _now: Instant, _views: &[AnomalyView]) -> Vec<MemoryRecall> {
+        self.recalls()
+    }
+
+    /// The noticed anomalies (by id) that carry a standing declaration: one made strictly after
+    /// the consistency checker's last consistent verdict on them (work item A1d), given before
+    /// [`Noticer::gated_recalls`]. Nothing, by default.
+    fn standing_declarations(&mut self, _ids: &[u32]) {}
+
+    /// The arm acted on this noticer's recall of anomaly `anomaly` at `now`: it declared the
+    /// recalled diagnosis, or it did not (work item A1d, the trace's counters). Nothing, by
+    /// default.
+    fn recall_declared(&mut self, _now: Instant, _anomaly: u32, _declared: bool) {}
+
+    /// [`Noticer::gated_recalls`] for a memory that must also read what the arm holds when it
+    /// decides (work item E1: the record rung keys a recall on the observations held at the time
+    /// the checker first found the anomaly inconsistent, which only `store` says). The rung calls
+    /// this one; by default it is [`Noticer::gated_recalls`], so a noticer that needs only the
+    /// views (A1c's engram gate) overrides that and not this.
+    fn gated_recalls_in(
         &mut self,
-        _now: Instant,
+        now: Instant,
         _store: &Store,
-        _contradicted: &[(u32, Instant)],
+        views: &[AnomalyView],
     ) -> Vec<MemoryRecall> {
-        Vec::new()
+        self.gated_recalls(now, views)
     }
 }
 
