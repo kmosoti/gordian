@@ -106,11 +106,15 @@ fn build(spec: &Spec) -> (gordian_stream::oracle::StreamTruth, SelectionTrace) {
         .iter()
         .enumerate()
         .filter_map(|(k, (_, t, orig))| {
-            spec.retire.get(*orig).copied().flatten().map(|(after, by_rule)| SelectionRetire {
-                anomaly: k as u32,
-                at: Instant((*t + after) * 1_000_000_000),
-                followup: by_rule,
-            })
+            spec.retire
+                .get(*orig)
+                .copied()
+                .flatten()
+                .map(|(after, by_rule)| SelectionRetire {
+                    anomaly: k as u32,
+                    at: Instant((*t + after) * 1_000_000_000),
+                    followup: by_rule,
+                })
         })
         .collect();
     retirements.sort_by_key(|r| (r.at, r.anomaly));

@@ -643,10 +643,8 @@ fn a_withdrawn_anomaly_is_written_as_a_follow_up_retirement_and_a_call_is_stampe
     }
     m.noticers
         .insert("plain".to_owned(), composed(Some(ramp(None)), None));
-    m.noticers.insert(
-        "with".to_owned(),
-        composed(Some(ramp(Some(eager))), None),
-    );
+    m.noticers
+        .insert("with".to_owned(), composed(Some(ramp(Some(eager))), None));
     m.validate().unwrap();
     let step_ns = m.limits.step_ns;
     let out = scratch("follow-files").join("run");
