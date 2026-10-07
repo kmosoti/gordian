@@ -309,3 +309,145 @@ def outcome_slope(
         lower=lo * 100,
         higher=hi * 100,
     )
+
+
+# ---- a measure against streams seen (work item L2) -------------------------------------------
+#
+# The learned noticer of L1 settled within four streams, and a least-squares slope of a cumulative
+# ratio over a hundred cannot see that (the review log's sixth coordinator error). L2's amended
+# clause 2 reads a measure against streams seen in a window with a fixed endpoint instead: the
+# background notices per stream over streams 21 to 40, learner against control, paired. These two
+# functions are that reading and the curve it is read from. Both take per-stream columns (one
+# arm's `results.csv`-like frame: one row per stream, the measure's count columns) and fix the
+# stream order by a unique key (the seed by default), as `sample_efficiency` does.
+
+
+def _ordered_counts(
+    frame: pd.DataFrame, numerator: str, denominator: str | None, order_by: str
+) -> tuple[np.ndarray, np.ndarray]:
+    """(numerator, denominator) per stream in stream order; the denominator is one per stream
+    when none is named (a mean per stream)."""
+    cols = [order_by, numerator] + ([denominator] if denominator else [])
+    _require(frame, cols)
+    if frame[order_by].duplicated().any():
+        raise ValueError(f"{order_by!r} must identify a stream uniquely")
+    ordered = frame.iloc[np.argsort(frame[order_by].to_numpy(), kind="stable")]
+    num = ordered[numerator].to_numpy(dtype=float)
+    den = (
+        ordered[denominator].to_numpy(dtype=float)
+        if denominator
+        else np.ones(len(ordered))
+    )
+    return num, den
+
+
+def block_curve(
+    frame: pd.DataFrame,
+    numerator: str,
+    denominator: str | None = None,
+    block: int = 20,
+    order_by: str = "seed",
+) -> pd.DataFrame:
+    """A measure against streams seen, in consecutive blocks of `block` streams in stream order.
+
+    One row per block (the last may be shorter): `block` (1-based), `first` and `last` (1-based
+    positions of the block's first and last stream), `streams`, `numerator` and `denominator`
+    (their sums over the block) and `value`: the pooled ratio `sum(numerator) / sum(denominator)`,
+    or the mean per stream of `numerator` when no `denominator` column is named (NaN when the
+    block's denominator is zero). Unlike `sample_efficiency` it is not cumulative: a block
+    shows what the arm does once it has seen that many streams, not an average over its whole
+    history, so a change that completes in a few streams is visible as a step.
+    """
+    if block < 1:
+        raise ValueError("block must be at least 1")
+    num, den = _ordered_counts(frame, numerator, denominator, order_by)
+    rows = []
+    for b, lo in enumerate(range(0, len(num), block)):
+        hi = min(lo + block, len(num))
+        n, d = float(num[lo:hi].sum()), float(den[lo:hi].sum())
+        rows.append(
+            {
+                "block": b + 1,
+                "first": lo + 1,
+                "last": hi,
+                "streams": hi - lo,
+                "numerator": n,
+                "denominator": d,
+                "value": n / d if d > 0 else float("nan"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+@dataclass(frozen=True)
+class WindowDifference:
+    """The result of `paired_window_difference`: the measure of each arm over streams
+    `first..last` (1-based, inclusive), their difference `a - b`, and the 5th and 95th percentiles
+    of its paired cluster-bootstrap distribution (a 90% interval)."""
+
+    first: int
+    last: int
+    a: float
+    b: float
+    point: float
+    lower: float
+    higher: float
+
+
+def paired_window_difference(
+    a: pd.DataFrame,
+    b: pd.DataFrame,
+    numerator: str,
+    denominator: str | None = None,
+    first: int = 1,
+    last: int | None = None,
+    order_by: str = "seed",
+    resamples: int = 10_000,
+    seed: int = 0,
+) -> WindowDifference:
+    """The difference of a measure between two arms over a window of streams, paired.
+
+    `a` and `b` are per-stream frames of two arms over the same streams (the same `order_by`
+    keys). The measure is the pooled ratio over the window, or the mean per stream with no
+    `denominator`. The interval resamples the window's streams with replacement (10,000 times by
+    default, multinomial counts from `numpy.random.default_rng(seed)`), the same streams for both
+    arms, so that what the two arms share (a stream that is noisy for both) cancels; it is the 5th
+    and 95th percentiles of the resampled differences, resamples with an empty denominator
+    dropped.
+    """
+    na, da = _ordered_counts(a, numerator, denominator, order_by)
+    nb, db = _ordered_counts(b, numerator, denominator, order_by)
+    if not np.array_equal(
+        np.sort(a[order_by].to_numpy()), np.sort(b[order_by].to_numpy())
+    ):
+        raise ValueError("the two arms are not over the same streams")
+    last = len(na) if last is None else last
+    if not 1 <= first <= last <= len(na):
+        raise ValueError(f"the window {first}..{last} is not within 1..{len(na)}")
+    sl = slice(first - 1, last)
+    na, da, nb, db = na[sl], da[sl], nb[sl], db[sl]
+    k = len(na)
+
+    def ratio(n: np.ndarray, d: np.ndarray) -> float:
+        return float(n.sum()) / float(d.sum()) if d.sum() > 0 else float("nan")
+
+    point_a, point_b = ratio(na, da), ratio(nb, db)
+    rng = np.random.default_rng(seed)
+    w = rng.multinomial(k, np.full(k, 1.0 / k), size=resamples).astype(float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        diff = (w @ na) / (w @ da) - (w @ nb) / (w @ db)
+    diff = diff[~np.isnan(diff)]
+    lo, hi = (
+        (float(np.percentile(diff, 5)), float(np.percentile(diff, 95)))
+        if len(diff)
+        else (float("nan"), float("nan"))
+    )
+    return WindowDifference(
+        first=first,
+        last=last,
+        a=point_a,
+        b=point_b,
+        point=point_a - point_b,
+        lower=lo,
+        higher=hi,
+    )
