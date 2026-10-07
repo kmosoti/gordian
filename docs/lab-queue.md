@@ -42,7 +42,8 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | stopped (reservoir built, identity passed) |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 | A1 | 1 | The engram: memory in the medium (A1a build and identity; A1b the run, criterion fixed after W2, E1 and A1c) | M3 | A1a merged; A1b queued |
-| A1c | 1 | The recall gate on the public consistency checker; a two-site key; identity; the smoke against A1a's table | A1a | running |
+| A1c | 1 | The recall gate on the public consistency checker; a two-site key; identity; the smoke against A1a's table | A1a | merged (negative branch) |
+| A1d | 1 | The engram under a non-privileged selector: plain outcomes bound, memory speaks only where no later declaration stands, trace counters; identity; the smoke on decision columns | A1c | running |
 | W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | merged |
 | W3 | 3 | World C (three times the hard share) for A1b's power; the phase-2-keyed collision floor | W2 | queued |
 | V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | merged |
@@ -548,7 +549,7 @@ report and before any A1b run.
    departed from `docs/medium-ports.md` and `DESIGN.md`, the smoke counts, what the PI is least
    sure of, and what A1b should measure that the chief's brief does not name.
 
-**A1b, the run (brief to follow W2 and E1).** Tuning on seeds 10000–10099 under a stale-error
+**A1b, the run (rewritten after A1c, 2026-10-07; the criterion follows E1 and A1d).** A1b runs under B4's public selector, not the selection oracle, for every arm (review log, A1c): the memory must be able to bind plain outcomes and be contradicted. The selection-oracle rows are labelled ceilings. The first clause bounds displaced correct plain decisions (by deadline), paired against the memoryless arm under the same selector. Tuning on seeds 10000–10099 under a stale-error
 bound and the cost column; held-out on seeds 40000–40199 in stream order; arms: the medium with
 engrams (family-keyed and site-keyed), the medium with bind switched off, E1's record rung in
 both forms, the re-anchor with no memory. Measures: E1's. Criterion to be fixed then, in
@@ -710,3 +711,32 @@ rule-breaking evidence. No tuning; this is a mechanism unit with identity and a 
 table. A gated family form whose plain unasked-wrong count exceeds the control's by more than
 5 in 20 streams is reported as such and A1b's design is reconsidered before its criterion is
 fixed; a count within 5 is the expected outcome. No claim either way.
+
+## A1d The engram under a non-privileged selector (Lab 1, after A1c)
+
+A1c showed the memory learns from a one-sided teacher: under the selection oracle only hard
+incidents are asked about, so nothing plain is ever bound or contradicted. No tuning; a
+mechanism unit with identity and a smoke on the decision columns.
+
+1. **The selector.** The engram arm runs under B4's public selector (`public_threshold.rs`
+   and `public_change.rs`, with B4's tuned constants as merged, nothing retuned), so that plain
+   anomalies are sometimes asked about. Every answer, plain kinds included, feeds bind; the
+   vote weakens a key whose outcomes disagree. Keep the selection-oracle form as a switch.
+2. **Where memory may speak.** A recall declares only on an anomaly that carries no
+   declaration made after the checker's last consistent verdict: memory corrects a cheap
+   declaration the rules have since contradicted, and never adds to one that stands. Test it.
+3. **Counters.** Through the medium's trace port into the arm's own trace file (not
+   `results.csv`, which is E1's): recalls offered, gated, admitted, declared, with instants;
+   binds by outcome tier as the arm sees it (kind only; the arm does not know tiers).
+4. **Identity:** R6's held-out replay 62 of 62; A1a's and A1c's smoke arms reproduce exactly;
+   gates.
+5. **The smoke:** seeds 10000–10019, the memoryless arm and the engram forms (family,
+   two-site, site) under the public selector and under the oracle, first values, nothing
+   adjusted; reported on the decision columns (`correct_by_deadline`, `missed`,
+   `critical_miss`, calls, cost) by tier, paired against the memoryless arm under the same
+   selector, with the A1c declaration count beside for continuity.
+6. **Report:** `experiments/exploration/a1d-negative-experience.md`.
+
+**Acceptance (fixed 2026-10-07).** Deliverables, identity, the test in item 2, the smoke
+table on decision columns. The expected outcome is stated as a prediction by the PI before
+the run; whatever the table shows is reported. No claim.

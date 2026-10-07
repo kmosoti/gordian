@@ -4,6 +4,73 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## A1c the recall gate and the two-site key — merged (Lab 1); the public checker does not separate plain from hard, and the chief's acceptance measure was the wrong one
+
+**Provenance.** Five commits in order (design 33a31e8, code 43e0648, scripts with the PI's
+prediction before any run ceb4a99, identity b25468c, report feae28d). The chief recomputed:
+R6's held-out replay 62 of 62 on both files; the smoke counts from `incidents.csv` match the
+lab's table (gated family 180 plain unasked-wrong, 1 hard unasked-correct; A1a's eight arms
+unchanged; the gated site form recalls nothing). Gates on the merged tree under the runner: see
+the commit. Runs kept in `artifacts/runs/a1c/`. Not done, recorded: gate counters and recall
+instants in the run output (E1's territory); mutation tests; no held-out run (none briefed).
+
+**Verdict: A1c delivers; its acceptance clause triggers the negative branch** (180 exceeds
+53 + 5), so A1b's design is reconsidered here before its criterion is fixed.
+
+**Coordinator error (thirteenth).** The acceptance measure I fixed, "plain incidents with a
+wrong unasked declaration", counts a wrong declaration made beside a correct one, which the
+decision scoring ignores. The chief's recomputation on the decision columns:
+
+| Arm (20 tuning streams) | Plain correct by deadline (of 434) | Plain wrong only | Hard correct by deadline (of 40) | Calls | Cost |
+|---|---|---|---|---|---|
+| M3, no memory | 375 | 22 | 26 | 61 | 16.4 s |
+| A1a family form, ungated | 333 | 63 | 20 | 45 | 12.0 s |
+| A1c gated family form | 366 | 31 | 24 | 51 | 13.5 s |
+| A1c gated two-site, late on | 369 | 29 | 24 | 55 | 14.9 s |
+
+On decisions, the gate cut the memory's damage from 42 displaced plain decisions to 9 and the
+hard loss from 6 to 2, at 18% less cost; that is the result the measure hid. The measure was
+not wrong to exist (E1 keeps it as a declaration-level count), but a bound on it is not a bound
+on the purpose's quantity. Lesson, the same as the tenth: the quantity bounded must be the one
+the charter names (decisions, by deadline), and A1b's specification bounds displaced correct
+decisions, paired, not declarations.
+
+**What it shows (mechanism, failure, causality).**
+
+- **The public rules' verdict does not separate plain from hard.** R5 measured that the
+  checker contradicts 97% of plain anomalies at some point; so a gate on it admits a recall on
+  a plain incident as soon as stray evidence arrives, typically after the cheap rung has already
+  declared correctly. The lab inferred the order from counts and said so; the chief accepts the
+  inference as the best model and not as observed.
+- **The memory learns from a one-sided teacher.** Under the selection oracle the reasoner is
+  asked about hard incidents only, so every bind is a hard outcome and no plain pattern is ever
+  bound or contradicted. A learner that is never shown what plain looks like cannot learn the
+  difference; the vote mechanism built in A1a has nothing to vote against. This is the causal
+  root, and it is the selector, not the engram. A1a's PI noted it, A1c's PI listed it third; the
+  chief now treats it as the design decision.
+- **The two-site key** recalled nothing on cascades and split brains in 20 streams, as power
+  predicts (about two binds per stream); its fewer plain errors may be specificity. Unknown.
+
+**Decided.**
+
+1. **A1b runs under a non-privileged selector, not the selection oracle.** The arm asks the
+   reasoner through B4's public selector (tuned under cost, as B4 built it), so that plain
+   anomalies are sometimes asked about, plain outcomes are bound, and a wrong plain recall can
+   be contradicted. The record rung (E1) runs under the same selector. The selection-oracle
+   rows are kept as labelled ceilings. This also makes A1b the first unit whose cost column is
+   honest in the sense B3's review asked for.
+2. **A1d (Lab 1), before A1b:** the engram arm under B4's public selector; bind of every
+   answer including plain kinds; a recall never speaks on an anomaly that already carries a
+   declaration made after the checker's last consistent verdict (so memory corrects a stale
+   cheap declaration and does not add to a standing correct one); gate counters and recall
+   instants through the medium's trace port into its own file; identity; the same smoke on the
+   decision columns. Brief in the queue.
+3. **A1b's specification** will bound, first, displaced correct plain decisions as a paired
+   excess over the memoryless arm under the same selector; the A1c declaration-level count is
+   reported, not bounded.
+4. **W3 stays queued** behind the two-lab rule; it is the power lever and runs as soon as a lab
+   is free.
+
 ## V1 criteria as code — merged (Lab 2); the verifier exists, and its first act was to catch the chief
 
 **Provenance.** Six commits on `criteria`: the schema and the four specifications (f3c407a)
