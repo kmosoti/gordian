@@ -1,0 +1,9 @@
+arm,band,streams,pair_cells_pairs_per_stream,edges_learned_per_stream,predictions,predictions_per_stream,followed,follow_rate,follow_rate_followed_by_counted_alarm,all_trials,all_trials_follow_rate,all_trials_mean_chance,permutation_chance,lead_from_made_median_ms,followed_not_ahead_of_the_step,predictions_with_anomaly,unresolved_at_stream_end
+a2_learn,0.4s,20,36.5,1.2,38,1.9,3,0.0789,0.0789,23904,0.0519,0.0473,0.052,22.2,1,24,0
+a2_learn,2s,20,36.5,4.85,202,10.1,49,0.2426,0.1881,23836,0.1992,0.2146,0.2219,716.6,5,111,0
+a2_learn,10s,20,36.5,0.3,11,0.55,8,0.7273,0.6364,23632,0.5267,0.6822,0.5333,3555.9,2,7,0
+a2_learn,any,20,36.5,5.4,251,12.55,60,0.239,0.1912,71372,0.2583,0.3134,0.2097,847.8,8,142,0
+a2_raw,0.4s,20,36.5,4.35,181,9.05,10,0.0552,0.0552,27724,0.0777,0.0546,0.0461,-7.3,6,104,0
+a2_raw,2s,20,36.5,10.35,582,29.1,153,0.2629,0.2629,27647,0.2523,0.2436,0.221,416.8,38,313,1
+a2_raw,10s,20,36.5,0.4,12,0.6,10,0.8333,0.8333,27430,0.5922,0.7328,0.8512,1076.1,0,7,0
+a2_raw,any,20,36.5,12.35,775,38.75,173,0.2232,0.2232,82801,0.3064,0.3424,0.1913,416.0,44,424,1

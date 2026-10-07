@@ -101,6 +101,7 @@ def analyse(form, seeds):
     for r in by["followed"]:
         res[(r["seed"], r["obs"], r["partner"])] = r
     expired = {(r["seed"], r["obs"], r["partner"]) for r in by["expired"]}
+    end_at = {r["seed"]: int(r["at_ns"]) for r in by["segment_end"]}
     preds = []
     for r in by["prediction"]:
         key = (r["seed"], r["obs"], r["partner"])
@@ -109,7 +110,11 @@ def analyse(form, seeds):
         w = C.BANDS_NS[k]
         t_a = int(a_alarm["at_ns"])
         f = res.get(key)
-        assert (f is None) == (key in expired), f"{form}: a prediction resolved once: {key}"
+        # A prediction whose window runs past the segment's last step is neither followed nor
+        # expired (added after the run, reporting only: the stream ends inside its window).
+        unresolved = f is None and key not in expired
+        assert not (f is not None and key in expired), f"{form}: resolved twice: {key}"
+        assert not unresolved or t_a + w > end_at[r["seed"]], f"{form}: unresolved: {key}"
         b_alarm = alarm.get((r["seed"], f["value"])) if f else None
         # Permutation chance: other services unconnected to a with a first alarm in the window.
         others = sorted(partners[(r["seed"], int(r["service"]))] - {int(r["partner"])})
@@ -119,6 +124,7 @@ def analyse(form, seeds):
             "alarm_at_ns": t_a, "predicting_service": r["service"],
             "predicted_service": r["partner"], "band": k, "band_ns": w, "alarm_obs": r["obs"],
             "anomaly": r["value"], "followed": int(f is not None),
+            "unresolved_at_stream_end": int(unresolved),
             "follow_obs": f["value"] if f else "", "follow_at_ns": f["at_ns"] if f else "",
             "lead_from_alarm_ns": int(f["at_ns"]) - t_a if f else "",
             "lead_from_made_ns": int(f["at_ns"]) - int(r["at_ns"]) if f else "",
@@ -173,6 +179,7 @@ def table(form, seeds, by, preds, edges, ev, pairs_per_stream):
             "lead_from_made_median_ms": round(leads[len(leads) // 2] / 1e6, 1) if leads else "",
             "followed_not_ahead_of_the_step": sum(1 for x in leads if x <= 0),
             "predictions_with_anomaly": sum(1 for p in ps if p["anomaly"] != "-1"),
+            "unresolved_at_stream_end": sum(p["unresolved_at_stream_end"] for p in ps),
         })
     streams = []
     for i, s in enumerate(seeds):
