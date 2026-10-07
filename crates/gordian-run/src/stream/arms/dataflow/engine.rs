@@ -19,9 +19,11 @@
 //! # The price table
 //!
 //! [`Prices::DECLARED`] is a table of nanoseconds per counted operation, calibrated by the
-//! criterion benchmark `bench.rs` (workloads that isolate each kind, differenced and fitted as
-//! M1's were; the report of C1 gives the measured values beside these). It prices this reference
-//! implementation on this machine, as the medium's prices do theirs.
+//! criterion benchmark `bench.rs`: workloads that isolate each kind (probe, write, scan, fire), and
+//! workloads that run the whole program over generated scenarios, whose measured time per counted
+//! operation includes everything around the table operations. The report of C1 gives the measured
+//! values beside the declared ones. It prices this reference implementation on this machine, as the
+//! medium's prices do theirs.
 
 use std::cell::Cell;
 use std::collections::BTreeMap;
@@ -90,13 +92,24 @@ pub struct Prices {
 }
 
 impl Prices {
-    /// The declared prices, calibrated by `bench.rs` (see the report of C1 for the measured
-    /// values).
+    /// The declared prices, calibrated by `bench.rs` (the report of C1 gives the measured values
+    /// beside them).
+    ///
+    /// The table primitives measure, in the benchmark's isolating workloads, about 10 ns per
+    /// probe, 26 per write (an insertion or removal; 10 to 15 for a replacement), 2.3 per scanned
+    /// row, and nothing the benchmark can resolve per fire (a delta handled and dropped is inlined
+    /// away; kept at 5 ns, as M1 kept its field read, because the benchmark cannot resolve it). The
+    /// program around them (the rules, the clones and allocations, the rows' arithmetic) costs
+    /// about twice that: the five `program/*` workloads, which run the rules over generated
+    /// scenarios, measure 11 to 13 ns per counted operation (21 for the busiest), and these prices
+    /// put each of them within 0.7 to 1.4 of its model (M1b's band). The primitives alone sit
+    /// outside the band, at 0.1 to 0.4 of this model, because they are the part of the cost that
+    /// the counts see directly; the rest is priced into the same four numbers.
     pub const DECLARED: Prices = Prices {
-        probe_ns: 50,
-        write_ns: 150,
-        scan_ns: 25,
-        fire_ns: 50,
+        probe_ns: 20,
+        write_ns: 45,
+        scan_ns: 5,
+        fire_ns: 5,
     };
 }
 

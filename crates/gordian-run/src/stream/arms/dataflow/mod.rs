@@ -38,7 +38,7 @@
 //! 3. *A hand-written incremental relational core* ([`engine`]): ordered tables with a delta log
 //!    each, an incremental projection operator, point probes, counted range scans. **Chosen.**
 //!
-//! **Cost of the choice.** The engine is ours: about 250 lines, no dependency, deterministic by
+//! **Cost of the choice.** The engine is ours: about 200 lines of code (`engine.rs`), no dependency, deterministic by
 //! construction (`BTreeMap` only; no hash, no thread, no clock, no randomness inside it). Its
 //! generality is what its interface knows (it names no observation, anomaly or counter) and no
 //! more; a measurement of it is a measurement of this engine, not of a production one, and no

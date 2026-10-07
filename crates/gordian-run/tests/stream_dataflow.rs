@@ -782,7 +782,10 @@ fn an_arm_with_the_dataflow_noticer_writes_the_hand_written_arms_files() {
         .insert("sel_df_privileged".to_owned(), NoticerSpec::Dataflow(row));
     m.noticers.insert(
         "sel_free_privileged".to_owned(),
-        NoticerSpec::Dataflow(DataflowSpec { billed: false, ..row }),
+        NoticerSpec::Dataflow(DataflowSpec {
+            billed: false,
+            ..row
+        }),
     );
     m.validate().unwrap();
     let dir = scratch("c1-files");
@@ -921,6 +924,7 @@ fn replay_costs() {
         v.as_object_mut().unwrap().remove("noticer");
         serde_json::from_value(v).unwrap()
     };
+    let mut by_relation: std::collections::BTreeMap<&'static str, [u64; 3]> = Default::default();
     let mut text = String::from(
         "seed,observations,abnormal,null_ns,b3_ns,dataflow_ns,medium_ns,b3_notices,dataflow_notices,medium_notices,df_probes,df_writes,df_scans,df_fires,df_modelled_ns,df_billed_ns,med_ticks,med_cell_updates,med_synapse_traversals,med_event_routings,med_field_reads,med_modelled_ns\n",
     );
@@ -937,11 +941,13 @@ fn replay_costs() {
         });
         let mut counts = Default::default();
         let mut modelled = 0;
+        let mut relations = Vec::new();
         let (df_ns, df_notices, df_billed) = least(reps, &mut || {
             let mut n = DataflowNoticer::new(row, cfg.clone(), &services);
             let r = timed_replay(&mut n, &events, sp.duration_ns);
             counts = n.counts();
             modelled = n.total_ns();
+            relations = n.program().counts_by_relation();
             r
         });
         let mut ledger = None;
@@ -955,6 +961,12 @@ fn replay_costs() {
             ));
             r
         });
+        for (name, c) in relations {
+            let e = by_relation.entry(name).or_default();
+            e[0] += c.probes;
+            e[1] += c.writes;
+            e[2] += c.scans;
+        }
         let (ticks, mc, med_modelled) = ledger.unwrap();
         writeln!(
             text,
@@ -973,4 +985,11 @@ fn replay_costs() {
         .unwrap();
     }
     std::fs::write(&out, text).unwrap();
+    if let Ok(path) = std::env::var("C1_BREAKDOWN") {
+        let mut b = String::from("relation,probes,writes,scans,streams\n");
+        for (name, c) in by_relation {
+            writeln!(b, "{name},{},{},{},{count}", c[0], c[1], c[2]).unwrap();
+        }
+        std::fs::write(path, b).unwrap();
+    }
 }

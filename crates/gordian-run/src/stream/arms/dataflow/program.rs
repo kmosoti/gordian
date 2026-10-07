@@ -296,6 +296,27 @@ impl Program {
         self.all_counts().since(self.setup)
     }
 
+    /// The counted work by relation since construction (the loading of the public graph
+    /// excluded), for the report: where the operations go. Fires are the program's own and not
+    /// attributed to a relation.
+    pub fn counts_by_relation(&self) -> Vec<(&'static str, OpCounts)> {
+        vec![
+            ("anomaly", self.anomaly.counts()),
+            ("member", self.member.counts()),
+            ("by_site", self.by_site.counts()),
+            ("pending", self.pending.counts()),
+            ("by_time", self.by_time.counts()),
+            ("by_obs", self.by_obs.counts()),
+            ("chain", self.chain.counts()),
+            ("chain_readings", self.chain_readings.counts()),
+            ("dirty", self.dirty.counts()),
+            ("timers", self.timers.counts()),
+            ("wake_of", self.wake_of.counts()),
+            ("upstream", self.upstream.counts().since(self.setup)),
+            ("agg", self.agg.counts()),
+        ]
+    }
+
     /// The changes to `anomaly` and `member` since the last call.
     pub(super) fn take_changes(&mut self) -> Changes {
         std::mem::take(&mut self.changes)
