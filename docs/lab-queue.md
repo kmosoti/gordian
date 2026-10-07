@@ -42,7 +42,8 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | stopped (reservoir built, identity passed) |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
 | A1 | 1 | The engram: memory in the medium (A1a build and identity; A1b the run, criterion fixed after W2 and E1) | M3 | running (A1a) |
-| W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | running |
+| W2 | 3 | The learnable laws of the stream world, measured from the hidden side; the perfect-memory ceiling; a second world parameterisation | — | merged |
+| W3 | 3 | World C (three times the hard share) for A1b's power; the phase-2-keyed collision floor | W2 | queued |
 | V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | queued |
 | E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | queued |
 | A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions scored against the hidden graph | A1, E1 | queued |
@@ -639,8 +640,38 @@ dropped cluster) each change a verdict or a number.
 **Criterion (fixed 2026-10-07).** Deliverables, identity, fixtures and mutation checks as B1's
 standard; the record rung's held-out table reported with the W2 ceiling beside it. No claim.
 
+**Amended after W2, before any E1 code (2026-10-07).** (a) The harness records, for every
+declaration an arm makes from memory, the observation the memory was bound at (its source), in
+the run output; the evaluator reads the source incident's truth and separates a wrong recall
+whose source was right (collision or staleness) from one whose source was wrong (inherited).
+`stale_wrong` is computed over recall-sourced declarations, and also as the paired excess of
+unasked wrong declarations over the memoryless arm. (b) The record rung's family-keyed form uses
+only stream-invariant public features (abnormal kinds, counter shapes, probe answers, timing),
+never service or message ids, because both are regenerated per stream; its site-keyed form uses
+ids inside a stream only. (c) The reset at the stream boundary is a switch on both forms, and the
+held-out table reports each form with and without it. (d) The rung waits for evidence after the
+first phase before recalling, and the module docs say what it waits for. (e) Its experience
+curve across streams is reported for the family form (the only form that can have one).
+
 ## A2 Anticipation (Lab 1, after A1 and E1)
 
 A hidden edge is learned from co-alarm timing in the arm's own history and used to predict the
 partner's alarm before it arrives; predictions are recorded by the harness and scored against
 the hidden graph. Brief and criterion to be written after A1b reports.
+
+## W3 World C and the phase-2 collision floor (Lab 3, after W2)
+
+1. **World C:** the default world with the hard share raised threefold (the mix parameter in
+   `StreamParams`, nothing else changed), seeds 60000–60099 and 70000–70199, with W2's items 1,
+   2, 5 and 6 (the ceiling with the same arm) measured on it. Its purpose is power for A1b: about
+   120 reachable events instead of 40. Report whether anything else about the world changed with
+   the mix (overlap, deadlines missed by the oracle arm, background share).
+2. **The phase-2 collision floor:** W2's section 9 table recomputed for a key that includes the
+   evidence classes that arrive after the first phase (the rule-breaking evidence, as the public
+   rules define it), for the site-keyed and the invariant family-keyed forms, with and without
+   the stream reset. This is the floor against which A1b's collision bound is read.
+3. **Hidden-side only**, as W2; nothing reaches an arm.
+
+**Acceptance (fixed 2026-10-07).** As W2's: every number reproduces from the script and the
+manifest, names its range and side; the report says which of A1b's proposed bounds the new
+floor moves and by how much.

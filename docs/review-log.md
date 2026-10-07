@@ -4,6 +4,74 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## W2 the learnable laws — merged (Lab 3); the recurrence lever is small, the family law is the large one
+
+**Provenance.** Seven commits on `world-laws`; a hidden-side accessor (`oracle::rebuilt_incident`,
+three tests) and a `laws` example, both behind `reveal-hidden-state`; the guard passes. The chief
+reran `w2_laws.py` and `w2_ceiling.py` from the kept hidden tables and run directories: 26 of 26
+generated CSVs byte-identical (the 27th is the provenance file). The chief recomputed from the
+raw hidden tables and the run with its own code: recurrence share 0.2049, 5.48 per stream, 83
+hard recurrences (0.415 per stream), 51 of 429 same-family-and-mode-elsewhere (the chief's first
+count of 34 was a NaN-mode bug in the chief's code, not the lab's), 12 stale hard recurrences
+under the template-based definition, site-keyed reach 41 incidents and 39 calls = 8.5% of calls,
+hard-incident quality 0.482, reasoner 99.93% of the bill. All match. The ceiling run is identical
+to L1's `sel_reanchor_privileged` modulo ids (lab's check; chief read the claim, did not rerun
+it). Gates on the merged tree under the runner: see the commit. Outputs kept in
+`artifacts/runs/w2/` (ignored) for A1b.
+
+**Verdict: W2 passes its acceptance** (reproduction, seed ranges and sides named, bounds proposed
+with reasons).
+
+**What it means (environment, time, objective, failure).**
+
+- **Recurrence is the wrong lever.** Only 0.415 hard incidents per stream repeat an earlier
+  hard one; the most a site-keyed memory fed by this arm can save is 8.5% [6.4, 10.8] of the
+  bill, within an interval of ±2 points; and recurrence never crosses a stream boundary, so a
+  site-keyed memory has no experience curve across streams at all. The EXP-103 framing in the
+  charter ("recurring incidents") describes a small effect on this world.
+- **The family law is the large lever: 97.8% of the bill is reachable by a family-keyed memory
+  carried across streams.** That is learning what a kind of fault looks like, from public
+  evidence, and recognising it in a stream never seen. It is also exactly where the danger is:
+  a key on first-phase evidence collides with plain incidents and decoys at 1.9 wrong recalls
+  per stream, and 40–54% of the answers the reasoner gives are wrong, so a memory inherits
+  error unless it aggregates and confirms. This is the purpose of charter 1.2 stated as a
+  measurable problem: a law learned from a noisy oracle, held across worlds, applied only when
+  the evidence is decisive.
+- **The vocabulary is a within-stream fact.** Ids determine the family perfectly inside a
+  stream and are regenerated per stream; alone they are a 13%-precision marker. A key for the
+  cross-stream form cannot use them.
+- **Power is the binding constraint for A1b as briefed.** About 41 reachable recurrences on 36
+  streams; a paired margin under 0.06 is unresolvable. The lab's three levers (a world with
+  three times the hard share; the family form across streams; a phase-2-keyed collision floor)
+  are adopted below.
+- **Lab 3's own instrument.** The rebuild accessor makes "altered by a regime change" a measured
+  property of an incident rather than a table; the chief read its tests and its fallback (an
+  incident whose only dependent came with the added edge rebuilds as identified), and accepts
+  it with that caveat recorded.
+
+**Decided.**
+
+1. **A1b is reframed before any A1b run.** Its primary population is the family form carried
+   across streams (the law), with within-stream recurrence as a secondary row. The lab's bound
+   structure is adopted: unasked-correct on hard incidents reachable by the key form, a floor
+   with a lower bound, a paired margin against the record rung of the same key form with a
+   pre-accepted "the record rung captures the lever" outcome; the stale clause split into
+   collision/staleness (absolute bound) and inherited error (paired, no absolute bound); every
+   arm evaluated with and without the stream-boundary reset. The numbers are fixed in
+   `experiments/criteria/a1b.json` after E1 reports, by the chief, before any A1b run.
+2. **E1's brief is amended** (before any E1 code): the harness records a recall's source (the
+   observation the memory was bound at), so the evaluator separates collision from inherited
+   error; `stale_wrong` is computed over recall-sourced declarations and as the paired excess
+   over the memoryless arm; the record rung is built in site-keyed and family-keyed forms with
+   the reset as a switch, and its family key uses invariant public features only.
+3. **Lab 1 was told** the four design constraints (reset at the boundary, invariant features for
+   the cross-stream key, wait for the decisive evidence, aggregate over bindings because half
+   the stored answers are wrong), as constraints on A1a's build, not as a criterion.
+4. **W3 (Lab 3) is queued:** world C with three times the hard share for A1b's power, and the
+   phase-2-keyed collision floor; brief in the queue.
+5. **The charter's EXP-103 wording** ("recurring incidents") is not changed by this entry; the
+   reframing is recorded here and will go into the charter with the A1b registration.
+
 ## Resumption, 2026-10-07 — three lessons applied; the program's centre moves to memory and anticipation
 
 **The reference.** Alman and Vassilevska Williams, arXiv:2610.06783 (5 October 2026; existence
