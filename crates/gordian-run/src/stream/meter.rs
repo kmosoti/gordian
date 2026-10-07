@@ -42,6 +42,9 @@ pub struct Totals {
     pub component_ns: u64,
     /// Wall time of rule calls, nanoseconds.
     pub rule_ns: u64,
+    /// What the arm's noticer charged to the bill for its own counted work, modelled nanoseconds
+    /// ([`Meter::charge_noticer`]; work item E1). Accepted charges only.
+    pub noticer_ns: u64,
 }
 
 impl Totals {
@@ -55,6 +58,7 @@ impl Totals {
             rule_skipped: 0,
             component_ns: 0,
             rule_ns: 0,
+            noticer_ns: 0,
         }
     }
 }
@@ -216,6 +220,7 @@ impl<'a> Meter<'a> {
         ) {
             Ok(Charged::Accepted(_)) => {
                 self.clock.advance(busy_ns(&charges));
+                self.totals.noticer_ns = self.totals.noticer_ns.saturating_add(cost.compute_ns);
                 true
             }
             Ok(Charged::Refused(_)) => false,

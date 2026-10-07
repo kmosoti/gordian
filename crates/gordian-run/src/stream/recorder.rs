@@ -4,8 +4,8 @@
 //! segment once per arm, back to back, in an order drawn per segment
 //! ([`crate::interleave::arm_order_keyed`], as plan A8 does for episodes), so that machine drift
 //! falls on every arm alike. Each arm writes its own subdirectory `<out>/<arm>/` holding its
-//! one-arm `manifest.json`, `results.csv`, `incidents.csv`, `measured.csv` (with `arm_position`)
-//! and `events-sample.jsonl`; `<out>/manifest.json` is the whole manifest and `<out>/drift.csv` holds
+//! one-arm `manifest.json`, `results.csv`, `incidents.csv`, `measured.csv` (with `arm_position`),
+//! the notice, selection and memory files and `events-sample.jsonl`; `<out>/manifest.json` is the whole manifest and `<out>/drift.csv` holds
 //! the drift-control timings ([`crate::drift`], reused unchanged: the workload runs before the
 //! first segment, before every `drift_block`-th one, and once after the last, touches no arm and
 //! charges none). The layout is the interleaved episode layout, so `scripts/run-driver.sh` runs it
@@ -27,10 +27,11 @@
 use super::harness::{StreamHarnessError, run_segment, run_segment_privileged};
 use super::manifest::StreamManifest;
 use super::results::{
-    MEASURED_HEADER, NOTICE_EVENTS_HEADER, NOTICE_INCIDENTS_HEADER, NOTICES_HEADER,
-    SELECTION_HEADER, SELECTION_NOTICES_HEADER, incident_rows, incidents_header, measured_row,
-    notice_event_rows, notice_incident_rows, notices_row, results_header, results_row,
-    selection_notice_rows, selection_row,
+    MEASURED_HEADER, MEMORY_HEADER, MEMORY_INCIDENTS_HEADER, NOTICE_EVENTS_HEADER,
+    NOTICE_INCIDENTS_HEADER, NOTICES_HEADER, RECALLS_HEADER, SELECTION_HEADER,
+    SELECTION_NOTICES_HEADER, incident_rows, incidents_header, measured_row, memory_incident_rows,
+    memory_row, notice_event_rows, notice_incident_rows, notices_row, recall_rows, results_header,
+    results_row, selection_notice_rows, selection_row,
 };
 use super::spec::{build_public, privileged_factory};
 use crate::drift::{DRIFT_HEADER, Workload, drift_row};
@@ -195,6 +196,9 @@ struct ArmOut {
     notice_events_path: PathBuf,
     selection_path: PathBuf,
     selection_notices_path: PathBuf,
+    memory_path: PathBuf,
+    memory_incidents_path: PathBuf,
+    recalls_path: PathBuf,
     results: String,
     incidents: String,
     measured: String,
@@ -203,6 +207,9 @@ struct ArmOut {
     notice_events: String,
     selection: String,
     selection_notices: String,
+    memory: String,
+    memory_incidents: String,
+    recalls: String,
     events: Option<BufWriter<File>>,
     summary: StreamRunSummary,
 }
@@ -263,6 +270,9 @@ pub fn execute_stream(
             notice_events_path: dir.join("notice_events.csv"),
             selection_path: dir.join("selection.csv"),
             selection_notices_path: dir.join("selection_notices.csv"),
+            memory_path: dir.join("memory.csv"),
+            memory_incidents_path: dir.join("memory_incidents.csv"),
+            recalls_path: dir.join("recalls.csv"),
             results: format!("{}\n", results_header()),
             incidents: format!("{}\n", incidents_header()),
             measured: format!("{MEASURED_HEADER}\n"),
@@ -271,6 +281,9 @@ pub fn execute_stream(
             notice_events: format!("{NOTICE_EVENTS_HEADER}\n"),
             selection: format!("{SELECTION_HEADER}\n"),
             selection_notices: format!("{SELECTION_NOTICES_HEADER}\n"),
+            memory: format!("{MEMORY_HEADER}\n"),
+            memory_incidents: format!("{MEMORY_INCIDENTS_HEADER}\n"),
+            recalls: format!("{RECALLS_HEADER}\n"),
             events: None,
             summary: StreamRunSummary::default(),
         };
@@ -284,6 +297,9 @@ pub fn execute_stream(
             &arm.notice_events_path,
             &arm.selection_path,
             &arm.selection_notices_path,
+            &arm.memory_path,
+            &arm.memory_incidents_path,
+            &arm.recalls_path,
         ] {
             if path.exists() {
                 return Err(StreamRunError::Io(format!(
@@ -366,6 +382,16 @@ pub fn execute_stream(
                 arm.selection_notices.push_str(&line);
                 arm.selection_notices.push('\n');
             }
+            arm.memory.push_str(&memory_row(&arm.run_id, &record));
+            arm.memory.push('\n');
+            for line in memory_incident_rows(&arm.run_id, &record) {
+                arm.memory_incidents.push_str(&line);
+                arm.memory_incidents.push('\n');
+            }
+            for line in recall_rows(&arm.run_id, &record) {
+                arm.recalls.push_str(&line);
+                arm.recalls.push('\n');
+            }
             arm.summary.segments += 1;
             arm.summary.step_capped +=
                 usize::from(record.stop == super::harness::StreamStop::StepCap);
@@ -411,6 +437,12 @@ pub fn execute_stream(
             .map_err(|e| io_error("cannot write", &arm.selection_path, e))?;
         fs::write(&arm.selection_notices_path, &arm.selection_notices)
             .map_err(|e| io_error("cannot write", &arm.selection_notices_path, e))?;
+        fs::write(&arm.memory_path, &arm.memory)
+            .map_err(|e| io_error("cannot write", &arm.memory_path, e))?;
+        fs::write(&arm.memory_incidents_path, &arm.memory_incidents)
+            .map_err(|e| io_error("cannot write", &arm.memory_incidents_path, e))?;
+        fs::write(&arm.recalls_path, &arm.recalls)
+            .map_err(|e| io_error("cannot write", &arm.recalls_path, e))?;
         total.add(&arm.summary);
         summaries.push((arm.name, arm.summary));
     }

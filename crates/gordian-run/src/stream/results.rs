@@ -22,8 +22,19 @@
 //! calls_unanswered, reasoner_cost_ns,
 //! bill_compute, bill_probes, bill_time, bill_comm,
 //! components_run, components_skipped, rule_skipped, steps, stop_reason,
-//! ops_component, ops_sched, modelled_component_ns, modelled_sched_ns, substrate_ns, total_cost_ns
+//! ops_component, ops_sched, modelled_component_ns, modelled_sched_ns, substrate_ns, total_cost_ns,
+//! recall_declarations, noticer_ns
 //! ```
+//!
+//! The last two columns are work item E1's, appended at the end so that every column before them is
+//! byte for byte what it was (R6's held-out replay is compared on those columns). `recall_declarations`
+//! counts the declarations whose source is a noticer's memory (`Source::Recall`); they are also
+//! counted in `cheap_declarations`, as they were before the column existed. `noticer_ns` is what the
+//! arm's noticer charged to the bill for its own counted work, modelled nanoseconds (the medium's
+//! operations at their declared prices; zero for a noticer whose work is bookkeeping, which is every
+//! noticer but the medium's). It is **not** in `total_cost_ns`, which has never held it: the full
+//! modelled cost of an arm is `total_cost_ns + noticer_ns`. A table lookup or a bind of the
+//! record rung (`arms/noticer_record.rs`) is bookkeeping and is not priced.
 //!
 //! - `arm_role` is `comparison`, `privileged` or `ablation`. An analysis compares `comparison`
 //!   arms; the other two are headroom and knowledge references and say so on every row.
@@ -113,6 +124,25 @@
 //!
 //! `tier`, `family` and the evaluator's readings are hidden-side facts, as in `incidents.csv`:
 //! evaluator output for the analysis, never a policy input. All three files are deterministic.
+//!
+//! # The memory files (work item E1)
+//!
+//! Three more files per arm (`MEMORY_HEADER`, `MEMORY_INCIDENTS_HEADER` and `RECALLS_HEADER`; the
+//! measures are the evaluator's, rules K1 to K10 of its `RULES.md`), which leave every other file
+//! byte for byte as it was but for the two appended columns of `results.csv`:
+//!
+//! - `memory.csv`, one row per stream: the declarations made from memory in six cells (correct or
+//!   wrong, crossed with whether the answer the memory stored was right, wrong or unrecorded), by
+//!   what the anchor belongs to, and the incidents unasked correct, unasked wrong and stale wrong
+//!   by tier, and the hard recurrences, same-family-elsewhere and reachable incidents with how many
+//!   were unasked correct. Counts, never ratios.
+//! - `memory_incidents.csv`, one row per incident in id order: `recurrence_of`,
+//!   `same_family_earlier`, the declarations and escalations about it, the three flags, and its
+//!   recalls in the six cells.
+//! - `recalls.csv`, one row per declaration made from memory: its instant, anchor and diagnosis,
+//!   the observation the memory was bound at and the answer it stored (empty when the memory does not
+//!   say), and the evaluator's reading (the incident and tier of the anchor, whether it was correct,
+//!   whether the source was right, wrong or unknown, and the source's incident).
 
 use super::arms::noticer::NoticeKind;
 use super::harness::SegmentRecord;
@@ -121,7 +151,7 @@ use gordian_stream::Tier;
 use std::fmt::Write as _;
 
 /// The header of `results.csv`.
-pub const RESULTS_HEADER: &str = "run_id,arm_role,seed,duration_ns,observations,anomalies_noticed,probes_used,declarations,declared_incident,declared_dismissal,incidents_plain,incidents_hard,incidents_decoy,critical_incidents,correct_plain,correct_hard,missed_plain,missed_hard,critical_missed_plain,critical_missed_hard,wrong_declarations,decoys_dismissed,decoys_alarmed,decoys_silent,false_alarms,false_alarms_on_background,escalations_needed,escalations_unneeded,escalations_background,hard_incidents_escalated,other_incidents_escalated,calls_informed,calls_correct,reasoner_calls,reasoner_refs,reasoner_tokens,reasoner_modelled_ns,reasoner_latency_ns,cheap_declarations,reasoner_declarations,escalations_refused,probes_refused,calls_unanswered,reasoner_cost_ns,bill_compute,bill_probes,bill_time,bill_comm,components_run,components_skipped,rule_skipped,steps,stop_reason,ops_component,ops_sched,modelled_component_ns,modelled_sched_ns,substrate_ns,total_cost_ns";
+pub const RESULTS_HEADER: &str = "run_id,arm_role,seed,duration_ns,observations,anomalies_noticed,probes_used,declarations,declared_incident,declared_dismissal,incidents_plain,incidents_hard,incidents_decoy,critical_incidents,correct_plain,correct_hard,missed_plain,missed_hard,critical_missed_plain,critical_missed_hard,wrong_declarations,decoys_dismissed,decoys_alarmed,decoys_silent,false_alarms,false_alarms_on_background,escalations_needed,escalations_unneeded,escalations_background,hard_incidents_escalated,other_incidents_escalated,calls_informed,calls_correct,reasoner_calls,reasoner_refs,reasoner_tokens,reasoner_modelled_ns,reasoner_latency_ns,cheap_declarations,reasoner_declarations,escalations_refused,probes_refused,calls_unanswered,reasoner_cost_ns,bill_compute,bill_probes,bill_time,bill_comm,components_run,components_skipped,rule_skipped,steps,stop_reason,ops_component,ops_sched,modelled_component_ns,modelled_sched_ns,substrate_ns,total_cost_ns,recall_declarations,noticer_ns";
 
 /// The header of `incidents.csv`.
 pub const INCIDENTS_HEADER: &str = "run_id,arm_role,seed,incident,tier,family,critical,correct_declarations,wrong_declarations,first_correct_at_ns,time_to_first_correct_ns,correct_by_deadline,missed,critical_miss,escalations,informed_escalations,correct_escalations";
@@ -148,7 +178,7 @@ pub fn results_row(run_id: &str, record: &SegmentRecord) -> String {
     let mut row = String::new();
     write!(
         row,
-        "{run_id},{role},{seed},{duration},{observations},{noticed},{probes},{decl},{decl_inc},{decl_dis},{inc_plain},{inc_hard},{inc_decoy},{critical},{ok_plain},{ok_hard},{miss_plain},{miss_hard},{cmiss_plain},{cmiss_hard},{wrong},{dismissed},{alarmed},{silent},{false_alarms},{false_bg},{esc_needed},{esc_unneeded},{esc_bg},{hard_esc},{other_esc},{informed},{correct},{r_calls},{r_refs},{r_tokens},{r_modelled},{r_latency},{cheap},{reasoner},{esc_refused},{probe_refused},{unanswered},{reasoner_cost},{bc},{bp},{bt},{bk},{run},{skipped},{rule_skipped},{steps},{stop},{ops_c},{ops_s},{mod_c},{mod_s},{substrate},{total}",
+        "{run_id},{role},{seed},{duration},{observations},{noticed},{probes},{decl},{decl_inc},{decl_dis},{inc_plain},{inc_hard},{inc_decoy},{critical},{ok_plain},{ok_hard},{miss_plain},{miss_hard},{cmiss_plain},{cmiss_hard},{wrong},{dismissed},{alarmed},{silent},{false_alarms},{false_bg},{esc_needed},{esc_unneeded},{esc_bg},{hard_esc},{other_esc},{informed},{correct},{r_calls},{r_refs},{r_tokens},{r_modelled},{r_latency},{cheap},{reasoner},{esc_refused},{probe_refused},{unanswered},{reasoner_cost},{bc},{bp},{bt},{bk},{run},{skipped},{rule_skipped},{steps},{stop},{ops_c},{ops_s},{mod_c},{mod_s},{substrate},{total},{recall_decl},{noticer_ns}",
         role = record.role.as_str(),
         seed = record.seed,
         duration = record.public.duration_ns,
@@ -207,6 +237,8 @@ pub fn results_row(run_id: &str, record: &SegmentRecord) -> String {
         mod_s = record.ops.modelled_sched_ns(),
         substrate = record.substrate_ns(),
         total = record.total_cost_ns(),
+        recall_decl = record.counts.recall_declarations,
+        noticer_ns = record.noticer_ns,
     )
     .expect("writing to a String cannot fail");
     row
@@ -474,6 +506,153 @@ pub fn selection_notice_rows(run_id: &str, record: &SegmentRecord) -> Vec<String
                     (Some(_), false) => "quiet",
                 },
                 rbe = o.retired_before_escalation,
+            )
+        })
+        .collect()
+}
+
+/// The header of `memory.csv` (work item E1): per stream, the declarations made from memory in the
+/// evaluator's six cells (`recalls_correct_source_right` and so on: outcome crossed with whether the
+/// stored answer was right, wrong or unrecorded; `RULES.md` K5, K6), by what the anchor belongs to,
+/// and the incidents with an unasked correct declaration, an unasked wrong one and a wrong recall
+/// with no escalation, by tier (K3, K4, K6), and the three populations of K7. Counts, never ratios.
+pub const MEMORY_HEADER: &str = "run_id,arm_role,seed,noticer,recalls,recalls_correct_source_right,recalls_correct_source_wrong,recalls_correct_source_unknown,recalls_wrong_source_right,recalls_wrong_source_wrong,recalls_wrong_source_unknown,recalls_plain_correct,recalls_plain_wrong,recalls_hard_correct,recalls_hard_wrong,recalls_decoy_correct,recalls_decoy_wrong,recalls_background_correct,recalls_background_wrong,unasked_correct_plain,unasked_correct_hard,unasked_correct_decoy,unasked_wrong_plain,unasked_wrong_hard,unasked_wrong_decoy,stale_wrong_plain,stale_wrong_hard,stale_wrong_decoy,hard_recurrences,hard_recurrences_unasked_correct,hard_elsewhere,hard_elsewhere_unasked_correct,hard_reachable,hard_reachable_unasked_correct";
+
+/// The header of `memory_incidents.csv` (work item E1): one row per incident, in id order, with the
+/// evaluator's reading (`RULES.md` K1 to K6) and the incident's recalls in the six cells.
+pub const MEMORY_INCIDENTS_HEADER: &str = "run_id,arm_role,seed,incident,tier,family,recurrence_of,same_family_earlier,correct_declarations,wrong_declarations,escalations,unasked_correct,unasked_wrong,stale_wrong,recalls,recalls_correct_source_right,recalls_correct_source_wrong,recalls_correct_source_unknown,recalls_wrong_source_right,recalls_wrong_source_wrong,recalls_wrong_source_unknown";
+
+/// The header of `recalls.csv` (work item E1): one row per declaration made from memory, in the
+/// order made. `at_ns`, `anchor`, `declared`, `source_obs` and `stored` are the arm's public record
+/// (a diagnosis is `none` or `kind@site`; `source_obs` and `stored` are empty when the memory does
+/// not say what it was bound at); `incident`, `tier`, `correct`, `source_class` and
+/// `source_incident` are the evaluator's reading (K5): `incident` and `tier` are empty for an anchor
+/// on background, `source_incident` for a source on background or no source.
+pub const RECALLS_HEADER: &str = "run_id,arm_role,seed,step,at_ns,anchor,declared,source_obs,stored,incident,tier,correct,source_class,source_incident";
+
+/// A diagnosis as `none` or `kind@site`, without a comma.
+fn diagnosis_text(d: &gordian_stream::Diagnosis) -> String {
+    d.map_or_else(
+        || "none".to_owned(),
+        |h| format!("{:?}@{}", h.kind, h.site.0),
+    )
+}
+
+/// One line of `memory.csv` for `record`, without a trailing newline.
+pub fn memory_row(run_id: &str, record: &SegmentRecord) -> String {
+    let t = &record.memory.totals;
+    let r = &t.recalls;
+    let c = |cells: &gordian_stream_eval::RecallCells| (cells.correct(), cells.wrong());
+    let (pc, pw) = c(&t.recalls_on_plain);
+    let (hc, hw) = c(&t.recalls_on_hard);
+    let (dc, dw) = c(&t.recalls_on_decoy);
+    let (bc, bw) = c(&t.recalls_on_background);
+    format!(
+        "{run_id},{role},{seed},{noticer},{total},{csr},{csw},{csu},{wsr},{wsw},{wsu},{pc},{pw},{hc},{hw},{dc},{dw},{bc},{bw},{uc_p},{uc_h},{uc_d},{uw_p},{uw_h},{uw_d},{sw_p},{sw_h},{sw_d},{hr},{hru},{he},{heu},{hx},{hxu}",
+        role = record.role.as_str(),
+        seed = record.seed,
+        noticer = record.noticer,
+        total = r.total(),
+        csr = r.correct_source_right,
+        csw = r.correct_source_wrong,
+        csu = r.correct_source_unknown,
+        wsr = r.wrong_source_right,
+        wsw = r.wrong_source_wrong,
+        wsu = r.wrong_source_unknown,
+        uc_p = t.unasked_correct.plain,
+        uc_h = t.unasked_correct.hard,
+        uc_d = t.unasked_correct.decoy,
+        uw_p = t.unasked_wrong.plain,
+        uw_h = t.unasked_wrong.hard,
+        uw_d = t.unasked_wrong.decoy,
+        sw_p = t.stale_wrong.plain,
+        sw_h = t.stale_wrong.hard,
+        sw_d = t.stale_wrong.decoy,
+        hr = t.hard_recurrences,
+        hru = t.hard_recurrences_unasked_correct,
+        he = t.hard_elsewhere,
+        heu = t.hard_elsewhere_unasked_correct,
+        hx = t.hard_reachable,
+        hxu = t.hard_reachable_unasked_correct,
+    )
+}
+
+/// The lines of `memory_incidents.csv` for `record`: one per incident, in id order, each without a
+/// trailing newline.
+pub fn memory_incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
+    debug_assert_eq!(
+        record.memory.per_incident.len(),
+        record.incident_families.len()
+    );
+    record
+        .memory
+        .per_incident
+        .iter()
+        .zip(&record.incident_families)
+        .map(|(v, family)| {
+            format!(
+                "{run_id},{role},{seed},{id},{tier},{family},{recurrence},{elsewhere},{ok},{wrong},{esc},{uc},{uw},{sw},{recalls},{csr},{csw},{csu},{wsr},{wsw},{wsu}",
+                role = record.role.as_str(),
+                seed = record.seed,
+                id = v.id,
+                tier = tier_name(v.tier),
+                recurrence = v.recurrence_of.map_or_else(String::new, |i| i.to_string()),
+                elsewhere = v.same_family_earlier,
+                ok = v.correct_declarations,
+                wrong = v.wrong_declarations,
+                esc = v.escalations,
+                uc = v.unasked_correct,
+                uw = v.unasked_wrong,
+                sw = v.stale_wrong,
+                recalls = v.recalls.total(),
+                csr = v.recalls.correct_source_right,
+                csw = v.recalls.correct_source_wrong,
+                csu = v.recalls.correct_source_unknown,
+                wsr = v.recalls.wrong_source_right,
+                wsw = v.recalls.wrong_source_wrong,
+                wsu = v.recalls.wrong_source_unknown,
+            )
+        })
+        .collect()
+}
+
+/// The lines of `recalls.csv` for `record`: one per declaration made from memory, in the order
+/// made, each without a trailing newline.
+pub fn recall_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
+    debug_assert_eq!(record.memory.per_recall.len(), record.recalls.len());
+    record
+        .memory
+        .per_recall
+        .iter()
+        .zip(&record.recalls)
+        .map(|(score, entry)| {
+            let step = &record.trajectory[entry.step];
+            let (at, anchor, declared) = match &step.action {
+                gordian_stream::StreamAction::Declare { anchor, diagnosis } => {
+                    (step.at.0, anchor.0, diagnosis_text(diagnosis))
+                }
+                _ => (step.at.0, 0, String::new()),
+            };
+            let (source_obs, stored) = entry.source.map_or_else(
+                || (String::new(), String::new()),
+                |s| (s.obs.0.to_string(), diagnosis_text(&s.diagnosis)),
+            );
+            format!(
+                "{run_id},{role},{seed},{step},{at},{anchor},{declared},{source_obs},{stored},{incident},{tier},{correct},{class},{source_incident}",
+                role = record.role.as_str(),
+                seed = record.seed,
+                step = score.step,
+                incident = score.incident.map_or_else(String::new, |i| i.to_string()),
+                tier = score.tier.map_or("", tier_name),
+                correct = score.correct,
+                class = match score.source {
+                    gordian_stream_eval::SourceClass::Right => "right",
+                    gordian_stream_eval::SourceClass::Wrong => "wrong",
+                    gordian_stream_eval::SourceClass::Unknown => "unknown",
+                },
+                source_incident = score
+                    .source_incident
+                    .map_or_else(String::new, |i| i.to_string()),
             )
         })
         .collect()

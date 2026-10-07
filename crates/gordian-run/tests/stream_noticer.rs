@@ -599,9 +599,12 @@ fn the_run_writes_the_notice_files_beside_files_the_noticer_does_not_touch() {
         "change_triggered"
     );
     // The files of the arm's declarations are the arm's, whatever it noticed with: the columns of
-    // results.csv are the old ones.
+    // results.csv are the old ones, and the two work item E1 appended at the end.
     let header = read(&with.join("never_escalate"), "results.csv");
-    assert_eq!(header.lines().next().unwrap(), PRE_SEAM_RESULTS_HEADER);
+    assert_eq!(
+        header.lines().next().unwrap(),
+        format!("{PRE_SEAM_RESULTS_HEADER},recall_declarations,noticer_ns")
+    );
     let header = read(&with.join("never_escalate"), "incidents.csv");
     assert_eq!(header.lines().next().unwrap(), PRE_SEAM_INCIDENTS_HEADER);
 }

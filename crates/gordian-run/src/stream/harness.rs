@@ -60,9 +60,10 @@ use super::manifest::{Exchange, StreamLimits};
 use super::meter::{Meter, Totals};
 use super::privileged::{OracleFactory, OraclePlan, PlanIncident};
 use super::score::{
-    EscalationEntry, NoticeEntry, NoticeEvalError, NoticeTrace, NoticeVerdict, RetireEntry,
-    SelectionError, SelectionRetire, SelectionTrace, SelectionVerdict, StreamEvalError, StreamStep,
-    StreamVerdict, TrajectoryCounts, family_name,
+    EscalationEntry, MemoryError, MemoryVerdict, NoticeEntry, NoticeEvalError, NoticeTrace,
+    NoticeVerdict, RecallEntry, RecallSource, RetireEntry, SelectionError, SelectionRetire,
+    SelectionTrace, SelectionVerdict, StreamEvalError, StreamStep, StreamVerdict,
+    TrajectoryCounts, family_name,
 };
 use crate::harness::{
     Charged, EpisodeOps, HarnessError, Measured, affordable, append, charge, elapsed_ns, payload,
@@ -75,7 +76,7 @@ use gordian_stream::{
     StreamSimulator, Tier, generate,
 };
 use gordian_stream_eval::{
-    calls_from_sim, score_notices, score_selection, score_stream, truth_from_stream,
+    calls_from_sim, score_memory, score_notices, score_selection, score_stream, truth_from_stream,
 };
 use gordian_world::Observation;
 use gordian_world::physics::probe_cost;
@@ -120,6 +121,9 @@ pub enum StreamHarnessError {
     /// The evaluator refused the record of selection (`RULES.md` of the evaluator, E8): a defect
     /// in the harness or in a noticer's record, never a result.
     SelectionEval(SelectionError),
+    /// The evaluator refused the record of recalls (`RULES.md` of the evaluator, K8): a defect in
+    /// the harness or in a noticer's record, never a result.
+    MemoryEval(MemoryError),
     /// The truth contradicts itself in a way the evaluator does not check (a hard incident with
     /// no hard kind).
     Truth(String),
@@ -141,6 +145,9 @@ impl fmt::Display for StreamHarnessError {
             }
             StreamHarnessError::SelectionEval(e) => {
                 write!(f, "evaluator refused the record of selection: {e}")
+            }
+            StreamHarnessError::MemoryEval(e) => {
+                write!(f, "evaluator refused the record of recalls: {e}")
             }
             StreamHarnessError::Truth(why) => write!(f, "inconsistent stream truth: {why}"),
             StreamHarnessError::InvalidLimits(why) => write!(f, "invalid limits: {why}"),
@@ -174,6 +181,12 @@ impl From<NoticeEvalError> for StreamHarnessError {
     }
 }
 
+impl From<MemoryError> for StreamHarnessError {
+    fn from(e: MemoryError) -> Self {
+        StreamHarnessError::MemoryEval(e)
+    }
+}
+
 impl From<SelectionError> for StreamHarnessError {
     fn from(e: SelectionError) -> Self {
         StreamHarnessError::SelectionEval(e)
@@ -183,8 +196,12 @@ impl From<SelectionError> for StreamHarnessError {
 /// Counts the harness keeps beside the evaluator's verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SegmentCounts {
-    /// Declarations the stream recorded that came from the cheap rung.
+    /// Declarations the stream recorded that came from the cheap rung, a noticer's memory
+    /// included (the column's value before work item E1 counted them here, and still does).
     pub cheap_declarations: u32,
+    /// Declarations the stream recorded that a noticer's memory made (`Source::Recall`; work item
+    /// E1). Also counted in `cheap_declarations`.
+    pub recall_declarations: u32,
     /// Declarations the stream recorded that were a reasoner's answer.
     pub reasoner_declarations: u32,
     /// Escalations refused: the segment's token limit, or a malformed context. Nothing charged.
@@ -225,6 +242,16 @@ pub struct SegmentRecord {
     /// The evaluator's accounting of what the arm escalated and what its follow-up rule retired,
     /// notice by notice (work item B4, `RULES.md` E1 to E8). Hidden-side facts, as `notices`.
     pub selection: SelectionVerdict,
+    /// The declarations the arm made from memory, each with the observation its memory was bound
+    /// at when it says: public information only, in the order made (work item E1).
+    pub recalls: Vec<RecallEntry>,
+    /// The evaluator's score of `recalls` and of what the arm declared without asking (work item
+    /// E1, `RULES.md` K1 to K10). Hidden-side facts, as `notices`.
+    pub memory: MemoryVerdict,
+    /// What the arm's noticer charged to the bill for its own counted work, modelled nanoseconds
+    /// (work item E1): the medium's operations at their declared prices, none for a noticer whose
+    /// work is bookkeeping. Not in `total_cost_ns`, which has never held it.
+    pub noticer_ns: u64,
     /// The live bill at the end of the segment.
     pub bill: Bill,
     /// The ledger: observations, answers, accounting, decisions, outcomes, timings.
@@ -337,6 +364,8 @@ struct State {
     /// For each accepted escalation, in order, the instant of the step that made the call: the
     /// instant the selection accounting reads (`RULES.md`, E1).
     escalation_steps: Vec<Instant>,
+    /// The accepted declarations made from memory (work item E1).
+    recalls: Vec<RecallEntry>,
 }
 
 /// What a sense delivers: the events, and the probe results that are ready.
@@ -667,6 +696,17 @@ fn apply_one(
                 StreamOutcome::Declared { .. } => {
                     match proposed.source {
                         Source::Reasoner => st.counts.reasoner_declarations += 1,
+                        Source::Recall => {
+                            st.counts.cheap_declarations += 1;
+                            st.counts.recall_declarations += 1;
+                            st.recalls.push(RecallEntry {
+                                step: st.trajectory.len() - 1,
+                                source: proposed.recall.map(|r| RecallSource {
+                                    obs: r.obs,
+                                    diagnosis: r.diagnosis,
+                                }),
+                            });
+                        }
                         _ => st.counts.cheap_declarations += 1,
                     }
                     Ok(Applied {
@@ -757,6 +797,7 @@ fn play(
         duration,
         step_at: Instant::ZERO,
         escalation_steps: Vec::new(),
+        recalls: Vec::new(),
     };
 
     let mut applied: Vec<Applied> = Vec::new();
@@ -967,6 +1008,9 @@ fn play(
         )));
     }
     let selection = score_selection(&truth, &selection_trace)?;
+    // The record of recalls (work item E1): scored against the truth with the trajectory, which
+    // `score_stream` has just accepted.
+    let memory = score_memory(&truth, &st.trajectory, &st.recalls)?;
     let trajectory_counts = TrajectoryCounts::of(&st.trajectory);
     let mut incident_families = Vec::with_capacity(truth.incidents.len());
     for inc in &truth.incidents {
@@ -989,6 +1033,7 @@ fn play(
         delivered,
         counts,
         bookkeeping_ns,
+        recalls,
         ..
     } = st;
     let total = elapsed_ns(started);
@@ -1017,6 +1062,9 @@ fn play(
         notice_log,
         notices,
         selection,
+        recalls,
+        memory,
+        noticer_ns: totals.noticer_ns,
         bill,
         ledger,
         trajectory,
