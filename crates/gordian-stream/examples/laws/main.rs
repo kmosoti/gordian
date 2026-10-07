@@ -17,7 +17,7 @@
 //!   downstream of its site or its partner).
 //! - `regimes.csv`: the resolved regime changes.
 //! - `streams.csv`: per stream counts.
-//! - `vocab.csv`: free-form messages (public id at or above the catalogue limit) counted by id and
+//! - `vocab.csv`: free-form messages (public id at or above the catalogue limit) counted by id, the public cue (an abnormal counter at the message's service in the 10 s before it) and
 //!   hidden class: the hard family an incident-borne message belongs to, or for a background
 //!   message the hard family live anywhere, and at the message's service, at that instant.
 //! - `owners.jsonl` (only with `--owners`): per stream, the incident each observation belongs to
@@ -202,9 +202,9 @@ sig_altered,edge_altered,edge_exposed\n",
         let mut regimes_csv =
             String::from("seed,index,at_ns,kind,kind_a,kind_b,dependent,dependency,n_services\n");
         let mut streams_csv = String::from(
-            "seed,world,services,observations,freeform_observations,incidents,skipped_arrivals\n",
+            "seed,world,services,incomparable_pairs,observations,freeform_observations,incidents,skipped_arrivals\n",
         );
-        let mut vocab: BTreeMap<(u64, u64, String, String, String), u64> = BTreeMap::new();
+        let mut vocab: BTreeMap<(u64, u64, String, String, String, u8), u64> = BTreeMap::new();
         let mut owners_jsonl = String::new();
 
         for seed in seed_from..seed_from.saturating_add(count) {
@@ -215,9 +215,16 @@ sig_altered,edge_altered,edge_exposed\n",
                 .iter()
                 .filter(|(_, o)| matches!(o, Observation::Message { text_id, .. } if *text_id >= CATALOGUE_LIMIT))
                 .count();
+            let n_svc = truth.services.len();
+            let pairs = (0..n_svc)
+                .flat_map(|a| ((a + 1)..n_svc).map(move |b| (a, b)))
+                .filter(|(a, b)| {
+                    incomparable(&truth.services, ServiceId(*a as u32), ServiceId(*b as u32))
+                })
+                .count();
             writeln!(
                 streams_csv,
-                "{seed},{w},{},{},{n_free},{},{}",
+                "{seed},{w},{},{pairs},{},{n_free},{},{}",
                 truth.services.len(),
                 events.len(),
                 truth.incidents.len(),
@@ -405,13 +412,24 @@ sig_altered,edge_altered,edge_exposed\n",
                     .map_or("none", family_name)
                     .to_string()
             };
+            // The public cue: an abnormal counter reading at the message's service in the 10 s
+            // before it (what an arm could compute from the stream).
+            let mut last_abnormal: Vec<Option<u64>> = vec![None; truth.services.len()];
             for (i, (at, ob)) in events.iter().enumerate() {
+                if let Observation::Counter { service, value, .. } = ob
+                    && *value >= HIGH
+                {
+                    last_abnormal[service.index()] = Some(at.0);
+                }
                 let Observation::Message {
                     service, text_id, ..
                 } = ob
                 else {
                     continue;
                 };
+                let cue = last_abnormal[service.index()]
+                    .is_some_and(|t| at.0.saturating_sub(t) <= 10 * SEC)
+                    as u8;
                 if *text_id < CATALOGUE_LIMIT {
                     continue;
                 }
@@ -430,6 +448,7 @@ sig_altered,edge_altered,edge_exposed\n",
                                 class.to_string(),
                                 fam.to_string(),
                                 fam.to_string(),
+                                cue,
                             ))
                             .or_insert(0) += 1;
                     }
@@ -441,7 +460,7 @@ sig_altered,edge_altered,edge_exposed\n",
                         let any = live_hard(at.0, None);
                         let here = live_hard(at.0, Some(*service));
                         *vocab
-                            .entry((seed, *text_id, class.to_string(), any, here))
+                            .entry((seed, *text_id, class.to_string(), any, here, cue))
                             .or_insert(0) += 1;
                     }
                 }
@@ -463,10 +482,11 @@ sig_altered,edge_altered,edge_exposed\n",
             }
         }
 
-        let mut vocab_csv =
-            String::from("seed,text_id,class,any_live_hard_family,here_live_hard_family,count\n");
-        for ((seed, id, class, any, here), n) in &vocab {
-            writeln!(vocab_csv, "{seed},{id},{class},{any},{here},{n}").unwrap();
+        let mut vocab_csv = String::from(
+            "seed,text_id,class,any_live_hard_family,here_live_hard_family,cue,count\n",
+        );
+        for ((seed, id, class, any, here, cue), n) in &vocab {
+            writeln!(vocab_csv, "{seed},{id},{class},{any},{here},{cue},{n}").unwrap();
         }
 
         let mut files = vec![
