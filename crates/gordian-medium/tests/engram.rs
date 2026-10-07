@@ -4,9 +4,9 @@
 use gordian_medium::engram::{pair_bytes, restart, restore_pair};
 use gordian_medium::{
     Address, Archetype, BindResult, CellSpec, CollectingEffector, ConstantField, CountingLedger,
-    Engrams, Event, Field, InMemoryPersist, Key, KeySite, Limits, Medium, MediumBuilder,
-    NoTrace, Outcome, OutcomeSite, Persist, Ports, Prices, Recall, ScriptedSense, SenseMode,
-    SpecError, StepClock, SynapseSpec, Tag, TimeTarget,
+    Engrams, Event, Field, InMemoryPersist, Key, KeySite, Limits, Medium, MediumBuilder, NoTrace,
+    Outcome, OutcomeSite, Persist, Ports, Prices, Recall, ScriptedSense, SenseMode, SpecError,
+    StepClock, SynapseSpec, Tag, TimeTarget,
 };
 use gordian_medium::{EngramParams, Gate, Pattern};
 
@@ -108,7 +108,10 @@ fn a_bind_builds_an_engram_that_recalls_on_the_whole_key_at_one_node() {
     // Three nodes, three features: 9 sense cells, 3 key cells, a latch, an emitter.
     assert_eq!(m.cells().len(), 9 + 3 + 2);
     assert_eq!(m.synapses().len(), 9 + 3 + 1);
-    assert_eq!(g.coincidences.iter().map(|c| c.0).collect::<Vec<_>>(), [0, 1, 2]);
+    assert_eq!(
+        g.coincidences.iter().map(|c| c.0).collect::<Vec<_>>(),
+        [0, 1, 2]
+    );
     assert_eq!(g.strength, 1.0);
 
     // All three features at node 1 within the window: one recall, anchored on the earliest.
@@ -121,7 +124,10 @@ fn a_bind_builds_an_engram_that_recalls_on_the_whole_key_at_one_node() {
     let r = run(&mut m, &mut e, 0, 10, events);
     assert_eq!(r.len(), 1);
     let (tick, rec) = &r[0];
-    assert_eq!(*tick, 6, "four passes: the recall comes in the tick of the last feature");
+    assert_eq!(
+        *tick, 6,
+        "four passes: the recall comes in the tick of the last feature"
+    );
     assert_eq!(rec.engram, 0);
     assert_eq!(rec.outcome, OUT_A);
     assert_eq!(rec.anchor.seq, 0);
@@ -290,7 +296,13 @@ fn the_same_binds_and_events_give_the_same_bytes_and_a_restore_continues_identic
         e.bind(m, &key(&[10, 11], KeySite::Variable), OUT_A);
         let a = run(m, e, 0, 50, vec![ev(3, 0, 1, 10, 0), ev(4, 0, 1, 11, 1)]);
         e.bind(m, &key(&[12, 13], KeySite::Fixed(1)), OUT_B);
-        let b = run(m, e, 50, 150, vec![ev(60, 0, 1, 12, 0), ev(61, 0, 1, 13, 1)]);
+        let b = run(
+            m,
+            e,
+            50,
+            150,
+            vec![ev(60, 0, 1, 12, 0), ev(61, 0, 1, 13, 1)],
+        );
         (a, b)
     };
     let (mut m1, mut e1) = fresh(params(), Limits::default());
@@ -365,7 +377,11 @@ fn plasticity_work_is_counted() {
     e.bind(&mut m, &key(&[10, 11], KeySite::Variable), OUT_A);
     assert_eq!(e.take_work().synapse_traversals, 1);
     run(&mut m, &mut e, 0, 100, Vec::new());
-    assert_eq!(e.take_work().synapse_traversals, 1, "one decay of one engram");
+    assert_eq!(
+        e.take_work().synapse_traversals,
+        1,
+        "one decay of one engram"
+    );
     assert_eq!(e.take_work(), Default::default());
 }
 
@@ -423,11 +439,20 @@ fn grow_appends_and_keeps_existing_state_and_set_params_validates() {
     let bad = SynapseSpec { to: s, ..into };
     assert!(m.grow(&[], &[bad]).is_err());
     assert!(m.set_params(&[(i, 1, f32::NAN)]).is_err());
-    assert!(m.set_params(&[(i, 0, 0.9)]).is_err(), "set by a quantity in time");
-    assert!(m.set_params(&[(gordian_medium::CellId(99), 0, 1.0)]).is_err());
+    assert!(
+        m.set_params(&[(i, 0, 0.9)]).is_err(),
+        "set by a quantity in time"
+    );
+    assert!(
+        m.set_params(&[(gordian_medium::CellId(99), 0, 1.0)])
+            .is_err()
+    );
     assert_eq!(m.to_bytes(), before);
     m.set_params(&[(i, 1, 3.0)]).unwrap();
     assert_eq!(m.cells()[i.0 as usize].params[1], 3.0);
     // The grown medium persists and restores.
-    assert_eq!(Medium::from_bytes(&m.to_bytes()).unwrap().to_bytes(), m.to_bytes());
+    assert_eq!(
+        Medium::from_bytes(&m.to_bytes()).unwrap().to_bytes(),
+        m.to_bytes()
+    );
 }

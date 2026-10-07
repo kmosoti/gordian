@@ -34,6 +34,16 @@
 //! seconds and offered again to an anomaly noticed later whose anchor precedes it (the medium
 //! notices a tick or more after the evidence, so the rung offers it before the anomaly exists).
 //!
+//! # The engram layer (work item A1a)
+//!
+//! With `engram` in the parameters the noticer also holds an engram layer
+//! ([`super::engram`]): every delivered abnormal observation and message is taken into it as well,
+//! its ticks run after the noticing graph's at each step, and its recalls are resolved to the
+//! anomalies noticed so far and handed to the arm ([`Noticer::recalls`]). A reasoner's answer
+//! ([`Noticer::answered`]) is bound with the key built from what this noticer holds about the
+//! anomaly that owns the answer's focus. Without `engram`, nothing of this exists and the noticer
+//! is M2's and M3's, byte for byte.
+//!
 //! # Hard limits
 //!
 //! The medium's own (operations and proposals per tick, cells, synapses, references) are in its
@@ -41,15 +51,19 @@
 //! stops: no more ticks, no more notices in the segment ([`Noticer::refused`]).
 
 use super::adapters::{DeliveredSense, TickClock, TickLedger, encode};
+use super::engram::{EngramLayer, diagnosis_of, features};
 use super::graph::{KIND_NOTICE, KIND_RETIRE, Layout, MediumParams, spec};
-use crate::stream::arms::noticer::{Notice, Noticer, NoticerCost, Scorer, Tracked, attach_target};
+use crate::stream::arms::noticer::{
+    MemoryRecall, Notice, Noticer, NoticerCost, Scorer, Tracked, attach_target,
+};
 use crate::stream::arms::rung::{Held, RungConfig, Store, service_of};
 use gordian_core::{ComponentId, Instant};
 use gordian_medium::{
-    CollectingEffector, ConstantField, Field, Medium, NoPlasticity, NoTrace, Ports, Prices,
+    CollectingEffector, ConstantField, Field, Medium, NoPlasticity, NoTrace, OutcomeSite, Ports,
+    Prices, Recall,
 };
-use gordian_stream::ObsId;
-use gordian_world::Service;
+use gordian_stream::{Diagnosis, ObsId};
+use gordian_world::{Service, ServiceId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// The noticer's id, as the run output writes it.
@@ -103,6 +117,14 @@ pub struct MediumNoticer {
     origin: BTreeMap<u32, u32>,
     stopped: bool,
     stats: MediumStats,
+    /// The engram layer (A1a), when the parameters name one.
+    engram: Option<EngramLayer>,
+    /// Recalls not yet owned by a noticed anomaly, with the instant they were made.
+    pending_recalls: VecDeque<(Instant, Recall)>,
+    /// Anomalies recalled, by id: each is recalled at most once.
+    recalled: BTreeSet<u32>,
+    /// Recalls resolved and not yet taken by the arm.
+    recalls_out: Vec<MemoryRecall>,
 }
 
 impl std::fmt::Debug for MediumNoticer {
@@ -125,6 +147,10 @@ impl MediumNoticer {
     ) -> Result<Self, String> {
         let (spec, layout) = spec(&params, services)?;
         let medium = Medium::from_spec(&spec).map_err(|e| format!("{e:?}"))?;
+        let engram = match params.engram {
+            Some(cfg) => Some(EngramLayer::new(cfg, params.tick_ns)?),
+            None => None,
+        };
         Ok(Self {
             scorer: Scorer::new(&cfg, services.len()),
             prices: *medium.prices(),
@@ -146,7 +172,16 @@ impl MediumNoticer {
             origin: BTreeMap::new(),
             stopped: false,
             stats: MediumStats::default(),
+            engram,
+            pending_recalls: VecDeque::new(),
+            recalled: BTreeSet::new(),
+            recalls_out: Vec::new(),
         })
+    }
+
+    /// The engram layer, if the parameters name one (A1a).
+    pub fn engram(&self) -> Option<&EngramLayer> {
+        self.engram.as_ref()
     }
 
     /// The medium.
@@ -165,9 +200,10 @@ impl MediumNoticer {
     }
 
     /// The modelled cost of the segment so far, nanoseconds: counts at the declared prices plus
-    /// the price per tick.
+    /// the price per tick (the engram layer's ticks included when there is one; its plasticity
+    /// work is charged through [`Noticer::take_cost`] only).
     pub fn total_ns(&self) -> u64 {
-        self.ledger.total_ns(&self.prices)
+        self.ledger.total_ns(&self.prices) + self.engram.as_ref().map_or(0, EngramLayer::total_ns)
     }
 
     /// Take in what the store holds past the cursor.
@@ -183,6 +219,9 @@ impl MediumNoticer {
                 && let Some(event) = encode(h, self.params.tick_ns)
             {
                 self.sense.push(event);
+            }
+            if let Some(layer) = self.engram.as_mut() {
+                layer.take(h);
             }
             self.recent.push_back(h.clone());
         }
@@ -323,6 +362,68 @@ impl MediumNoticer {
         }
     }
 
+    /// The anomaly a recall concerns: the noticed anomaly that owns its anchor, else the first
+    /// that owns one of its references.
+    fn owner_of(&self, r: &Recall) -> Option<u32> {
+        let noticed = || self.anomalies.iter().filter(|a| a.noticed_at.is_some());
+        noticed()
+            .find(|a| a.owns(ObsId(r.anchor.seq)))
+            .or_else(|| noticed().find(|a| r.refs.iter().any(|x| a.owns(ObsId(x.seq)))))
+            .map(|a| a.id)
+    }
+
+    /// Run the engram layer's ticks complete at `now` and resolve its recalls (new and kept) to
+    /// the anomalies noticed so far. See [`super::engram`], "Recall and declaration".
+    fn engram_step(&mut self, now: Instant) {
+        let Some(mut layer) = self.engram.take() else {
+            return;
+        };
+        for r in layer.run_ticks(now) {
+            self.pending_recalls.push_back((now, r));
+        }
+        let mut by_anomaly: BTreeMap<u32, Vec<Recall>> = BTreeMap::new();
+        for (at, r) in std::mem::take(&mut self.pending_recalls) {
+            match self.owner_of(&r) {
+                Some(id) => by_anomaly.entry(id).or_default().push(r),
+                None if now.0 <= at.0.saturating_add(REOFFER_NS) => {
+                    self.pending_recalls.push_back((at, r));
+                }
+                None => layer.note_unmatched(),
+            }
+        }
+        for (id, mut rs) in by_anomaly {
+            if self.recalled.contains(&id) {
+                rs.iter().for_each(|_| layer.note_redundant());
+                continue;
+            }
+            rs.sort_by(|a, b| {
+                b.strength
+                    .total_cmp(&a.strength)
+                    .then(a.engram.cmp(&b.engram))
+            });
+            let best = rs.swap_remove(0);
+            let disagreed = rs.iter().any(|r| r.outcome != best.outcome);
+            rs.iter().for_each(|_| layer.note_redundant());
+            let site = match best.outcome.site {
+                OutcomeSite::None => None,
+                OutcomeSite::Support => self.held(best.anchor.seq).and_then(|h| service_of(&h.obs)),
+                OutcomeSite::Fixed(n) => Some(ServiceId(u32::from(n))),
+            };
+            let Some(diagnosis) = diagnosis_of(best.outcome.tag, site) else {
+                layer.note_unmatched();
+                continue;
+            };
+            let confirm = layer.acted_on(best.engram, disagreed);
+            self.recalled.insert(id);
+            self.recalls_out.push(MemoryRecall {
+                anomaly: id,
+                diagnosis,
+                confirm,
+            });
+        }
+        self.engram = Some(layer);
+    }
+
     fn prune(&mut self, now: Instant) {
         let keep = self.cfg.retain_ns;
         while self
@@ -378,6 +479,7 @@ impl Noticer for MediumNoticer {
             self.run_ticks(now);
             let created = self.effect(now);
             self.reoffer(&created);
+            self.engram_step(now);
             for i in created {
                 let a = &self.anomalies[i];
                 out.push(Notice {
@@ -425,15 +527,46 @@ impl Noticer for MediumNoticer {
     }
 
     fn take_cost(&mut self) -> Option<NoticerCost> {
-        self.ledger
-            .take_ns(&self.prices)
-            .map(|compute_ns| NoticerCost {
-                component: MEDIUM_COMPONENT,
-                compute_ns,
-            })
+        let own = self.ledger.take_ns(&self.prices);
+        let memory = self.engram.as_mut().and_then(EngramLayer::take_ns);
+        if own.is_none() && memory.is_none() {
+            return None;
+        }
+        Some(NoticerCost {
+            component: MEDIUM_COMPONENT,
+            compute_ns: own.unwrap_or(0) + memory.unwrap_or(0),
+        })
     }
 
     fn refused(&mut self) {
         self.stopped = true;
+        if let Some(layer) = self.engram.as_mut() {
+            layer.refused();
+        }
+    }
+
+    /// Bind the answer (A1a): the key is built from what this noticer holds about the anomaly
+    /// that owns `focus`, over the key span from its anchor at its site ([`super::engram`], "The
+    /// key"). Nothing without an engram layer.
+    fn answered(&mut self, focus: ObsId, diagnosis: Diagnosis) {
+        let Some(mut layer) = self.engram.take() else {
+            return;
+        };
+        match self.anomalies.iter().find(|a| a.owns(focus)) {
+            None => layer.unheld(),
+            Some(a) => {
+                let (from, site) = (a.anchor_at.0, a.site);
+                let to = from.saturating_add(layer.config().key_span_ns);
+                let feats = features(self.recent.iter().filter(|h| {
+                    h.at.0 >= from && h.at.0 <= to && service_of(&h.obs) == Some(site)
+                }));
+                layer.bind(feats, site, &diagnosis);
+            }
+        }
+        self.engram = Some(layer);
+    }
+
+    fn recalls(&mut self) -> Vec<MemoryRecall> {
+        std::mem::take(&mut self.recalls_out)
     }
 }

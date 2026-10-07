@@ -82,7 +82,7 @@ use gordian_core::{Charge, Instant, Resource};
 use gordian_stream::{Diagnosis, ObsId, ObsRef, Question, StreamAction, StreamEvent, StreamPublic};
 use gordian_world::Observation;
 use rung::{AnomalyView, Conclusion, Outstanding, Rung, RungConfig, Store};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// What the harness shows an arm at a step.
 #[derive(Debug, Clone)]
@@ -121,6 +121,10 @@ pub enum Source {
     Escalation,
     /// A probe bought by the shared rule.
     Probe,
+    /// A declaration recalled by a noticer's memory, made with no reasoner call (work item A1a).
+    /// Counted with the cheap rung's in `results.csv`, whose columns are unchanged; the ledger
+    /// names it.
+    Recall,
 }
 
 impl Source {
@@ -131,6 +135,7 @@ impl Source {
             Source::Reasoner => "reasoner",
             Source::Escalation => "escalation",
             Source::Probe => "probe",
+            Source::Recall => "recall",
         }
     }
 }
@@ -368,6 +373,8 @@ pub struct StreamArm<E: EscalationRule> {
     rung: Rung,
     outstanding: BTreeMap<u64, Outstanding>,
     next_tag: u64,
+    /// Anomalies whose diagnosis the noticer's memory recalled (work item A1a): never escalated.
+    recalled: BTreeSet<u32>,
 }
 
 impl<E: EscalationRule> StreamArm<E> {
@@ -380,6 +387,7 @@ impl<E: EscalationRule> StreamArm<E> {
             rung,
             outstanding: BTreeMap::new(),
             next_tag: 1,
+            recalled: BTreeSet::new(),
         }
     }
 
@@ -456,6 +464,42 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
             self.rung.noticer_refused();
         }
 
+        // Memory (work item A1a; nothing for a noticer without memory): a recalled anomaly that
+        // has had no escalation and no answer is declared now and never escalated, unless the
+        // recall is to be confirmed, in which case it is asked about now instead.
+        let recalls = self.rung.take_recalls();
+        if !recalls.is_empty() {
+            let views = self.rung.views(now);
+            for r in recalls {
+                let Some(view) = views.iter().find(|v| v.id == r.anomaly) else {
+                    continue;
+                };
+                if view.attempts > 0 || view.answered > 0 {
+                    continue;
+                }
+                if r.confirm {
+                    let context = self.rung.context(r.anomaly);
+                    let tag = self.tag(Outstanding::Escalation { anomaly: r.anomaly });
+                    self.rung.note_attempt(r.anomaly, now, view.digest);
+                    out.push(Proposed {
+                        tag,
+                        action: StreamAction::Escalate {
+                            context,
+                            question: Question::Diagnose { focus: view.anchor },
+                        },
+                        source: Source::Escalation,
+                    });
+                } else {
+                    self.recalled.insert(r.anomaly);
+                    if let Some(mut proposed) = self.rung.declare_recognized(r.anomaly, r.diagnosis)
+                    {
+                        proposed.source = Source::Recall;
+                        out.push(proposed);
+                    }
+                }
+            }
+        }
+
         // Consistency checks, for a rule that reads them (`contradiction_escalation`; the list is
         // empty for every other arm): before the views, so the rule sees this step's verdicts.
         for id in self.rung.due_checks(now) {
@@ -475,6 +519,7 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
         let mut targets = self.rule.targets(now, &views);
         targets.sort_unstable();
         targets.dedup();
+        targets.retain(|id| !self.recalled.contains(id));
         for id in targets {
             let Some(view) = views.iter().find(|v| v.id == id) else {
                 continue;

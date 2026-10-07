@@ -44,8 +44,8 @@ pub mod types;
 
 pub use archetype::{Archetype, ParamError};
 pub use engram::{
-    Bind, BindResult, Engram, EngramParams, EngramStats, Engrams, Key, KeySite, Outcome, OutcomeSite,
-    Recall,
+    Bind, BindResult, Engram, EngramParams, EngramStats, Engrams, Key, KeySite, Outcome,
+    OutcomeSite, Recall,
 };
 pub use medium::{
     Cell, Medium, StepError, Synapse, TickSummary, TickTrace, TraceItem, Truncation, WeightError,

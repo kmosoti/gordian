@@ -666,6 +666,47 @@ calibrated price.
 - No learned window, threshold or decay: they are parameters, fixed before any run and written in
   the adapter's module documentation and the manifest.
 
+### Departures and choices as built (A1a)
+
+Numbering continues M3's. Each is a place where the build differs from the section above (written
+before the code) or fills a gap it left.
+
+58. **`set_params`, not `set_param`.** Narrowing an engram changes the coincidence count of every
+    key cell, the latch's threshold and the emitter's threshold together; one batch validated
+    once refuses or applies all of them, so an engram is never left half narrowed.
+59. **The engram medium runs at least four passes per tick** (`Engrams::medium_spec` raises
+    `max_passes` to 4). The path feature -> key cell -> latch -> emitter is four zero-delay
+    stages; with M1's two passes the recall would come a tick after its last feature
+    (departure 9). The section above said "all without delay" and was silent on passes.
+60. **The table carries its own counts** (binds, creations, strengthenings, generalisations,
+    contradictions, refusals, decays, recalls) in its bytes, so that what an arm has done with its
+    memory survives a segment boundary with it. The adapter's recall count (for "confirm every
+    k-th") is the adapter's, carried beside the persist port's payload, not in it.
+61. **Decoding a table checks it against the medium** (every cell's archetype, every feature
+    cell's pattern, every input and strength synapse's ends, every strength equal to its synapse's
+    weight bit for bit) and refuses a table that does not re-encode to its own bytes. A table and a
+    medium can only be restored together (`restore_pair`).
+62. **A refused bind is counted in the table's statistics**, which are part of its bytes: the
+    medium is unchanged by a refusal, the table's counts are not
+    (`the_limits_refuse_a_bind_and_change_nothing`).
+63. **A variable site ranges over the nodes given at construction**, which the A1a adapter sets to
+    every service a stream may have (0 to 11, the public `MAX_SERVICES`), not the services of the
+    stream at hand: engrams carry across streams whose graphs have 8 to 12 services, and an engram
+    built on a small graph must still be able to recall on a larger one. Each family-keyed engram
+    therefore has 12 key cells, whatever the stream.
+64. **Dead features stay wired.** A feature dropped by generalisation keeps its synapse at weight
+    0: its sense cell still fires and the traversal is still counted (25 ns), and the key cell
+    still runs (200 ns) when only dropped features arrive. Removing the synapse would renumber
+    every later synapse (the section above, "nothing is removed").
+
+What `docs/medium-ports.md` said and A1a changes: section 6's plasticity port "may change the
+weights of plastic synapses" and DESIGN departure 30 kept it from adding cells; A1a's bind adds
+cells and synapses and changes parameters through the same validation as a spec (above). Section
+6's note that an **outcome** signal "exists only in training, charged to evaluation ... named as
+privileged where it is" does not apply to the engram's outcome: an engram's outcome is the
+reasoner's answer, which the stream delivers to the arm as an `Answered` event the arm paid for,
+not the stream's truth; nothing about whether the answer was right reaches the medium.
+
 ## Mutation checks
 
 ### M3 (cargo-mutants 27.1.0; the M2 arm and the M3 sub-tick code)

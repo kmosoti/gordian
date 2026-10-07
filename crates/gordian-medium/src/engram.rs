@@ -835,7 +835,9 @@ impl Engrams {
         let mut store = Engrams::new(params, &nodes)
             .map_err(|_| DecodeError::Inconsistent("engram parameters or nodes"))?;
         if store.nodes != nodes {
-            return Err(DecodeError::Inconsistent("engram nodes not sorted and distinct"));
+            return Err(DecodeError::Inconsistent(
+                "engram nodes not sorted and distinct",
+            ));
         }
         store.stats = EngramStats {
             binds: r.u64()?,
@@ -897,8 +899,9 @@ impl Engrams {
                 coincidences.push((node, cell(r.u32()?, Archetype::Coincidence)?));
             }
             let m = r.count(4)?;
-            let inputs: Vec<SynapseId> =
-                (0..m).map(|_| r.u32().map(SynapseId)).collect::<Result<_, _>>()?;
+            let inputs: Vec<SynapseId> = (0..m)
+                .map(|_| r.u32().map(SynapseId))
+                .collect::<Result<_, _>>()?;
             let latch = cell(r.u32()?, Archetype::Latch)?;
             let emit = cell(r.u32()?, Archetype::Emit)?;
             let strength_synapse = SynapseId(r.u32()?);

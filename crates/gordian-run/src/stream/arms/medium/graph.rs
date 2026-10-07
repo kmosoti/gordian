@@ -235,6 +235,10 @@ pub struct MediumParams {
     /// Whether the oscillome's rhythms (10 s, 100 s) exist.
     #[serde(default)]
     pub rhythms: bool,
+    /// The engram layer (work item A1a, [`super::engram`]); absent, none, and the noticer is
+    /// what it was. Not written when absent, so a manifest written before A1a is the same text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engram: Option<super::engram::EngramConfig>,
 }
 
 fn yes() -> bool {
@@ -292,6 +296,7 @@ impl Default for MediumParams {
             ramp_lookback_ns: 3_000_000_000,
             hold_ns: 6_000_000_000,
             rhythms: false,
+            engram: None,
         }
     }
 }
@@ -367,6 +372,9 @@ impl MediumParams {
         }
         if self.coincidence == CoincidenceForm::Binned && !self.rhythms {
             return Err("noticer medium: a binned coincidence needs the rhythms".to_owned());
+        }
+        if let Some(engram) = &self.engram {
+            engram.validate(self.tick_ns)?;
         }
         let probe = probe_graph();
         spec(self, &probe)
