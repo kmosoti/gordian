@@ -808,6 +808,33 @@ any A1c code; what the build changes against it is added below as numbered depar
 - No removal of the `n (n - 1)` key cells that a stream with fewer services never uses: they cost
   a cell update only when one of their features arrives.
 
+### Departures and choices as built (A1c)
+
+Numbering continues A1a's. Each is a place where the build differs from the section above (written
+before the code) or fills a gap it left.
+
+66. **`recall_in` beside `recall`, not in place of it.** `Engrams::recall` keeps its signature and
+    leaves `Recall::fired` empty, so A1a's callers and tests are unchanged; `recall_in` takes the
+    medium and fills it. "The lowest such cell" is the first in the engram's own order of key
+    cells, which is ascending cell id (first node major for a pair).
+67. **The adapter resolves recalls after every tick** (A1a resolved all of a step's proposals after
+    its last tick). The same recalls in the same order; only `recall_in` needs the per-tick medium.
+    A one-site recall's `fired` is filled but not used: its support site stays the anchor's node
+    (A1a's rule), so a one-site layer does exactly what it did.
+68. **Relation events' address and sequence numbers.** The edge node is the address's node; the
+    channel is 4 (`CH_RELATION`, after the four of `adapters.rs`); `seq` counts from `0x8000_0000`
+    per segment, a space apart from observation ids, so a relation event never names an
+    observation (the noticer's owner lookups skip it) and never shares an `EventRef` with one.
+69. **A pair engram keeps a relation and a partner feature under generalisation, by role** (the
+    design said "its `Relation` feature or a `Partner` feature"): the shared features must hold at
+    least one feature of each role; since a two-site key has exactly one relation feature, sharing
+    it means the same order and gap band.
+70. **The gate's wait is checked before the gate** (adapter, `noticing.rs`): a recall is admitted
+    at a step no later than one review period after it was resolved, and dropped at the first step
+    past that, whatever the verdict there. Without the order the wait would be one step longer
+    than one review period (found by the test `the_gate_waits_one_review_period_then_drops_the_recall`
+    before any run).
+
 ## Mutation checks
 
 ### M3 (cargo-mutants 27.1.0; the M2 arm and the M3 sub-tick code)

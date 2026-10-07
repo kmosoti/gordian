@@ -27,6 +27,18 @@
 //! emitter's input is `k * s` when a key cell fires, so a recall needs `k * s >= k * theta` in
 //! `f32`.
 //!
+//! # Keys over a pair of nodes (work item A1c)
+//!
+//! A key's features each have a [`FeatureRole`]. A one-site key (A1a's) has only `Site` features.
+//! A **pair** key ([`KeySite::Pair`]) ranges over every ordered pair `(a, b)` of the store's nodes
+//! with `a != b`: one key cell `key[e, (a, b)]` per pair, whose input for a `Site` feature is
+//! `feat[t, a]`, for a `Partner` feature `feat[t, b]`, and for a `Relation` feature
+//! `feat[t, pair_node(a, b)]`, the **edge node** of the pair ([`pair_node`]). The coincidence
+//! therefore spans two nodes. Features are compared as `(role, tag)` pairs; generalisation never
+//! narrows a pair engram to a key without its `Relation` feature or without a `Partner` feature.
+//! [`Engrams::recall_in`] names the key cell that fired, so that the adapter knows the pair.
+//! `DESIGN.md`, "The two-site key and the recall gate (A1c)", written before this code.
+//!
 //! # Determinism and cost
 //!
 //! Engrams are kept and searched in id order; the only maps are `BTreeMap`s. The plasticity work
@@ -49,6 +61,61 @@ use crate::types::{SynapseId, Tag};
 
 /// Most features in a key: the slots of a sliding coincidence.
 pub const MAX_FEATURES: usize = S;
+
+/// A store's nodes must be below this, so that every ordered pair has an edge node.
+pub const NODE_LIMIT: u16 = 0x80;
+
+/// The edge node of the ordered pair `(a, b)`: `0x8000 | a << 7 | b`, for `a` and `b` below
+/// [`NODE_LIMIT`]. An event addressed to it is about the relation of `a` to `b`; what the relation
+/// is belongs to the adapter.
+pub fn pair_node(a: u16, b: u16) -> u16 {
+    0x8000 | ((a & 0x7F) << 7) | (b & 0x7F)
+}
+
+/// The ordered pair an edge node names, or `None` for a node that is not an edge node.
+pub fn pair_of(node: u16) -> Option<(u16, u16)> {
+    (node & 0x8000 != 0).then_some(((node >> 7) & 0x7F, node & 0x7F))
+}
+
+/// Where a feature of a key must occur, relative to the key cell's node or pair (A1c).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum FeatureRole {
+    /// At the key cell's node (one-site), or at the pair's first node.
+    Site,
+    /// At the pair's second node.
+    Partner,
+    /// At the pair's edge node ([`pair_node`]).
+    Relation,
+}
+
+impl FeatureRole {
+    fn byte(self) -> u8 {
+        match self {
+            FeatureRole::Site => 0,
+            FeatureRole::Partner => 1,
+            FeatureRole::Relation => 2,
+        }
+    }
+
+    fn from_byte(b: u8) -> Option<FeatureRole> {
+        match b {
+            0 => Some(FeatureRole::Site),
+            1 => Some(FeatureRole::Partner),
+            2 => Some(FeatureRole::Relation),
+            _ => None,
+        }
+    }
+
+    /// The node a feature with this role is sensed at, for the key cell at `cell_node` (a node
+    /// for a one-site key, an edge node for a pair key).
+    pub fn node_for(self, cell_node: u16) -> u16 {
+        match (self, pair_of(cell_node)) {
+            (FeatureRole::Site, Some((a, _))) => a,
+            (FeatureRole::Partner, Some((_, b))) => b,
+            (FeatureRole::Relation, Some(_)) | (_, None) => cell_node,
+        }
+    }
+}
 
 /// The parameters of an engram store. Fixed before a run; nothing here is learned.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -118,6 +185,9 @@ pub enum KeySite {
     Variable,
     /// At this node (site-keyed).
     Fixed(u16),
+    /// At an ordered pair of distinct nodes, whichever (A1c: the key spans two nodes; its
+    /// features have roles).
+    Pair,
 }
 
 impl KeySite {
@@ -138,6 +208,7 @@ impl KeySite {
 pub struct Key {
     features: Vec<Tag>,
     marked: Vec<bool>,
+    roles: Vec<FeatureRole>,
     /// Where the features must occur.
     pub site: KeySite,
 }
@@ -154,14 +225,26 @@ impl Key {
     /// those is marked and a later one is, the last kept is replaced by the first marked one, so a
     /// key given a marked feature keeps one.
     pub fn with_marks(pairs: impl IntoIterator<Item = (Tag, bool)>, site: KeySite) -> Key {
-        let mut all: Vec<(Tag, bool)> = Vec::new();
-        for (t, m) in pairs {
-            match all.iter_mut().find(|(x, _)| *x == t) {
-                Some(e) => e.1 |= m,
-                None => all.push((t, m)),
+        Key::with_roles(
+            pairs.into_iter().map(|(t, m)| (t, FeatureRole::Site, m)),
+            site,
+        )
+    }
+
+    /// A key from `(feature, role, marked)` triples in order (A1c): repeats of a `(feature, role)`
+    /// dropped (marked if any occurrence is), then capped as [`Key::with_marks`] caps.
+    pub fn with_roles(
+        triples: impl IntoIterator<Item = (Tag, FeatureRole, bool)>,
+        site: KeySite,
+    ) -> Key {
+        let mut all: Vec<(Tag, FeatureRole, bool)> = Vec::new();
+        for (t, r, m) in triples {
+            match all.iter_mut().find(|(x, y, _)| *x == t && *y == r) {
+                Some(e) => e.2 |= m,
+                None => all.push((t, r, m)),
             }
         }
-        let first_marked = all.iter().position(|(_, m)| *m);
+        let first_marked = all.iter().position(|(_, _, m)| *m);
         if all.len() > MAX_FEATURES {
             if let Some(i) = first_marked.filter(|i| *i >= MAX_FEATURES) {
                 all[MAX_FEATURES - 1] = all[i];
@@ -169,8 +252,9 @@ impl Key {
             all.truncate(MAX_FEATURES);
         }
         Key {
-            features: all.iter().map(|(t, _)| *t).collect(),
-            marked: all.iter().map(|(_, m)| *m).collect(),
+            features: all.iter().map(|(t, _, _)| *t).collect(),
+            marked: all.iter().map(|(_, _, m)| *m).collect(),
+            roles: all.iter().map(|(_, r, _)| *r).collect(),
             site,
         }
     }
@@ -183,6 +267,20 @@ impl Key {
     /// Per feature: marked.
     pub fn marks(&self) -> &[bool] {
         &self.marked
+    }
+
+    /// Per feature: its role.
+    pub fn roles(&self) -> &[FeatureRole] {
+        &self.roles
+    }
+
+    /// The features as `(role, tag)` pairs, in order.
+    pub fn role_tags(&self) -> Vec<(FeatureRole, Tag)> {
+        self.roles
+            .iter()
+            .copied()
+            .zip(self.features.iter().copied())
+            .collect()
     }
 }
 
@@ -248,6 +346,17 @@ impl Engram {
             .collect()
     }
 
+    /// The features still in the key as `(role, tag)` pairs, in order.
+    pub fn live_role_tags(&self) -> Vec<(FeatureRole, Tag)> {
+        self.key
+            .role_tags()
+            .into_iter()
+            .zip(&self.live)
+            .filter(|(_, l)| **l)
+            .map(|(p, _)| p)
+            .collect()
+    }
+
     fn n_live(&self) -> usize {
         self.live.iter().filter(|l| **l).count()
     }
@@ -290,6 +399,9 @@ pub struct Recall {
     pub anchor: EventRef,
     /// Its events within the window.
     pub refs: Vec<EventRef>,
+    /// The node of the key cell that fired (an edge node for a pair engram), when the recall was
+    /// resolved by [`Engrams::recall_in`] and a key cell fired at the medium's last tick.
+    pub fired: Option<u16>,
 }
 
 /// Counts over the store's life (carried with it).
@@ -344,6 +456,9 @@ impl Engrams {
         nodes.dedup();
         if nodes.is_empty() {
             return Err("an engram store needs at least one node");
+        }
+        if nodes.iter().any(|n| *n >= NODE_LIMIT) {
+            return Err("an engram store's nodes must be below 128 (edge nodes, A1c)");
         }
         Ok(Engrams {
             params,
@@ -420,7 +535,7 @@ impl Engrams {
     /// match, else generalise (if on), else create. See `DESIGN.md`, "Bind".
     pub fn bind(&mut self, medium: &mut Medium, key: &Key, outcome: Outcome) -> Bind {
         self.stats.binds += 1;
-        let feats = key.features.clone();
+        let feats = key.role_tags();
         if feats.len() < usize::from(self.params.min_features) {
             self.stats.too_few += 1;
             return Bind {
@@ -435,7 +550,7 @@ impl Engrams {
             if e.outcome != outcome
                 && e.key.site.compatible(key.site)
                 && e.n_live() > 0
-                && e.live_features().iter().all(|t| feats.contains(t))
+                && e.live_role_tags().iter().all(|t| feats.contains(t))
             {
                 let s = (e.strength - self.params.penalty).max(0.0);
                 self.engrams[i].contradictions += 1;
@@ -446,7 +561,7 @@ impl Engrams {
         }
         // 2. An engram with exactly this key (live features, as a set) and outcome.
         let same = |e: &Engram| {
-            let live = e.live_features();
+            let live = e.live_role_tags();
             e.outcome == outcome
                 && e.key.site == key.site
                 && live.len() == feats.len()
@@ -470,11 +585,20 @@ impl Engrams {
                     continue;
                 }
                 let shared: Vec<usize> = (0..e.key.features.len())
-                    .filter(|&f| e.live[f] && feats.contains(&e.key.features[f]))
+                    .filter(|&f| e.live[f] && feats.contains(&(e.key.roles[f], e.key.features[f])))
                     .collect();
                 let keeps_mark =
                     !e.key.marked.iter().any(|m| *m) || shared.iter().any(|&f| e.key.marked[f]);
-                if shared.len() >= min && keeps_mark && best.is_none_or(|(_, b)| shared.len() > b) {
+                // A pair engram keeps its span: a relation and a partner feature (A1c).
+                let keeps_span = e.key.site != KeySite::Pair
+                    || [FeatureRole::Relation, FeatureRole::Partner]
+                        .iter()
+                        .all(|r| shared.iter().any(|&f| e.key.roles[f] == *r));
+                if shared.len() >= min
+                    && keeps_mark
+                    && keeps_span
+                    && best.is_none_or(|(_, b)| shared.len() > b)
+                {
                     best = Some((i, shared.len()));
                 }
             }
@@ -516,11 +640,16 @@ impl Engrams {
 
     /// Keep only the live features of engram `i` that are in `feats`: their input synapses go to
     /// weight 0, and the key cells', latch's and emitter's thresholds follow the new count.
-    fn narrow(&mut self, medium: &mut Medium, i: usize, feats: &[Tag]) -> Result<(), SpecError> {
+    fn narrow(
+        &mut self,
+        medium: &mut Medium,
+        i: usize,
+        feats: &[(FeatureRole, Tag)],
+    ) -> Result<(), SpecError> {
         let e = &self.engrams[i];
         let k = e.key.features.len();
         let drop: Vec<usize> = (0..k)
-            .filter(|&f| e.live[f] && !feats.contains(&e.key.features[f]))
+            .filter(|&f| e.live[f] && !feats.contains(&(e.key.roles[f], e.key.features[f])))
             .collect();
         if drop.is_empty() {
             return Ok(());
@@ -556,17 +685,17 @@ impl Engrams {
         outcome: Outcome,
     ) -> Result<usize, SpecError> {
         let (feats, site) = (key.features.as_slice(), key.site);
+        let roles = key.roles.as_slice();
         let p = self.params;
-        let nodes: Vec<u16> = match site {
-            KeySite::Fixed(n) => vec![n],
-            KeySite::Variable => self.nodes.clone(),
-        };
+        // The key cells' nodes: a node each for a one-site key, an edge node each for a pair.
+        let nodes: Vec<u16> = self.cell_nodes(site);
         let k = feats.len();
         let base = medium.cells().len() as u32;
         let mut cells: Vec<CellSpec> = Vec::new();
         let mut new_senses: BTreeMap<(u16, Tag), CellId> = BTreeMap::new();
-        for &n in &nodes {
-            for &t in feats {
+        for &c in &nodes {
+            for (&t, &r) in feats.iter().zip(roles) {
+                let n = r.node_for(c);
                 if !self.senses.contains_key(&(n, t)) && !new_senses.contains_key(&(n, t)) {
                     new_senses.insert((n, t), CellId(base + cells.len() as u32));
                     cells.push(CellSpec {
@@ -629,9 +758,9 @@ impl Engrams {
         let mut synapses: Vec<SynapseSpec> = Vec::new();
         let mut inputs = Vec::with_capacity(nodes.len() * k);
         for &(n, c) in &coincidences {
-            for &t in feats {
+            for (&t, &r) in feats.iter().zip(roles) {
                 inputs.push(SynapseId(sbase + synapses.len() as u32));
-                synapses.push(syn(sense_of(n, t), c, 1.0, true));
+                synapses.push(syn(sense_of(r.node_for(n), t), c, 1.0, true));
             }
         }
         for &(_, c) in &coincidences {
@@ -663,6 +792,25 @@ impl Engrams {
         Ok(i)
     }
 
+    /// The nodes of a key's cells: its node (fixed), every node (variable), or the edge node of
+    /// every ordered pair of distinct nodes, first node major (pair).
+    fn cell_nodes(&self, site: KeySite) -> Vec<u16> {
+        match site {
+            KeySite::Fixed(n) => vec![n],
+            KeySite::Variable => self.nodes.clone(),
+            KeySite::Pair => self
+                .nodes
+                .iter()
+                .flat_map(|&a| {
+                    self.nodes
+                        .iter()
+                        .filter(move |&&b| b != a)
+                        .map(move |&b| pair_node(a, b))
+                })
+                .collect(),
+        }
+    }
+
     /// Every engram's strength times the decay factor (one boundary of the decay rhythm).
     pub fn decay(&mut self, medium: &mut Medium) {
         self.stats.decays += 1;
@@ -689,7 +837,28 @@ impl Engrams {
             strength: e.strength,
             anchor: proposal.anchor,
             refs: proposal.refs.clone(),
+            fired: None,
         })
+    }
+
+    /// [`Engrams::recall`], and the node of the engram's key cell that fired at `medium`'s last
+    /// tick (its `last_active` is that tick and its activation positive; the first such cell in
+    /// the engram's order if several did). Call it after each tick, before the next: a later
+    /// tick overwrites what a cell records of its run.
+    pub fn recall_in(&mut self, medium: &Medium, proposal: &Proposal) -> Option<Recall> {
+        let mut r = self.recall(proposal)?;
+        let tick = medium.last_tick();
+        let cells = medium.cells();
+        r.fired = self.engrams[r.engram]
+            .coincidences
+            .iter()
+            .find(|(_, c)| {
+                cells.get(c.0 as usize).is_some_and(|cell| {
+                    tick.is_some() && cell.last_active == tick && cell.activation > 0.0
+                })
+            })
+            .map(|(n, _)| *n);
+        Some(r)
     }
 }
 
@@ -719,6 +888,7 @@ fn write_site(w: &mut Writer, site: KeySite) {
             w.u8(1);
             w.u16(n);
         }
+        KeySite::Pair => w.u8(2),
     }
 }
 
@@ -726,6 +896,7 @@ fn read_site(r: &mut Reader<'_>) -> Result<KeySite, DecodeError> {
     match r.u8()? {
         0 => Ok(KeySite::Variable),
         1 => Ok(KeySite::Fixed(r.u16()?)),
+        2 => Ok(KeySite::Pair),
         t => Err(DecodeError::BadTag(t)),
     }
 }
@@ -741,8 +912,9 @@ impl Engrams {
     /// stats: binds, created, strengthened, generalised, contradictions, too_few, refused,
     ///        decays, recalls (u64 each)
     /// senses: count u32, then node u16, tag u32, cell u32 (ascending by (node, tag))
-    /// engrams: count u32, then per engram: site (u8 0 variable | 1 fixed + u16), features
-    ///          (count u8, tag u32 each), marks (u8 each), live (u8 each), outcome tag u32, outcome site (u8 0
+    /// engrams: count u32, then per engram: site (u8 0 variable | 1 fixed + u16 | 2 pair), features
+    ///          (count u8, tag u32 each), marks (u8 each), for a pair only roles (u8 each: 0 site,
+    ///          1 partner, 2 relation), live (u8 each), outcome tag u32, outcome site (u8 0
     ///          none | 1 support | 2 fixed + u16), strength f32 bits, binds, contradictions,
     ///          recalls (u32 each), coincidences (count u32, node u16 + cell u32 each), inputs
     ///          (count u32, u32 each), latch u32, emit u32, strength synapse u32
@@ -795,6 +967,11 @@ impl Engrams {
             }
             for m in &e.key.marked {
                 w.u8(u8::from(*m));
+            }
+            if e.key.site == KeySite::Pair {
+                for r in &e.key.roles {
+                    w.u8(r.byte());
+                }
             }
             for l in &e.live {
                 w.u8(u8::from(*l));
@@ -907,6 +1084,16 @@ impl Engrams {
             }
             let features: Vec<Tag> = (0..k).map(|_| r.u32().map(Tag)).collect::<Result<_, _>>()?;
             let marked: Vec<bool> = (0..k).map(|_| r.flag()).collect::<Result<_, _>>()?;
+            let roles: Vec<FeatureRole> = if site == KeySite::Pair {
+                (0..k)
+                    .map(|_| {
+                        let b = r.u8()?;
+                        FeatureRole::from_byte(b).ok_or(DecodeError::BadTag(b))
+                    })
+                    .collect::<Result<_, _>>()?
+            } else {
+                vec![FeatureRole::Site; k]
+            };
             let live: Vec<bool> = (0..k).map(|_| r.flag()).collect::<Result<_, _>>()?;
             let tag = Tag(r.u32()?);
             let osite = match r.u8()? {
@@ -934,6 +1121,7 @@ impl Engrams {
                 key: Key {
                     features,
                     marked,
+                    roles,
                     site,
                 },
                 live,
@@ -967,12 +1155,18 @@ impl Engrams {
     fn check(&self, e: &Engram, synapses: &[crate::medium::Synapse]) -> Result<(), DecodeError> {
         let bad = Err(DecodeError::Inconsistent("engram wiring"));
         let k = e.key.features.len();
+        let roles_ok = e.key.roles.len() == k
+            && (e.key.site == KeySite::Pair || e.key.roles.iter().all(|r| *r == FeatureRole::Site));
         let sites_ok = match e.key.site {
             KeySite::Fixed(n) => e.coincidences.len() == 1 && e.coincidences[0].0 == n,
-            KeySite::Variable => {
-                e.coincidences.iter().map(|(n, _)| *n).collect::<Vec<_>>() == self.nodes
+            KeySite::Variable | KeySite::Pair => {
+                e.coincidences.iter().map(|(n, _)| *n).collect::<Vec<_>>()
+                    == self.cell_nodes(e.key.site)
             }
         };
+        if !roles_ok {
+            return bad;
+        }
         if !sites_ok || e.inputs.len() != e.coincidences.len() * k || !e.strength.is_finite() {
             return bad;
         }
@@ -982,7 +1176,9 @@ impl Engrams {
                 let Some(s) = syn(e.inputs[c * k + f]) else {
                     return bad;
                 };
-                let from = self.senses.get(&(n, e.key.features[f]));
+                let from = self
+                    .senses
+                    .get(&(e.key.roles[f].node_for(n), e.key.features[f]));
                 if s.to != cell || Some(&s.from) != from || !s.plastic {
                     return bad;
                 }

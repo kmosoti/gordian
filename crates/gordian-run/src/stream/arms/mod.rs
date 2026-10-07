@@ -381,7 +381,9 @@ impl<E: EscalationRule> StreamArm<E> {
     /// `rule` over a fresh rung for a stream with `public` information.
     pub fn with(rule: E, public: &StreamPublic, config: RungConfig) -> Self {
         let mut rung = Rung::new(public, config);
-        rung.set_monitor(rule.monitors());
+        // A noticer that gates its recalls on the checker's verdict (work item A1c) needs it kept.
+        let monitor = rule.monitors() || rung.noticer_needs_verdicts();
+        rung.set_monitor(monitor);
         Self {
             rule,
             rung,
@@ -464,10 +466,22 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
             self.rung.noticer_refused();
         }
 
+        // Consistency checks, for a rule that reads them (`contradiction_escalation`) or a noticer
+        // whose recalls are gated on them (work item A1c); the list is empty for every other arm.
+        // Before the recalls and the views, so both see this step's verdicts.
+        for id in self.rung.due_checks(now) {
+            self.rung.check(id, now, meter);
+        }
+
         // Memory (work item A1a; nothing for a noticer without memory): a recalled anomaly that
         // has had no escalation and no answer is declared now and never escalated, unless the
-        // recall is to be confirmed, in which case it is asked about now instead.
-        let recalls = self.rung.take_recalls();
+        // recall is to be confirmed, in which case it is asked about now instead. A gated noticer
+        // (A1c) hands over only the recalls its gate admits on this step's views.
+        let recalls = if self.rung.noticer_needs_verdicts() {
+            self.rung.take_gated_recalls(now)
+        } else {
+            self.rung.take_recalls()
+        };
         if !recalls.is_empty() {
             let views = self.rung.views(now);
             for r in recalls {
@@ -498,12 +512,6 @@ impl<E: EscalationRule> StreamPolicy for StreamArm<E> {
                     }
                 }
             }
-        }
-
-        // Consistency checks, for a rule that reads them (`contradiction_escalation`; the list is
-        // empty for every other arm): before the views, so the rule sees this step's verdicts.
-        for id in self.rung.due_checks(now) {
-            self.rung.check(id, now, meter);
         }
 
         // Dismissals: before the reviews, so that a dismissed anomaly is not concluded about.

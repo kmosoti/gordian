@@ -46,7 +46,7 @@
 use super::noticer_ramp::{RampNoticer, RampSpec};
 use super::noticer_rung::RungBased;
 use super::noticer_split::{SplitNoticer, SplitSpec};
-use super::rung::{Held, RungConfig, Store};
+use super::rung::{AnomalyView, Held, RungConfig, Store};
 use gordian_core::Instant;
 use gordian_stream::{Diagnosis, ObsId};
 use gordian_world::graph::dependents_mask;
@@ -425,6 +425,21 @@ pub trait Noticer {
     /// instead. None, by default.
     fn recalls(&mut self) -> Vec<MemoryRecall> {
         Vec::new()
+    }
+
+    /// Whether the noticer's recalls are gated on the public consistency checker's verdict
+    /// (work item A1c), so that the rung must keep [`super::rung::AnomalyView::contradicted_since`]
+    /// up to date for this arm ([`super::rung::Rung::set_monitor`]). False, by default.
+    fn needs_verdicts(&self) -> bool {
+        false
+    }
+
+    /// The noticer's recalls since the last call, given the noticed anomalies as the arm sees
+    /// them at `now`, after the step's consistency checks (work item A1c): a noticer that gates
+    /// its recalls on the verdict decides here which to hand over. [`Noticer::recalls`], by
+    /// default.
+    fn gated_recalls(&mut self, _now: Instant, _views: &[AnomalyView]) -> Vec<MemoryRecall> {
+        self.recalls()
     }
 }
 
