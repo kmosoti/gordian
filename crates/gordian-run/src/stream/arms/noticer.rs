@@ -706,6 +706,12 @@ impl Tracked {
             .unwrap_or(self.anchor)
     }
 
+    /// How many distinct services the abnormal observations attached to the anomaly are about
+    /// (work item B5): the figure the evidence digest holds, as a count.
+    pub fn service_count(&self) -> usize {
+        self.services.len()
+    }
+
     /// A digest of the evidence about the anomaly: its symptom tags and the number of services
     /// they are about. FNV-1a over their text, so it is stable. A repeated heartbeat does not
     /// change it; a new kind of symptom, or a new service, does.

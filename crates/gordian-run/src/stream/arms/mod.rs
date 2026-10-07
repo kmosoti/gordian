@@ -26,6 +26,14 @@
 //! documentation. They are the instrument that charges every notice, decoys and late plain ones
 //! included, which the selection oracle never asks about.
 //!
+//! # The call-budgeted selector (work item B5)
+//!
+//! `public_budgeted` is the selector EXP-101's cost axis needs: a public score per anomaly at the
+//! instant it would be asked about, from the rung's own state, and a per-segment budget of `k`
+//! questions spent on the anomalies the score ranks highest as they become ready
+//! ([`public_budgeted`]). Its readings, and the one feature the brief names that no noticer in the
+//! tree provides, are stated in its module documentation.
+//!
 //! # What an arm may see
 //!
 //! A [`StepInput`]: the observations and reasoner answers the stream delivered, the probe results
@@ -59,6 +67,7 @@ pub mod noticer_reanchor;
 pub mod noticer_rung;
 pub mod noticer_split;
 pub mod periodic;
+pub mod public_budgeted;
 pub mod public_change;
 pub mod public_threshold;
 pub mod random;

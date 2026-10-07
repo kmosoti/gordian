@@ -64,6 +64,7 @@ fn view(id: u32) -> AnomalyView {
         delivered: 100,
         evidence: 6,
         contradicted_since: None,
+        services: 2,
     }
 }
 

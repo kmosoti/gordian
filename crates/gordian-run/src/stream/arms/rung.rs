@@ -299,6 +299,10 @@ pub struct AnomalyView {
     /// every other arm it is always `None`. Public information only: the checker reads the
     /// attached observations and the probes bought, under the first world's public rules.
     pub contradicted_since: Option<Instant>,
+    /// How many distinct services the abnormal observations attached to it are about (work item
+    /// B5): the breadth of the evidence. Falls when a noticer moves observations out of the anomaly,
+    /// as [`AnomalyView::evidence`] does.
+    pub services: u32,
 }
 
 /// What one review of an anomaly concluded.
@@ -693,6 +697,7 @@ impl Rung {
                 delivered: self.delivered,
                 evidence: u32::try_from(a.attached.len()).unwrap_or(u32::MAX),
                 contradicted_since: down.contradicted_since,
+                services: u32::try_from(a.service_count()).unwrap_or(u32::MAX),
             });
         }
         out
