@@ -138,3 +138,83 @@ def m3_selected():
 
 def m2_selected():
     return load_json(OUT / "m2-selected.json")
+
+
+# ---- the held-out run (written at the freeze, before it runs) ---------------------------------------
+#
+# One run, the 200 held-out streams (20000-20199), b = 5, rho = 0.7, the selection oracle at 16 s
+# with the rung's context, as B1's to M3's tables. The brief's rows:
+# - the public rows: the re-anchor and ramp + split over the re-anchor (B3's spelling);
+# - the frozen medium at 500 ms (`m4-selected.json`), `med_t500`;
+# - each single-device-off ablation of it: for each of the three precision devices that is on in
+#   the frozen medium, the frozen medium with that device's switch off, everything else equal
+#   (`med_t500_<device>_off`); a device that is off in the frozen medium gets instead a labelled
+#   sensitivity row with it switched on at M3's 500 ms values (`med_t500_<device>_on`);
+# - M3's frozen 500 ms medium (`m3_t500`) and M2's 100 ms medium (`m2_t100`).
+# Added by the PI, labelled, reported beside and never in the criterion; nothing is chosen from
+# them: with M4's inhibit form in the frozen medium, the frozen medium with M3's form
+# (`med_t500_inhibit_m3_form`); the frozen medium with the ramp emitter's refractory period put back
+# to the emitter's own (`med_t500_ramp_refractory_off`), because tune-b shows that period, not the
+# inhibit, buying precision at full leak; and the rule's 100 ms and 2 s media for continuity
+# (`med_t100`, `med_t2000`).
+DEVICES = ("merge", "confirm", "inhibit")
+M3_500_MERGE_NS = 10 * MS  # M3's frozen 500 ms medium's values, for a device switched on
+M3_500_CONFIRM = {"burst_confirm": "dependents", "confirm_window_ns": 50 * MS,
+                  "confirm_lead": True}
+
+
+def device_on(n, device):
+    if device == "merge":
+        return n.get("merge", True) and n.get("merge_window_ns", 0) > 0
+    if device == "confirm":
+        return n.get("confirm_in_event_time", True) and n.get("confirm_window_ns", 0) > 0
+    if device == "inhibit":
+        return bool(n.get("ramp_inhibit", False))
+    raise ValueError(device)
+
+
+def switched(n, device, on):
+    """`n` with `device`'s switch set to `on`, its own numbers kept (M3's 500 ms values if it has
+    none and is switched on)."""
+    out = dict(n)
+    if device == "merge":
+        out["merge"] = on
+        if on and not out.get("merge_window_ns", 0):
+            out["merge_window_ns"] = M3_500_MERGE_NS
+    elif device == "confirm":
+        out["confirm_in_event_time"] = on
+        if on and not out.get("confirm_window_ns", 0):
+            out.update(M3_500_CONFIRM)
+    elif device == "inhibit":
+        out["ramp_inhibit"] = on
+        if on and "ramp_inhibit_form" not in out:
+            out["ramp_inhibit_form"] = "not_ramp_noticed"
+    else:
+        raise ValueError(device)
+    return out
+
+
+def heldout(stage):
+    """(arms, seeds, run_seed, experiment) of the held-out run; arms are (name, noticer)."""
+    if stage != "heldout":
+        raise SystemExit(f"unknown held-out stage {stage!r}")
+    sel = selected()["ticks"]
+    frozen = dict(sel[str(CRITERION_TICK_MS)]["noticer"])
+    arms = [("reanchor", dict(REANCHOR)),
+            ("ramp_split_over_re2", dict(B3_ROWS["ramp_split_over_re2"])),
+            ("med_t500", frozen)]
+    for device in DEVICES:
+        if device_on(frozen, device):
+            arms.append((f"med_t500_{device}_off", switched(frozen, device, False)))
+        else:
+            arms.append((f"med_t500_{device}_on", switched(frozen, device, True)))
+    if frozen.get("ramp_inhibit") and frozen.get("ramp_inhibit_form") == "not_ramp_noticed":
+        arms.append(("med_t500_inhibit_m3_form", dict(frozen, ramp_inhibit_form="any")))
+    if frozen.get("ramp_refractory_ns") is not None:
+        arms.append(("med_t500_ramp_refractory_off",
+                     {k: v for k, v in frozen.items() if k != "ramp_refractory_ns"}))
+    arms.append(("m3_t500", dict(m3_selected()["ticks"]["500"]["noticer"])))
+    arms.append(("m2_t100", dict(m2_selected()["ticks"]["100"]["noticer"])))
+    for tick in (100, 2000):
+        arms.append((f"med_t{tick}", dict(sel[str(tick)]["noticer"])))
+    return arms, HELDOUT_SEEDS, 14_900, "exploration-m4-heldout"

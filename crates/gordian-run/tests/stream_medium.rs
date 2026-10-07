@@ -2630,3 +2630,68 @@ fn the_checks_follow_the_switches() {
     .validate()
     .unwrap();
 }
+
+/// The frozen M4 media (`experiments/exploration/m4-selected.json`), by tick length in ms.
+fn m4_frozen(tick: &str) -> Option<MediumParams> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../experiments/exploration/m4-selected.json"
+    );
+    let text = std::fs::read_to_string(path).ok()?;
+    let sel: Value = serde_json::from_str(&text).unwrap();
+    let NoticerSpec::Medium(p) =
+        serde_json::from_value(sel["ticks"][tick]["noticer"].clone()).unwrap()
+    else {
+        panic!("not a medium");
+    };
+    Some(p)
+}
+
+/// What the frozen M4 media do on [`DEVICE_SEEDS`], pinned at the freeze (commit "Freeze M4 for
+/// the held-out run"): any later change must reproduce it. The media and their held-out variants
+/// (each device switched, M3's inhibit form, the ramp emitter's own refractory period) validate.
+const M4_FROZEN_DIGEST: u64 = 0x0ca2_d109_17ce_96e7;
+
+#[test]
+fn the_frozen_m4_media_notice_as_they_did_at_the_freeze() {
+    if m4_frozen("500").is_none() {
+        return; // before the freeze
+    }
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut notices = 0;
+    for tick in ["100", "500", "2000"] {
+        let frozen = m4_frozen(tick).unwrap();
+        frozen.validate().unwrap();
+        for variant in [
+            MediumParams {
+                merge: !frozen.merge,
+                merge_window_ns: frozen.merge_window_ns.max(10 * MS),
+                ..frozen
+            },
+            MediumParams {
+                confirm_in_event_time: !frozen.confirm_in_event_time,
+                ..frozen
+            },
+            MediumParams {
+                ramp_inhibit: !frozen.ramp_inhibit,
+                ..frozen
+            },
+            MediumParams {
+                ramp_inhibit_form: InhibitForm::Any,
+                ..frozen
+            },
+            MediumParams {
+                ramp_refractory_ns: None,
+                ..frozen
+            },
+        ] {
+            variant.validate().unwrap();
+        }
+        let (d, n) = device_digest(frozen);
+        fnv(&mut h, &format!("{d:#018x}"));
+        notices += n;
+    }
+    eprintln!("m4 frozen digest {h:#018x}, {notices} notices");
+    assert!(notices > 10, "not vacuous");
+    assert_eq!(h, M4_FROZEN_DIGEST);
+}
