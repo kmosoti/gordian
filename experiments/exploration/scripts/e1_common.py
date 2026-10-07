@@ -93,7 +93,10 @@ def state_key(form, reset, confirm, level, stage):
     c = {"never": 0, "on_contradiction": 1}.get(confirm if isinstance(confirm, str) else "", None)
     if c is None:
         c = 1 + confirm["every"]["k"]
-    return (base + 100 * (form == "family") + 50 * (not reset) + 10 * c + LEVELS.index(level))
+    # A mixed radix: the form, the reset setting, the policy and the level cannot collide (the
+    # tuning runs were written with a formula that could, in a run holding both a carried arm and an
+    # `every` arm; the keys of those runs were distinct, and a key never changes what an arm does).
+    return base + 4_000 * (form == "family") + 2_000 * (not reset) + 10 * c + LEVELS.index(level)
 
 
 def name_of(form, level, confirm, reset):
