@@ -8,7 +8,7 @@ own context, under B2's re-anchor noticer, at b = 5, rho = 0.7, run seed 14000, 
 The one difference is the stream parameters: the tier mix is plain 600, hard 300 per mille (world C:
 the hard share raised threefold, decoys kept at 100) instead of 800 / 100. Nothing else in
 `stream_params` is touched; this script asserts that the manifest it writes differs from the
-defaults in the mix and in b and rho only.
+defaults in the mix only (b = 5 and rho = 0.7 are the defaults).
 
     scripts/run-driver.sh --manifest artifacts/runs/w3/_manifests/w3-cheldout-b5-rho0.7.json \\
         --out artifacts/runs/w3/w3-cheldout-b5-rho0.7
@@ -57,8 +57,8 @@ def main():
     # The only differences from the defaults in stream_params: the mix, b, rho.
     sp = m["stream_params"]
     diff = sorted(k for k in sp if sp[k] != default_params[k])
-    assert diff == ["mix", "reasoner"], diff
-    assert {k for k in sp["reasoner"] if sp["reasoner"][k] != default_params["reasoner"][k]} <= {"b", "rho"}
+    assert diff == ["mix"], diff  # b = 5 and rho = 0.7 are the defaults
+    assert sp["reasoner"] == default_params["reasoner"]
     with open(out, "w") as fh:
         json.dump(m, fh, indent=2)
         fh.write("\n")
