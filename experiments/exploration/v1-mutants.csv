@@ -1,0 +1,7 @@
+mutant,name,edit,m2_numbers_changed,m2_max_abs_change,b3_numbers_changed,b3_max_abs_change,l1_numbers_changed,l1_max_abs_change,m3_numbers_changed,m3_max_abs_change,verdict_flips,clause_or_node_flips,caught,note,unit_tests_failed_of_31
+M1,wrong tier/family filter,an `eq` condition of a where-clause selects the rows that differ (the hard non-leak share counts the plain incidents and the leaks),588/1115,0.9288,1029/1931,1.054,477/776,1.07,507/1045,0.9049,m2:verdict,24,True,,6
+M2,off-by-one in a window,`last k` starts one stream late (k - 1 streams),0/1115,0.0,0/1931,0.0,291/776,1.206,0/1045,0.0,,0,True,"changes only specifications that use a window (L1's); M2, B3 and M3 have none, so those three are unchanged by it",2
+M3,a dropped cluster,the last stream is never drawn into any resample,659/1115,0.05825,1110/1931,0.07035,343/776,0.4548,649/1045,0.105,,0,True,,3
+M4,a wrong pairing,the subtrahend arm of a paired difference is evaluated on shifted resamples (independent draws),198/1115,0.34,478/1931,0.92,33/776,0.35,170/1045,0.14,,0,True,,1
+M5,a wrong percentile,the interval is the 10th and 90th percentiles instead of the specification's 5th and 95th,673/1115,0.3,1154/1931,0.38,423/776,1.019,667/1045,0.69,,0,True,,1
+M6,an unseeded bootstrap,the generator is created without the specification's seed,634/1115,0.04,1004/1931,0.04,394/776,0.1505,594/1045,0.03,,0,True,two runs of the mutant differ in 2651 numbers; the unmutated script's two runs are identical,3

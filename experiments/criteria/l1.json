@@ -1,0 +1,548 @@
+{
+  "schema": "gordian-criterion/1",
+  "id": "l1",
+  "title": "L1: the learned noticer against the frozen graph, on fresh streams",
+  "source": "docs/lab-queue.md, '## L1', 'Criterion, fixed by the chief before any L1 code or run (2026-10-06)': three conjunctive clauses at 100 ms on 200 fresh streams (seeds 40000-40199)",
+  "runs": {
+    "fresh": {
+      "streams": {
+        "first_seed": 40000,
+        "count": 200
+      }
+    }
+  },
+  "arms": {
+    "learned": {
+      "run": "fresh",
+      "dir": "sel_learned_privileged"
+    },
+    "learned_off": {
+      "run": "fresh",
+      "dir": "sel_learned_off_privileged"
+    },
+    "frozen": {
+      "run": "fresh",
+      "dir": "sel_frozen_privileged"
+    },
+    "reanchor": {
+      "run": "fresh",
+      "dir": "sel_reanchor_privileged"
+    },
+    "ramp_split_over_re2": {
+      "run": "fresh",
+      "dir": "sel_ramp_split_over_re2_privileged"
+    },
+    "learned_nocarry": {
+      "run": "fresh",
+      "dir": "sel_learned_nocarry_privileged"
+    },
+    "learned_p080": {
+      "run": "fresh",
+      "dir": "sel_learned_p080_privileged"
+    },
+    "learned_w050": {
+      "run": "fresh",
+      "dir": "sel_learned_w050_privileged"
+    },
+    "learned_w1000": {
+      "run": "fresh",
+      "dir": "sel_learned_w1000_privileged"
+    }
+  },
+  "bootstrap": {
+    "unit": "stream",
+    "resamples": 10000,
+    "seed": 9950,
+    "percentiles": [
+      5,
+      95
+    ],
+    "interval": "linear",
+    "chunk": 500
+  },
+  "measures": {
+    "hard_anchor_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents with an anchor-correct notice (N5)"
+    },
+    "hard_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents with a notice anchored on them (N2)"
+    },
+    "leak_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "slow-leak incidents with a notice anchored on them"
+    },
+    "leak_anchor_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "notice_precision": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1,
+          "notices_on_background": -1
+        }
+      },
+      "den": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "description": "notices anchored on an incident of any tier over all notices (N16)"
+    },
+    "strict_precision": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_anchor_site_correct": 1
+        }
+      },
+      "den": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "description": "notices that are anchor-correct and site-correct over all notices"
+    },
+    "notices_per_incident": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1,
+          "notices_on_background": -1
+        }
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count"
+      },
+      "description": "notices anchored on an incident of any tier over incidents of every tier"
+    },
+    "plain_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "plain"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    "notices_on_background_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_on_background": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      },
+      "description": "mean over streams of notices anchored on no incident (N8)"
+    },
+    "notices_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "c1.end_state",
+      "kind": "paired",
+      "arm": "learned",
+      "minus": "frozen",
+      "measure": "hard_anchor_correct_share",
+      "window": {
+        "last": 100
+      },
+      "description": "Clause 1: anchor-correct share over the last 100 streams, learned minus frozen graph, paired over the same streams: point >= -0.01 and 5th percentile > -0.03",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": -0.01
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": -0.03
+        }
+      ]
+    },
+    {
+      "id": "c2.slope",
+      "kind": "curve_slope",
+      "arm": "learned",
+      "measure": "hard_anchor_correct_share",
+      "window": {
+        "first": 100
+      },
+      "per": 100,
+      "description": "Clause 2: slope of W1's cumulative anchor-correct curve of the learned arm over the first 100 streams (efficiency per 100 streams): point > 0 and 5th percentile > 0",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">",
+          "value": 0.0
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "id": "c3.off_below_frozen",
+      "kind": "paired",
+      "arm": "frozen",
+      "minus": "learned_off",
+      "measure": "hard_anchor_correct_share",
+      "window": {
+        "last": 100
+      },
+      "description": "Clause 3: the learning-off control's end state is below the frozen graph's: frozen minus learning-off, last 100 streams, point >= 0.02",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.02
+        }
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "id": "table_last100",
+      "kind": "table",
+      "arms": [
+        "learned",
+        "learned_off",
+        "frozen",
+        "reanchor",
+        "ramp_split_over_re2",
+        "learned_nocarry",
+        "learned_p080",
+        "learned_w050",
+        "learned_w1000"
+      ],
+      "measures": [
+        "hard_anchor_correct_share",
+        "hard_noticed_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notice_precision",
+        "strict_precision",
+        "notices_per_incident",
+        "plain_noticed_share",
+        "notices_on_background_per_stream",
+        "notices_per_stream"
+      ],
+      "window": {
+        "last": 100
+      },
+      "description": "every arm over the last 100 streams"
+    },
+    {
+      "id": "table_all",
+      "kind": "table",
+      "arms": [
+        "learned",
+        "learned_off",
+        "frozen",
+        "reanchor",
+        "ramp_split_over_re2",
+        "learned_nocarry",
+        "learned_p080",
+        "learned_w050",
+        "learned_w1000"
+      ],
+      "measures": [
+        "hard_anchor_correct_share",
+        "hard_noticed_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notice_precision",
+        "strict_precision",
+        "notices_per_incident",
+        "plain_noticed_share",
+        "notices_on_background_per_stream",
+        "notices_per_stream"
+      ],
+      "description": "every arm over all 200 streams"
+    },
+    {
+      "id": "paired_last100",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "learned",
+          "learned_off"
+        ],
+        [
+          "learned",
+          "frozen"
+        ],
+        [
+          "learned",
+          "reanchor"
+        ],
+        [
+          "learned",
+          "ramp_split_over_re2"
+        ]
+      ],
+      "measures": [
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "strict_precision",
+        "notices_on_background_per_stream"
+      ],
+      "window": {
+        "last": 100
+      },
+      "description": "learned minus each other arm, last 100 streams, paired"
+    },
+    {
+      "id": "slopes",
+      "kind": "slope_table",
+      "arms": [
+        "learned",
+        "learned_off",
+        "frozen",
+        "reanchor",
+        "ramp_split_over_re2",
+        "learned_nocarry",
+        "learned_p080",
+        "learned_w050",
+        "learned_w1000"
+      ],
+      "measure": "hard_anchor_correct_share",
+      "firsts": [
+        50,
+        100,
+        200
+      ],
+      "per": 100,
+      "description": "slope of the cumulative anchor-correct curve over the first 50, 100, 200 streams"
+    },
+    {
+      "id": "slopes_leak",
+      "kind": "slope_table",
+      "arms": [
+        "learned",
+        "learned_off",
+        "frozen",
+        "reanchor",
+        "ramp_split_over_re2",
+        "learned_nocarry",
+        "learned_p080",
+        "learned_w050",
+        "learned_w1000"
+      ],
+      "measure": "leak_noticed_share",
+      "firsts": [
+        50,
+        100,
+        200
+      ],
+      "per": 100,
+      "description": "slope of the cumulative leak-noticed curve over the first 50, 100, 200 streams"
+    }
+  ],
+  "verdict": {
+    "name": "L1 counts toward the aim: clauses 1, 2 and 3 all hold",
+    "all": [
+      "c1.end_state",
+      "c2.slope",
+      "c3.off_below_frozen"
+    ]
+  },
+  "readings": [
+    "'its anchor-correct share over the last 100 streams': pooled hard non-leak anchor-correct over the 100 streams with the highest seeds (stream order is seed order); 'at least the frozen graph's minus 0.01' is the point difference >= -0.01; 'the paired lower bound above -0.03' is the 5th percentile of the cluster bootstrap over those 100 streams, same counts for both arms",
+    "'its slope over the first 100 streams': the least-squares slope of W1's cumulative efficiency curve (cumulative anchor-correct over cumulative hard non-leak incidents seen, per stream, against the stream number, points with no incident yet left out), reported per 100 streams; the interval resamples whole streams in place and recomputes the weighted cumulative curve. The incident-level slope of W1's outcome_slope is not the clause",
+    "clause 3 has no interval in the queue text and none is tested; the end state is the last 100 streams",
+    "the interval convention is the one the L1 lab script used (linear-interpolated 5th and 95th percentiles), which differs from B1-M3's (lower/higher); the difference is at most one resample-quantile spacing"
+  ]
+}

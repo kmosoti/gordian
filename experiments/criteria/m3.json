@@ -1,0 +1,935 @@
+{
+  "schema": "gordian-criterion/1",
+  "id": "m3",
+  "title": "M3: sub-tick support and strict precision; M2's result 1 at 500 ms and 2 s",
+  "source": "docs/lab-queue.md, '## M3', 'Criterion, fixed by the chief before any M3 code or run (2026-10-06)': M2's two results, comparator ReanchorNoticer, M2's margins and bounds, plus strict precision >= 0.67, at 500 ms and 2 s; 'holds' means result 1 holds at both longer ticks",
+  "runs": {
+    "heldout": {
+      "streams": {
+        "first_seed": 20000,
+        "count": 200
+      }
+    }
+  },
+  "arms": {
+    "reanchor": {
+      "run": "heldout",
+      "dir": "sel_reanchor_privileged"
+    },
+    "rung_z2": {
+      "run": "heldout",
+      "dir": "sel_rung_z2_privileged"
+    },
+    "rung_z3": {
+      "run": "heldout",
+      "dir": "sel_rung_z3_privileged"
+    },
+    "ramp_over_re2": {
+      "run": "heldout",
+      "dir": "sel_ramp_over_re2_privileged"
+    },
+    "ramp_split_over_re2": {
+      "run": "heldout",
+      "dir": "sel_ramp_split_over_re2_privileged"
+    },
+    "medium_t100": {
+      "run": "heldout",
+      "dir": "sel_med_t100_privileged"
+    },
+    "medium_t100_subtick_off": {
+      "run": "heldout",
+      "dir": "sel_med_t100_subtick_off_privileged"
+    },
+    "m2_t100": {
+      "run": "heldout",
+      "dir": "sel_m2_t100_privileged"
+    },
+    "medium_t500": {
+      "run": "heldout",
+      "dir": "sel_med_t500_privileged"
+    },
+    "medium_t500_subtick_off": {
+      "run": "heldout",
+      "dir": "sel_med_t500_subtick_off_privileged"
+    },
+    "m2_t500": {
+      "run": "heldout",
+      "dir": "sel_m2_t500_privileged"
+    },
+    "medium_t2000": {
+      "run": "heldout",
+      "dir": "sel_med_t2000_privileged"
+    },
+    "medium_t2000_subtick_off": {
+      "run": "heldout",
+      "dir": "sel_med_t2000_subtick_off_privileged"
+    },
+    "m2_t2000": {
+      "run": "heldout",
+      "dir": "sel_m2_t2000_privileged"
+    }
+  },
+  "bootstrap": {
+    "unit": "stream",
+    "resamples": 10000,
+    "seed": 9950,
+    "percentiles": [
+      5,
+      95
+    ],
+    "interval": "lower_higher",
+    "chunk": 500
+  },
+  "measures": {
+    "hard_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents with a notice anchored on them (N2)"
+    },
+    "hard_anchor_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents with an anchor-correct notice (N5)"
+    },
+    "hard_anchor_site_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_site_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "leak_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "slow-leak incidents with a notice anchored on them"
+    },
+    "leak_anchor_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "notices_on_background_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_on_background": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      },
+      "description": "mean over streams of notices anchored on no incident (N8)"
+    },
+    "notice_precision": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1,
+          "notices_on_background": -1
+        }
+      },
+      "den": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "description": "notices anchored on an incident of any tier over all notices (N16)"
+    },
+    "strict_precision": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_anchor_site_correct": 1
+        }
+      },
+      "den": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "description": "notices that are anchor-correct and site-correct over all notices"
+    },
+    "notices_per_incident": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1,
+          "notices_on_background": -1
+        }
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count"
+      },
+      "description": "notices anchored on an incident of any tier over incidents of every tier"
+    },
+    "notices_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    },
+    "notices_on_decoy_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_on_decoy": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    },
+    "plain_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "plain"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    "quality": {
+      "kind": "ratio",
+      "num": {
+        "file": "incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "correct_by_deadline": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents declared correctly by their deadline"
+    },
+    "leak_quality": {
+      "kind": "ratio",
+      "num": {
+        "file": "incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "correct_by_deadline": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "calls_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "results.csv",
+        "agg": "sum",
+        "columns": {
+          "reasoner_calls": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    },
+    "substrate_s_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "results.csv",
+        "agg": "sum",
+        "columns": {
+          "substrate_ns": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      },
+      "scale": 1e-09
+    },
+    "cost_s_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "results.csv",
+        "agg": "sum",
+        "columns": {
+          "total_cost_ns": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      },
+      "scale": 1e-09
+    }
+  },
+  "clauses": [
+    {
+      "id": "r1.t100",
+      "kind": "paired",
+      "arm": "medium_t100",
+      "minus": "reanchor",
+      "measure": "hard_anchor_correct_share",
+      "description": "Result 1 at 100 ms, M2's margin and bound: medium minus ReanchorNoticer, paired: point >= 0.03 and 5th percentile > 0.01",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.03
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": 0.01
+        }
+      ]
+    },
+    {
+      "id": "bg.t100",
+      "kind": "value",
+      "arm": "medium_t100",
+      "measure": "notices_on_background_per_stream",
+      "description": "Background bound at 100 ms: point <= 6.82",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "sp.t100",
+      "kind": "value",
+      "arm": "medium_t100",
+      "measure": "strict_precision",
+      "description": "Strict precision at 100 ms: pooled point >= 0.67",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.67
+        }
+      ]
+    },
+    {
+      "id": "r2.t100",
+      "kind": "paired",
+      "arm": "medium_t100",
+      "minus": "reanchor",
+      "measure": "leak_noticed_share",
+      "description": "Result 2 at 100 ms, reported for continuity: point >= 0.20 and 5th percentile > 0.10",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.2
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": 0.1
+        }
+      ]
+    },
+    {
+      "id": "r1.t500",
+      "kind": "paired",
+      "arm": "medium_t500",
+      "minus": "reanchor",
+      "measure": "hard_anchor_correct_share",
+      "description": "Result 1 at 500 ms, M2's margin and bound: medium minus ReanchorNoticer, paired: point >= 0.03 and 5th percentile > 0.01",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.03
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": 0.01
+        }
+      ]
+    },
+    {
+      "id": "bg.t500",
+      "kind": "value",
+      "arm": "medium_t500",
+      "measure": "notices_on_background_per_stream",
+      "description": "Background bound at 500 ms: point <= 6.82",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "sp.t500",
+      "kind": "value",
+      "arm": "medium_t500",
+      "measure": "strict_precision",
+      "description": "Strict precision at 500 ms: pooled point >= 0.67",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.67
+        }
+      ]
+    },
+    {
+      "id": "r2.t500",
+      "kind": "paired",
+      "arm": "medium_t500",
+      "minus": "reanchor",
+      "measure": "leak_noticed_share",
+      "description": "Result 2 at 500 ms, reported for continuity: point >= 0.20 and 5th percentile > 0.10",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.2
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": 0.1
+        }
+      ]
+    },
+    {
+      "id": "r1.t2000",
+      "kind": "paired",
+      "arm": "medium_t2000",
+      "minus": "reanchor",
+      "measure": "hard_anchor_correct_share",
+      "description": "Result 1 at 2000 ms, M2's margin and bound: medium minus ReanchorNoticer, paired: point >= 0.03 and 5th percentile > 0.01",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.03
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": 0.01
+        }
+      ]
+    },
+    {
+      "id": "bg.t2000",
+      "kind": "value",
+      "arm": "medium_t2000",
+      "measure": "notices_on_background_per_stream",
+      "description": "Background bound at 2000 ms: point <= 6.82",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "sp.t2000",
+      "kind": "value",
+      "arm": "medium_t2000",
+      "measure": "strict_precision",
+      "description": "Strict precision at 2000 ms: pooled point >= 0.67",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.67
+        }
+      ]
+    },
+    {
+      "id": "r2.t2000",
+      "kind": "paired",
+      "arm": "medium_t2000",
+      "minus": "reanchor",
+      "measure": "leak_noticed_share",
+      "description": "Result 2 at 2000 ms, reported for continuity: point >= 0.20 and 5th percentile > 0.10",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.2
+        },
+        {
+          "on": "lower",
+          "op": ">",
+          "value": 0.1
+        }
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "id": "table",
+      "kind": "table",
+      "arms": [
+        "reanchor",
+        "rung_z2",
+        "rung_z3",
+        "ramp_over_re2",
+        "ramp_split_over_re2",
+        "medium_t100",
+        "medium_t100_subtick_off",
+        "m2_t100",
+        "medium_t500",
+        "medium_t500_subtick_off",
+        "m2_t500",
+        "medium_t2000",
+        "medium_t2000_subtick_off",
+        "m2_t2000"
+      ],
+      "measures": [
+        "hard_noticed_share",
+        "hard_anchor_correct_share",
+        "hard_anchor_site_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "notice_precision",
+        "strict_precision",
+        "notices_per_incident",
+        "notices_per_stream",
+        "notices_on_decoy_per_stream",
+        "plain_noticed_share",
+        "quality",
+        "leak_quality",
+        "calls_per_stream",
+        "substrate_s_per_stream",
+        "cost_s_per_stream"
+      ],
+      "description": "every arm, every measure, 90% cluster-bootstrap interval"
+    },
+    {
+      "id": "paired_vs_reanchor",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "medium_t100",
+          "reanchor"
+        ],
+        [
+          "medium_t100_subtick_off",
+          "reanchor"
+        ],
+        [
+          "m2_t100",
+          "reanchor"
+        ],
+        [
+          "medium_t500",
+          "reanchor"
+        ],
+        [
+          "medium_t500_subtick_off",
+          "reanchor"
+        ],
+        [
+          "m2_t500",
+          "reanchor"
+        ],
+        [
+          "medium_t2000",
+          "reanchor"
+        ],
+        [
+          "medium_t2000_subtick_off",
+          "reanchor"
+        ],
+        [
+          "m2_t2000",
+          "reanchor"
+        ]
+      ],
+      "measures": [
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "strict_precision"
+      ],
+      "description": "each medium row minus the comparator, paired"
+    },
+    {
+      "id": "paired_vs_ramp_split",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "medium_t100",
+          "ramp_split_over_re2"
+        ],
+        [
+          "medium_t500",
+          "ramp_split_over_re2"
+        ],
+        [
+          "medium_t2000",
+          "ramp_split_over_re2"
+        ],
+        [
+          "m2_t100",
+          "ramp_split_over_re2"
+        ],
+        [
+          "m2_t500",
+          "ramp_split_over_re2"
+        ],
+        [
+          "m2_t2000",
+          "ramp_split_over_re2"
+        ]
+      ],
+      "measures": [
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "strict_precision",
+        "cost_s_per_stream"
+      ],
+      "description": "each medium row minus B3's ramp + split over the re-anchor (the best public row), paired; reported beside, never in the criterion (added to the specification after the first back-test run, reports only)"
+    },
+    {
+      "id": "control",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "medium_t100",
+          "medium_t100_subtick_off"
+        ],
+        [
+          "medium_t500",
+          "medium_t500_subtick_off"
+        ],
+        [
+          "medium_t2000",
+          "medium_t2000_subtick_off"
+        ]
+      ],
+      "measures": [
+        "hard_anchor_correct_share",
+        "strict_precision",
+        "notices_on_background_per_stream",
+        "leak_noticed_share"
+      ],
+      "description": "the frozen medium minus its sub-tick-off control, paired"
+    }
+  ],
+  "verdict": {
+    "name": "M3 holds: result 1 holds at 500 ms and at 2 s under the background and strict-precision bounds",
+    "all": [
+      {
+        "name": "result1_t500",
+        "all": [
+          "r1.t500",
+          "bg.t500",
+          "sp.t500"
+        ]
+      },
+      {
+        "name": "result1_t2000",
+        "all": [
+          "r1.t2000",
+          "bg.t2000",
+          "sp.t2000"
+        ]
+      }
+    ]
+  },
+  "observations": {
+    "result1_t100_continuity": {
+      "all": [
+        "r1.t100",
+        "bg.t100",
+        "sp.t100"
+      ]
+    },
+    "result2_t100_continuity": {
+      "all": [
+        "r2.t100",
+        "bg.t100",
+        "sp.t100"
+      ]
+    },
+    "result2_t500_continuity": {
+      "all": [
+        "r2.t500",
+        "bg.t500",
+        "sp.t500"
+      ]
+    },
+    "result2_t2000_continuity": {
+      "all": [
+        "r2.t2000",
+        "bg.t2000",
+        "sp.t2000"
+      ]
+    }
+  },
+  "readings": [
+    "comparator: ReanchorNoticer, the queue's default ('or the B3 row if the chief re-fixes it before M3's held-out run'); this specification encodes the default, and the review log says whether a re-fix happened",
+    "'holds' = result 1 (point >= 0.03, paired 5th percentile > 0.01) AND background point <= 6.82 AND strict precision point >= 0.67, at 500 ms AND at 2 s: the four parts of the criterion at each of the two tick lengths",
+    "result 2 and the 100 ms row are clauses with tests that are not in the verdict; they are the continuity rows"
+  ]
+}

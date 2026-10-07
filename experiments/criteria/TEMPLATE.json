@@ -1,0 +1,57 @@
+{
+  "schema": "gordian-criterion/1",
+  "id": "<unit id, e.g. a1b>",
+  "title": "<one line>",
+  "source": "<where the criterion is fixed: file, section, date of fixing and of every amendment>",
+  "runs": {
+    "<run role>": {"streams": {"first_seed": 40000, "count": 200}}
+  },
+  "arms": {
+    "<arm name>": {"run": "<run role>", "dir": "<arm directory inside the run directory>"}
+  },
+  "bootstrap": {
+    "unit": "stream",
+    "resamples": 10000,
+    "seed": 9950,
+    "percentiles": [5, 95],
+    "interval": "lower_higher",
+    "chunk": 500
+  },
+  "measures": {
+    "<measure name>": {
+      "kind": "ratio",
+      "description": "<what it counts>",
+      "num": {"file": "notice_incidents.csv", "agg": "sum", "columns": {"anchor_correct": 1},
+              "where": [{"column": "tier", "op": "eq", "value": "hard"}]},
+      "den": {"file": "notice_incidents.csv", "agg": "count",
+              "where": [{"column": "tier", "op": "eq", "value": "hard"}]},
+      "scale": 1.0
+    },
+    "<per-stream mean>": {
+      "kind": "ratio",
+      "num": {"file": "notices.csv", "agg": "sum", "columns": {"notices_on_background": 1}},
+      "den": {"per_stream": 1}
+    }
+  },
+  "clauses": [
+    {"id": "<clause id>", "kind": "paired", "arm": "<a>", "minus": "<b>", "measure": "<measure name>",
+     "window": {"last": 100}, "description": "<the criterion text this clause encodes>",
+     "tests": [{"on": "point", "op": ">=", "value": 0.03}, {"on": "lower", "op": ">", "value": 0.01}]},
+    {"id": "<clause id>", "kind": "value", "arm": "<a>", "measure": "<measure name>",
+     "tests": [{"on": "point", "op": "<=", "value": 6.82}]},
+    {"id": "<clause id>", "kind": "curve_slope", "arm": "<a>", "minus": null, "measure": "<measure name>",
+     "window": {"first": 100}, "per": 100,
+     "tests": [{"on": "point", "op": ">", "value": 0}, {"on": "lower", "op": ">", "value": 0}]},
+    {"id": "<clause id>", "kind": "identity", "a": "<arm>", "b": "<arm>",
+     "files": ["notice_incidents.csv"], "ignore_columns": ["run_id"]}
+  ],
+  "reports": [
+    {"id": "<report id>", "kind": "table", "arms": ["<arm>"], "measures": ["<measure name>"], "window": {"last": 100}},
+    {"id": "<report id>", "kind": "paired_table", "pairs": [["<a>", "<b>"]], "measures": ["<measure name>"]},
+    {"id": "<report id>", "kind": "slope_table", "arms": ["<arm>"], "measure": "<measure name>",
+     "firsts": [50, 100, 200], "per": 100}
+  ],
+  "verdict": {"name": "<what holding means>", "all": ["<clause id>", {"name": "<node>", "any": ["<clause id>", "<clause id>"]}]},
+  "observations": {"<name>": {"all": ["<clause id>"]}},
+  "readings": ["<every reading of the criterion's text that the text leaves open, stated before the run>"]
+}

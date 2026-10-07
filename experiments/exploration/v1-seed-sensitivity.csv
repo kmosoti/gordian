@@ -1,0 +1,11 @@
+unit,interval_end,printed,fixed_seed_value,other_convention_value,other_convention_rounds_to,seeds_tried,min_over_seeds,max_over_seeds,seeds_rounding_to_printed,printed_within_range
+m2,100 ms result 1 lower,+0.021,0.021739,0.021739,0.022,40,0.021053,0.022039,10,True
+m2,500 ms result 1 lower,+0.010,0.010554,0.010554,0.011,40,0.009685,0.010782,20,True
+m2,500 ms result 1 upper,+0.050,0.049451,0.049451,0.049,40,0.049096,0.050139,29,True
+b3,medium - ramp+split anchor-correct upper,+0.034,0.033233,0.033167,0.033,40,0.033133,0.034091,26,True
+b3,medium - ramp+split leak noticed lower,-0.014,-0.013072,-0.013072,-0.013,40,-0.013793,-0.012987,12,True
+b3,medium - ramp+split leak anchor-correct lower,-0.492,-0.492958,-0.492862,-0.493,40,-0.493976,-0.490566,14,True
+b3,medium - ramp+split leak anchor-correct upper,-0.343,-0.344828,-0.344828,-0.345,40,-0.345588,-0.341463,10,True
+l1,"clause 3, off minus frozen, upper",-0.015,-0.015873,-0.015873,-0.016,40,-0.015625,-0.014922,36,True
+m3,100 ms result 1 upper,+0.049,0.049587,0.049587,0.050,40,0.049275,0.050251,11,True
+m3,2 s result 1 upper,+0.022,0.022727,0.022678,0.023,40,0.021739,0.023499,21,True
