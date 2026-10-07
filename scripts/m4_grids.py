@@ -118,4 +118,30 @@ def stage(name):
                         arm = with_refractory(devices(b, on, True, inh), rr)
                         arms.append((f"h{hold}_i{inh}_r{rr or 1}_t{tick}", arm))
         return arms, seeds, 14_200, "exploration-m4-tuning"
+    if name == "tune-c":
+        # tune-b (m4-tuning-tune-b.csv): at 500 ms anchoring saturates at 0.980 (195 of 199, the
+        # tuning ceiling, as in M3) and 80 configurations meet the whole conjunction; the merge
+        # window sets the anchoring tier (10 / 20 / 50 ms: 0.980 / 0.975 / 0.970) and, within it,
+        # the ramp refractory buys precision at full leak up to 15 s (0.722 at 1 s, 0.772 at 15
+        # s, M4's form; no inhibit within 0.001 of it), and loses the seed-10022 leak from 20 s
+        # on. M3's form is 0.789-0.791 at 41 of 44 leaks whatever the refractory. Last stage, the
+        # rest of M3's existing 500 ms grids: hold 15 s for the three confirmations, and the
+        # confirmation in event time at 100 ms from all services at hold 6 s, crossed with the
+        # merge, the inhibit forms and the refractories that matter (1, 15, 30 s; all six for the
+        # new confirmation).
+        frozen = m3_frozen(500)
+        grid = [("dep50L", "dependents", 50, 15, (None, 15, 30)),
+                ("dep100L", "dependents", 100, 15, (None, 15, 30)),
+                ("all50L", "all", 50, 15, (None, 15, 30)),
+                ("all100L", "all", 100, 6, (None, 5, 10, 15, 20, 30))]
+        for cname, conf, cw, hold, refractories in grid:
+            for merge in (0, 10, 20, 30, 50):
+                for inh in INHIBITS:
+                    for rr in refractories:
+                        b = dict(frozen, burst_confirm=conf, confirm_window_ns=cw * MS,
+                                 confirm_lead=True, merge_window_ns=merge * MS,
+                                 hold_ns=hold * S)
+                        arm = with_refractory(devices(b, merge > 0, True, inh), rr)
+                        arms.append((f"{cname}_m{merge}_i{inh}_r{rr or 1}_h{hold}_t500", arm))
+        return arms, seeds, 14_300, "exploration-m4-tuning"
     raise SystemExit(f"unknown stage {name!r}")
