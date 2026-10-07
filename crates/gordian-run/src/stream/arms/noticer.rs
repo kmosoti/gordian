@@ -35,6 +35,7 @@
 //! | `reanchor` ([`super::noticer_reanchor::ReanchorNoticer`], work item B2) | the rung's noticer with a later re-anchor: an anomaly anchored on an isolated abnormal observation (none other at its site within `gap_ns`) whose attached evidence holds a burst that begins after the anchor is re-anchored on that burst's first observation, at the moment of notice |
 //! | `reservoir` ([`super::reservoir::ReservoirNoticer`], work item L2) | an echo state network per node with one shared readout trained online by recursive least squares to predict the node's next-tick readings; a notice at the earliest tick of a run of ticks whose squared prediction residual exceeds a threshold, anchored on the node's first abnormal observation in it |
 //! | `ramp`, `split`, `ramp_split` and each with `_reanchor` ([`NoticerSpec::Composed`], work item B3) | a base noticer (the rung's, or the later re-anchor) with [`super::noticer_ramp::RampNoticer`] (a per-node trend detector on counter readings, benign ones included, which opens a noticed anomaly of its own on a smooth rise, anchored on the rise's first reading), [`super::noticer_split::SplitNoticer`] (an anomaly holding a later burst at other sites, after a silence, is two anomalies), or both, wrapped around it. Both open and move anomalies in the base's own set, so everything downstream is shared |
+//! | `record_site`, `record_family` ([`super::noticer_record::RecordNoticer`], work item E1) | the later re-anchor with a memory behind the seam: a table from a public key to the diagnosis last obtained from the reasoner for it, recalled only on an anomaly the public rules cannot explain; the key's site-keyed and family-keyed forms, the confirmation policies and the reset are in its module documentation |
 //! | `dataflow` ([`super::dataflow::DataflowNoticer`], work item C1) | B3's ramp and split over the later re-anchor over the rung's candidates, re-expressed as relations kept up to date by deltas on a small general incremental engine; it must give the hand-written composition's answers, and its counted operations are priced and billed |
 //!
 //! # The record
@@ -99,6 +100,10 @@ pub enum NoticerSpec {
     /// The medium with three of its constants learned online (work item L1, Lab 3)
     /// ([`super::learned`]).
     Learned(super::learned::LearnedParams),
+    /// The record rung (work item E1, Lab 2): a base noticer with a table from a public key to
+    /// the diagnosis last obtained from the reasoner for it, a public comparator for the engram
+    /// ([`super::noticer_record`]).
+    Record(super::noticer_record::RecordParams),
     /// B3's ramp and split over the rung's or the later re-anchor's candidates, as relations
     /// kept by deltas on a general incremental engine (work item C1, Lab 2)
     /// ([`super::dataflow`]).
@@ -189,6 +194,7 @@ impl NoticerSpec {
             Self::Learned(_) => super::learned::LEARNED_ID,
             Self::Dataflow(_) => super::dataflow::DATAFLOW_ID,
             Self::Reservoir(_) => super::reservoir::RESERVOIR_ID,
+            Self::Record(params) => params.id(),
             Self::Composed { base, ramp, split } => composed_id_with(
                 base,
                 ramp.is_some(),
@@ -217,6 +223,7 @@ impl NoticerSpec {
             Self::Learned(params) => params.validate(),
             Self::Dataflow(spec) => spec.validate(),
             Self::Reservoir(params) => params.validate(),
+            Self::Record(params) => params.validate(),
             Self::Composed {
                 ramp: None,
                 split: None,
@@ -950,6 +957,7 @@ pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<
         NoticerSpec::Learned(params) => super::learned::build(&params, cfg, services),
         NoticerSpec::Dataflow(spec) => super::dataflow::build(&spec, cfg, services),
         NoticerSpec::Reservoir(params) => super::reservoir::build(&params, cfg, services),
+        NoticerSpec::Record(params) => super::noticer_record::build(&params, cfg, services),
         NoticerSpec::Composed { base, ramp, split } => match base {
             BaseSpec::Rung { notice_z } => {
                 let mut cfg = cfg.clone();

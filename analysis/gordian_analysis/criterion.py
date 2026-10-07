@@ -36,10 +36,15 @@ import pandas as pd
 SCHEMA = "gordian-criterion/1"
 INTERVALS = ("lower_higher", "linear")
 OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operator.lt}
-WHERE_OPS = ("eq", "ne", "in", "not_in")
-CLAUSE_KINDS = ("value", "paired", "curve_slope", "identity")
+# `notnull` and `isnull` take no value (work item E1: the filter "has a recurrence_of").
+WHERE_OPS = ("eq", "ne", "in", "not_in", "notnull", "isnull")
+WHERE_NO_VALUE = ("notnull", "isnull")
+CLAUSE_KINDS = ("value", "paired", "curve_slope", "identity", "count")
 REPORT_KINDS = ("table", "paired_table", "slope_table")
 ON = ("point", "lower", "upper")
+ON_COUNT = ("count", "total")
+MEASURE_KINDS = ("ratio", "quantile")
+JOIN_KEYS = ("seed", "incident")
 
 
 class SpecError(ValueError):
@@ -80,7 +85,15 @@ def _need(cond: bool, msg: str) -> None:
         raise SpecError(msg)
 
 
-def _validate_term(term, where: str) -> None:
+def _validate_where(items, where: str) -> None:
+    for w in items or []:
+        _need(isinstance(w, dict) and w.get("op") in WHERE_OPS and "column" in w
+              and (w["op"] in WHERE_NO_VALUE or "value" in w), f"{where}: where item {w}")
+        if w["op"] in ("in", "not_in"):
+            _need(isinstance(w["value"], list), f"{where}: in / not_in take a list")
+
+
+def _validate_term(term, where: str, arms=None) -> None:
     _need(isinstance(term, dict), f"{where}: a term is an object")
     if "per_stream" in term:
         _need(set(term) == {"per_stream"}, f"{where}: per_stream takes no other key")
@@ -92,10 +105,15 @@ def _validate_term(term, where: str) -> None:
         cols = term.get("columns")
         _need(isinstance(cols, dict) and cols, f"{where}: sum needs a non-empty columns object")
         _need(all(isinstance(v, (int, float)) for v in cols.values()), f"{where}: coefficients")
-    for w in term.get("where", []):
-        _need(w.get("op") in WHERE_OPS and "column" in w and "value" in w, f"{where}: where item {w}")
-        if w["op"] in ("in", "not_in"):
-            _need(isinstance(w["value"], list), f"{where}: in / not_in take a list")
+    _validate_where(term.get("where"), where)
+    if "join" in term:
+        j = term["join"]
+        _need(isinstance(j, dict) and set(j) <= {"arm", "on", "where"}, f"{where}: join keys are arm, on, where")
+        _need(isinstance(j.get("arm"), str) and (arms is None or j["arm"] in arms), f"{where}: join.arm is an arm")
+        on = j.get("on", list(JOIN_KEYS))
+        _need(isinstance(on, list) and on and all(isinstance(c, str) for c in on) and "seed" in on,
+              f"{where}: join.on is a list of columns that includes seed")
+        _validate_where(j.get("where"), f"{where}.join")
 
 
 def _validate_window(window, where: str) -> None:
@@ -110,10 +128,10 @@ def _validate_window(window, where: str) -> None:
         _need(isinstance(v, int) and v > 0, f"{where}: {k} is a positive integer")
 
 
-def _validate_tests(tests, where: str) -> None:
+def _validate_tests(tests, where: str, ons=ON) -> None:
     for t in tests or []:
-        _need(t.get("on") in ON and t.get("op") in OPS and isinstance(t.get("value"), (int, float)),
-              f"{where}: test {t}")
+        _need(t.get("on") in ons and t.get("op") in OPS and isinstance(t.get("value"), (int, float)),
+              f"{where}: test {t} (on is one of {ons})")
 
 
 def _tree_ids(tree, out: list[str], names: list[str], where: str) -> None:
@@ -121,11 +139,14 @@ def _tree_ids(tree, out: list[str], names: list[str], where: str) -> None:
         out.append(tree)
         return
     _need(isinstance(tree, dict), f"{where}: a tree item is a clause id or a node")
-    kinds = [k for k in ("all", "any") if k in tree]
-    _need(len(kinds) == 1, f"{where}: a node has exactly one of all, any")
-    _need(isinstance(tree[kinds[0]], list) and tree[kinds[0]], f"{where}: a node needs items")
+    kinds = [k for k in ("all", "any", "not") if k in tree]
+    _need(len(kinds) == 1, f"{where}: a node has exactly one of all, any, not")
     if "name" in tree:
         names.append(tree["name"])
+    if kinds[0] == "not":
+        _tree_ids(tree["not"], out, names, where)
+        return
+    _need(isinstance(tree[kinds[0]], list) and tree[kinds[0]], f"{where}: a node needs items")
     for item in tree[kinds[0]]:
         _tree_ids(item, out, names, where)
 
@@ -151,16 +172,20 @@ def validate_spec(spec: dict) -> None:
     _need(b.get("interval") in INTERVALS, f"bootstrap.interval is one of {INTERVALS}")
     _need(isinstance(b.get("chunk", 500), int) and b.get("chunk", 500) > 0, "bootstrap.chunk")
     for name, m in spec["measures"].items():
-        _need(m.get("kind") == "ratio", f"measures.{name}: only kind 'ratio'")
-        _validate_term(m.get("num"), f"measures.{name}.num")
-        _validate_term(m.get("den"), f"measures.{name}.den")
+        _need(m.get("kind") in MEASURE_KINDS, f"measures.{name}: kind is one of {MEASURE_KINDS}")
+        _validate_term(m.get("num"), f"measures.{name}.num", spec["arms"])
+        _validate_term(m.get("den"), f"measures.{name}.den", spec["arms"])
+        if m["kind"] == "quantile":
+            q = m.get("q")
+            _need(isinstance(q, (int, float)) and not isinstance(q, bool) and 0 <= q <= 1,
+                  f"measures.{name}: q is a number in [0, 1]")
     ids = set()
     for c in spec["clauses"]:
         cid = c.get("id")
         _need(isinstance(cid, str) and cid not in ids, f"clause id {cid!r} missing or repeated")
         ids.add(cid)
         _need(c.get("kind") in CLAUSE_KINDS, f"clause {cid}: kind")
-        _validate_tests(c.get("tests"), f"clause {cid}")
+        _validate_tests(c.get("tests"), f"clause {cid}", ON_COUNT if c["kind"] == "count" else ON)
         _validate_window(c.get("window"), f"clause {cid}")
         if c["kind"] == "identity":
             _need(c.get("a") in spec["arms"] and c.get("b") in spec["arms"], f"clause {cid}: arms a, b")
@@ -168,6 +193,9 @@ def validate_spec(spec: dict) -> None:
             continue
         _need(c.get("arm") in spec["arms"], f"clause {cid}: arm")
         _need(c.get("measure") in spec["measures"], f"clause {cid}: measure")
+        if c["kind"] in ("count", "curve_slope"):
+            _need(spec["measures"][c["measure"]]["kind"] == "ratio",
+                  f"clause {cid}: a {c['kind']} clause reads a ratio measure, not a quantile")
         if c["kind"] == "paired":
             _need(c.get("minus") in spec["arms"], f"clause {cid}: minus")
         if c["kind"] == "curve_slope":
@@ -187,6 +215,19 @@ def validate_spec(spec: dict) -> None:
     for name, tree in spec.get("observations", {}).items():
         _tree_ids(tree, used, names, f"observations.{name}")
         names.append(name)
+    if "outcomes" in spec:
+        o = spec["outcomes"]
+        _need(isinstance(o, dict) and set(o) <= {"name", "categories", "default"}, "outcomes: keys")
+        _need(isinstance(o.get("default"), str) and o["default"], "outcomes.default names the category when none holds")
+        cats = o.get("categories")
+        _need(isinstance(cats, list) and cats, "outcomes.categories is a non-empty list")
+        seen = {o["default"]}
+        for k, cat in enumerate(cats):
+            _need(isinstance(cat, dict) and isinstance(cat.get("name"), str) and "when" in cat,
+                  f"outcomes.categories[{k}] needs a name and a when tree")
+            _need(cat["name"] not in seen, f"outcomes: category {cat['name']!r} is repeated")
+            seen.add(cat["name"])
+            _tree_ids(cat["when"], used, names, f"outcomes.{cat['name']}")
     _need(len(names) == len(set(names)), "node names must be unique")
     by_id = {c["id"]: c for c in spec["clauses"]}
     for cid in used:
@@ -295,17 +336,50 @@ def _row_mask(df: pd.DataFrame, where: list[dict] | None, label: str) -> np.ndar
     for w in where or []:
         _need(w["column"] in df.columns, f"{label}: no column {w['column']!r}")
         col = df[w["column"]]
-        op, v = w["op"], w["value"]
+        op, v = w["op"], w.get("value")
         if op == "eq":
             hit = col == v
         elif op == "ne":
             hit = col != v
         elif op == "in":
             hit = col.isin(v)
-        else:
+        elif op == "not_in":
             hit = ~col.isin(v)
+        elif op == "notnull":
+            hit = col.notna()
+        else:
+            hit = col.isna()
         mask &= hit.to_numpy(dtype=bool)
     return mask
+
+
+def joined_rows(runs: RunSet, arm: str, term: dict) -> pd.DataFrame:
+    """The rows of the term's file for `arm`, joined by the term's `join` to another arm's rows of
+    the same file (work item E1): an inner join on `join.on` (default seed and incident) of the
+    arm's rows with the other arm's rows that pass `join.where`. The other arm's columns are named
+    `column@arm`, so a `where` item or a `columns` coefficient of the term reads either side. The
+    two arms must hold exactly the same keys, or the join would silently drop incidents: the join
+    before the other arm's filter must cover every row of both."""
+    df = runs.table(arm, term["file"])
+    j = term["join"]
+    other_arm, on = j["arm"], list(j.get("on", JOIN_KEYS))
+    other = runs.table(other_arm, term["file"])
+    label = f"arm {arm!r} joined with {other_arm!r}, {term['file']}"
+    for col in on:
+        _need(col in df.columns and col in other.columns, f"{label}: no join column {col!r}")
+    _need(np.array_equal(runs.seeds(arm), runs.seeds(other_arm)),
+          f"{label}: the arms are not on the same streams")
+    keys_a = df[on].drop_duplicates()
+    keys_b = other[on].drop_duplicates()
+    _need(len(keys_a) == len(df) and len(keys_b) == len(other),
+          f"{label}: the join columns {on} do not identify a row")
+    both = keys_a.merge(keys_b, on=on, how="inner")
+    _need(len(both) == len(df) == len(other),
+          f"{label}: the arms do not hold the same rows ({len(df)} against {len(other)}, "
+          f"{len(both)} in common)")
+    keep = other[_row_mask(other, j.get("where"), label)]
+    keep = keep.rename(columns={c: f"{c}@{other_arm}" for c in other.columns if c not in on})
+    return df.merge(keep, on=on, how="inner")
 
 
 def term_vector(runs: RunSet, arm: str, term: dict) -> np.ndarray:
@@ -317,7 +391,8 @@ def term_vector(runs: RunSet, arm: str, term: dict) -> np.ndarray:
     label = f"arm {arm!r}, {term['file']}"
     bad = set(df["seed"].unique().tolist()) - set(seeds.tolist())
     _need(not bad, f"{label}: seeds outside the arm's streams: {sorted(bad)[:5]}")
-    rows = df[_row_mask(df, term.get("where"), label)]
+    joined = joined_rows(runs, arm, term) if "join" in term else df
+    rows = joined[_row_mask(joined, term.get("where"), label)]
     if term["agg"] == "count":
         by = rows.groupby("seed").size().astype(float)
     else:
@@ -412,6 +487,40 @@ def ratio_point(num: np.ndarray, den: np.ndarray, scale: float) -> float:
     return float(num.sum()) / d * scale if d > 0 else float("nan")
 
 
+def quantile_draws(num: np.ndarray, den: np.ndarray, scale: float, w: np.ndarray, q: float) -> np.ndarray:
+    """The per-stream quantile measure on every resample (work item E1). The value of a stream is
+    num / den, times `scale`, defined where den is positive; a stream with no denominator is left
+    out. The quantile of a resample is the smallest value whose cumulative weight (the resample's
+    stream counts) is at least `q` of the total weight: numpy's `inverted_cdf`, which is the
+    ordinary quantile when every weight is one. NaN where no stream is left. One row of ones in `w`
+    gives the point estimate."""
+    valid = den > 0
+    xs = (num[valid] / den[valid]) * scale
+    if xs.size == 0:
+        return np.full(w.shape[0], np.nan)
+    order = np.argsort(xs, kind="stable")
+    xs = xs[order]
+    c = np.cumsum(w[:, valid][:, order], axis=1)
+    total = c[:, -1]
+    hit = (c >= (q * total - 1e-9)[:, None]) & (c > 0)
+    idx = hit.argmax(axis=1)
+    return np.where(total > 0, xs[idx], np.nan)
+
+
+def measure_point(m: dict, num: np.ndarray, den: np.ndarray, scale: float) -> float:
+    """The point value of a measure over the streams given."""
+    if m["kind"] == "quantile":
+        return float(quantile_draws(num, den, scale, np.ones((1, len(num))), m["q"])[0])
+    return ratio_point(num, den, scale)
+
+
+def measure_draws(m: dict, num: np.ndarray, den: np.ndarray, scale: float, w: np.ndarray) -> np.ndarray:
+    """The measure on every resample."""
+    if m["kind"] == "quantile":
+        return quantile_draws(num, den, scale, w, m["q"])
+    return ratio_draws(num, den, scale, w)
+
+
 def curve_slopes(num: np.ndarray, den: np.ndarray, w: np.ndarray) -> np.ndarray:
     """Least-squares slope, against the stream number 1..k, of the cumulative ratio
     cumsum(w * num) / cumsum(w * den), one slope per row of `w` (rows are resamples; one row of ones
@@ -478,22 +587,33 @@ class Evaluator:
         return a, b, n
 
     def value(self, arm: str, measure: str, window=None) -> dict:
+        m = self.arms.measures[measure]
         num, den, scale = self.arms.nd(arm, measure)
         a, b, _ = self._window(arm, window)
         num, den = num[a:b], den[a:b]
-        point = ratio_point(num, den, scale)
-        lo, hi = self.boot.interval(ratio_draws(num, den, scale, self.boot.counts(b - a)))
+        point = measure_point(m, num, den, scale)
+        lo, hi = self.boot.interval(measure_draws(m, num, den, scale, self.boot.counts(b - a)))
         return {**_estimate(point, lo, hi), "streams": b - a}
+
+    def count(self, arm: str, measure: str, window=None) -> dict:
+        """The numerator and the denominator of a measure summed over the streams of the window
+        (work item E1): how many events a share rests on. No interval: they are counts."""
+        num, den, scale = self.arms.nd(arm, measure)
+        a, b, _ = self._window(arm, window)
+        count, total = float(num[a:b].sum()), float(den[a:b].sum())
+        share = count / total * scale if total > 0 else None
+        return {"count": count, "total": total, "share": share, "streams": b - a}
 
     def paired(self, arm: str, minus: str, measure: str, window=None) -> dict:
         sa, sb = self.arms.seeds(arm), self.arms.seeds(minus)
         _need(np.array_equal(sa, sb), f"paired arms {arm!r} and {minus!r} are not on the same streams")
+        m = self.arms.measures[measure]
         na, da, sca = self.arms.nd(arm, measure)
         nb, db, scb = self.arms.nd(minus, measure)
         a, b, _ = self._window(arm, window)
         w = self.boot.counts(b - a)
-        point = ratio_point(na[a:b], da[a:b], sca) - ratio_point(nb[a:b], db[a:b], scb)
-        d = ratio_draws(na[a:b], da[a:b], sca, w) - ratio_draws(nb[a:b], db[a:b], scb, w)
+        point = measure_point(m, na[a:b], da[a:b], sca) - measure_point(m, nb[a:b], db[a:b], scb)
+        d = measure_draws(m, na[a:b], da[a:b], sca, w) - measure_draws(m, nb[a:b], db[a:b], scb, w)
         lo, hi = self.boot.interval(d)
         return {**_estimate(point, lo, hi), "streams": b - a}
 
@@ -545,6 +665,8 @@ class Evaluator:
             out["window"] = c["window"]
         if c["kind"] == "value":
             est = self.value(c["arm"], c["measure"], c.get("window"))
+        elif c["kind"] == "count":
+            est = self.count(c["arm"], c["measure"], c.get("window"))
         elif c["kind"] == "paired":
             out["minus"] = c["minus"]
             est = self.paired(c["arm"], c["minus"], c["measure"], c.get("window"))
@@ -593,6 +715,11 @@ def eval_tree(tree, outcomes: dict[str, bool], nodes: dict[str, bool]) -> bool:
     """Evaluate a tree of clause ids and all / any nodes; record every named node."""
     if isinstance(tree, str):
         return bool(outcomes[tree])
+    if "not" in tree:
+        v = not eval_tree(tree["not"], outcomes, nodes)
+        if "name" in tree:
+            nodes[tree["name"]] = v
+        return v
     kind = "all" if "all" in tree else "any"
     vals = [eval_tree(item, outcomes, nodes) for item in tree[kind]]
     v = all(vals) if kind == "all" else any(vals)
@@ -614,12 +741,18 @@ def evaluate(spec: dict, run_dirs: dict[str, Path | str]) -> dict:
     observations = {}
     for name, tree in spec.get("observations", {}).items():
         observations[name] = eval_tree(tree, outcomes, nodes)
+    outcome = None
+    if "outcomes" in spec:
+        o = spec["outcomes"]
+        held = [cat["name"] for cat in o["categories"] if eval_tree(cat["when"], outcomes, nodes)]
+        outcome = {"name": o.get("name", ""), "category": held[0] if held else o["default"],
+                   "held": held, "shadowed": held[1:], "default": o["default"]}
     in_verdict: list[str] = []
     _tree_ids(spec["verdict"], in_verdict, [], "verdict")
     for c in clauses:
         c["in_verdict"] = c["id"] in in_verdict
     reports = [ev.report(r) for r in spec.get("reports", [])]
-    return {
+    result = {
         "spec": {"id": spec["id"], "title": spec["title"], "sha256": spec_hash(spec),
                  "schema": spec["schema"], "source": spec["source"]},
         "bootstrap": spec["bootstrap"],
@@ -631,6 +764,9 @@ def evaluate(spec: dict, run_dirs: dict[str, Path | str]) -> dict:
         "clauses": clauses,
         "reports": reports,
     }
+    if outcome is not None:
+        result["verdict"]["outcome"] = outcome
+    return result
 
 
 # ---------------------------------------------------------------------------------------------
@@ -671,7 +807,9 @@ def render_markdown(result: dict) -> str:
         tests = "; ".join(f"{t['on']} {t['op']} {t['value']}: {_fmt(t['observed'])} "
                           f"{'ok' if t['pass'] else 'FAIL'}" for t in c["tests"]) or "reported"
         out = "-" if c["pass"] is None else ("pass" if c["pass"] else "FAIL")
-        lines.append(f"| `{c['id']}`{tag} | {meas} | {win} | {_est(c)} | {tests} | {out} |")
+        shown = (f"{c['count']:.0f} of {c['total']:.0f} ({_fmt(c['share'])})" if c["kind"] == "count"
+                 else _est(c))
+        lines.append(f"| `{c['id']}`{tag} | {meas} | {win} | {shown} | {tests} | {out} |")
     lines += ["", "## Nodes", "", "| node | value |", "|---|---|"]
     for k, val in v["nodes"].items():
         lines.append(f"| {k} | {val} |")
@@ -679,6 +817,10 @@ def render_markdown(result: dict) -> str:
         lines += ["", "Observations (not in the verdict):", ""]
         for k, val in v["observations"].items():
             lines.append(f"- {k}: {val}")
+    if "outcome" in v:
+        o = v["outcome"]
+        lines += ["", f"Outcome ({o['name']}): **{o['category']}**"
+                  + (f" (also held, shadowed by the order: {', '.join(o['shadowed'])})" if o["shadowed"] else ""), ""]
     for r in result["reports"]:
         lines += ["", f"## Report `{r['id']}`", "", r["description"], ""]
         measures = list(dict.fromkeys(c["measure"] for c in r["cells"]))

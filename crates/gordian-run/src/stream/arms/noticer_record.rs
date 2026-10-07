@@ -143,3 +143,592 @@
 //! incidents or decoys, and a wrong recall on one is never corrected. Its table lookups and binds
 //! are bookkeeping and are not priced in the modelled bill (no calibrated weights); the
 //! consistency checks it asks the rung for are, as for every arm that monitors.
+
+use super::noticer::{
+    BaseSpec, MemoryRecall, Notice, Noticer, NoticerCost, RecallSource, RetireCause, Tracked,
+};
+use super::noticer_reanchor::ReanchorNoticer;
+use super::noticer_rung::RungNoticer;
+use super::rung::{Held, RungConfig, Store};
+use gordian_core::Instant;
+use gordian_stream::{Diagnosis, ObsId, StreamHypothesis};
+use gordian_world::physics::{CATALOGUE_LIMIT, HIGH, signature};
+use gordian_world::{CounterName, Observation, Service, ServiceId};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+
+/// The id of the site-keyed form, as the run output writes it.
+pub const RECORD_SITE_ID: &str = "record_site";
+/// The id of the family-keyed form.
+pub const RECORD_FAMILY_ID: &str = "record_family";
+
+/// What a key holds besides the evidence at the anomaly's site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyForm {
+    /// The site's own id besides (ids are regenerated per stream: it cannot leave one).
+    Site,
+    /// Stream-invariant features only.
+    Family,
+}
+
+/// The richness of the key's features (the module documentation's table), cumulative.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyLevel {
+    /// The abnormal kinds at the site and the anchor's kind.
+    Kinds,
+    /// And the band of each abnormal counter's highest reading.
+    Bands,
+    /// And the band of the gate delay.
+    Timing,
+}
+
+/// Which recalls are asked about instead of declared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecordConfirm {
+    /// None.
+    Never,
+    /// The `k`-th, `2k`-th, ... recall of the arm, counted across segments.
+    Every {
+        /// The period; at least 2.
+        k: u32,
+    },
+    /// A recall whose entry is disputed.
+    OnContradiction,
+}
+
+/// The record rung's parameters. Every one is written to the manifest.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordParams {
+    /// The noticer underneath (the later re-anchor B2 selected, in every arm of work item E1).
+    pub base: BaseSpec,
+    /// The key's form.
+    pub form: KeyForm,
+    /// The key's level.
+    pub level: KeyLevel,
+    /// The confirmation policy.
+    pub confirm: RecordConfirm,
+    /// Reset the table at the start of every segment.
+    pub reset: bool,
+    /// How long the gate must have been open before the key is read, nanoseconds.
+    pub settle_ns: u64,
+    /// Add the free-form message ids at the site to a site-keyed key (a labelled sensitivity row).
+    #[serde(default)]
+    pub msg_ids: bool,
+    /// The key under which a table (and the recall count) is carried across segments in the
+    /// process-wide store. Distinct per arm.
+    pub state_key: u64,
+}
+
+impl RecordParams {
+    /// The noticer's id: `record_site` or `record_family`.
+    pub fn id(&self) -> &'static str {
+        match self.form {
+            KeyForm::Site => RECORD_SITE_ID,
+            KeyForm::Family => RECORD_FAMILY_ID,
+        }
+    }
+
+    /// Check the parameters.
+    pub fn validate(&self) -> Result<(), String> {
+        self.base.validate()?;
+        if let RecordConfirm::Every { k } = self.confirm
+            && k < 2
+        {
+            return Err("noticer record: confirm every needs k of at least 2".to_owned());
+        }
+        if self.msg_ids && self.form != KeyForm::Site {
+            return Err("noticer record: msg_ids belongs to a site-keyed key only".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// The feature kinds, in the top byte of a feature.
+const F_KIND: u64 = 1;
+const F_ANCHOR: u64 = 2;
+const F_BAND: u64 = 3;
+const F_GATE: u64 = 4;
+const F_SNAPSHOT: u64 = 5;
+const F_SITE: u64 = 6;
+const F_MSG: u64 = 7;
+
+fn feature(kind: u64, payload: u64) -> u64 {
+    (kind << 56) | (payload & ((1 << 56) - 1))
+}
+
+/// FNV-1a over `text`: a stable code for a symptom tag, whatever order the enum is declared in.
+fn code(text: &str) -> u64 {
+    let mut h = 0xCBF2_9CE4_8422_2325u64;
+    for b in text.as_bytes() {
+        h = (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01B3);
+    }
+    h
+}
+
+fn counter_code(name: CounterName) -> u64 {
+    match name {
+        CounterName::ErrorRate => 0,
+        CounterName::Latency => 1,
+        CounterName::Saturation => 2,
+        CounterName::AuthFailures => 3,
+        CounterName::Restarts => 4,
+    }
+}
+
+/// The band of an abnormal counter reading: below twice the public alarm line, below four times,
+/// or above.
+pub fn band_of(value: u64) -> u64 {
+    if value < 2 * HIGH {
+        0
+    } else if value < 4 * HIGH {
+        1
+    } else {
+        2
+    }
+}
+
+/// The band of the gate delay: under 1 s, 3 s, 6 s, 10 s, or more.
+pub fn gate_band(delay_ns: u64) -> u64 {
+    const S: u64 = 1_000_000_000;
+    match delay_ns {
+        d if d < S => 0,
+        d if d < 3 * S => 1,
+        d if d < 6 * S => 2,
+        d if d < 10 * S => 3,
+        _ => 4,
+    }
+}
+
+/// The key of an anomaly, as the module documentation defines it: the sorted features of the
+/// evidence at `site` held in `evidence` (the abnormal observations attached to it, in delivery
+/// order, the anchor first), the gate delay, and for a site-keyed key the site's id.
+pub fn key_of(
+    params: &RecordParams,
+    site: ServiceId,
+    evidence: &[(&Held, ServiceId)],
+    gate_delay_ns: u64,
+    store: &Store,
+    anchor_at: Instant,
+    now: Instant,
+) -> Vec<u64> {
+    let mut keys: BTreeSet<u64> = BTreeSet::new();
+    let mut bands: BTreeMap<u64, u64> = BTreeMap::new();
+    for (i, (held, service)) in evidence.iter().enumerate() {
+        if *service != site {
+            continue;
+        }
+        let tags = signature(&[(held.at, held.obs.clone())]);
+        if i == 0 {
+            for t in &tags {
+                keys.insert(feature(F_ANCHOR, code(&format!("{t:?}"))));
+            }
+        }
+        for t in &tags {
+            keys.insert(feature(F_KIND, code(&format!("{t:?}"))));
+        }
+        match &held.obs {
+            Observation::Snapshot { .. } => {
+                keys.insert(feature(F_SNAPSHOT, 1));
+                if i == 0 {
+                    keys.insert(feature(F_ANCHOR, 0xFFFF));
+                }
+            }
+            Observation::Counter { name, value, .. } => {
+                let best = bands.entry(counter_code(*name)).or_insert(0);
+                *best = (*best).max(band_of(*value));
+            }
+            _ => {}
+        }
+    }
+    if params.level >= KeyLevel::Bands {
+        for (counter, band) in bands {
+            keys.insert(feature(F_BAND, (counter << 8) | band));
+        }
+    }
+    if params.level >= KeyLevel::Timing {
+        keys.insert(feature(F_GATE, gate_band(gate_delay_ns)));
+    }
+    if params.form == KeyForm::Site {
+        keys.insert(feature(F_SITE, u64::from(site.0)));
+        if params.msg_ids {
+            for h in store.iter() {
+                if let Observation::Message {
+                    service, text_id, ..
+                } = &h.obs
+                    && *service == site
+                    && *text_id >= CATALOGUE_LIMIT
+                    && h.at >= anchor_at
+                    && h.at <= now
+                {
+                    keys.insert(feature(F_MSG, *text_id));
+                }
+            }
+        }
+    }
+    keys.into_iter().collect()
+}
+
+/// What the table holds for a key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Entry {
+    /// The diagnosis last obtained, as the reasoner gave it (with the site it named).
+    pub stored: Diagnosis,
+    /// The observation the answer was about.
+    pub source: ObsId,
+    /// Answers bound to the key.
+    pub answers: u32,
+    /// The last answer disagreed with the one before it.
+    pub disputed: bool,
+}
+
+type Table = BTreeMap<Vec<u64>, Entry>;
+
+/// What the arm counts about its own memory, for tests and reports.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RecordStats {
+    /// Answers bound.
+    pub binds: u32,
+    /// Answers not bound: the anomaly had no snapshot.
+    pub unbound_no_snapshot: u32,
+    /// Answers not bound: a family-keyed answer naming a site other than the anomaly's.
+    pub unbound_other_site: u32,
+    /// Snapshots taken.
+    pub snapshots: u32,
+    /// Lookups made (an anomaly past its settle time, each step until it hits or is asked).
+    pub lookups: u32,
+    /// Recalls offered (declared or confirmed).
+    pub recalls: u32,
+    /// Of those, confirmed.
+    pub confirmed: u32,
+}
+
+struct Snapshot {
+    key: Vec<u64>,
+    site: ServiceId,
+}
+
+/// The record rung's noticer: a base noticer with a table behind the memory seam.
+pub struct RecordNoticer<B: Noticer> {
+    inner: B,
+    params: RecordParams,
+    table: Table,
+    /// The recalls the arm has made, across segments (the count `every` reads).
+    recall_count: u64,
+    snapshots: Vec<Snapshot>,
+    by_anomaly: BTreeMap<u32, usize>,
+    by_obs: BTreeMap<ObsId, usize>,
+    offered: BTreeSet<u32>,
+    sources: BTreeMap<u32, RecallSource>,
+    stats: RecordStats,
+}
+
+impl<B: Noticer> RecordNoticer<B> {
+    /// A record noticer over `inner`, starting from the carried table (and recall count) under
+    /// `params.state_key` when the arm does not reset.
+    pub fn new(inner: B, params: RecordParams) -> Self {
+        let (recall_count, carried) = carry::load(params.state_key).unwrap_or((0, Table::new()));
+        Self {
+            inner,
+            params,
+            table: if params.reset { Table::new() } else { carried },
+            recall_count,
+            snapshots: Vec::new(),
+            by_anomaly: BTreeMap::new(),
+            by_obs: BTreeMap::new(),
+            offered: BTreeSet::new(),
+            sources: BTreeMap::new(),
+            stats: RecordStats::default(),
+        }
+    }
+
+    /// What the memory has done so far.
+    pub fn stats(&self) -> RecordStats {
+        self.stats
+    }
+
+    /// The table as it stands.
+    pub fn table(&self) -> &BTreeMap<Vec<u64>, Entry> {
+        &self.table
+    }
+
+    fn persist(&self) {
+        let kept = if self.params.reset {
+            Table::new()
+        } else {
+            self.table.clone()
+        };
+        carry::store(self.params.state_key, self.recall_count, kept);
+    }
+
+    /// Read the key of anomaly `id` now, the gate open since `since`.
+    fn snapshot(&mut self, id: u32, since: Instant, now: Instant, store: &Store) -> Option<usize> {
+        let tracked = self.inner.tracked(id)?;
+        let ids: BTreeSet<ObsId> = tracked.attached.iter().map(|(_, o, _)| *o).collect();
+        let held: BTreeMap<ObsId, &Held> = store
+            .iter()
+            .filter(|h| ids.contains(&h.id))
+            .map(|h| (h.id, h))
+            .collect();
+        let evidence: Vec<(&Held, ServiceId)> = tracked
+            .attached
+            .iter()
+            .filter_map(|(_, o, s)| held.get(o).map(|h| (*h, *s)))
+            .collect();
+        let key = key_of(
+            &self.params,
+            tracked.site,
+            &evidence,
+            since.0.saturating_sub(tracked.anchor_at.0),
+            store,
+            tracked.anchor_at,
+            now,
+        );
+        let site = tracked.site;
+        let attached: Vec<ObsId> = ids.into_iter().collect();
+        let index = self.snapshots.len();
+        self.snapshots.push(Snapshot { key, site });
+        self.by_anomaly.insert(id, index);
+        for o in attached {
+            self.by_obs.entry(o).or_insert(index);
+        }
+        self.stats.snapshots += 1;
+        Some(index)
+    }
+
+    /// The diagnosis a recall of `entry` declares for an anomaly at `site`.
+    fn declared(&self, entry: &Entry, site: ServiceId) -> Diagnosis {
+        match self.params.form {
+            KeyForm::Site => entry.stored,
+            KeyForm::Family => entry.stored.map(|h| StreamHypothesis {
+                kind: h.kind,
+                site,
+            }),
+        }
+    }
+}
+
+impl<B: Noticer> Noticer for RecordNoticer<B> {
+    fn id(&self) -> &'static str {
+        self.params.id()
+    }
+
+    fn observe(&mut self, held: &Held) -> Option<u32> {
+        self.inner.observe(held)
+    }
+
+    fn notice(&mut self, now: Instant, store: &Store) -> Vec<Notice> {
+        self.inner.notice(now, store)
+    }
+
+    fn anomalies(&self) -> &[Tracked] {
+        self.inner.anomalies()
+    }
+
+    fn score(&self, id: u32, now: Instant) -> f64 {
+        self.inner.score(id, now)
+    }
+
+    fn refresh(&mut self, now: Instant) {
+        self.inner.refresh(now);
+    }
+
+    fn retirable(&self, now: Instant) -> Vec<u32> {
+        self.inner.retirable(now)
+    }
+
+    fn retire(&mut self, id: u32) {
+        self.inner.retire(id);
+    }
+
+    fn retire_cause(&self, id: u32) -> RetireCause {
+        self.inner.retire_cause(id)
+    }
+
+    fn take_cost(&mut self) -> Option<NoticerCost> {
+        self.inner.take_cost()
+    }
+
+    fn refused(&mut self) {
+        self.inner.refused();
+    }
+
+    fn answered(&mut self, focus: ObsId, diagnosis: Diagnosis) {
+        self.inner.answered(focus, diagnosis);
+        let Some(&index) = self.by_obs.get(&focus) else {
+            self.stats.unbound_no_snapshot += 1;
+            return;
+        };
+        let snap = &self.snapshots[index];
+        if self.params.form == KeyForm::Family
+            && let Some(h) = diagnosis
+            && h.site != snap.site
+        {
+            self.stats.unbound_other_site += 1;
+            return;
+        }
+        let key = snap.key.clone();
+        match self.table.get_mut(&key) {
+            Some(entry) => {
+                entry.disputed = entry.stored != diagnosis;
+                entry.stored = diagnosis;
+                entry.source = focus;
+                entry.answers += 1;
+            }
+            None => {
+                self.table.insert(
+                    key,
+                    Entry {
+                        stored: diagnosis,
+                        source: focus,
+                        answers: 1,
+                        disputed: false,
+                    },
+                );
+            }
+        }
+        self.stats.binds += 1;
+        self.persist();
+    }
+
+    fn recall_source(&self, anomaly: u32) -> Option<RecallSource> {
+        self.sources.get(&anomaly).copied()
+    }
+
+    fn wants_consistency(&self) -> bool {
+        true
+    }
+
+    fn gated_recalls(
+        &mut self,
+        now: Instant,
+        store: &Store,
+        contradicted: &[(u32, Instant)],
+    ) -> Vec<MemoryRecall> {
+        let mut out = Vec::new();
+        for &(id, since) in contradicted {
+            if self.offered.contains(&id)
+                || now.0 < since.0.saturating_add(self.params.settle_ns)
+                || self
+                    .inner
+                    .tracked(id)
+                    .is_none_or(|t| t.noticed_at.is_none())
+            {
+                continue;
+            }
+            let index = match self.by_anomaly.get(&id) {
+                Some(&i) => i,
+                None => match self.snapshot(id, since, now, store) {
+                    Some(i) => i,
+                    None => continue,
+                },
+            };
+            self.stats.lookups += 1;
+            let Some(entry) = self.table.get(&self.snapshots[index].key).copied() else {
+                continue;
+            };
+            let confirm = match self.params.confirm {
+                RecordConfirm::Never => false,
+                RecordConfirm::Every { k } => {
+                    self.recall_count += 1;
+                    self.recall_count.is_multiple_of(u64::from(k))
+                }
+                RecordConfirm::OnContradiction => entry.disputed,
+            };
+            self.offered.insert(id);
+            self.stats.recalls += 1;
+            if confirm {
+                self.stats.confirmed += 1;
+            } else {
+                self.sources.insert(
+                    id,
+                    RecallSource {
+                        obs: entry.source,
+                        diagnosis: entry.stored,
+                    },
+                );
+            }
+            out.push(MemoryRecall {
+                anomaly: id,
+                diagnosis: self.declared(&entry, self.snapshots[index].site),
+                confirm,
+            });
+            if matches!(self.params.confirm, RecordConfirm::Every { .. }) {
+                self.persist();
+            }
+        }
+        out
+    }
+}
+
+/// The noticer `params` names, for a stream with the public graph `services`, under the rung's
+/// parameters `cfg`.
+pub fn build(params: &RecordParams, cfg: &RungConfig, services: &[Service]) -> Box<dyn Noticer> {
+    match params.base {
+        BaseSpec::Rung { notice_z } => {
+            let mut cfg = cfg.clone();
+            if let Some(z) = notice_z {
+                cfg.notice_z = z;
+            }
+            Box::new(RecordNoticer::new(RungNoticer::new(cfg, services), *params))
+        }
+        BaseSpec::Reanchor {
+            notice_z,
+            gap_ns,
+            min_burst,
+            isolation,
+        } => {
+            let mut cfg = cfg.clone();
+            if let Some(z) = notice_z {
+                cfg.notice_z = z;
+            }
+            Box::new(RecordNoticer::new(
+                ReanchorNoticer::new(cfg, services, gap_ns, min_burst, isolation),
+                *params,
+            ))
+        }
+    }
+}
+
+/// What the record rung carries from one segment to the next: its recall count and, for an arm
+/// that does not reset, its table, in a process-wide store keyed by `state_key` with one writer and
+/// one reader, the noticer of one arm (L1's `learned::carry` is the precedent, and its caveats
+/// hold: a replay of a manifest in a new process reproduces it exactly; two runs in one process
+/// under one key do not, which is why every run names its keys and tests reset them).
+pub mod carry {
+    use super::Table;
+    use std::collections::BTreeMap;
+    use std::sync::{Mutex, PoisonError};
+
+    type Carried = (u64, Table);
+
+    static STORE: Mutex<BTreeMap<u64, Carried>> = Mutex::new(BTreeMap::new());
+
+    /// The recall count and table carried under `key`, if any.
+    pub fn load(key: u64) -> Option<Carried> {
+        STORE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&key)
+            .cloned()
+    }
+
+    /// Keep `count` and `table` under `key`.
+    pub fn store(key: u64, count: u64, table: Table) {
+        STORE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(key, (count, table));
+    }
+
+    /// Forget what is carried under `key`.
+    pub fn reset(key: u64) {
+        STORE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&key);
+    }
+}

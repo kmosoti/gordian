@@ -64,6 +64,7 @@ pub mod noticer_change;
 pub mod noticer_follow;
 pub mod noticer_ramp;
 pub mod noticer_reanchor;
+pub mod noticer_record;
 pub mod noticer_rung;
 pub mod noticer_split;
 pub mod periodic;
