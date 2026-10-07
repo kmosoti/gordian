@@ -272,6 +272,43 @@ at HEAD bc32553 with a clean tree.
 - Every other cargo command and run was preceded by the preflight (disk at least 6 GB free; wait
   while a `gordian-run` exists), and the waits are in the log.
 
+## After the merge of `main` (A1c, A1d)
+
+`main` (78f7fac) was merged into the branch (merge commit 106ff76). Conflicts were in `arms/mod.rs`,
+`arms/rung.rs` and `arms/noticer.rs`: E1 and A1c built the same seam twice. Lab 1's implementation
+is the one kept:
+
+- `Noticer::needs_verdicts` (A1c) replaces E1's `wants_consistency`; the monitor is switched on from
+  `rung.noticer_needs_verdicts()`.
+- A1c's step order (consistency checks first, then one recall path for gated and ungated noticers),
+  `Noticer::gated_recalls(now, views)` and `Rung::take_gated_recalls(now)` (with A1d's standing
+  declarations) stay. E1's second gated block and its `take_gated_recalls(now, views)` are gone.
+- E1 keeps what A1c lacks: `Noticer::recall_source`, `RecallSource`, `Rung::recall_source`, and
+  `StreamArm::handle_recalls`, which records the recall's source on the proposal and reports
+  `recall_declared` to the noticer (A1d), as the inline loop did.
+- One addition: `Noticer::gated_recalls_in(now, store, views)`, default `gated_recalls`, which the
+  rung calls. The record rung needs the store (it keys a recall on the observations held when the
+  checker first found the anomaly inconsistent); A1c's engram does not and keeps overriding
+  `gated_recalls`, unchanged. `RecordNoticer::gated_by` is the inherent form the unit tests call.
+
+Behaviour changed by the resolution: for the record rung, none (its held-out run, replayed after the
+merge as `e1-heldout-postmerge-b5-rho0.7`, is byte-identical to `e1-heldout-b5-rho0.7` on all 220
+logical files; wall-clock files and manifests excluded). For an arm with a rule that monitors and a
+noticer with recalls, the checks now run before the recalls (A1c's change, Lab 1's to verify; the
+reproductions below cover the arms that exist). For every other arm, none.
+
+Gates after the merge (through `scripts/cgroup-run.sh`): fmt clean (one `cargo fmt --all` write
+pass was run outside the runner: it builds nothing), clippy `-D warnings` clean, `cargo test
+--workspace` 1037 passed / 0 failed / 14 ignored, `check-no-oracle` ok, analysis suite 542 passed.
+R6 identity, replay 5 (`e1-regression-5.csv`): 62 of 62 on the stripped-column reading.
+`e1_merge_gate.py` (`e1-merge-reproduction.csv`): A1a's 8 arms, A1c's 15 arms and A1d's 15 arms
+reproduce the kept runs under `/home/user/gordian/artifacts/runs/{a1a,a1c,a1d}/` (`incidents.csv`
+and the existing columns of `results.csv`, `run_id` ignored), and A1d's 12 trace files are
+byte-identical. For these medium arms the two new `results.csv` columns are not zero (they charge a
+noticer and declare recalls) and `recall_declarations` equals the rows of `recalls.csv` in all 38
+arms. A1d's `recall_source` is not implemented by the engram, so their recalls carry an unknown
+source in `memory.csv`.
+
 ## Brief problems and the resolutions I chose
 
 1. A tuning rule with two cases the brief left open (no level meets the bound; no k meets it):
