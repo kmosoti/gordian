@@ -257,7 +257,7 @@ def test_the_paired_excess_over_the_memoryless_arm_cancels_the_cheap_rungs_own_e
     assert ex.loc["hard", "excess"] == pytest.approx(1 / 3)
     assert ex.loc["decoy", "excess"] == pytest.approx(0)
     assert ex.loc["all", "excess"] == pytest.approx(0)
-    assert ex.loc["all", "arm"] == pytest.approx(2 / 3) and ex.loc["all", "control"] == pytest.approx(2 / 3)
+    assert ex.loc["all", "arm_value"] == pytest.approx(2 / 3) and ex.loc["all", "control"] == pytest.approx(2 / 3)
     assert (ex["lower"] <= ex["excess"]).all() and (ex["excess"] <= ex["upper"]).all()
 
 

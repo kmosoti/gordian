@@ -142,7 +142,7 @@ def paired_excess(arm: pd.DataFrame, control: pd.DataFrame, boot: Boot) -> pd.Da
         n = float(len(arm))
         draws = (w @ x - w @ y) / n
         lo, hi = boot.ci(draws)
-        rows.append({"tier": tier, "arm": x.sum() / n, "control": y.sum() / n,
+        rows.append({"tier": tier, "arm_value": x.sum() / n, "control": y.sum() / n,
                      "excess": (x.sum() - y.sum()) / n, "lower": lo, "upper": hi})
     return pd.DataFrame(rows)
 

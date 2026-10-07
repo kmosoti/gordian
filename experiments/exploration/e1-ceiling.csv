@@ -1,0 +1,16 @@
+set,description,seeds,hard_incidents,calls,share_of_total_bill,bill_lo90,bill_hi90
+all hard incidents,all hard incidents,40000-40199,512,459,0.9993,0.9993,0.9994
+R,R  site-keyed: recurrence of an incident the arm declared correctly earlier,40000-40199,41,39,0.0849,0.0635,0.1077
+R_chain,"R_chain  site-keyed, any earlier same-site same-family incident declared correctly",40000-40199,44,42,0.0911,0.0687,0.1145
+R_fresh,R_fresh  R without the recurrences stale by construction,40000-40199,31,29,0.0626,0.0446,0.0814
+F_only,"F_only  family-keyed beyond R: same family and mode, earlier correct, not in R",40000-40199,29,22,0.0466,0.0314,0.0626
+F,F  family-keyed: same family and mode (any site) earlier declared correctly,40000-40199,70,61,0.1315,0.1034,0.1607
+F_strict,"F_strict  as F with the same kinds (compound pair, cascade kind)",40000-40199,62,53,0.1145,0.0876,0.1427
+R_world,R_world  every hard recurrence (no condition on the arm),40000-40199,83,75,0.1641,0.136,0.1925
+F_world,F_world  every hard incident whose family and mode occurred earlier (no condition on the arm),40000-40199,139,122,0.2648,0.2316,0.2978
+all hard incidents [streams 11 onward],all hard incidents [streams 11 onward],40010-40199,494,444,0.9993,0.9993,0.9994
+R,"R  site-keyed, within the stream [streams 11 onward]",40010-40199,39,37,0.0833,0.0619,0.1058
+F,"F  family-keyed, within the stream [streams 11 onward]",40010-40199,68,59,0.1313,0.1025,0.1597
+F_cross,"F_cross  family-keyed, memory carried across streams in seed order [streams 11 onward]",40010-40199,486,435,0.9776,0.962,0.9909
+F_strict_cross,F_strict_cross  as F_cross with the same kinds [streams 11 onward],40010-40199,469,419,0.9394,0.9146,0.9618
+this run's control,sel_reanchor_privileged on 40000-40199 in this run,40000-40199,512,459,,,
