@@ -16,7 +16,9 @@ use gordian_stream::{
     Diagnosis, HardKind, StreamAction, StreamHypothesis, StreamKind, StreamOutcome, StreamParams,
     Tier, generate,
 };
-use gordian_stream_eval::{RecallEntry, RecallSource, StreamStep, score_memory, truth_from_stream};
+use gordian_stream_eval::{
+    RecallEntry, RecallSource, SourceTruth, StreamStep, score_memory, truth_from_stream,
+};
 use gordian_world::ServiceId;
 
 const SEEDS: u64 = 40;
@@ -53,6 +55,7 @@ fn declare_each(
             source: Some(RecallSource {
                 obs,
                 diagnosis: inc.truth,
+                truth: SourceTruth::Here,
             }),
         });
     }

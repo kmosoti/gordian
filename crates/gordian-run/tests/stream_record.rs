@@ -412,7 +412,8 @@ fn a_bound_answer_is_recalled_for_the_same_key_with_its_source_and_the_site_subs
         d.noticer.recall_source(second),
         Some(RecallSource {
             obs: anchor,
-            diagnosis: hard(HardKind::Compound, 2)
+            diagnosis: hard(HardKind::Compound, 2),
+            age: 0
         })
     );
     // An anomaly is offered once.
@@ -810,7 +811,8 @@ fn the_arm_declares_a_recall_with_its_source_and_never_asks_the_recalled_anomaly
                 *source,
                 Some(RecallSource {
                     obs: focus,
-                    diagnosis: hard(HardKind::Compound, 2)
+                    diagnosis: hard(HardKind::Compound, 2),
+                    age: 0
                 })
             );
             assert!(
@@ -967,5 +969,101 @@ fn a_segment_scores_its_recalls_and_counts_them_three_ways() {
                 StreamAction::Declare { .. }
             ));
         }
+    }
+}
+
+#[test]
+fn a_carried_entry_says_how_many_segments_ago_it_was_bound() {
+    let key = 9_170;
+    let p = record(
+        KeyForm::Family,
+        KeyLevel::Bands,
+        RecordConfirm::Never,
+        false,
+        key,
+    );
+    // Segment 0 binds; segment 1 recalls it (age 1); segment 2 recalls it again (age 2); a new
+    // answer in segment 2 rebinds it, so segment 3 recalls it at age 1.
+    let mut s0 = Drive::new(p);
+    teach(&mut s0, 2, hard(HardKind::Compound, 2));
+    let age_in = |d: &mut Drive| {
+        d.feed(4_500, &burst(5, 1_000));
+        let r = d.recalls(5_000, &[(0, 2_900)]);
+        assert_eq!(r.len(), 1);
+        d.noticer
+            .recall_source(0)
+            .expect("a declared recall names its source")
+    };
+    let mut s1 = Drive::new(p);
+    assert_eq!(age_in(&mut s1).age, 1);
+    let mut s2 = Drive::new(p);
+    assert_eq!(age_in(&mut s2).age, 2);
+    let anchor = s2.anchor_of(0);
+    s2.noticer.answered(anchor, hard(HardKind::Compound, 5));
+    let mut s3 = Drive::new(p);
+    let source = age_in(&mut s3);
+    assert_eq!(source.age, 1);
+    assert_eq!(source.diagnosis, hard(HardKind::Compound, 5));
+    // An arm that resets always binds and recalls in one segment.
+    let q = record(
+        KeyForm::Family,
+        KeyLevel::Bands,
+        RecordConfirm::Never,
+        true,
+        key + 1,
+    );
+    let mut a = Drive::new(q);
+    teach(&mut a, 2, hard(HardKind::Compound, 2));
+    let mut b = Drive::new(q);
+    b.feed(4_500, &burst(5, 1_000));
+    assert!(
+        b.recalls(5_000, &[(0, 2_900)]).is_empty(),
+        "nothing carried"
+    );
+    carry::reset(key);
+    carry::reset(key + 1);
+}
+
+#[test]
+fn a_carried_memory_is_judged_against_the_earlier_streams_truth_in_a_real_run() {
+    // Twelve streams in order, a carried family-keyed arm under the selection oracle: whatever it
+    // recalls from an earlier stream, the harness must find that stream's truth for its source
+    // (a recall whose source it cannot find is a harness defect, and the run would stop).
+    let mut m = manifest(
+        "record-carry",
+        &[("oracle_selection_privileged", "oracle_selection")],
+        12,
+        300,
+        6,
+    );
+    m.arms[0].policy = StreamPolicySpec::from_id("oracle_selection").unwrap();
+    let p = record(
+        KeyForm::Family,
+        KeyLevel::Kinds,
+        RecordConfirm::Never,
+        false,
+        9_180,
+    );
+    m.noticers.insert(
+        "oracle_selection_privileged".to_owned(),
+        NoticerSpec::Record(p),
+    );
+    let out = scratch("record-carry").join("run");
+    gordian_run::stream::execute_stream(&m, &out).unwrap_or_else(|e| panic!("{e}"));
+    carry::reset(9_180);
+    let recalls = read(&out.join("oracle_selection_privileged"), "recalls.csv");
+    let table = rows(&recalls);
+    let col = |name: &str| table[0].iter().position(|c| c == name).unwrap();
+    let seeds: Vec<u64> = (0..12).collect();
+    for r in table.iter().skip(1) {
+        let age: u64 = r[col("source_age")].parse().unwrap_or(0);
+        let source_seed: u64 = r[col("source_seed")].parse().expect("a source has a seed");
+        let seed: u64 = r[col("seed")].parse().unwrap();
+        assert!(source_seed <= seed && seeds.contains(&source_seed));
+        assert_eq!(age == 0, source_seed == seed, "{r:?}");
+        assert!(
+            ["right", "wrong"].contains(&r[col("source_class")].as_str()),
+            "{r:?}"
+        );
     }
 }

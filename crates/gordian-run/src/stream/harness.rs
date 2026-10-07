@@ -62,8 +62,8 @@ use super::privileged::{OracleFactory, OraclePlan, PlanIncident};
 use super::score::{
     EscalationEntry, MemoryError, MemoryVerdict, NoticeEntry, NoticeEvalError, NoticeTrace,
     NoticeVerdict, RecallEntry, RecallSource, RetireEntry, SelectionError, SelectionRetire,
-    SelectionTrace, SelectionVerdict, StreamEvalError, StreamStep, StreamVerdict, TrajectoryCounts,
-    family_name,
+    SelectionTrace, SelectionVerdict, SourceTruth, StreamEvalError, StreamStep, StreamVerdict,
+    TrajectoryCounts, family_name,
 };
 use crate::harness::{
     Charged, EpisodeOps, HarnessError, Measured, affordable, append, charge, elapsed_ns, payload,
@@ -72,8 +72,8 @@ use crate::harness::{
 use gordian_core::{Bill, EntryKind, Instant, Ledger, ManualClock, Phase, Resource};
 use gordian_core::{Charge, EntryId};
 use gordian_stream::{
-    ObsId, ObsRef, Question, StreamAction, StreamEvent, StreamOutcome, StreamParams, StreamPublic,
-    StreamSimulator, Tier, generate,
+    Diagnosis, ObsId, ObsRef, Question, StreamAction, StreamEvent, StreamOutcome, StreamParams,
+    StreamPublic, StreamSimulator, Tier, generate,
 };
 use gordian_stream_eval::{
     calls_from_sim, score_memory, score_notices, score_selection, score_stream, truth_from_stream,
@@ -124,6 +124,10 @@ pub enum StreamHarnessError {
     /// The evaluator refused the record of recalls (`RULES.md` of the evaluator, K8): a defect in
     /// the harness or in a noticer's record, never a result.
     MemoryEval(MemoryError),
+    /// A recall names a source bound in an earlier stream that the history the harness was given
+    /// does not hold (work item E1): a defect in the caller's history or in the noticer's count of
+    /// its segments, never a result.
+    RecallHistory(String),
     /// The truth contradicts itself in a way the evaluator does not check (a hard incident with
     /// no hard kind).
     Truth(String),
@@ -148,6 +152,9 @@ impl fmt::Display for StreamHarnessError {
             }
             StreamHarnessError::MemoryEval(e) => {
                 write!(f, "evaluator refused the record of recalls: {e}")
+            }
+            StreamHarnessError::RecallHistory(why) => {
+                write!(f, "a recall's source is not in the history given: {why}")
             }
             StreamHarnessError::Truth(why) => write!(f, "inconsistent stream truth: {why}"),
             StreamHarnessError::InvalidLimits(why) => write!(f, "invalid limits: {why}"),
@@ -192,6 +199,10 @@ impl From<SelectionError> for StreamHarnessError {
         StreamHarnessError::SelectionEval(e)
     }
 }
+
+/// The truth of the incident each distinct focus of a segment's accepted escalations belongs to
+/// (work item E1): the history a carried memory's sources are judged against.
+pub type FocusTruths = Vec<(ObsId, Diagnosis)>;
 
 /// Counts the harness keeps beside the evaluator's verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -245,9 +256,17 @@ pub struct SegmentRecord {
     /// The declarations the arm made from memory, each with the observation its memory was bound
     /// at when it says: public information only, in the order made (work item E1).
     pub recalls: Vec<RecallEntry>,
+    /// For each of `recalls`, how many segments before it the memory behind it was bound (0 in the
+    /// same stream; work item E1).
+    pub recall_ages: Vec<u32>,
     /// The evaluator's score of `recalls` and of what the arm declared without asking (work item
     /// E1, `RULES.md` K1 to K10). Hidden-side facts, as `notices`.
     pub memory: MemoryVerdict,
+    /// The truth of the incident each accepted escalation's focus belongs to, one entry per
+    /// distinct focus, in the order first asked (`None`, "not an incident", for background and a
+    /// decoy): what a memory carried to a later stream is judged against. Hidden-side facts, kept
+    /// by the recorder for the arm's later segments and never given to an arm.
+    pub focus_truths: FocusTruths,
     /// What the arm's noticer charged to the bill for its own counted work, modelled nanoseconds
     /// (work item E1): the medium's operations at their declared prices, none for a noticer whose
     /// work is bookkeeping. Not in `total_cost_ns`, which has never held it.
@@ -324,7 +343,31 @@ pub fn run_segment(
     limits: &StreamLimits,
     exchange: &Exchange,
 ) -> Result<SegmentRecord, StreamHarnessError> {
-    play(params, ArmSource::Given(make_arm), limits, exchange)
+    run_segment_with(params, make_arm, limits, exchange, &[])
+}
+
+/// [`run_segment`] for an arm that carries a memory from segment to segment (work item E1):
+/// `earlier` holds [`SegmentRecord::focus_truths`] of the arm's earlier segments, oldest first, so
+/// that a recall whose source was bound in an earlier stream is judged against that stream's truth.
+///
+/// # Errors
+///
+/// As [`run_segment`], and [`StreamHarnessError::RecallHistory`] when a recall names a source that
+/// `earlier` does not hold.
+pub fn run_segment_with(
+    params: &StreamParams,
+    make_arm: &dyn Fn(&StreamPublic) -> Box<dyn StreamPolicy>,
+    limits: &StreamLimits,
+    exchange: &Exchange,
+    earlier: &[FocusTruths],
+) -> Result<SegmentRecord, StreamHarnessError> {
+    play(
+        params,
+        ArmSource::Given(make_arm),
+        limits,
+        exchange,
+        earlier,
+    )
 }
 
 /// [`run_segment`] for the privileged arm: it is built here, from the segment's truth, by
@@ -339,7 +382,30 @@ pub fn run_segment_privileged(
     limits: &StreamLimits,
     exchange: &Exchange,
 ) -> Result<SegmentRecord, StreamHarnessError> {
-    play(params, ArmSource::Privileged(factory), limits, exchange)
+    run_segment_privileged_with(params, factory, limits, exchange, &[])
+}
+
+/// [`run_segment_privileged`] for an arm whose noticer carries a memory from segment to segment,
+/// with the history [`run_segment_with`] takes (work item E1: the selection oracle under the record
+/// rung).
+///
+/// # Errors
+///
+/// As [`run_segment_with`].
+pub fn run_segment_privileged_with(
+    params: &StreamParams,
+    factory: &OracleFactory,
+    limits: &StreamLimits,
+    exchange: &Exchange,
+    earlier: &[FocusTruths],
+) -> Result<SegmentRecord, StreamHarnessError> {
+    play(
+        params,
+        ArmSource::Privileged(factory),
+        limits,
+        exchange,
+        earlier,
+    )
 }
 
 /// Everything the loop mutates, apart from the arm.
@@ -364,8 +430,8 @@ struct State {
     /// For each accepted escalation, in order, the instant of the step that made the call: the
     /// instant the selection accounting reads (`RULES.md`, E1).
     escalation_steps: Vec<Instant>,
-    /// The accepted declarations made from memory (work item E1).
-    recalls: Vec<RecallEntry>,
+    /// The accepted declarations made from memory, with the source the arm named (work item E1).
+    recalls: Vec<(usize, Option<super::arms::noticer::RecallSource>)>,
 }
 
 /// What a sense delivers: the events, and the probe results that are ready.
@@ -699,13 +765,7 @@ fn apply_one(
                         Source::Recall => {
                             st.counts.cheap_declarations += 1;
                             st.counts.recall_declarations += 1;
-                            st.recalls.push(RecallEntry {
-                                step: st.trajectory.len() - 1,
-                                source: proposed.recall.map(|r| RecallSource {
-                                    obs: r.obs,
-                                    diagnosis: r.diagnosis,
-                                }),
-                            });
+                            st.recalls.push((st.trajectory.len() - 1, proposed.recall));
                         }
                         _ => st.counts.cheap_declarations += 1,
                     }
@@ -728,6 +788,7 @@ fn play(
     source: ArmSource<'_>,
     limits: &StreamLimits,
     exchange: &Exchange,
+    earlier: &[FocusTruths],
 ) -> Result<SegmentRecord, StreamHarnessError> {
     let started = Wall::now();
     limits
@@ -1010,7 +1071,68 @@ fn play(
     let selection = score_selection(&truth, &selection_trace)?;
     // The record of recalls (work item E1): scored against the truth with the trajectory, which
     // `score_stream` has just accepted.
-    let memory = score_memory(&truth, &st.trajectory, &st.recalls)?;
+    let mut recalls = Vec::with_capacity(st.recalls.len());
+    let mut recall_ages = Vec::with_capacity(st.recalls.len());
+    for (step, source) in &st.recalls {
+        let mut age = 0;
+        let eval_source = match source {
+            None => None,
+            Some(s) => {
+                age = s.age;
+                let truth_of_source = if s.age == 0 {
+                    SourceTruth::Here
+                } else {
+                    // The memory was carried: judge the source by the truth of its incident in the
+                    // stream it was asked in, which the caller kept.
+                    let at = earlier
+                        .len()
+                        .checked_sub(s.age as usize)
+                        .and_then(|i| earlier.get(i))
+                        .ok_or_else(|| {
+                            StreamHarnessError::RecallHistory(format!(
+                                "age {} with {} earlier segments",
+                                s.age,
+                                earlier.len()
+                            ))
+                        })?;
+                    let found = at.iter().find(|(o, _)| *o == s.obs).ok_or_else(|| {
+                        StreamHarnessError::RecallHistory(format!(
+                            "observation {} was not the focus of any call {} segments ago",
+                            s.obs.0, s.age
+                        ))
+                    })?;
+                    SourceTruth::Earlier { truth: found.1 }
+                };
+                Some(RecallSource {
+                    obs: s.obs,
+                    diagnosis: s.diagnosis,
+                    truth: truth_of_source,
+                })
+            }
+        };
+        recalls.push(RecallEntry {
+            step: *step,
+            source: eval_source,
+        });
+        recall_ages.push(age);
+    }
+    let memory = score_memory(&truth, &st.trajectory, &recalls)?;
+    // What a later segment of this arm may need to judge a carried memory (work item E1).
+    let mut focus_truths: FocusTruths = Vec::new();
+    for step in &st.trajectory {
+        if let (StreamAction::Escalate { question, .. }, StreamOutcome::Escalated { .. }) =
+            (&step.action, &step.outcome)
+        {
+            let Question::Diagnose { focus } = question;
+            if !focus_truths.iter().any(|(o, _)| o == focus) {
+                let truth_here = truth
+                    .incident_of(*focus)
+                    .and_then(|id| truth.incidents.get(id as usize))
+                    .and_then(|inc| inc.truth);
+                focus_truths.push((*focus, truth_here));
+            }
+        }
+    }
     let trajectory_counts = TrajectoryCounts::of(&st.trajectory);
     let mut incident_families = Vec::with_capacity(truth.incidents.len());
     for inc in &truth.incidents {
@@ -1033,7 +1155,6 @@ fn play(
         delivered,
         counts,
         bookkeeping_ns,
-        recalls,
         ..
     } = st;
     let total = elapsed_ns(started);
@@ -1063,7 +1184,9 @@ fn play(
         notices,
         selection,
         recalls,
+        recall_ages,
         memory,
+        focus_truths,
         noticer_ns: totals.noticer_ns,
         bill,
         ledger,

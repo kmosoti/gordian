@@ -34,7 +34,7 @@ pub use bridge::{calls_from_sim, truth_from_stream};
 pub use error::StreamEvalError;
 pub use memory::{
     IncidentMemory, MemoryError, MemoryTotals, MemoryVerdict, RecallCells, RecallEntry,
-    RecallScore, RecallSource, SourceClass, score_memory,
+    RecallScore, RecallSource, SourceClass, SourceTruth, score_memory,
 };
 pub use notice::{
     ANCHOR_WINDOW_NS, IncidentNotices, NoticeEntry, NoticeEvalError, NoticeScore, NoticeTotals,

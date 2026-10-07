@@ -3378,6 +3378,270 @@
   }
  },
  {
+  "name": "recall/a-source-from-an-earlier-stream-is-judged-by-the-truth-the-harness-gave",
+  "rules": [
+   "K5",
+   "K8"
+  ],
+  "note": "A plain incident 0 (observation 0) and background observation 1. Three correct recalls on the plain incident from a memory carried over from earlier streams: the sources are observations 77, 5 and 9999, numbers that mean nothing here (and 77 and 9999 do not exist here, which is no error for a source from an earlier stream). The harness gave the truth of each source's incident in its own stream: compound at 1 for the first, which equals what the memory stored (right); ConfigDrift at 2 for the second, which differs from the stored compound at 1 (wrong); 'not an incident' for the third, which equals what it stored (right). The source's incident is not given (it is another stream's).",
+  "truth": {
+   "duration_ns": 600000000000,
+   "incidents": [
+    {
+     "tier": "Plain",
+     "critical": false,
+     "onset_ns": 10000000000,
+     "deadline_ns": 60000000000,
+     "truth": {
+      "kind": {
+       "Known": "ConfigDrift"
+      },
+      "site": 3
+     },
+     "occupies": [
+      3
+     ]
+    }
+   ],
+   "labels": [
+    0,
+    null
+   ]
+  },
+  "trajectory": [
+   {
+    "at": 20000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 0
+     }
+    }
+   },
+   {
+    "at": 21000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 1
+     }
+    }
+   },
+   {
+    "at": 22000000000,
+    "action": {
+     "Declare": {
+      "anchor": 0,
+      "diagnosis": {
+       "kind": {
+        "Known": "ConfigDrift"
+       },
+       "site": 3
+      }
+     }
+    },
+    "outcome": {
+     "Declared": {
+      "index": 2
+     }
+    }
+   }
+  ],
+  "recalls": [
+   {
+    "step": 0,
+    "source": {
+     "obs": 77,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "truth": {
+      "Earlier": {
+       "truth": {
+        "kind": {
+         "Hard": "Compound"
+        },
+        "site": 1
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": 1,
+    "source": {
+     "obs": 5,
+     "diagnosis": {
+      "kind": {
+       "Hard": "Compound"
+      },
+      "site": 1
+     },
+     "truth": {
+      "Earlier": {
+       "truth": {
+        "kind": {
+         "Known": "ConfigDrift"
+        },
+        "site": 2
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": 2,
+    "source": {
+     "obs": 9999,
+     "diagnosis": null,
+     "truth": {
+      "Earlier": {
+       "truth": null
+      }
+     }
+    }
+   }
+  ],
+  "expected": {
+   "Verdict": {
+    "per_incident": [
+     {
+      "id": 0,
+      "tier": "Plain",
+      "recurrence_of": null,
+      "same_family_earlier": false,
+      "correct_declarations": 3,
+      "wrong_declarations": 0,
+      "escalations": 0,
+      "unasked_correct": true,
+      "unasked_wrong": false,
+      "stale_wrong": false,
+      "recalls": {
+       "correct_source_right": 2,
+       "correct_source_wrong": 1,
+       "correct_source_unknown": 0,
+       "wrong_source_right": 0,
+       "wrong_source_wrong": 0,
+       "wrong_source_unknown": 0
+      }
+     }
+    ],
+    "totals": {
+     "recalls": {
+      "correct_source_right": 2,
+      "correct_source_wrong": 1,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_plain": {
+      "correct_source_right": 2,
+      "correct_source_wrong": 1,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_hard": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_decoy": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "recalls_on_background": {
+      "correct_source_right": 0,
+      "correct_source_wrong": 0,
+      "correct_source_unknown": 0,
+      "wrong_source_right": 0,
+      "wrong_source_wrong": 0,
+      "wrong_source_unknown": 0
+     },
+     "unasked_correct": {
+      "plain": 1,
+      "hard": 0,
+      "decoy": 0
+     },
+     "unasked_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "stale_wrong": {
+      "plain": 0,
+      "hard": 0,
+      "decoy": 0
+     },
+     "hard_recurrences": 0,
+     "hard_recurrences_unasked_correct": 0,
+     "hard_elsewhere": 0,
+     "hard_elsewhere_unasked_correct": 0,
+     "hard_reachable": 0,
+     "hard_reachable_unasked_correct": 0
+    },
+    "per_recall": [
+     {
+      "step": 0,
+      "incident": 0,
+      "tier": "Plain",
+      "correct": true,
+      "source": "Right",
+      "source_incident": null
+     },
+     {
+      "step": 1,
+      "incident": 0,
+      "tier": "Plain",
+      "correct": true,
+      "source": "Wrong",
+      "source_incident": null
+     },
+     {
+      "step": 2,
+      "incident": 0,
+      "tier": "Plain",
+      "correct": true,
+      "source": "Right",
+      "source_incident": null
+     }
+    ]
+   }
+  }
+ },
+ {
   "name": "recall/a-recall-the-stream-refused-is-not-a-declaration",
   "rules": [
    "K8"

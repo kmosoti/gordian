@@ -527,8 +527,12 @@ pub const MEMORY_INCIDENTS_HEADER: &str = "run_id,arm_role,seed,incident,tier,fa
 /// (a diagnosis is `none` or `kind@site`; `source_obs` and `stored` are empty when the memory does
 /// not say what it was bound at); `incident`, `tier`, `correct`, `source_class` and
 /// `source_incident` are the evaluator's reading (K5): `incident` and `tier` are empty for an anchor
-/// on background, `source_incident` for a source on background or no source.
-pub const RECALLS_HEADER: &str = "run_id,arm_role,seed,step,at_ns,anchor,declared,source_obs,stored,incident,tier,correct,source_class,source_incident";
+/// on background, `source_incident` for a source on background, no source or a source in an
+/// earlier stream. `source_age` is how many segments before the recall the memory was bound (0: the
+/// same stream) and `source_seed` the seed of that stream, read from the arm's own seeds in the
+/// order it played them; `source_obs` is an observation number in that stream. Both are empty when
+/// the memory says nothing of its source.
+pub const RECALLS_HEADER: &str = "run_id,arm_role,seed,step,at_ns,anchor,declared,source_obs,stored,incident,tier,correct,source_class,source_incident,source_age,source_seed";
 
 /// A diagnosis as `none` or `kind@site`, without a comma.
 fn diagnosis_text(d: &gordian_stream::Diagnosis) -> String {
@@ -618,14 +622,15 @@ pub fn memory_incident_rows(run_id: &str, record: &SegmentRecord) -> Vec<String>
 
 /// The lines of `recalls.csv` for `record`: one per declaration made from memory, in the order
 /// made, each without a trailing newline.
-pub fn recall_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
+pub fn recall_rows(run_id: &str, record: &SegmentRecord, earlier_seeds: &[u64]) -> Vec<String> {
     debug_assert_eq!(record.memory.per_recall.len(), record.recalls.len());
     record
         .memory
         .per_recall
         .iter()
         .zip(&record.recalls)
-        .map(|(score, entry)| {
+        .zip(&record.recall_ages)
+        .map(|((score, entry), age)| {
             let step = &record.trajectory[entry.step];
             let (at, anchor, declared) = match &step.action {
                 gordian_stream::StreamAction::Declare { anchor, diagnosis } => {
@@ -637,8 +642,20 @@ pub fn recall_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
                 || (String::new(), String::new()),
                 |s| (s.obs.0.to_string(), diagnosis_text(&s.diagnosis)),
             );
+            let (source_age, source_seed) = match entry.source {
+                None => (String::new(), String::new()),
+                Some(_) if *age == 0 => ("0".to_owned(), record.seed.to_string()),
+                Some(_) => (
+                    age.to_string(),
+                    earlier_seeds
+                        .len()
+                        .checked_sub(*age as usize)
+                        .and_then(|i| earlier_seeds.get(i))
+                        .map_or_else(String::new, |s| s.to_string()),
+                ),
+            };
             format!(
-                "{run_id},{role},{seed},{step},{at},{anchor},{declared},{source_obs},{stored},{incident},{tier},{correct},{class},{source_incident}",
+                "{run_id},{role},{seed},{step},{at},{anchor},{declared},{source_obs},{stored},{incident},{tier},{correct},{class},{source_incident},{source_age},{source_seed}",
                 role = record.role.as_str(),
                 seed = record.seed,
                 step = score.step,

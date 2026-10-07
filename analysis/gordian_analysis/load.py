@@ -539,7 +539,7 @@ STREAM_MEMORY_INCIDENTS_COLUMNS = [
 ]  # fmt: skip
 STREAM_RECALLS_COLUMNS = [
     "run_id", "arm_role", "seed", "step", "at_ns", "anchor", "declared", "source_obs", "stored",
-    "incident", "tier", "correct", "source_class", "source_incident",
+    "incident", "tier", "correct", "source_class", "source_incident", "source_age", "source_seed",
 ]  # fmt: skip
 STREAM_SOURCE_CLASSES = ("right", "wrong", "unknown")
 STREAM_MEMORY_FILES = ("memory.csv", "memory_incidents.csv", "recalls.csv")
@@ -1274,7 +1274,7 @@ def _load_stream_recalls(path: Path) -> pd.DataFrame:
         df[c] = _parse_count(raw[c], c, where)
     df["declared"] = raw["declared"].str.strip()
     df["stored"] = raw["stored"].str.strip()
-    for c in ("source_obs", "incident", "source_incident"):
+    for c in ("source_obs", "incident", "source_incident", "source_age", "source_seed"):
         df[c] = _optional_count(raw, c, where)
     df["tier"] = raw["tier"].str.strip()
     df["correct"] = _parse_bool(raw["correct"], "correct", where)
@@ -1285,6 +1285,16 @@ def _load_stream_recalls(path: Path) -> pd.DataFrame:
     bad = (df["source_class"] == "unknown") != (df["source_obs"].isna())
     if bad.any():
         raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: the source class is unknown exactly when no source is recorded")
+    bad = df["source_age"].isna() != df["source_obs"].isna()
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: a source has an age and a seed exactly when it has an observation")
+    bad = (df["source_age"] == 0) != (df["source_seed"] == df["seed"])
+    bad &= df["source_age"].notna()
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: source_age is 0 exactly when the source is in this stream")
+    bad = (df["source_seed"] > df["seed"]).fillna(False)
+    if bad.any():
+        raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: a source is bound in a later stream than the recall")
     bad = df["incident"].isna() != (df["tier"] == "")
     if bad.any():
         raise LoadError(f"{where}: row {int(np.argmax(bad.to_numpy())) + 2}: incident and tier are empty together (background)")

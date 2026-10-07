@@ -24,7 +24,9 @@
 //! no call record; a test checks that. Ledger entries are not the scorer's input and say nothing
 //! about whether any declaration was right.
 
-use super::harness::{StreamHarnessError, run_segment, run_segment_privileged};
+use super::harness::{
+    FocusTruths, StreamHarnessError, run_segment_privileged_with, run_segment_with,
+};
 use super::manifest::StreamManifest;
 use super::results::{
     MEASURED_HEADER, MEMORY_HEADER, MEMORY_INCIDENTS_HEADER, NOTICE_EVENTS_HEADER,
@@ -210,6 +212,10 @@ struct ArmOut {
     memory: String,
     memory_incidents: String,
     recalls: String,
+    /// The seeds this arm has played so far, in order, and the truth of what each segment's calls
+    /// were about: what a memory carried from an earlier stream is judged against (work item E1).
+    seed_history: Vec<u64>,
+    focus_history: Vec<FocusTruths>,
     events: Option<BufWriter<File>>,
     summary: StreamRunSummary,
 }
@@ -284,6 +290,8 @@ pub fn execute_stream(
             memory: format!("{MEMORY_HEADER}\n"),
             memory_incidents: format!("{MEMORY_INCIDENTS_HEADER}\n"),
             recalls: format!("{RECALLS_HEADER}\n"),
+            seed_history: Vec::new(),
+            focus_history: Vec::new(),
             events: None,
             summary: StreamRunSummary::default(),
         };
@@ -339,10 +347,14 @@ pub fn execute_stream(
             let arm = &mut arms[index];
             let rung = manifest.rung_for(spec);
             let record = match privileged_factory(&spec.policy, &rung) {
-                Some(factory) => {
-                    run_segment_privileged(&params, &factory, &manifest.limits, &manifest.exchange)
-                }
-                None => run_segment(
+                Some(factory) => run_segment_privileged_with(
+                    &params,
+                    &factory,
+                    &manifest.limits,
+                    &manifest.exchange,
+                    &arm.focus_history,
+                ),
+                None => run_segment_with(
                     &params,
                     &|public| {
                         build_public(&spec.policy, &rung, public, &spec.arm, seed)
@@ -350,6 +362,7 @@ pub fn execute_stream(
                     },
                     &manifest.limits,
                     &manifest.exchange,
+                    &arm.focus_history,
                 ),
             }
             .map_err(|error| StreamRunError::Harness {
@@ -388,10 +401,12 @@ pub fn execute_stream(
                 arm.memory_incidents.push_str(&line);
                 arm.memory_incidents.push('\n');
             }
-            for line in recall_rows(&arm.run_id, &record) {
+            for line in recall_rows(&arm.run_id, &record, &arm.seed_history) {
                 arm.recalls.push_str(&line);
                 arm.recalls.push('\n');
             }
+            arm.seed_history.push(seed);
+            arm.focus_history.push(record.focus_truths.clone());
             arm.summary.segments += 1;
             arm.summary.step_capped +=
                 usize::from(record.stop == super::harness::StreamStop::StepCap);

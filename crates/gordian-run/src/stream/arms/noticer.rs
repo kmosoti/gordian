@@ -477,6 +477,10 @@ pub struct RecallSource {
     pub obs: ObsId,
     /// The diagnosis the memory stored.
     pub diagnosis: Diagnosis,
+    /// How many segments before the recall the answer was bound: 0 when it was bound in the same
+    /// stream, more when the memory was carried (observation numbers are per stream, so the
+    /// harness reads the truth of `obs` in the stream it was asked in).
+    pub age: u32,
 }
 
 /// A recall by a noticer's memory (work item A1a): a diagnosis for the noticed anomaly

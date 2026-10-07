@@ -93,8 +93,8 @@ pub mod spec;
 pub mod privileged;
 
 pub use harness::{
-    SegmentCounts, SegmentRecord, StreamHarnessError, StreamStop, run_segment,
-    run_segment_privileged,
+    FocusTruths, SegmentCounts, SegmentRecord, StreamHarnessError, StreamStop, run_segment,
+    run_segment_privileged, run_segment_privileged_with, run_segment_with,
 };
 pub use manifest::{Exchange, StreamArmSpec, StreamLimits, StreamManifest};
 pub use recorder::{StreamRunError, StreamRunReport, execute_stream};

@@ -43,7 +43,7 @@ pub use gordian_stream_eval::{
     NoticeEntry, NoticeEvalError, NoticeFates, NoticeOutcome, NoticeScore, NoticeTotals,
     NoticeTrace, NoticeVerdict, ReasonerUsage, RecallCells, RecallEntry, RecallScore, RecallSource,
     RetireEntry, ScoredCounts, SelectionError, SelectionRetire, SelectionTrace, SelectionVerdict,
-    SourceClass, StreamEvalError, StreamStep, StreamTotals, StreamVerdict, TierCounts,
+    SourceClass, SourceTruth, StreamEvalError, StreamStep, StreamTotals, StreamVerdict, TierCounts,
 };
 
 /// Counts the evaluator does not make, read from the trajectory alone.

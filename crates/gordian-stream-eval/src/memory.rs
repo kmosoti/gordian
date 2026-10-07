@@ -23,14 +23,33 @@ use gordian_stream::{Diagnosis, HardKind, ObsId, StreamAction, StreamOutcome, Ti
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Where the truth of a memory's source is read from (K5).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SourceTruth {
+    /// The source observation is one of this stream's: its incident's truth is in the truth given.
+    #[default]
+    Here,
+    /// The memory was carried from an earlier stream, whose observation numbers mean nothing in
+    /// this one: the harness read the truth of the source's incident there, and gives it.
+    Earlier {
+        /// What the earlier stream's truth says about the incident the source observation belongs
+        /// to (`None`, "not an incident", for background and for a decoy).
+        truth: Diagnosis,
+    },
+}
+
 /// What a memory was bound at (K5): the observation the answer was about and the answer, as the
 /// memory stored it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecallSource {
-    /// The observation the reasoner was asked about (the focus of the answer the memory kept).
+    /// The observation the reasoner was asked about (the focus of the answer the memory kept), in
+    /// the stream it was asked in.
     pub obs: ObsId,
     /// The diagnosis the memory stored from that answer, with the site it named.
     pub diagnosis: Diagnosis,
+    /// Whose truth judges it.
+    #[serde(default)]
+    pub truth: SourceTruth,
 }
 
 /// One declaration made from memory, as the harness records it (K5).
@@ -128,7 +147,8 @@ pub struct RecallScore {
     pub correct: bool,
     /// Whether its stored answer was right for the incident it was about (K5).
     pub source: SourceClass,
-    /// The incident the source observation belongs to; `None` for background or no source.
+    /// The incident the source observation belongs to in this stream; `None` for background, for
+    /// no source and for a source in an earlier stream.
     pub source_incident: Option<u32>,
 }
 
@@ -399,11 +419,17 @@ pub fn score_memory(
         let class = match r.source {
             None => SourceClass::Unknown,
             Some(source) => {
-                let Some(stored_truth) = truth_of_obs(truth, source.obs) else {
-                    return Err(MemoryError::UnknownObservation {
-                        step: r.step,
-                        obs: source.obs,
-                    });
+                let stored_truth = match source.truth {
+                    SourceTruth::Earlier { truth } => truth,
+                    SourceTruth::Here => {
+                        let Some(here) = truth_of_obs(truth, source.obs) else {
+                            return Err(MemoryError::UnknownObservation {
+                                step: r.step,
+                                obs: source.obs,
+                            });
+                        };
+                        here
+                    }
                 };
                 if source.diagnosis == stored_truth {
                     SourceClass::Right
@@ -418,7 +444,10 @@ pub fn score_memory(
             tier: incident.map(|id| truth.incidents[id as usize].tier),
             correct,
             source: class,
-            source_incident: r.source.and_then(|source| truth.incident_of(source.obs)),
+            source_incident: r.source.and_then(|source| match source.truth {
+                SourceTruth::Here => truth.incident_of(source.obs),
+                SourceTruth::Earlier { .. } => None,
+            }),
         });
         totals.recalls.add(correct, class);
         match incident.map(|id| truth.incidents[id as usize].tier) {

@@ -109,7 +109,10 @@
 //! table is carried to the next segment in a process-wide store keyed by `state_key` (L1's
 //! precedent, [`carry`]); a site-keyed table carried is wrong by construction (W2: a site number
 //! means another service in the next stream), a labelled control and reported with and without the
-//! reset, never tuned away.
+//! reset, never tuned away. The store also holds the number of segments the arm has played, and
+//! every entry the segment it was bound in, so that a recall can say how many segments ago its
+//! source was bound (`age`): the harness then judges the source against the truth of its incident
+//! in the stream it was asked in (observation numbers are per stream), which it has kept.
 //!
 //! # Parameters and the tuning rule (fixed before any run)
 //!
@@ -390,6 +393,9 @@ pub struct Entry {
     pub stored: Diagnosis,
     /// The observation the answer was about.
     pub source: ObsId,
+    /// The segment the answer was bound in: the arm's count of the segments it had played before
+    /// it (a segment is one stream).
+    pub segment: u64,
     /// Answers bound to the key.
     pub answers: u32,
     /// The last answer disagreed with the one before it.
@@ -429,6 +435,9 @@ pub struct RecordNoticer<B: Noticer> {
     table: Table,
     /// The recalls the arm has made, across segments (the count `every` reads).
     recall_count: u64,
+    /// How many segments the arm played before this one: its place in the sequence of streams,
+    /// from its own history and nothing else.
+    segment: u64,
     snapshots: Vec<Snapshot>,
     by_anomaly: BTreeMap<u32, usize>,
     by_obs: BTreeMap<ObsId, usize>,
@@ -441,19 +450,23 @@ impl<B: Noticer> RecordNoticer<B> {
     /// A record noticer over `inner`, starting from the carried table (and recall count) under
     /// `params.state_key` when the arm does not reset.
     pub fn new(inner: B, params: RecordParams) -> Self {
-        let (recall_count, carried) = carry::load(params.state_key).unwrap_or((0, Table::new()));
-        Self {
+        let (recall_count, segment, carried) =
+            carry::load(params.state_key).unwrap_or((0, 0, Table::new()));
+        let this = Self {
             inner,
             params,
             table: if params.reset { Table::new() } else { carried },
             recall_count,
+            segment,
             snapshots: Vec::new(),
             by_anomaly: BTreeMap::new(),
             by_obs: BTreeMap::new(),
             offered: BTreeSet::new(),
             sources: BTreeMap::new(),
             stats: RecordStats::default(),
-        }
+        };
+        this.persist();
+        this
     }
 
     /// What the memory has done so far.
@@ -472,7 +485,12 @@ impl<B: Noticer> RecordNoticer<B> {
         } else {
             self.table.clone()
         };
-        carry::store(self.params.state_key, self.recall_count, kept);
+        carry::store(
+            self.params.state_key,
+            self.recall_count,
+            self.segment + 1,
+            kept,
+        );
     }
 
     /// Read the key of anomaly `id` now, the gate open since `since`.
@@ -586,6 +604,7 @@ impl<B: Noticer> Noticer for RecordNoticer<B> {
                 entry.disputed = entry.stored != diagnosis;
                 entry.stored = diagnosis;
                 entry.source = focus;
+                entry.segment = self.segment;
                 entry.answers += 1;
             }
             None => {
@@ -594,6 +613,7 @@ impl<B: Noticer> Noticer for RecordNoticer<B> {
                     Entry {
                         stored: diagnosis,
                         source: focus,
+                        segment: self.segment,
                         answers: 1,
                         disputed: false,
                     },
@@ -658,6 +678,7 @@ impl<B: Noticer> Noticer for RecordNoticer<B> {
                     RecallSource {
                         obs: entry.source,
                         diagnosis: entry.stored,
+                        age: u32::try_from(self.segment - entry.segment).unwrap_or(u32::MAX),
                     },
                 );
             }
@@ -703,8 +724,9 @@ pub fn build(params: &RecordParams, cfg: &RungConfig, services: &[Service]) -> B
     }
 }
 
-/// What the record rung carries from one segment to the next: its recall count and, for an arm
-/// that does not reset, its table, in a process-wide store keyed by `state_key` with one writer and
+/// What the record rung carries from one segment to the next: its recall count, the number of
+/// segments it has played (so that a recall can say how many segments ago its source was bound),
+/// and, for an arm that does not reset, its table, in a process-wide store keyed by `state_key` with one writer and
 /// one reader, the noticer of one arm (L1's `learned::carry` is the precedent, and its caveats
 /// hold: a replay of a manifest in a new process reproduces it exactly; two runs in one process
 /// under one key do not, which is why every run names its keys and tests reset them).
@@ -713,11 +735,11 @@ pub mod carry {
     use std::collections::BTreeMap;
     use std::sync::{Mutex, PoisonError};
 
-    type Carried = (u64, Table);
+    type Carried = (u64, u64, Table);
 
     static STORE: Mutex<BTreeMap<u64, Carried>> = Mutex::new(BTreeMap::new());
 
-    /// The recall count and table carried under `key`, if any.
+    /// The recall count, the segments played and the table carried under `key`, if any.
     pub fn load(key: u64) -> Option<Carried> {
         STORE
             .lock()
@@ -726,12 +748,12 @@ pub mod carry {
             .cloned()
     }
 
-    /// Keep `count` and `table` under `key`.
-    pub fn store(key: u64, count: u64, table: Table) {
+    /// Keep `count`, `segments` (the segments played, this one included) and `table` under `key`.
+    pub fn store(key: u64, count: u64, segments: u64, table: Table) {
         STORE
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(key, (count, table));
+            .insert(key, (count, segments, table));
     }
 
     /// Forget what is carried under `key`.
