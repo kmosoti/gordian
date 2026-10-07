@@ -20,5 +20,85 @@
         "note": "fails_bound"
       }
     }
+  },
+  "stage2": {
+    "site": {
+      "true": {
+        "level": "kinds",
+        "k": 4,
+        "note": ""
+      },
+      "false": {
+        "level": "timing",
+        "k": 4,
+        "note": "fails_bound"
+      }
+    },
+    "family": {
+      "true": {
+        "level": "timing",
+        "k": 8,
+        "note": "fails_bound"
+      },
+      "false": {
+        "level": "timing",
+        "k": 2,
+        "note": "fails_bound"
+      }
+    }
+  },
+  "heldout": {
+    "site": {
+      "true": {
+        "never": {
+          "level": "kinds"
+        },
+        "every": {
+          "level": "kinds",
+          "k": 4
+        },
+        "on_contradiction": {
+          "level": "kinds"
+        }
+      },
+      "false": {
+        "never": {
+          "level": "timing"
+        },
+        "every": {
+          "level": "timing",
+          "k": 4
+        },
+        "on_contradiction": {
+          "level": "timing"
+        }
+      }
+    },
+    "family": {
+      "true": {
+        "never": {
+          "level": "timing"
+        },
+        "every": {
+          "level": "timing",
+          "k": 8
+        },
+        "on_contradiction": {
+          "level": "timing"
+        }
+      },
+      "false": {
+        "never": {
+          "level": "timing"
+        },
+        "every": {
+          "level": "timing",
+          "k": 2
+        },
+        "on_contradiction": {
+          "level": "timing"
+        }
+      }
+    }
   }
 }
