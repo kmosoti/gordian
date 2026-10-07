@@ -33,7 +33,7 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`.
 | B3 | 2 | A public benign-value (ramp) noticer for the leak; a splitting noticer for the never-noticed | B2 | merged |
 | B4 | 2 | A non-privileged selector; decoy-notice accounting; leak-versus-decoy separation | B3 | running |
 | M3 | 1 | Sub-tick support pruning; mutation tests of M2; strict precision as a bound | M2 | running |
-| L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | running |
+| L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | merged |
 | C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | queued |
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | queued |
 | M2 | 1 | The medium as a noticer on the stream world, against the public baselines | M1b, B1 | merged |
@@ -347,9 +347,16 @@ does as well with no hand-designed graph at all.
 3. **Measures:** L1's (sample-efficiency curves, slopes over the first 50, 100 and 200 streams,
    end states over the last 100), with the ESN's own cost per stream counted and priced.
 
-**Criterion, fixed by the chief before any L2 code or run (2026-10-06).** L1's three clauses,
-applied to the ESN against the frozen graph; and a fourth, reported separately: the ESN's end
-state against L1's learned medium, paired. Feasibility: a reservoir's residual on this world's
+**Criterion, fixed by the chief before any L2 code or run (2026-10-06; clause 2 amended
+2026-10-07 after L1, before any L2 code, because a 100-stream slope of a cumulative ratio
+cannot see learning that completes in a few streams).** On seeds 40000–40199 at 100 ms:
+(1) the ESN's anchor-correct share over the last 100 streams is at least the frozen graph's
+minus 0.01 with the paired lower bound above −0.03, **and** its background notices per stream
+are ≤ 6.82 and its strict precision ≥ 0.67 over the same streams; (2) its background notices
+per stream over streams 21–40 are at most the learning-off control's minus 10 with the paired
+lower bound below −5 (the endpoint, stream 20, is fixed here); (3) the learning-off control's
+end state is below the frozen graph's by at least 0.02. The three clauses are conjunctive. A
+fourth, reported separately: the ESN's end state against L1's learned medium, paired. Feasibility: a reservoir's residual on this world's
 bursts and ramps is a plausible noticing signal and an implausible anchoring signal at 100 ms
 resolution; both outcomes are reachable, and an ESN that notices but mis-anchors is a result.
 

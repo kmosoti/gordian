@@ -4,6 +4,79 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## L1 the learned noticer — merged (Lab 3); learning is real, fast, and stops short of the hand design
+
+**Provenance.** Two interruptions (an API limit, then the disk restart); the final PI verified
+the inherited state, rebuilt the release binary and found its hash equal to the one the main run
+used, regenerated every analysis CSV from the run outputs byte-identically, and reran the
+byte-identity gate (62 of 62, recomputed independently). The update rule and priors were
+committed before any run; two amendments were made on development seeds before the main run
+and are recorded. Gates under the runner on the merged tree: fmt, clippy `--locked`, 790 Rust
+tests, the oracle guard, 417 analysis tests. Outputs in `artifacts/runs/l1/` (ignored). Not done:
+mutation testing of the learner.
+
+**Re-verified from the run outputs** (seeds 40000–40199, never used for tuning; chief's own
+bootstraps): clause 1, learned minus frozen anchor-correct over the last 100 streams, 0.000
+[−0.011, +0.010], holds; clause 3, learning-off minus frozen, −0.039 [−0.064, −0.015], holds;
+clause 2, the slope of the cumulative curve over the first 100 streams, +0.053 [−0.037,
++0.085] (lab: +0.043 [−0.021, +0.126]), lower bound below zero, **fails**. End states match the
+lab exactly: learned 0.980 anchor-correct at 8.76 background notices per stream; frozen 0.980
+at 5.53; learning-off 0.941 at 31.55.
+
+**Verdict as written: the learned arm does not count toward the aim** (the clauses are
+conjunctive).
+
+**What it means (causality, objective, failure, meta).**
+
+- **Something was learned, from public structure alone.** The coincidence window goes
+  400 ms → 100 ms → 49 ms → 30 ms within four streams, read from the excess over independence
+  of same-service abnormal pairs by gap bin; the ramp threshold settles at 2.5. Against the same
+  graph with learning off, learning is worth 22.8 fewer background notices per stream and
+  +0.039 anchor-correct. The prior does not matter (50 ms and 1,000 ms priors reach the same
+  end state). This is the first evidence in the program that a public statistic of the stream
+  carries the knowledge the hand constants encode.
+- **It stops short of the hand design, and pays in false notices.** The learner's 30 ms window
+  against the hand-tuned 20 ms costs 3.2 more background notices per stream (8.76, above M2's
+  6.82 bound) and 0.07 of strict precision. Anchor parity was bought by firing more. The
+  background and precision bounds, not the clauses, show the learner is worse than the hand
+  design.
+- **The missing knowledge sits in one knob.** The learner's "precision demanded" parameter
+  `p` decides where it stops: at 0.5 it stops at 30 ms and 2.5; at 0.8 (a pre-planned
+  sensitivity arm) it recovers M2's 20 ms and 3.0 exactly, with the frozen graph's background
+  and precision to the digit. So the hand tuning was moved up one level, not removed. The stream
+  gives no feedback, so the learner has no way to set `p` from its own history; a public
+  yield or cost signal (how many of its notices attach further evidence, or retire quickly) is
+  what a stronger learner would need, and that is the design question the next learned unit
+  must answer.
+- **The criterion's slope clause cannot register fast learning.** The four medium arms make
+  identical decisions on all 92 incidents in the first 50 streams, because the prior's cost
+  only shows after the learner has already converged and the cumulative ratio has diluted it.
+  A least-squares slope over 100 streams of a cumulative ratio is a poor instrument for a
+  learner that finishes in four. **Coordinator error, recorded (sixth):** I fixed a clause
+  whose statistic could not see the effect it was meant to detect at the speed the effect
+  actually has; the feasibility note considered only whether a slope was measurable, not over
+  what horizon. The clause stands for L1 as written; L2's criterion is amended below, before any
+  L2 code.
+- **One world, one seed, one setting, three differing incidents in 398.** The parity claim is
+  exactly as thin as that.
+
+**Decided.**
+
+1. **L2's criterion is amended** (before any L2 code): clause 2 becomes "background notices per
+   stream and strict precision against streams seen, with the endpoint fixed at stream 20: the
+   learner's background over streams 21–40 is at most the learning-off control's minus 10, with
+   the paired lower bound below −5", so that learning completed in a few streams is visible,
+   and clause 1 adds the background bound (≤ 6.82) and strict-precision bound (≥ 0.67) as
+   conditions, so that anchoring bought with false notices does not pass.
+2. **L3 (Lab 3, after L2):** a learner that sets its own precision demand from a public yield
+   signal, on a distribution-shifted stream (burst spacing and ramp rate changed from the
+   defaults) where the frozen graph is wrong and there is something to catch up to; against a
+   conventional online tuner (a grid search on the first N streams) as the matched
+   conventional learner the charter's proxy 2 names. Criterion to be fixed before code, with the
+   amended clause 2's horizon.
+3. The L1 learner's window statistic is kept as the first public, label-free estimator of the
+   world's burst spacing; it enters C1's engine as a derived relation if it proves useful there.
+
 ## B3 the public leak noticer and splitting noticer — merged (Lab 2); the status quo closes the leak too
 
 **Provenance.** The unit was interrupted by the container restart after tuning and before the
