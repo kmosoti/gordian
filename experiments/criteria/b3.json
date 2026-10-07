@@ -1,0 +1,1425 @@
+{
+  "schema": "gordian-criterion/1",
+  "id": "b3",
+  "title": "B3: the public leak and splitting noticers; the supplementary comparison with M2",
+  "source": "docs/lab-queue.md, '## B3', 'Acceptance (fixed 2026-10-06)': the extended table with intervals, no claim about which is better; 'if a public row reaches leak noticed >= 0.660 within the budget' then the chief acts, 'and otherwise records the supplementary comparison in both reports'. Budget: 6.82 background notices per stream (the re-anchor's held-out value, M2's bound)",
+  "runs": {
+    "b3": {
+      "streams": {
+        "first_seed": 20000,
+        "count": 200
+      }
+    },
+    "m2": {
+      "streams": {
+        "first_seed": 20000,
+        "count": 200
+      }
+    }
+  },
+  "arms": {
+    "rung_z3": {
+      "run": "b3",
+      "dir": "sel_rung_z3_privileged"
+    },
+    "rung_z2": {
+      "run": "b3",
+      "dir": "sel_rung_z2_privileged"
+    },
+    "reanchor": {
+      "run": "b3",
+      "dir": "sel_reanchor_privileged"
+    },
+    "ramp_over_r3": {
+      "run": "b3",
+      "dir": "sel_ramp_over_r3_privileged"
+    },
+    "split_over_r3": {
+      "run": "b3",
+      "dir": "sel_split_over_r3_privileged"
+    },
+    "ramp_split_over_r3": {
+      "run": "b3",
+      "dir": "sel_ramp_split_over_r3_privileged"
+    },
+    "ramp_over_re2": {
+      "run": "b3",
+      "dir": "sel_ramp_over_re2_privileged"
+    },
+    "split_over_re2": {
+      "run": "b3",
+      "dir": "sel_split_over_re2_privileged"
+    },
+    "ramp_split_over_re2": {
+      "run": "b3",
+      "dir": "sel_ramp_split_over_re2_privileged"
+    },
+    "reanchor_z3": {
+      "run": "b3",
+      "dir": "sel_reanchor_z3_privileged"
+    },
+    "ramp_split_over_re3": {
+      "run": "b3",
+      "dir": "sel_ramp_split_over_re3_privileged"
+    },
+    "hold_rung_z3": {
+      "run": "b3",
+      "dir": "selhold_rung_z3_privileged"
+    },
+    "hold_rung_z2": {
+      "run": "b3",
+      "dir": "selhold_rung_z2_privileged"
+    },
+    "hold_reanchor": {
+      "run": "b3",
+      "dir": "selhold_reanchor_privileged"
+    },
+    "hold_ramp_over_r3": {
+      "run": "b3",
+      "dir": "selhold_ramp_over_r3_privileged"
+    },
+    "hold_split_over_r3": {
+      "run": "b3",
+      "dir": "selhold_split_over_r3_privileged"
+    },
+    "hold_ramp_split_over_r3": {
+      "run": "b3",
+      "dir": "selhold_ramp_split_over_r3_privileged"
+    },
+    "hold_ramp_over_re2": {
+      "run": "b3",
+      "dir": "selhold_ramp_over_re2_privileged"
+    },
+    "hold_split_over_re2": {
+      "run": "b3",
+      "dir": "selhold_split_over_re2_privileged"
+    },
+    "hold_ramp_split_over_re2": {
+      "run": "b3",
+      "dir": "selhold_ramp_split_over_re2_privileged"
+    },
+    "hold_reanchor_z3": {
+      "run": "b3",
+      "dir": "selhold_reanchor_z3_privileged"
+    },
+    "hold_ramp_split_over_re3": {
+      "run": "b3",
+      "dir": "selhold_ramp_split_over_re3_privileged"
+    },
+    "medium_t100": {
+      "run": "m2",
+      "dir": "sel_med_t100_privileged"
+    },
+    "m2run_rung_z3": {
+      "run": "m2",
+      "dir": "sel_rung_z3_privileged"
+    },
+    "m2run_rung_z2": {
+      "run": "m2",
+      "dir": "sel_rung_z2_privileged"
+    },
+    "m2run_reanchor": {
+      "run": "m2",
+      "dir": "sel_reanchor_privileged"
+    }
+  },
+  "bootstrap": {
+    "unit": "stream",
+    "resamples": 10000,
+    "seed": 9950,
+    "percentiles": [
+      5,
+      95
+    ],
+    "interval": "lower_higher",
+    "chunk": 500
+  },
+  "measures": {
+    "hard_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents with a notice anchored on them (N2)"
+    },
+    "hard_anchor_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents with an anchor-correct notice (N5)"
+    },
+    "leak_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "slow-leak incidents with a notice anchored on them"
+    },
+    "leak_anchor_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "notices_on_background_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_on_background": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      },
+      "description": "mean over streams of notices anchored on no incident (N8)"
+    },
+    "notice_precision": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1,
+          "notices_on_background": -1
+        }
+      },
+      "den": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "description": "notices anchored on an incident of any tier over all notices (N16)"
+    },
+    "strict_precision": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_anchor_site_correct": 1
+        }
+      },
+      "den": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "description": "notices that are anchor-correct and site-correct over all notices"
+    },
+    "notices_per_incident": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1,
+          "notices_on_background": -1
+        }
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count"
+      },
+      "description": "notices anchored on an incident of any tier over incidents of every tier"
+    },
+    "quality": {
+      "kind": "ratio",
+      "num": {
+        "file": "incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "correct_by_deadline": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "description": "hard non-leak incidents declared correctly by their deadline"
+    },
+    "leak_quality": {
+      "kind": "ratio",
+      "num": {
+        "file": "incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "correct_by_deadline": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "cost_s_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "results.csv",
+        "agg": "sum",
+        "columns": {
+          "total_cost_ns": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      },
+      "scale": 1e-09
+    },
+    "hard_site_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "site_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "hard_anchor_site_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_site_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "ne",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "leak_site_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "site_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "leak_anchor_site_correct_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "anchor_site_correct": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "hard"
+          },
+          {
+            "column": "family",
+            "op": "eq",
+            "value": "slow_leak"
+          }
+        ]
+      }
+    },
+    "plain_noticed_share": {
+      "kind": "ratio",
+      "num": {
+        "file": "notice_incidents.csv",
+        "agg": "sum",
+        "columns": {
+          "noticed": 1
+        },
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "plain"
+          }
+        ]
+      },
+      "den": {
+        "file": "notice_incidents.csv",
+        "agg": "count",
+        "where": [
+          {
+            "column": "tier",
+            "op": "eq",
+            "value": "plain"
+          }
+        ]
+      }
+    },
+    "notices_on_plain_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_on_plain": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    },
+    "notices_on_hard_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_on_hard": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    },
+    "notices_on_decoy_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices_on_decoy": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    },
+    "notices_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "notices.csv",
+        "agg": "sum",
+        "columns": {
+          "notices": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    },
+    "calls_per_stream": {
+      "kind": "ratio",
+      "num": {
+        "file": "results.csv",
+        "agg": "sum",
+        "columns": {
+          "reasoner_calls": 1
+        }
+      },
+      "den": {
+        "per_stream": 1
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "leak_bar.rung_z3",
+      "kind": "value",
+      "arm": "rung_z3",
+      "measure": "leak_noticed_share",
+      "description": "rung_z3: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.rung_z3",
+      "kind": "value",
+      "arm": "rung_z3",
+      "measure": "notices_on_background_per_stream",
+      "description": "rung_z3: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.rung_z2",
+      "kind": "value",
+      "arm": "rung_z2",
+      "measure": "leak_noticed_share",
+      "description": "rung_z2: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.rung_z2",
+      "kind": "value",
+      "arm": "rung_z2",
+      "measure": "notices_on_background_per_stream",
+      "description": "rung_z2: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.reanchor",
+      "kind": "value",
+      "arm": "reanchor",
+      "measure": "leak_noticed_share",
+      "description": "reanchor: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.reanchor",
+      "kind": "value",
+      "arm": "reanchor",
+      "measure": "notices_on_background_per_stream",
+      "description": "reanchor: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.ramp_over_r3",
+      "kind": "value",
+      "arm": "ramp_over_r3",
+      "measure": "leak_noticed_share",
+      "description": "ramp_over_r3: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.ramp_over_r3",
+      "kind": "value",
+      "arm": "ramp_over_r3",
+      "measure": "notices_on_background_per_stream",
+      "description": "ramp_over_r3: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.split_over_r3",
+      "kind": "value",
+      "arm": "split_over_r3",
+      "measure": "leak_noticed_share",
+      "description": "split_over_r3: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.split_over_r3",
+      "kind": "value",
+      "arm": "split_over_r3",
+      "measure": "notices_on_background_per_stream",
+      "description": "split_over_r3: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.ramp_split_over_r3",
+      "kind": "value",
+      "arm": "ramp_split_over_r3",
+      "measure": "leak_noticed_share",
+      "description": "ramp_split_over_r3: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.ramp_split_over_r3",
+      "kind": "value",
+      "arm": "ramp_split_over_r3",
+      "measure": "notices_on_background_per_stream",
+      "description": "ramp_split_over_r3: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.ramp_over_re2",
+      "kind": "value",
+      "arm": "ramp_over_re2",
+      "measure": "leak_noticed_share",
+      "description": "ramp_over_re2: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.ramp_over_re2",
+      "kind": "value",
+      "arm": "ramp_over_re2",
+      "measure": "notices_on_background_per_stream",
+      "description": "ramp_over_re2: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.split_over_re2",
+      "kind": "value",
+      "arm": "split_over_re2",
+      "measure": "leak_noticed_share",
+      "description": "split_over_re2: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.split_over_re2",
+      "kind": "value",
+      "arm": "split_over_re2",
+      "measure": "notices_on_background_per_stream",
+      "description": "split_over_re2: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.ramp_split_over_re2",
+      "kind": "value",
+      "arm": "ramp_split_over_re2",
+      "measure": "leak_noticed_share",
+      "description": "ramp_split_over_re2: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.ramp_split_over_re2",
+      "kind": "value",
+      "arm": "ramp_split_over_re2",
+      "measure": "notices_on_background_per_stream",
+      "description": "ramp_split_over_re2: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.reanchor_z3",
+      "kind": "value",
+      "arm": "reanchor_z3",
+      "measure": "leak_noticed_share",
+      "description": "reanchor_z3: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.reanchor_z3",
+      "kind": "value",
+      "arm": "reanchor_z3",
+      "measure": "notices_on_background_per_stream",
+      "description": "reanchor_z3: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "leak_bar.ramp_split_over_re3",
+      "kind": "value",
+      "arm": "ramp_split_over_re3",
+      "measure": "leak_noticed_share",
+      "description": "ramp_split_over_re3: leak noticed share >= 0.660 (B3's trigger: 0.460 + 0.20)",
+      "tests": [
+        {
+          "on": "point",
+          "op": ">=",
+          "value": 0.66
+        }
+      ]
+    },
+    {
+      "id": "budget.ramp_split_over_re3",
+      "kind": "value",
+      "arm": "ramp_split_over_re3",
+      "measure": "notices_on_background_per_stream",
+      "description": "ramp_split_over_re3: notices on background per stream <= 6.82 (the budget)",
+      "tests": [
+        {
+          "on": "point",
+          "op": "<=",
+          "value": 6.82
+        }
+      ]
+    },
+    {
+      "id": "identity.rung_z3",
+      "kind": "identity",
+      "a": "rung_z3",
+      "b": "m2run_rung_z3",
+      "files": [
+        "notice_incidents.csv",
+        "notice_events.csv",
+        "incidents.csv"
+      ],
+      "ignore_columns": [
+        "run_id",
+        "wall_ns",
+        "cpu_ns",
+        "measured_ns",
+        "ns_measured",
+        "substrate_ns"
+      ],
+      "description": "the rerun comparator rung_z3 of B3's run and of M2's run have identical notice and incident records (the supplementary comparison is one table)"
+    },
+    {
+      "id": "identity.rung_z2",
+      "kind": "identity",
+      "a": "rung_z2",
+      "b": "m2run_rung_z2",
+      "files": [
+        "notice_incidents.csv",
+        "notice_events.csv",
+        "incidents.csv"
+      ],
+      "ignore_columns": [
+        "run_id",
+        "wall_ns",
+        "cpu_ns",
+        "measured_ns",
+        "ns_measured",
+        "substrate_ns"
+      ],
+      "description": "the rerun comparator rung_z2 of B3's run and of M2's run have identical notice and incident records (the supplementary comparison is one table)"
+    },
+    {
+      "id": "identity.reanchor",
+      "kind": "identity",
+      "a": "reanchor",
+      "b": "m2run_reanchor",
+      "files": [
+        "notice_incidents.csv",
+        "notice_events.csv",
+        "incidents.csv"
+      ],
+      "ignore_columns": [
+        "run_id",
+        "wall_ns",
+        "cpu_ns",
+        "measured_ns",
+        "ns_measured",
+        "substrate_ns"
+      ],
+      "description": "the rerun comparator reanchor of B3's run and of M2's run have identical notice and incident records (the supplementary comparison is one table)"
+    }
+  ],
+  "reports": [
+    {
+      "id": "table",
+      "kind": "table",
+      "arms": [
+        "rung_z3",
+        "rung_z2",
+        "reanchor",
+        "ramp_over_r3",
+        "split_over_r3",
+        "ramp_split_over_r3",
+        "ramp_over_re2",
+        "split_over_re2",
+        "ramp_split_over_re2",
+        "reanchor_z3",
+        "ramp_split_over_re3"
+      ],
+      "measures": [
+        "hard_noticed_share",
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "notice_precision",
+        "strict_precision",
+        "notices_per_incident",
+        "quality",
+        "leak_quality",
+        "cost_s_per_stream",
+        "hard_site_correct_share",
+        "hard_anchor_site_correct_share",
+        "leak_site_correct_share",
+        "leak_anchor_site_correct_share",
+        "plain_noticed_share",
+        "notices_on_plain_per_stream",
+        "notices_on_hard_per_stream",
+        "notices_on_decoy_per_stream",
+        "notices_per_stream",
+        "calls_per_stream"
+      ],
+      "description": "B3's acceptance table and the columns beside it (fixed 16 s delay with retirement), 90% intervals"
+    },
+    {
+      "id": "table_held",
+      "kind": "table",
+      "arms": [
+        "hold_rung_z3",
+        "hold_rung_z2",
+        "hold_reanchor",
+        "hold_ramp_over_r3",
+        "hold_split_over_r3",
+        "hold_ramp_split_over_r3",
+        "hold_ramp_over_re2",
+        "hold_split_over_re2",
+        "hold_ramp_split_over_re2",
+        "hold_reanchor_z3",
+        "hold_ramp_split_over_re3"
+      ],
+      "measures": [
+        "quality",
+        "leak_quality"
+      ],
+      "description": "quality with the selection oracle at the delay chosen on the tuning streams, with hold_until_asked (the selhold arms)"
+    },
+    {
+      "id": "paired_vs_reanchor",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "rung_z3",
+          "reanchor"
+        ],
+        [
+          "rung_z2",
+          "reanchor"
+        ],
+        [
+          "reanchor",
+          "reanchor"
+        ],
+        [
+          "ramp_over_r3",
+          "reanchor"
+        ],
+        [
+          "split_over_r3",
+          "reanchor"
+        ],
+        [
+          "ramp_split_over_r3",
+          "reanchor"
+        ],
+        [
+          "ramp_over_re2",
+          "reanchor"
+        ],
+        [
+          "split_over_re2",
+          "reanchor"
+        ],
+        [
+          "ramp_split_over_re2",
+          "reanchor"
+        ],
+        [
+          "reanchor_z3",
+          "reanchor"
+        ],
+        [
+          "ramp_split_over_re3",
+          "reanchor"
+        ]
+      ],
+      "measures": [
+        "hard_noticed_share",
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "notice_precision",
+        "strict_precision",
+        "notices_per_incident",
+        "quality",
+        "leak_quality",
+        "cost_s_per_stream",
+        "hard_site_correct_share",
+        "hard_anchor_site_correct_share",
+        "notices_per_stream"
+      ],
+      "description": "every table row minus the re-anchor row, paired"
+    },
+    {
+      "id": "paired_held_vs_reanchor",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "hold_rung_z3",
+          "hold_reanchor"
+        ],
+        [
+          "hold_rung_z2",
+          "hold_reanchor"
+        ],
+        [
+          "hold_reanchor",
+          "hold_reanchor"
+        ],
+        [
+          "hold_ramp_over_r3",
+          "hold_reanchor"
+        ],
+        [
+          "hold_split_over_r3",
+          "hold_reanchor"
+        ],
+        [
+          "hold_ramp_split_over_r3",
+          "hold_reanchor"
+        ],
+        [
+          "hold_ramp_over_re2",
+          "hold_reanchor"
+        ],
+        [
+          "hold_split_over_re2",
+          "hold_reanchor"
+        ],
+        [
+          "hold_ramp_split_over_re2",
+          "hold_reanchor"
+        ],
+        [
+          "hold_reanchor_z3",
+          "hold_reanchor"
+        ],
+        [
+          "hold_ramp_split_over_re3",
+          "hold_reanchor"
+        ]
+      ],
+      "measures": [
+        "quality",
+        "leak_quality"
+      ],
+      "description": "held-delay quality rows minus the re-anchor's, paired"
+    },
+    {
+      "id": "supplementary_table",
+      "kind": "table",
+      "arms": [
+        "medium_t100",
+        "rung_z3",
+        "rung_z2",
+        "reanchor",
+        "ramp_over_re2",
+        "split_over_re2",
+        "ramp_split_over_re2"
+      ],
+      "measures": [
+        "hard_noticed_share",
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "notice_precision",
+        "strict_precision",
+        "notices_per_incident",
+        "quality",
+        "leak_quality",
+        "cost_s_per_stream",
+        "calls_per_stream",
+        "notices_per_stream"
+      ],
+      "description": "the supplementary comparison: M2's 100 ms medium beside B3's public rows, one set of streams"
+    },
+    {
+      "id": "supplementary_paired",
+      "kind": "paired_table",
+      "pairs": [
+        [
+          "medium_t100",
+          "rung_z3"
+        ],
+        [
+          "medium_t100",
+          "rung_z2"
+        ],
+        [
+          "medium_t100",
+          "reanchor"
+        ],
+        [
+          "medium_t100",
+          "ramp_over_re2"
+        ],
+        [
+          "medium_t100",
+          "split_over_re2"
+        ],
+        [
+          "medium_t100",
+          "ramp_split_over_re2"
+        ]
+      ],
+      "measures": [
+        "hard_noticed_share",
+        "hard_anchor_correct_share",
+        "leak_noticed_share",
+        "leak_anchor_correct_share",
+        "notices_on_background_per_stream",
+        "notice_precision",
+        "strict_precision",
+        "notices_per_incident",
+        "quality",
+        "leak_quality",
+        "cost_s_per_stream",
+        "calls_per_stream",
+        "notices_per_stream"
+      ],
+      "description": "the medium at 100 ms minus each public row, paired over the same resamples of streams"
+    }
+  ],
+  "verdict": {
+    "name": "B3's comparison with M2 is one table: the three rerun comparators are identical in the two runs",
+    "all": [
+      "identity.rung_z3",
+      "identity.rung_z2",
+      "identity.reanchor"
+    ]
+  },
+  "observations": {
+    "a_public_row_reaches_the_leak_bar_within_the_budget": {
+      "any": [
+        {
+          "name": "row_rung_z3",
+          "all": [
+            "leak_bar.rung_z3",
+            "budget.rung_z3"
+          ]
+        },
+        {
+          "name": "row_rung_z2",
+          "all": [
+            "leak_bar.rung_z2",
+            "budget.rung_z2"
+          ]
+        },
+        {
+          "name": "row_reanchor",
+          "all": [
+            "leak_bar.reanchor",
+            "budget.reanchor"
+          ]
+        },
+        {
+          "name": "row_ramp_over_r3",
+          "all": [
+            "leak_bar.ramp_over_r3",
+            "budget.ramp_over_r3"
+          ]
+        },
+        {
+          "name": "row_split_over_r3",
+          "all": [
+            "leak_bar.split_over_r3",
+            "budget.split_over_r3"
+          ]
+        },
+        {
+          "name": "row_ramp_split_over_r3",
+          "all": [
+            "leak_bar.ramp_split_over_r3",
+            "budget.ramp_split_over_r3"
+          ]
+        },
+        {
+          "name": "row_ramp_over_re2",
+          "all": [
+            "leak_bar.ramp_over_re2",
+            "budget.ramp_over_re2"
+          ]
+        },
+        {
+          "name": "row_split_over_re2",
+          "all": [
+            "leak_bar.split_over_re2",
+            "budget.split_over_re2"
+          ]
+        },
+        {
+          "name": "row_ramp_split_over_re2",
+          "all": [
+            "leak_bar.ramp_split_over_re2",
+            "budget.ramp_split_over_re2"
+          ]
+        },
+        {
+          "name": "row_reanchor_z3",
+          "all": [
+            "leak_bar.reanchor_z3",
+            "budget.reanchor_z3"
+          ]
+        },
+        {
+          "name": "row_ramp_split_over_re3",
+          "all": [
+            "leak_bar.ramp_split_over_re3",
+            "budget.ramp_split_over_re3"
+          ]
+        }
+      ]
+    }
+  },
+  "readings": [
+    "B3's acceptance has no pass/fail on a result: 'no claim about which is better'. The verdict is therefore the precondition of the supplementary comparison (identity of the three rerun comparators across the two runs); the trigger of the acceptance clause is an observation, computed and reported, not a verdict",
+    "'within the budget' is the row's notices on background per stream (point) <= 6.82",
+    "quality is read from the selection oracle's incident file at the fixed 16 s delay with retirement (the sel_ arms) and, for 'held', from the selhold_ arms of the same run; the held-delay quality of a row is the row's `hold_` arm"
+  ]
+}
