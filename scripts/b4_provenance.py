@@ -13,7 +13,7 @@ the held-out run's outputs exist to hash.
 Checks:
   1. regression: R6's held-out manifest at b = 5, rho = 0.7, replayed with this branch's binary under its own
      run id writes `results.csv` and `incidents.csv` whose SHA-256 equals R6's record for every arm (62 of 62)
-     by `b4_gate.py` (`b4-regression.csv`, and `b4-regression-final.csv` for the rerun made at the end);
+     by `b4_gate.py` (`b4-regression.csv`, `b4-regression-final.csv` for the rerun made at the end, and `b4-regression-restart.csv` for the one after the restart);
   2. the held-out run plays seeds 20000-20199, every tuning manifest 10000-10099;
   3. the incidents (tier, family, criticality) are the same in every arm of the held-out run;
   4. this run's selection-oracle arms are earlier runs' arms, byte for byte once the `run_id` column is dropped
@@ -114,7 +114,7 @@ def main():
     rf.to_csv(C.OUT / "b4-refusals.csv", index=False)
 
     # 1. regression against R6's recorded hashes
-    for name in ("b4-regression.csv", "b4-regression-final.csv"):
+    for name in ("b4-regression.csv", "b4-regression-final.csv", "b4-regression-restart.csv"):
         path = C.OUT / name
         if not path.exists():
             print(f"check 1 ({name}): not made")
