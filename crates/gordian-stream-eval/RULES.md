@@ -224,3 +224,48 @@ the fixtures of N1 to N12 are unchanged and still pass (a record without a site 
 7. **Precision counts notices, not incidents (N16).** A noticer that notices an incident ten times
    has ten notices on it. Precision is therefore the measure that a flood lowers, and it is also
    lowered by a noticer that re-notices a long incident; notices per incident (analysis) says which.
+
+## Selection accounting (work item B4)
+
+`score_selection(truth, trace)` says what a selector asked about and what each question cost, notice
+by notice, and what a follow-up rule retired. It is a separate pure function with its own input, a
+`SelectionTrace` (every notice, as `NoticeEntry`; every retirement, with whether a follow-up rule made
+it; every accepted escalation, with the instant, the focus and the cost the stream declared for it),
+and adds nothing to `score_stream` and nothing to `score_notices`: the notices' own scores (N1 to N16)
+are unchanged. It exists because the selection oracle never asks about a notice anchored on a decoy or
+on a late plain incident, both precision measures count such a notice as correct, and the background
+budget does not charge it, so neither quality nor any notice measure shows what noticing it costs a
+selector that must decide. Rule ids start with `E`; `fixtures/selection-cases.json` pins each, and
+`tests/selection_fixtures.rs` fails if a rule here is pinned by no case or a case names a rule that is
+not here.
+
+| Id | Rule |
+|---|---|
+| E1 | **An escalation is about a notice** when the notice's anchor is the escalation's focus, the notice was made at or before the escalation's instant, and the notice's anomaly was not retired before the escalation's instant (a retirement at the escalation's own instant is after it: the rung asks before it retires within a step). When several notices qualify, the latest one recorded is the one. An escalation about no notice is *unattributed* (a call a rule makes directly about an observation no live anomaly is anchored on, or about an anchor that has since moved); it is still counted by the class of its focus (E2). |
+| E2 | **Escalation classes and cost.** An escalation belongs to the class of the observation its focus names, read as S2 reads it: *background* (no incident), *plain*, *hard* (a hard incident outside the slow-leak family), *leak* (a hard incident of the slow-leak family), *decoy*. Per class the totals are the number of calls and the tokens and modelled nanoseconds the outcomes declared; the five classes' calls, tokens and modelled nanoseconds add to S26's `calls`, `tokens` and `modelled_ns`. |
+| E3 | **Per notice.** One outcome per notice, in the order recorded: its anomaly, the incident its anchor belongs to and the class of that incident (N1, with E2's classes; an anchor of no incident is background), the number of escalations about it (E1), the instant of the earliest, the instant of its retirement if there is one, whether a follow-up rule retired it, and E4's flag. |
+| E4 | **Retired before escalation.** A notice is retired before escalation when a retirement of its anomaly is recorded and no escalation is about it (E1). A notice never retired within the record is not; a notice asked about and then retired is not. The flag says that the retirement cost nothing in reasoner calls; it does not say the retirement was right. |
+| E5 | **Retired by a follow-up rule.** A retirement carries whether a follow-up rule made it (as against the anomaly going quiet). `followup_retired` counts the notices so retired by the class of their anchor, and `followup_before_escalation` those that were also retired before escalation (E4). A follow-up retirement of a notice anchored on a leak is a leak wrongly retired; of one anchored on a decoy, a decoy notice retired; the evaluator does not call either right or wrong (judgement 2). |
+| E6 | **Cost share.** The share of the reasoner's cost spent on a class is the class's tokens (or modelled nanoseconds) over all classes', pooled across streams by the analysis from the totals of E2, never averaged per stream. |
+| E7 | **Totals by class.** `notices`, `escalated` (notices with at least one escalation about them), `retired_before_escalation`, `followup_retired` and `followup_before_escalation`, each by the class of the notice's anchor, are counts of notices over the stream. Ratios are pooled by the analysis (notices on decoys per decoy is the pooled count of notices on decoys over the pooled count of decoys, which the incident files hold). |
+| E8 | **Errors, not verdicts.** The record is refused, with no verdict, in this order: a notice whose anchor is not an observation of the stream; a retirement of an anomaly never noticed, or retired already; an escalation whose focus is not an observation of the stream. The notices' times and the retirements' order are `score_notices`' checks (N11), which the harness runs on the same record first. |
+
+### Where the selection rules are a judgement
+
+1. **Attribution is by focus equal to anchor (E1).** A selector's call is about the observation it
+   names; a notice's anchor is the observation the rung asks about. A rule that asks about another
+   observation than an anomaly's anchor has made a call about no notice (unattributed), and the
+   count says how many; for the rules built so far it is zero except for the privileged notice arm,
+   which asks about anchors it injected itself.
+2. **"Retired before escalation" is not "correctly retired" (E4, E5).** A decoy notice retired
+   before it was asked about spared a call; a leak notice retired before it was asked about lost
+   the incident its notice was the only anchor of (unless another notice is about it, which the
+   per-incident files show). The evaluator counts; it does not judge.
+3. **A retirement by quiet counts as retired before escalation too (E4).** A decoy anomaly that goes
+   quiet before the rule would have asked about it is retired before escalation, with or without a
+   follow-up rule. The comparison that isolates a follow-up rule is the same arm with and without
+   it (E5's counts), not E4's alone.
+4. **Escalation cost is the stream's declared cost (E2).** It is the reasoner's cost in its own
+   units, as S26: it does not include the cheap components the rung runs to decide whether to ask
+   (the contradiction checker a selector monitors with), which are in `results.csv`'s substrate
+   columns.

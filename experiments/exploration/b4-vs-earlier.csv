@@ -1,0 +1,5 @@
+arm,compared_with,results_identical_modulo_run_id,incidents_identical_modulo_run_id,notice_events_identical_modulo_run_id
+sel_rung_z3_privileged,M2 held-out sel_rung_z3_privileged,True,True,True
+sel_rung_z2_privileged,M2 held-out sel_rung_z2_privileged,True,True,True
+sel_reanchor_privileged,M2 held-out sel_reanchor_privileged,True,True,True
+sel_medium_t100_privileged,M2 held-out sel_med_t100_privileged,True,True,True

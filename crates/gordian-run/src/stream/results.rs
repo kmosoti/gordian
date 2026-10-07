@@ -382,6 +382,103 @@ pub fn notice_event_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
         .collect()
 }
 
+/// The header of `selection.csv` (work item B4): for each class of what a call's focus or a notice's
+/// anchor belongs to (`background`, `plain`, `hard`, `leak`, `decoy`; the evaluator's `RULES.md`, E2),
+/// the accepted escalations (`calls_*`) and the tokens and modelled nanoseconds they declared
+/// (E2), and the notices (`notices_*`), those escalated (`escalated_*`), retired before escalation
+/// (`retired_before_escalation_*`, E4), retired by a follow-up rule (`followup_retired_*`, E5) and
+/// retired by one before escalation (`followup_before_escalation_*`); then the escalations about no
+/// notice (E1). Counts, never ratios.
+pub const SELECTION_HEADER: &str = "run_id,arm_role,seed,noticer,calls_background,calls_plain,calls_hard,calls_leak,calls_decoy,tokens_background,tokens_plain,tokens_hard,tokens_leak,tokens_decoy,modelled_ns_background,modelled_ns_plain,modelled_ns_hard,modelled_ns_leak,modelled_ns_decoy,notices_background,notices_plain,notices_hard,notices_leak,notices_decoy,escalated_background,escalated_plain,escalated_hard,escalated_leak,escalated_decoy,retired_before_escalation_background,retired_before_escalation_plain,retired_before_escalation_hard,retired_before_escalation_leak,retired_before_escalation_decoy,followup_retired_background,followup_retired_plain,followup_retired_hard,followup_retired_leak,followup_retired_decoy,followup_before_escalation_background,followup_before_escalation_plain,followup_before_escalation_hard,followup_before_escalation_leak,followup_before_escalation_decoy,escalations_unattributed";
+
+/// The header of `selection_notices.csv` (work item B4): one row per notice, in the order recorded.
+pub const SELECTION_NOTICES_HEADER: &str = "run_id,arm_role,seed,noticer,anomaly,incident,class,escalations,first_escalation_at_ns,retired_at_ns,retire_cause,retired_before_escalation";
+
+/// One line of `selection.csv` for `record`, without a trailing newline.
+pub fn selection_row(run_id: &str, record: &SegmentRecord) -> String {
+    let s = &record.selection;
+    format!(
+        "{run_id},{role},{seed},{noticer},{calls_background},{calls_plain},{calls_hard},{calls_leak},{calls_decoy},{tokens_background},{tokens_plain},{tokens_hard},{tokens_leak},{tokens_decoy},{modelled_ns_background},{modelled_ns_plain},{modelled_ns_hard},{modelled_ns_leak},{modelled_ns_decoy},{notices_background},{notices_plain},{notices_hard},{notices_leak},{notices_decoy},{escalated_background},{escalated_plain},{escalated_hard},{escalated_leak},{escalated_decoy},{rbe_background},{rbe_plain},{rbe_hard},{rbe_leak},{rbe_decoy},{fr_background},{fr_plain},{fr_hard},{fr_leak},{fr_decoy},{fbe_background},{fbe_plain},{fbe_hard},{fbe_leak},{fbe_decoy},{unattributed}",
+        role = record.role.as_str(),
+        seed = record.seed,
+        noticer = record.noticer,
+        calls_background = s.escalations.calls.background,
+        calls_plain = s.escalations.calls.plain,
+        calls_hard = s.escalations.calls.hard,
+        calls_leak = s.escalations.calls.leak,
+        calls_decoy = s.escalations.calls.decoy,
+        tokens_background = s.escalations.tokens.background,
+        tokens_plain = s.escalations.tokens.plain,
+        tokens_hard = s.escalations.tokens.hard,
+        tokens_leak = s.escalations.tokens.leak,
+        tokens_decoy = s.escalations.tokens.decoy,
+        modelled_ns_background = s.escalations.modelled_ns.background,
+        modelled_ns_plain = s.escalations.modelled_ns.plain,
+        modelled_ns_hard = s.escalations.modelled_ns.hard,
+        modelled_ns_leak = s.escalations.modelled_ns.leak,
+        modelled_ns_decoy = s.escalations.modelled_ns.decoy,
+        notices_background = s.notices.notices.background,
+        notices_plain = s.notices.notices.plain,
+        notices_hard = s.notices.notices.hard,
+        notices_leak = s.notices.notices.leak,
+        notices_decoy = s.notices.notices.decoy,
+        escalated_background = s.notices.escalated.background,
+        escalated_plain = s.notices.escalated.plain,
+        escalated_hard = s.notices.escalated.hard,
+        escalated_leak = s.notices.escalated.leak,
+        escalated_decoy = s.notices.escalated.decoy,
+        rbe_background = s.notices.retired_before_escalation.background,
+        rbe_plain = s.notices.retired_before_escalation.plain,
+        rbe_hard = s.notices.retired_before_escalation.hard,
+        rbe_leak = s.notices.retired_before_escalation.leak,
+        rbe_decoy = s.notices.retired_before_escalation.decoy,
+        fr_background = s.notices.followup_retired.background,
+        fr_plain = s.notices.followup_retired.plain,
+        fr_hard = s.notices.followup_retired.hard,
+        fr_leak = s.notices.followup_retired.leak,
+        fr_decoy = s.notices.followup_retired.decoy,
+        fbe_background = s.notices.followup_before_escalation.background,
+        fbe_plain = s.notices.followup_before_escalation.plain,
+        fbe_hard = s.notices.followup_before_escalation.hard,
+        fbe_leak = s.notices.followup_before_escalation.leak,
+        fbe_decoy = s.notices.followup_before_escalation.decoy,
+        unattributed = s.escalations.unattributed,
+    )
+}
+
+/// The lines of `selection_notices.csv` for `record`: one per notice, in the order recorded, each
+/// without a trailing newline. `incident` is empty for a notice anchored on background;
+/// `first_escalation_at_ns` is empty when no escalation is about the notice and `retired_at_ns` and
+/// `retire_cause` (`quiet` or `followup`) when it was not retired by the end of the stream.
+pub fn selection_notice_rows(run_id: &str, record: &SegmentRecord) -> Vec<String> {
+    let opt = |x: Option<u64>| x.map_or_else(String::new, |n| n.to_string());
+    record
+        .selection
+        .per_notice
+        .iter()
+        .map(|o| {
+            format!(
+                "{run_id},{role},{seed},{noticer},{anomaly},{incident},{class},{esc},{first},{retired},{cause},{rbe}",
+                role = record.role.as_str(),
+                seed = record.seed,
+                noticer = record.noticer,
+                anomaly = o.anomaly,
+                incident = o.incident.map_or_else(String::new, |i| i.to_string()),
+                class = o.class.as_str(),
+                esc = o.escalations,
+                first = opt(o.first_escalation_at.map(|t| t.0)),
+                retired = opt(o.retired_at.map(|t| t.0)),
+                cause = match (o.retired_at, o.followup) {
+                    (None, _) => "",
+                    (Some(_), true) => "followup",
+                    (Some(_), false) => "quiet",
+                },
+                rbe = o.retired_before_escalation,
+            )
+        })
+        .collect()
+}
+
 /// One line of `measured.csv` for `record`, which was played at `arm_position` in the order of its
 /// segment, without a trailing newline.
 pub fn measured_row(run_id: &str, record: &SegmentRecord, arm_position: usize) -> String {

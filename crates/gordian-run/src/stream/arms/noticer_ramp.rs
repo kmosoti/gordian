@@ -106,7 +106,8 @@
 //! observations as delivered, the public rules' verdict on each (which it does not use), the
 //! public graph (through the base), and the instant.
 
-use super::noticer::{Notice, Noticer, Tracked};
+use super::noticer::{Notice, Noticer, RetireCause, Tracked};
+use super::noticer_follow::Follower;
 use super::noticer_rung::{RungBased, RungNoticer};
 use super::rung::{Held, Store, service_of};
 use gordian_core::Instant;
@@ -136,11 +137,18 @@ pub struct RampSpec {
     /// The least amount the chain's level must be above its first reading's value for it to be a
     /// ramp. At least 1.
     pub min_rise: u32,
+    /// The follow-up rule on a ramp-noticed anomaly (work item B4), if the noticer has one. Not
+    /// written when absent, so a manifest written before B4 is the same text as one written now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follow: Option<super::noticer_follow::FollowSpec>,
 }
 
 impl RampSpec {
     /// Check the parameters.
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(f) = &self.follow {
+            f.validate()?;
+        }
         if self.gap_ns == 0 {
             return Err("noticer ramp: gap_ns must be at least 1".to_owned());
         }
@@ -332,6 +340,8 @@ pub struct RampNoticer<B> {
     detector: RampDetector,
     seen_through: Option<u32>,
     id: &'static str,
+    /// The follow-up rule on the anomalies this noticer opens (work item B4), if the spec has one.
+    follow: Option<Follower>,
 }
 
 impl<B: RungBased> RampNoticer<B> {
@@ -342,7 +352,13 @@ impl<B: RungBased> RampNoticer<B> {
             detector: RampDetector::new(spec),
             seen_through: None,
             id,
+            follow: spec.follow.map(Follower::new),
         }
+    }
+
+    /// The follow-up rule's state, for a test or a diagnostic (`None` without a follow-up rule).
+    pub fn follower(&self) -> Option<&Follower> {
+        self.follow.as_ref()
     }
 
     /// The detector, for a test or a diagnostic.
@@ -420,6 +436,20 @@ impl<B: RungBased> Noticer for RampNoticer<B> {
         fresh.reverse();
         let mut opened = Vec::new();
         for held in &fresh {
+            // The follow-up rule reads every counter reading at a watched key, whether or not it
+            // continues the chain, before the detector sees it: a reading is a follow-up reading
+            // of the watches opened by earlier ones, never of the one it completes.
+            if let (
+                Some(follow),
+                Observation::Counter {
+                    service,
+                    name,
+                    value,
+                },
+            ) = (self.follow.as_mut(), &held.obs)
+            {
+                follow.feed((*service, *name), *value);
+            }
             match self.detector.feed(held) {
                 Fed::Nothing => {}
                 Fed::Extends(anomaly) => self.extend(anomaly, held),
@@ -427,15 +457,29 @@ impl<B: RungBased> Noticer for RampNoticer<B> {
                     if let Some(id) = self.open(&readings, now) {
                         self.detector.link(key, uid, id);
                         opened.push(id);
+                        if let (Some(follow), Observation::Counter { value, .. }) =
+                            (self.follow.as_mut(), &held.obs)
+                        {
+                            follow.open(id, key, *value, held.at);
+                        }
                     }
                 }
             }
+        }
+        if let Some(follow) = self.follow.as_mut() {
+            follow.expire(now);
         }
         if let Some(last) = fresh.last() {
             self.seen_through = Some(last.id.0);
         }
         for &id in &opened {
             self.adopt(id);
+        }
+        // Forget the watches and withdrawals of anomalies no longer tracked (adopted into another,
+        // or retired since the last step).
+        if let Some(follow) = self.follow.as_mut() {
+            let inner = &self.inner;
+            follow.retain(|a| inner.rung().tracked(a).is_some());
         }
         let mut out = self.inner.notice(now, store);
         for id in opened {
@@ -459,11 +503,27 @@ impl<B: RungBased> Noticer for RampNoticer<B> {
     }
 
     fn retirable(&self, now: Instant) -> Vec<u32> {
-        self.inner.retirable(now)
+        let mut out = self.inner.retirable(now);
+        if let Some(follow) = &self.follow {
+            for id in follow.withdrawn() {
+                if !out.contains(&id) {
+                    out.push(id);
+                }
+            }
+        }
+        out
     }
 
     fn retire(&mut self, id: u32) {
         self.inner.retire(id);
+    }
+
+    fn retire_cause(&self, id: u32) -> RetireCause {
+        if self.follow.as_ref().is_some_and(|f| f.is_withdrawn(id)) {
+            RetireCause::Followup
+        } else {
+            self.inner.retire_cause(id)
+        }
     }
 }
 

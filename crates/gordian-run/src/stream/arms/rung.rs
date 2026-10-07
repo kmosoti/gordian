@@ -287,6 +287,10 @@ pub struct AnomalyView {
     pub cheap_declared: bool,
     /// Observations delivered so far in the whole stream.
     pub delivered: u32,
+    /// How many abnormal observations are attached to it now (work item B4): the evidence the
+    /// shared rule works on. It grows as the anomaly attaches more, and falls when a noticer moves
+    /// observations out of it or moves its anchor.
+    pub evidence: u32,
     /// Since when every check of the public consistency checker on the evidence attached to this
     /// anomaly has found no hypothesis consistent with it (an empty set: the first world's own
     /// word for "contradictory"): the instant of the first check of the current run of empty
@@ -652,6 +656,7 @@ impl Rung {
                 site: notice.site,
                 anchor_at: notice.anchor_at,
                 at: now,
+                cause: None,
             });
         }
         let noticer = &self.noticer;
@@ -686,6 +691,7 @@ impl Rung {
                 last_attempt_digest: down.last_attempt_digest,
                 cheap_declared: down.cheap_declared,
                 delivered: self.delivered,
+                evidence: u32::try_from(a.attached.len()).unwrap_or(u32::MAX),
                 contradicted_since: down.contradicted_since,
             });
         }
@@ -1114,6 +1120,7 @@ impl Rung {
     /// Retire anomaly `id`: it is forgotten, by the rung and by the noticer, and the retirement
     /// is recorded.
     pub fn retire(&mut self, id: u32) {
+        let cause = self.noticer.retire_cause(id);
         if let Some(t) = self.noticer.tracked(id)
             && t.noticed_at.is_some()
         {
@@ -1125,6 +1132,7 @@ impl Rung {
                 site: t.site,
                 anchor_at: t.anchor_at,
                 at: self.now,
+                cause: Some(cause),
             });
         }
         self.noticer.retire(id);

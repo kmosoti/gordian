@@ -34,6 +34,7 @@ fn spec() -> RampSpec {
         max_drop: 2,
         min_readings: 4,
         min_rise: 10,
+        follow: None,
     }
 }
 
@@ -865,6 +866,7 @@ fn log_of(noticer: NoticerSpec, seed: u64) -> (Vec<String>, f64) {
 fn a_ramp_noticer_that_cannot_cross_is_its_base_in_whole_segments() {
     let never = RampSpec {
         min_rise: u32::MAX,
+        follow: None,
         ..spec()
     };
     let reanchor = |ramp: Option<RampSpec>| NoticerSpec::Composed {
@@ -909,6 +911,7 @@ fn a_ramp_noticer_that_can_cross_adds_notices_and_is_scored_by_the_evaluator() {
         max_drop: 4,
         min_readings: 3,
         min_rise: 6,
+        follow: None,
     };
     let mut more = 0;
     for seed in [11, 12, 13] {
@@ -942,6 +945,7 @@ fn the_run_writes_the_composed_noticers_record_and_replays_it_byte_for_byte() {
                 max_drop: 4,
                 min_readings: 3,
                 min_rise: 6,
+                follow: None,
             }),
             Some(SplitSpec {
                 gap_ns: 2_000 * MS,

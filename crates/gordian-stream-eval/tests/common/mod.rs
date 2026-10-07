@@ -7,7 +7,7 @@ use gordian_core::Instant;
 use gordian_stream::oracle::{
     EvidenceRole, IncidentTruth, NoiseKind, ObsLabel, ShapeTruth, StreamTruth,
 };
-use gordian_stream::{ObsId, StreamHypothesis, Tier};
+use gordian_stream::{HardKind, ObsId, StreamHypothesis, Tier};
 use gordian_world::ServiceId;
 use serde::Deserialize;
 
@@ -27,6 +27,10 @@ pub struct CompactIncident {
     /// The services the incident occupies, site first (the notice fixtures' N13); empty by default.
     #[serde(default)]
     pub occupies: Vec<u32>,
+    /// The hard-fault family of a hard incident (the selection fixtures' E2 reads the slow leak);
+    /// none by default.
+    #[serde(default)]
+    pub hard_kind: Option<HardKind>,
 }
 
 /// The fixture form of a truth: duration, incidents, and one label per observation (`null` for
@@ -69,7 +73,7 @@ pub fn hand_truth(
             shape: ShapeTruth {
                 known_kind: None,
                 duo: false,
-                hard_kind: None,
+                hard_kind: c.hard_kind,
                 contradicts_early: None,
                 other: None,
                 mimics: None,
