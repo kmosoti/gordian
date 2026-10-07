@@ -1,6 +1,6 @@
 """C1's cost columns: each noticer's own cost per stream, modelled and measured.
 
-Usage: c1_cost.py REPLAY_CSV [RUN_COST_CSV]
+Usage: c1_cost.py REPLAY_CSV [RUN_COST_CSV [SUFFIX]]
 
 REPLAY_CSV is the output of the ignored test `replay_costs` of `tests/stream_dataflow.rs` on the
 held-out streams: each noticer replayed on the public observations as the rung's steps deliver them,
@@ -8,7 +8,7 @@ timed outside the noticer (the least of three replays, less the driver loop's ow
 nothing). RUN_COST_CSV (default `experiments/exploration/c1-cost-run.csv`, from `c1_analyze.py`) is the
 run's own record: the bill's compute per arm per stream and the arm's measured bookkeeping time.
 
-Writes experiments/exploration/c1-cost.csv (one row per noticer and measure: mean per stream, 90%
+Writes experiments/exploration/c1-cost{SUFFIX}.csv (one row per noticer and measure: mean per stream, 90%
 percentile cluster bootstrap over streams, B2's resamples) and c1-costs-per-stream.csv (the replay
 file). Modelled cost: the dataflow noticer's counted operations at `Prices::DECLARED` (20 / 45 / 5 / 5
 ns for probe / write / scan / fire), the medium's at its declared prices (200 / 25 / 40 / 2 ns) plus
@@ -42,9 +42,9 @@ def boot_diff(a, b, seed=C.BOOT_SEED, resamples=C.N_RESAMPLES):
     return boot_mean(np.asarray(a, float) - np.asarray(b, float), seed, resamples)
 
 
-def main(replay, run_cost):
+def main(replay, run_cost, suffix=""):
     d = pd.read_csv(replay)
-    d.to_csv(C.OUT / "c1-costs-per-stream.csv", index=False)
+    d.to_csv(C.OUT / f"c1-costs-per-stream{suffix}.csv", index=False)
     streams = len(d)
     wall = {k: (d[f"{k}_ns"] - d["null_ns"]) for k in ("b3", "dataflow", "medium")}
     rows = []
@@ -97,11 +97,12 @@ def main(replay, run_cost):
             rows.append({"noticer": f"{a} minus {b}", "measure": "paired in-run measured_sched_ns per stream",
                          "unit": "ns", "mean": m, "lo": lo, "hi": hi, "streams": len(piv)})
     out = pd.DataFrame(rows)
-    out.to_csv(C.OUT / "c1-cost.csv", index=False)
+    out.to_csv(C.OUT / f"c1-cost{suffix}.csv", index=False)
     pd.set_option("display.width", 250)
     pd.set_option("display.max_colwidth", 95)
     print(out.to_string(index=False, float_format=lambda x: f"{x:,.1f}"))
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else str(C.OUT / "c1-cost-run.csv"))
+    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else str(C.OUT / "c1-cost-run.csv"),
+         sys.argv[3] if len(sys.argv) > 3 else "")

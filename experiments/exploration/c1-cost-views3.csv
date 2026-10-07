@@ -1,14 +1,14 @@
 noticer,measure,unit,mean,lo,hi,streams
-b3,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,1947323.09,1904600.307,1989978.076,200
-dataflow,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,5635231.51,5519745.938,5749992.27225,200
-medium,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,10456841.44,10210521.963499999,10713760.98675,200
-driver loop,wall_ns_per_stream (a noticer that does nothing),ns,164658.59,161963.59475,167426.22475,200
-dataflow,modelled_ns_per_stream (counted operations at the declared prices),ns,2889086.225,2852463.6037500002,2925512.3625000003,200
-dataflow,"billed_ns_per_stream (the replay's charges, as the bill takes them)",ns,2888872.225,2852304.2687500003,2925300.96625,200
-dataflow,counted probes per stream,operations,39753.12,39372.76725,40141.120500000005,200
+b3,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,2272034.465,2221340.4020000002,2325091.375,200
+dataflow,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,6675576.98,6534887.355,6821136.2754999995,200
+medium,"wall_ns_per_stream (least of 3 replays, less the driver loop)",ns,11141459.71,10903818.381749999,11387064.45875,200
+driver loop,wall_ns_per_stream (a noticer that does nothing),ns,168259.385,166002.70925,170733.0465,200
+dataflow,modelled_ns_per_stream (counted operations at the declared prices),ns,3839000.625,3782745.8925,3895021.1862500003,200
+dataflow,"billed_ns_per_stream (the replay's charges, as the bill takes them)",ns,3838638.325,3782407.615,3894645.185,200
+dataflow,counted probes per stream,operations,64131.6,63239.4695,65021.416,200
 dataflow,counted writes per stream,operations,31507.385,31080.8825,31933.333000000002,200
-dataflow,counted scans per stream,operations,112632.54,110826.68274999999,114445.53450000001,200
-dataflow,counted fires per stream,operations,22605.76,22352.18175,22858.33575,200
+dataflow,counted scans per stream,operations,202701.5,199059.254,206350.4735,200
+dataflow,counted fires per stream,operations,25005.76,24752.18175,25258.33575,200
 medium,modelled_ns_per_stream (counted operations at 200/25/40/2 ns plus 200 ns per tick),ns,16709407.575,16435106.98875,16984574.7025,200
 medium,counted ticks per stream,operations,5995.0,5995.0,5995.0,200
 medium,counted cell updates per stream,operations,72002.54,70716.48275000001,73295.5345,200
@@ -17,11 +17,11 @@ medium,counted event routings per stream,operations,10373.33,10245.4505,10500.98
 medium,counted field reads per stream,operations,0.0,0.0,0.0,200
 all,observations per stream,observations,4471.87,4433.0067500000005,4511.1105,200
 all,abnormal observations per stream,observations,1703.375,1676.91475,1729.7852500000001,200
-dataflow minus hand-written B3,paired wall_ns_per_stream,ns,3687908.42,3612043.557,3764010.1405,200
-medium minus dataflow,paired wall_ns_per_stream,ns,4821609.93,4666957.78125,4992267.307,200
-medium minus hand-written B3,paired wall_ns_per_stream,ns,8509518.35,8296405.098750001,8733646.000750002,200
-dataflow,measured wall over modelled (sums over streams),ratio,1.9505238234971682,,,200
-medium,measured wall over modelled (sums over streams),ratio,0.6258056363198143,,,200
+dataflow minus hand-written B3,paired wall_ns_per_stream,ns,4403542.515,4305737.7105,4504365.652,200
+medium minus dataflow,paired wall_ns_per_stream,ns,4465882.73,4344139.2205,4591433.18925,200
+medium minus hand-written B3,paired wall_ns_per_stream,ns,8869425.245,8673768.0375,9071889.25975,200
+dataflow,measured wall over modelled (sums over streams),ratio,1.7388840565765733,,,200
+medium,measured wall over modelled (sums over streams),ratio,0.666777661625146,,,200
 dataflow,"in-run charge per stream (bill_compute, billed arm minus unbilled control)",ns,3391562.6,3344469.4074999997,3438495.8575,200
 dataflow,"in-run measured_sched_ns per stream (the arm's bookkeeping, noticer included)",ns,14077060.62,13744169.94025,14427156.52225,200
 dataflow_unbilled,"in-run measured_sched_ns per stream (the arm's bookkeeping, noticer included)",ns,12337047.185,12037293.5435,12651023.79875,200

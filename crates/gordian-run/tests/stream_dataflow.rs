@@ -858,6 +858,10 @@ fn timed_replay<N: Noticer + ?Sized>(
     events: &[Held],
     duration_ns: u64,
 ) -> (u64, u64, u64) {
+    let views: usize = std::env::var("C1_VIEWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1);
     let start = std::time::Instant::now();
     let mut window: VecDeque<Held> = VecDeque::new();
     let (mut next, mut now, mut notices, mut billed) = (0, 0u64, 0u64, 0u64);
@@ -880,7 +884,20 @@ fn timed_replay<N: Noticer + ?Sized>(
         if let Some(c) = n.take_cost() {
             billed += c.compute_ns;
         }
-        n.refresh(Instant(now));
+        // The rung reads its anomalies through `views` more than once a step: each reading is a
+        // refresh of the peak scores and one score per noticed anomaly (`C1_VIEWS`, default 1).
+        for _ in 0..views {
+            n.refresh(Instant(now));
+            let ids: Vec<u32> = n
+                .anomalies()
+                .iter()
+                .filter(|a| a.noticed_at.is_some())
+                .map(|a| a.id)
+                .collect();
+            for id in ids {
+                std::hint::black_box(n.score(id, Instant(now)));
+            }
+        }
         for id in n.retirable(Instant(now)) {
             n.retire(id);
         }
@@ -903,7 +920,8 @@ fn least(reps: usize, f: &mut dyn FnMut() -> (u64, u64, u64)) -> (u64, u64, u64)
 
 /// The cost columns of C1, per stream, on the public observations of `C1_SEEDS` (`first:count`):
 /// each noticer is replayed `C1_REPS` times (default 3) and the least wall time is kept, minus
-/// the driver loop's own (a noticer that does nothing); the dataflow noticer's counts and the
+/// the driver loop's own (a noticer that does nothing); `C1_VIEWS` (default 1) is how many times a
+/// step reads the anomalies back (the rung does it more than once); the dataflow noticer's counts and the
 /// medium's counts and modelled cost come from the replay, which equals the in-run charge up to
 /// the tail of the last step. Written to `C1_OUT`.
 #[test]
