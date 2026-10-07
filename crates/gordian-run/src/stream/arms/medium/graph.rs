@@ -26,7 +26,17 @@
 //! | `smooth[n, c]` (`ramp`) | `Integrator`, leak from `ramp_tau_ns`, threshold `ramp_threshold`, reset, lookback `ramp_lookback_ns` | `arrived[n, c]` (+1), `jump[n, c]` (minus `ramp_penalty` per `ramp_jump` of jump) | readings of one counter that come often and move little: a ramp, which noise (readings far apart, each drawn afresh) is not |
 //! | `rampnotice[n]` (`ramp`) | `Emit`, kind notice, lookback `ramp_lookback_ns`, refractory `refractory_ns` | `smooth[n, c]` | the notice of a ramp |
 //! | `rgate[n]`, `inh1[n]`, `inh2[n]` (`ramp_inhibit`, M3) | relays | the ramp integrators; `hold[n]`, one tick late, at weight -1e9 | the ramp reaches `rampnotice[n]` only while no anomaly is open at `n`: one notice per episode at a service, not a ramp notice repeating a burst's |
+//! | `rhold[n]` (`ramp_inhibit` with `ramp_inhibit_form` `not_ramp_noticed`, M4) | `Latch`, hold `hold_ns` | `rampnotice[n]`, and `abn[n]` while it holds; into `inh1[n]`, one tick late, at weight -1e18 | an open anomaly at `n` that the ramp noticed: while it holds, the inhibit does not act, so the ramp is silenced only by anomalies it did not notice |
 //! | `hold[n]` | `Latch`, retiring, hold `hold_ns` | `notice[n]`, `rampnotice[n]`, and `abn[n]` while it holds | an open anomaly at `n`; it proposes `retire` when `n` has been quiet for the hold |
+//!
+//! # The precision devices and their switches (M4)
+//!
+//! Three elements exist to raise strict precision, and each has a switch in the spec, so that an
+//! ablation turns one off and keeps its tuned numbers: the cluster merge (`merge`, with
+//! `merge_window_ns`), the confirmation in event time (`confirm_in_event_time`, with
+//! `confirm_window_ns`; off, a confirmation uses M2's latch) and the ramp inhibit
+//! (`ramp_inhibit`, with its form `ramp_inhibit_form`). The switches default to M3's meaning (a
+//! device is in the graph when its window is set), so every M3 and M2 spec builds the same graph.
 //!
 //! Times are given in nanoseconds and converted by the medium at build time for the tick length
 //! (the oscillome's `seconds`), so a change of tick does not change the program except by rounding
@@ -84,6 +94,20 @@ pub enum Confirm {
     Dependents,
     /// An alarm at any other service.
     All,
+}
+
+/// Which open anomalies at a service silence its ramp, with `ramp_inhibit` (M4).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InhibitForm {
+    /// M3's: any open anomaly at the service (its hold latch holds), whoever noticed it.
+    #[default]
+    Any,
+    /// M4's: an open anomaly the ramp did not notice. While an anomaly that the service's ramp
+    /// emitter noticed is open there (its own latch, `rhold[n]`, holds), the ramp is never
+    /// silenced, so a ramp that continues after its own notice, or a second ramp at the service,
+    /// can still be noticed; a burst's anomaly still silences it.
+    NotRampNoticed,
 }
 
 /// The medium noticer's parameters: the tick length, the graph's numbers, and the switches the
@@ -157,9 +181,23 @@ pub struct MediumParams {
     /// With the confirmation in event time: the burst must come first (the coincidence's lead).
     #[serde(default)]
     pub confirm_lead: bool,
+    /// The cluster merge's switch (M4). `false` leaves the merge out of the graph whatever
+    /// `merge_window_ns` says; `true` (the default, M3's meaning) builds it when the window is not
+    /// 0. See [`MediumParams::merges`].
+    #[serde(default = "yes")]
+    pub merge: bool,
+    /// The confirmation in event time's switch (M4). `false` confirms a burst with M2's latch
+    /// (`confirm_hold_ns`, `confirm_delay_ticks`) whatever `confirm_window_ns` says; `true` (the
+    /// default, M3's meaning) reads the confirmation in event time when the window is not 0. See
+    /// [`MediumParams::confirms_in_event_time`].
+    #[serde(default = "yes")]
+    pub confirm_in_event_time: bool,
     /// Silence the ramp at a service while an anomaly is open there (M3): its hold latch holds.
     #[serde(default)]
     pub ramp_inhibit: bool,
+    /// Which open anomalies silence the ramp when `ramp_inhibit` is on (M4); ignored without it.
+    #[serde(default)]
+    pub ramp_inhibit_form: InhibitForm,
     /// The ramp emitter's refractory period (M3), nanoseconds; `None` for `refractory_ns`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ramp_refractory_ns: Option<u64>,
@@ -236,7 +274,10 @@ impl Default for MediumParams {
             merge_window_ns: 0,
             confirm_window_ns: 0,
             confirm_lead: false,
+            merge: true,
+            confirm_in_event_time: true,
             ramp_inhibit: false,
+            ramp_inhibit_form: InhibitForm::Any,
             ramp_refractory_ns: None,
             burst_confirm: Confirm::None,
             confirm_hold_ns: 300_000_000,
@@ -256,6 +297,17 @@ impl Default for MediumParams {
 }
 
 impl MediumParams {
+    /// Whether the cluster merge is in the graph: its switch is on and its window is not 0 (M4).
+    pub fn merges(&self) -> bool {
+        self.merge && self.merge_window_ns > 0
+    }
+
+    /// Whether a confirmation is read in event time rather than by M2's latch: its switch is on
+    /// and its window is not 0 (M4).
+    pub fn confirms_in_event_time(&self) -> bool {
+        self.confirm_in_event_time && self.confirm_window_ns > 0
+    }
+
     /// Check the parameters, and that they build a valid medium on a small public graph.
     pub fn validate(&self) -> Result<(), String> {
         let t = self.tick_ns;
@@ -295,7 +347,7 @@ impl MediumParams {
         if self.burst && !(2..=4).contains(&self.burst_n) {
             return Err("noticer medium: burst_n must be 2 to 4".to_owned());
         }
-        if self.confirm_window_ns > 0
+        if self.confirms_in_event_time()
             && (self.burst_confirm == Confirm::None || self.coincidence != CoincidenceForm::Ordered)
         {
             return Err(
@@ -304,7 +356,7 @@ impl MediumParams {
                     .to_owned(),
             );
         }
-        if self.merge_window_ns > 0 && !self.burst {
+        if self.merges() && !self.burst {
             return Err("noticer medium: the cluster merge needs the burst cells".to_owned());
         }
         if self.burst_every_event && self.coincidence != CoincidenceForm::Ordered {
@@ -456,9 +508,9 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
             // The cluster merge adds two stages (a relay, the merge cell) between a burst and its
             // emitter, which must complete in the burst's tick.
             // The confirmation in event time adds one stage.
-            max_passes: if params.merge_window_ns > 0 {
+            max_passes: if params.merges() {
                 5
-            } else if params.confirm_window_ns > 0 || params.ramp_inhibit {
+            } else if params.confirms_in_event_time() || params.ramp_inhibit {
                 4
             } else {
                 3
@@ -494,7 +546,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
     // The cluster merge's hub: fires whenever a burst fires anywhere, citing the bursts of its
     // pass; it tells every service's merge cell, with weight 0 (the merge cell keeps the events,
     // and only its own service's bursts make it fire).
-    let merging = params.burst && params.merge_window_ns > 0;
+    let merging = params.burst && params.merges();
     let hub = merging.then(|| b.integrator(0.0, f32::MIN_POSITIVE, true, 0));
     let mut merges: Vec<CellId> = Vec::new();
 
@@ -594,7 +646,7 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
                 None => {
                     b.synapse(burst, direct, 1.0, 0);
                 }
-                Some(from) if params.confirm_window_ns > 0 => {
+                Some(from) if params.confirms_in_event_time() => {
                     // M3: the confirmation read in event time. An ordered coincidence of the
                     // burst (slot 0) and any alarm at a confirming service (slot 1) within
                     // `confirm_window_ns`, the burst first when `confirm_lead`; its sub-tick
@@ -744,6 +796,29 @@ pub fn spec(params: &MediumParams, services: &[Service]) -> Result<(MediumSpec, 
             let inh1 = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
             let inh2 = b.integrator(0.0, f32::MIN_POSITIVE, true, 0);
             b.synapse(hold, inh1, 1.0e9, 1);
+            if params.ramp_inhibit_form == InhibitForm::NotRampNoticed
+                && let Some(rn) = ramp_notice
+            {
+                // M4: an anomaly the ramp noticed is held by a latch of its own, opened by the
+                // ramp emitter and kept open by alarms at the service like `hold` (so it holds
+                // no longer than `hold`, which the same notice opened). It reaches `inh1` in the
+                // same pass as `hold` and outweighs it (a held value is at least the smaller of
+                // the ramp's threshold and one alarm, and `hold`'s at most a few thousand), so
+                // `inh1` does not fire and the ramp is not silenced while it holds. It is a gate
+                // on the inhibit, not a source of the ramp's notices: it cites nothing.
+                let rhold = b.latch(f32::MIN_POSITIVE, 0);
+                timed(&mut b, rhold, 1, params.hold_ns);
+                b.synapse(rn, rhold, 1.0, 0);
+                b.synapse_with(SynapseSpec {
+                    from: abn[i],
+                    to: rhold,
+                    weight: 1.0,
+                    delay_ticks: 0,
+                    gate: Gate::Cell(rhold),
+                    plastic: false,
+                });
+                b.synapse(rhold, inh1, -1.0e18, 1);
+            }
             b.synapse(inh1, inh2, 1.0, 0);
             b.synapse(inh2, g, -1.0e9, 0);
         }

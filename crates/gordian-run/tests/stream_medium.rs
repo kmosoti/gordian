@@ -13,7 +13,7 @@ use gordian_run::stream::arms::medium::adapters::{
     TickClock, abnormal_kind_tag, counter_tag, encode, message_tag, severity_tag,
 };
 use gordian_run::stream::arms::medium::{
-    CoincidenceForm, Confirm, MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumParams,
+    CoincidenceForm, Confirm, InhibitForm, MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumParams,
 };
 use gordian_run::stream::arms::noticer::{
     Notice, NoticeKind, NoticeLogEntry, Noticer, NoticerSpec,
@@ -2348,4 +2348,285 @@ fn an_unattached_alarm_is_reoffered_while_four_seconds_old_and_not_after() {
             "gap {gap}: {notices:?}"
         );
     }
+}
+
+// ---- M4: the precision devices' switches and the ramp inhibit's second form
+
+/// The frozen M3 medium at `tick` with one precision device off, spelled with M4's switches: the
+/// device's own numbers are kept and only its switch changes.
+fn m3_device_off_by_switch(tick: &str, device: &str) -> MediumParams {
+    let frozen = m3_frozen(tick).unwrap();
+    match device {
+        "frozen" => MediumParams {
+            merge: true,
+            confirm_in_event_time: true,
+            ramp_inhibit_form: InhibitForm::Any,
+            ..frozen
+        },
+        "merge" => MediumParams {
+            merge: false,
+            ..frozen
+        },
+        "confirm" => MediumParams {
+            confirm_in_event_time: false,
+            ..frozen
+        },
+        // The form is ignored without the inhibit.
+        "inhibit" => MediumParams {
+            ramp_inhibit: false,
+            ramp_inhibit_form: InhibitForm::NotRampNoticed,
+            ..frozen
+        },
+        _ => panic!("no device {device}"),
+    }
+}
+
+/// M4's switches at their M3 values build M3's graphs, and each switch turned off builds the graph
+/// M3 got by zeroing the device's window or flag: the same spec, and the same digests as pinned on
+/// M3's code before any M4 change.
+#[test]
+fn the_switches_reproduce_m3s_media_and_m3s_device_off_variants() {
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    let mut got = Vec::new();
+    for (tick, _) in M3_DEVICE_DIGESTS {
+        for device in ["frozen", "merge", "confirm", "inhibit"] {
+            let old = m3_device_off_as_m3_spelled_it(tick, device);
+            let new = m3_device_off_by_switch(tick, device);
+            new.validate().unwrap();
+            assert_eq!(
+                spec(&old, &p.services).unwrap(),
+                spec(&new, &p.services).unwrap(),
+                "{tick} {device}"
+            );
+            got.push(device_digest(new).0);
+        }
+    }
+    let pinned: Vec<u64> = M3_DEVICE_DIGESTS
+        .iter()
+        .flat_map(|(_, d)| d.iter().copied())
+        .collect();
+    assert_eq!(got, pinned);
+    // The switches' defaults are M3's meaning: a spec without them reads as M3's.
+    let frozen = m3_frozen("500").unwrap();
+    assert!(frozen.merge && frozen.confirm_in_event_time);
+    assert_eq!(frozen.ramp_inhibit_form, InhibitForm::Any);
+    assert!(frozen.merges() && frozen.confirms_in_event_time());
+    // A switch on with a window of 0 is off, as in M3.
+    let m2 = m2_frozen("500");
+    assert!(m2.merge && !m2.merges() && !m2.confirms_in_event_time());
+}
+
+/// The second form's graph: one latch per service more, opened by the ramp emitter, kept open by
+/// the service's alarms, into the inhibit's first relay one tick late; nothing else changes.
+#[test]
+fn the_second_inhibit_form_adds_one_latch_per_service_and_nothing_else() {
+    use gordian_medium::{Archetype, CellId, Gate, MediumSpec};
+    use gordian_run::stream::arms::medium::graph::spec;
+    let p = public();
+    let n = p.services.len();
+    let any = m3_frozen("500").unwrap();
+    let not_ramp = MediumParams {
+        ramp_inhibit_form: InhibitForm::NotRampNoticed,
+        ..any
+    };
+    not_ramp.validate().unwrap();
+    let (a, la) = spec(&any, &p.services).unwrap();
+    let (b, lb) = spec(&not_ramp, &p.services).unwrap();
+    // The same emitters and retiring latches (their ids move: a cell is added per service).
+    assert_eq!(la.notice.len(), lb.notice.len());
+    assert_eq!(la.ramp_notice.len(), lb.ramp_notice.len());
+    assert_eq!(
+        la.latches.values().collect::<Vec<_>>(),
+        lb.latches.values().collect::<Vec<_>>()
+    );
+    assert_eq!(b.cells.len(), a.cells.len() + n);
+    assert_eq!(b.synapses.len(), a.synapses.len() + 3 * n);
+    assert_eq!(b.limits, a.limits);
+    let latches = |s: &MediumSpec| {
+        s.cells
+            .iter()
+            .filter(|c| c.archetype == Archetype::Latch)
+            .count()
+    };
+    assert_eq!(latches(&b), latches(&a) + n);
+    // Each new latch feeds exactly one cell, one tick late, with a weight that outweighs `hold`;
+    // its inputs are the ramp emitter and the service's alarms, gated on itself.
+    let new_latches: Vec<usize> = (0..b.cells.len())
+        .filter(|i| {
+            b.cells[*i].archetype == Archetype::Latch
+                && b.synapses
+                    .iter()
+                    .any(|s| s.from.0 as usize == *i && s.weight == -1.0e18)
+        })
+        .collect();
+    assert_eq!(new_latches.len(), n);
+    for i in new_latches {
+        assert_eq!(b.cells[i].params[2], 0.0, "not a retiring latch");
+        let out: Vec<_> = b
+            .synapses
+            .iter()
+            .filter(|s| s.from.0 as usize == i)
+            .collect();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].delay_ticks, 1);
+        let ins: Vec<_> = b.synapses.iter().filter(|s| s.to.0 as usize == i).collect();
+        assert_eq!(ins.len(), 2, "the ramp emitter and the service's alarms");
+        assert!(
+            ins.iter()
+                .any(|s| lb.ramp_notice.contains(&s.from) && s.gate == Gate::None)
+        );
+        assert!(ins.iter().any(|s| s.gate == Gate::Cell(CellId(i as u32))));
+    }
+    // Without the inhibit the form changes nothing.
+    let off = MediumParams {
+        ramp_inhibit: false,
+        ..any
+    };
+    let off_second = MediumParams {
+        ramp_inhibit_form: InhibitForm::NotRampNoticed,
+        ..off
+    };
+    assert_eq!(
+        spec(&off, &p.services).unwrap(),
+        spec(&off_second, &p.services).unwrap()
+    );
+}
+
+/// A ramp that climbs past the alarm line at service 3: readings every 1.2 s from 22 by 4,
+/// benign below 50 and abnormal from there, `n` readings from `t0` ms.
+fn long_ramp(t0: u64, n: u64) -> Vec<(u64, Observation)> {
+    (0..n)
+        .map(|i| {
+            (
+                t0 + 1_200 * i,
+                counter(3, CounterName::Saturation, 22 + 4 * i),
+            )
+        })
+        .collect()
+}
+
+/// M4: under the second form, an anomaly the ramp noticed does not silence the ramp (it is
+/// noticed again after the emitter's refractory period, as with no inhibit), while under M3's form
+/// the abnormal readings keep the ramp's own anomaly open and silence it; an anomaly a burst
+/// opened silences the ramp under both forms.
+#[test]
+fn an_anomaly_the_ramp_noticed_does_not_silence_the_ramp_under_the_second_form() {
+    let p = public();
+    let any = MediumParams {
+        ramp_inhibit: true,
+        ..MediumParams::default()
+    };
+    let not_ramp = MediumParams {
+        ramp_inhibit_form: InhibitForm::NotRampNoticed,
+        ..any
+    };
+    let off = MediumParams::default();
+    let ramp = long_ramp(2_000, 20);
+    assert!(
+        ramp.iter().any(|(_, o)| is_abnormal(o, &p.services)),
+        "the ramp crosses the alarm line"
+    );
+    let run = |params: MediumParams, obs: &[(u64, Observation)]| {
+        let mut d = Drive::new(params, &p);
+        d.play(obs, 30_000, &p);
+        d.notices
+            .iter()
+            .map(|(at, n)| (*at, n.anchor))
+            .collect::<Vec<_>>()
+    };
+    let (a, b, c) = (run(any, &ramp), run(not_ramp, &ramp), run(off, &ramp));
+    assert_eq!(
+        a.len(),
+        1,
+        "M3's form: the ramp's own anomaly silences it: {a:?}"
+    );
+    assert!(b.len() > 1, "the second form: noticed again: {b:?}");
+    assert_eq!(b, c, "the second form acts as no inhibit on a ramp alone");
+    assert_eq!(a[0], b[0], "the first notice is the same under every form");
+
+    // A burst at the service first: the burst's anomaly silences the ramp under both forms (no
+    // ramp notice before the burst's hold has expired).
+    let mut obs = burst(3, 1_000);
+    obs.extend(long_ramp(2_000, 8));
+    obs.sort_by_key(|(t, _)| *t);
+    let ramp_notices_before = |v: &[(u64, ObsId)], ms: u64| {
+        v.iter()
+            .filter(|(at, anchor)| *at < ms && anchor.0 >= 4)
+            .count()
+    };
+    let (a, b, c) = (run(any, &obs), run(not_ramp, &obs), run(off, &obs));
+    assert_eq!(ramp_notices_before(&c, 7_000), 1, "{c:?}");
+    assert_eq!(ramp_notices_before(&a, 7_000), 0, "{a:?}");
+    assert_eq!(ramp_notices_before(&b, 7_000), 0, "{b:?}");
+    assert!(b.iter().any(|(_, anchor)| *anchor == ObsId(0)));
+}
+
+/// M4's fields are read from a manifest with M3's meaning when absent, and written and read back.
+#[test]
+fn the_switches_are_read_and_written_in_a_manifest() {
+    let p = MediumParams {
+        merge: false,
+        confirm_in_event_time: false,
+        ramp_inhibit: true,
+        ramp_inhibit_form: InhibitForm::NotRampNoticed,
+        ..MediumParams::default()
+    };
+    let text = serde_json::to_value(NoticerSpec::Medium(p)).unwrap();
+    assert_eq!(text["merge"], json!(false));
+    assert_eq!(text["confirm_in_event_time"], json!(false));
+    assert_eq!(text["ramp_inhibit_form"], json!("not_ramp_noticed"));
+    let NoticerSpec::Medium(back) = serde_json::from_value(text.clone()).unwrap() else {
+        panic!("not a medium");
+    };
+    assert_eq!(back, p);
+    let mut bare = text;
+    let obj = bare.as_object_mut().unwrap();
+    for k in ["merge", "confirm_in_event_time", "ramp_inhibit_form"] {
+        obj.remove(k);
+    }
+    let NoticerSpec::Medium(d) = serde_json::from_value(bare).unwrap() else {
+        panic!("not a medium");
+    };
+    assert!(d.merge && d.confirm_in_event_time);
+    assert_eq!(d.ramp_inhibit_form, InhibitForm::Any);
+    let mut wrong = serde_json::to_value(NoticerSpec::Medium(p)).unwrap();
+    wrong["ramp_inhibit_form"] = json!("sometimes");
+    assert!(serde_json::from_value::<NoticerSpec>(wrong).is_err());
+}
+
+/// The validity checks follow the switches: a window whose device is switched off is not checked
+/// against what the device needs; switched on, it is.
+#[test]
+fn the_checks_follow_the_switches() {
+    let base = MediumParams {
+        burst: true,
+        coincidence: CoincidenceForm::Ordered,
+        ..MediumParams::default()
+    };
+    // The confirmation in event time needs a confirmation.
+    let confirm = MediumParams {
+        confirm_window_ns: 50 * MS,
+        burst_confirm: Confirm::None,
+        ..base
+    };
+    assert!(confirm.validate().is_err());
+    MediumParams {
+        confirm_in_event_time: false,
+        ..confirm
+    }
+    .validate()
+    .unwrap();
+    // The cluster merge needs the burst cells.
+    let merge = MediumParams {
+        merge_window_ns: 10 * MS,
+        ..MediumParams::default()
+    };
+    assert!(merge.validate().is_err());
+    MediumParams {
+        merge: false,
+        ..merge
+    }
+    .validate()
+    .unwrap();
 }

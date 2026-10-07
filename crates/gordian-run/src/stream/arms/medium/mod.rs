@@ -20,7 +20,9 @@ pub mod adapters;
 pub mod graph;
 pub mod noticing;
 
-pub use graph::{CoincidenceForm, Confirm, KIND_NOTICE, KIND_RETIRE, Layout, MediumParams};
+pub use graph::{
+    CoincidenceForm, Confirm, InhibitForm, KIND_NOTICE, KIND_RETIRE, Layout, MediumParams,
+};
 pub use noticing::{MEDIUM_COMPONENT, MEDIUM_ID, MediumNoticer, MediumStats};
 
 use super::noticer::Noticer;
