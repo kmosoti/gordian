@@ -14,13 +14,14 @@
 //! trajectory, not from a [`Stream`], so that hand-written fixtures stay independent of the
 //! generator.
 
-use crate::incident::{Family, Mode};
+use crate::incident::{Family, Mode, build, dependents, make_pool};
 use crate::kinds::{Diagnosis, HardKind, ObsId, Tier};
 pub use crate::labels::{EvidenceRole, NoiseKind, ObsLabel};
+use crate::regime::{Physics, epoch_at};
 pub use crate::regime::{Regime, RegimeDetail};
 use crate::sim::StreamSimulator;
-use crate::stream::Stream;
-use gordian_world::{FaultKind, Service, ServiceId};
+use crate::stream::{POOL_SIZE, Stream};
+use gordian_world::{FaultKind, Observation, Service, ServiceId};
 use serde::{Deserialize, Serialize};
 
 /// The structure of an incident, for the evaluator and for tests.
@@ -285,4 +286,52 @@ pub fn declarations(sim: &StreamSimulator) -> Vec<DeclarationTrace> {
 /// The stream a simulator was built from.
 pub fn stream_of(sim: &StreamSimulator) -> &Stream {
     sim.hidden().0
+}
+
+/// The observations of incident `id`, rebuilt from its own plan under chosen physics and graph,
+/// as (offset from its onset in nanoseconds, observation), sorted by offset and cut at the end of
+/// the stream as the stream itself is. Experimenter-side, added for W2 (the learnable laws): it
+/// answers "would this incident have looked different had a regime change not happened?" without
+/// generating a second stream, because a regime change alters only the physics and the graph the
+/// incident is built from and never a draw.
+///
+/// With `base_physics` false and `time_zero_graph` false the result is what the stream holds for
+/// the incident (a test pins this). With `base_physics` true the incident is built under the
+/// first world's physics, undoing a `SignatureShift`; with `time_zero_graph` true it is built on
+/// the graph at time zero, undoing an `EdgeAdd`. The plan (tier, family, site, deadline,
+/// recurrence) is the stream's own. Returns `None` for an unknown `id`.
+pub fn rebuilt_incident(
+    stream: &Stream,
+    id: u32,
+    base_physics: bool,
+    time_zero_graph: bool,
+) -> Option<Vec<(u64, Observation)>> {
+    let mut inc = stream.incidents.get(id as usize)?.clone();
+    let epoch = epoch_at(&stream.epochs, inc.onset);
+    let base = Physics::base();
+    let physics = if base_physics { &base } else { &epoch.physics };
+    let services = if time_zero_graph {
+        &stream.epochs[0].services
+    } else {
+        &epoch.services
+    };
+    // A "duo" needs a dependent (the generator only makes one when the site has one). A site whose
+    // only dependent came with the added edge is, on the time-zero graph, an identified incident:
+    // the generator's own fallback for a site with no dependents.
+    if let Family::Known { kind, duo: true } = inc.family
+        && dependents(services, inc.site).is_empty()
+    {
+        inc.family = Family::Known { kind, duo: false };
+    }
+    let pool = make_pool(stream.params.seed, POOL_SIZE);
+    let onset = inc.onset.0;
+    let duration = stream.params.duration_ns;
+    let mut items: Vec<(u64, Observation)> =
+        build(&mut inc, stream.params.seed, services, physics, &pool)
+            .into_iter()
+            .filter(|it| it.at <= duration)
+            .map(|it| (it.at - onset, it.obs))
+            .collect();
+    items.sort_by_key(|(off, _)| *off);
+    Some(items)
 }

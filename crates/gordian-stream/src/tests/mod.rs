@@ -9,6 +9,7 @@ mod indistinguishable;
 mod noise;
 mod questions;
 mod reasoner;
+mod rebuild;
 mod recurrence;
 mod soundness;
 mod structure;

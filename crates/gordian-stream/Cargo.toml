@@ -26,6 +26,11 @@ required-features = ["reveal-hidden-state"]
 name = "ticks"
 required-features = ["reveal-hidden-state"]
 
+# W2's evaluator-side statistics of the world's learnable laws (Lab 3). Same reason, same gating.
+[[example]]
+name = "laws"
+required-features = ["reveal-hidden-state"]
+
 [dependencies]
 # Requirement: one accounting vocabulary (Charge, Resource, Budget, Instant) for the hard limits
 # the stream enforces, as in the first world.
