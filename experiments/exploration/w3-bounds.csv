@@ -1,4 +1,4 @@
-range,seeds,side,hard_recurrences,R_site_keyed_reach,R_share_of_recurrences,R_fresh_signature_keyed_reach,R_fresh_share_of_recurrences,smallest_unasked_correct_count_with_lower_bound_above_0.075,as_share_of_recurrences,paired_margin_halfwidth_90_if_10_of_83_disagree,R_share_of_bill,R_bill_halfwidth_90,forty_percent_of_signature_ceiling,record_rung_share_above_which_plus_0.10_is_out_of_reach
+range,seeds,side,hard_recurrences,R_site_keyed_reach,R_share_of_recurrences,R_fresh_signature_keyed_reach,R_fresh_share_of_recurrences,smallest_unasked_correct_count_lower_bound_above_0p075,as_share_of_recurrences,paired_margin_halfwidth_90_if_10_of_83_disagree,R_share_of_bill,R_bill_halfwidth_90,forty_percent_of_signature_ceiling,record_rung_share_above_which_plus_0p10_is_out_of_reach
 a-tune,10000-10099,run joined to hidden,44,18,0.409,16,0.364,8,0.182,0.0861,0.0901,0.0337,0.145,0.265
 a-heldout,40000-40199,run joined to hidden,83,41,0.494,31,0.373,12,0.145,0.0627,0.0849,0.0221,0.149,0.273
 c-tune,60000-60099,run joined to hidden,145,63,0.434,53,0.366,18,0.124,0.0474,0.0875,0.0195,0.146,0.267

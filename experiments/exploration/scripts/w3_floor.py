@@ -114,17 +114,23 @@ def e1_key(r, level: str) -> str:
 
 
 def simulate(inc: pd.DataFrame, seeds, keyed: dict, bind_at: dict, look_at: dict, form: str, carried: bool,
-             teacher: tuple[str, ...]) -> pd.DataFrame:
+             teacher: tuple[str, ...], tau: float | None = None) -> pd.DataFrame:
     """Run the memory over the range in seed order. `keyed[(seed, incident)]` is the key (an incident
     without one neither binds nor looks up); `bind_at` and `look_at` give the time (any monotone
     number) at which an incident's answer enters the table and at which its key is looked up, within
     its stream. A lookup reads the most recent answer bound at its key before it, by another incident
     (an incident's own answer is not available to its own recall); with `carried` a key with no such
     answer in the stream falls back to the last answer bound at it in an earlier stream of the range.
+    With `tau` the memory aggregates instead of keeping the last answer: it holds every answer bound at the
+    key (before the lookup, by another incident) and recalls the class with the most answers only when its
+    share of them is strictly above `tau` (a tie, or a leader at or below `tau`, is no recall): the
+    aggregation W2's section 10 asks of any arm, and the policy under which one wrong source cannot make a key
+    wrong for good. `tau = None` is the last-answer rule E1's rung uses.
     Returns one row per looked-up incident: seed, incident, tier, tc, recalled, right, is_rec."""
     by_seed = {s: g for s, g in inc.groupby("seed", sort=False)}
     is_rec = dict(zip(zip(inc["seed"], inc["incident"]), inc["is_rec"]))
     carry: dict = {}
+    carry_list: dict = {}
     out = []
     for s in seeds:
         g = by_seed.get(s)
@@ -145,16 +151,29 @@ def simulate(inc: pd.DataFrame, seeds, keyed: dict, bind_at: dict, look_at: dict
             lst.sort(key=lambda b: (b[0], b[1]))
         for i, k, t, tc, tier in looks:
             rec = None
-            for bt, bi, btc in reversed(binds.get(k, ())):
-                if bt <= t and bi != i:
-                    rec = btc
-                    break
-            if rec is None and carried:
-                rec = carry.get(k)
+            if tau is None:
+                for bt, bi, btc in reversed(binds.get(k, ())):
+                    if bt <= t and bi != i:
+                        rec = btc
+                        break
+                if rec is None and carried:
+                    rec = carry.get(k)
+            else:
+                held = list(carry_list.get(k, ())) if carried else []
+                held += [btc for bt, bi, btc in binds.get(k, ()) if bt <= t and bi != i]
+                if held:
+                    counts = {}
+                    for c in held:
+                        counts[c] = counts.get(c, 0) + 1
+                    top = max(counts.values())
+                    leaders = [c for c, n in counts.items() if n == top]
+                    if len(leaders) == 1 and top / len(held) > tau:
+                        rec = leaders[0]
             out.append((s, i, tier, tc, rec is not None, rec is not None and rec == tc, bool(is_rec[(s, i)])))
         if carried:
             for k, lst in binds.items():
                 carry[k] = lst[-1][2]
+                carry_list.setdefault(k, []).extend(b[2] for b in lst)
     return pd.DataFrame(out, columns=["seed", "incident", "tier", "tc", "recalled", "right", "is_rec"])
 
 
@@ -228,6 +247,74 @@ def ladder(name: str, t: dict, cuts=CUTS) -> list[dict]:
                                 "range": name, "seeds": label, "side": "hidden", "cutoff_s": c, "key": level, "form": form,
                                 "stream_reset": "no" if carried else "yes", "teacher": tlab,
                                 "source_available": "at arrival order (W2)" if mode == "arrival" else "after its answer (19 s)"}))
+    return rows
+
+
+VOTE_TAUS = (0.5, 0.8)
+VOTE_CUTS = [6, 10, 13, 16, 32]
+
+
+def vote(name: str, t: dict) -> list[dict]:
+    """The same memories with an aggregating rule (`tau`), family-keyed, hard teacher, sources after their answer:
+    the ladder at a few cutoffs and E1's keys."""
+    inc, fr, seeds = t["inc"], t["fr"], t["seeds"]
+    label = C.seed_range(seeds)
+    start = {(r.seed, r.incident): r.t0_ns for r in inc.itertuples()}
+    rows = []
+    settings = []
+    for c in VOTE_CUTS:
+        sub = fr[fr["cut"] == str(c)]
+        for level in LEVELS:
+            settings.append((f"ladder {level}", c, {(r.seed, r.incident): ladder_key(r, level) for r in sub.itertuples()}, {k: start[k] + c * NS for k in start}))
+    snap = fr[fr["cut"] == "snap"]
+    snap_at = {(r.seed, r.incident): r.cut_ns for r in snap.itertuples()}
+    for level in ("kinds", "timing"):
+        settings.append((f"E1 {level}", "snap", {(r.seed, r.incident): e1_key(r, level) for r in snap.itertuples()}, {k: start[k] + snap_at[k] for k in snap_at}))
+    for key, c, keys, look_all in settings:
+        look = {k: look_all[k] for k in keys}
+        bind = {k: start[k] + LAG_NS for k in keys}
+        for form in ("site", "family"):
+            for carried in (False, True):
+                if form == "site" and carried:
+                    continue
+                for tau in (None,) + VOTE_TAUS:
+                    res = simulate(inc, seeds, keys, bind, look, form, carried, ("hard",), tau)
+                    rows.append(summarise(res, inc, seeds, {
+                        "range": name, "seeds": label, "side": "hidden", "cutoff_s": c, "key": key, "form": form,
+                        "stream_reset": "no" if carried else "yes", "teacher": "hard", "rule": "last answer" if tau is None else f"vote, leader above {tau}"}))
+    return rows
+
+
+def who(name: str, t: dict) -> list[dict]:
+    """Who the wrong recalls are: by tier, family and mode of the incident that recalled wrongly, for a few
+    settings (family-keyed, hard teacher, sources after their answer)."""
+    inc, fr, seeds = t["inc"], t["fr"], t["seeds"]
+    label = C.seed_range(seeds)
+    start = {(r.seed, r.incident): r.t0_ns for r in inc.itertuples()}
+    info = inc.set_index(["seed", "incident"])[["tier", "family", "mode", "known_kind", "sig_altered", "edge_altered"]]
+    rows = []
+    settings = []
+    for c, level in ((6, "K2"), (16, "K2"), (16, "K4"), (32, "K4")):
+        sub = fr[fr["cut"] == str(c)]
+        settings.append((f"ladder {level} at {c} s", {(r.seed, r.incident): ladder_key(r, level) for r in sub.itertuples()},
+                         {(r.seed, r.incident): start[(r.seed, r.incident)] + c * NS for r in sub.itertuples()}))
+    snap = fr[fr["cut"] == "snap"]
+    settings.append(("E1 timing at the snapshot", {(r.seed, r.incident): e1_key(r, "timing") for r in snap.itertuples()},
+                     {(r.seed, r.incident): start[(r.seed, r.incident)] + r.cut_ns for r in snap.itertuples()}))
+    for lab, keys, look in settings:
+        bind = {k: start[k] + LAG_NS for k in keys}
+        for carried in (False, True):
+            res = simulate(inc, seeds, keys, bind, look, "family", carried, ("hard",))
+            w = res[res["recalled"] & ~res["right"]].join(info, on=["seed", "incident"], rsuffix="_i")
+            g = w.groupby(["tier_i" if "tier_i" in w else "tier", "family", "mode"]).size()
+            for (tier, fam, mode), n in g.items():
+                rows.append({"range": name, "seeds": label, "side": "hidden", "setting": lab, "stream_reset": "no" if carried else "yes",
+                             "wrong_recalls_on": f"{tier}/{fam}/{mode}" if fam else str(tier), "wrong": int(n)})
+            pl = w[w["tier"] == "plain"] if "tier_i" not in w else w[w["tier_i"] == "plain"]
+            for lab2, m in (("plain altered by the signature shift", pl["sig_altered"] == 1), ("plain altered by the added edge", pl["edge_altered"] == 1),
+                            ("plain unaltered", (pl["sig_altered"] == 0) & (pl["edge_altered"] == 0))):
+                rows.append({"range": name, "seeds": label, "side": "hidden", "setting": lab, "stream_reset": "no" if carried else "yes",
+                             "wrong_recalls_on": lab2, "wrong": int(m.sum())})
     return rows
 
 
@@ -358,17 +445,17 @@ def main(argv=None) -> int:
     ap.add_argument("--hidden-root", type=pathlib.Path, default=HIDDEN)
     ap.add_argument("--out-dir", type=pathlib.Path, default=OUT)
     ap.add_argument("--ranges", default="a-tune,a-heldout,c-tune,c-heldout")
+    ap.add_argument("--parts", default="ladder,e1,check-w2,check-partition,waiting,gate,vote,who")
     args = ap.parse_args(argv)
-    tables: dict[str, list[dict]] = {k: [] for k in ("ladder", "e1", "check-w2", "check-partition", "waiting", "gate")}
+    ap2 = args.parts.split(",")
+    tables: dict[str, list[dict]] = {k: [] for k in ("ladder", "e1", "check-w2", "check-partition", "waiting", "gate", "vote", "who") if k in ap2}
     for name in args.ranges.split(","):
         t = load(args.hidden_root, name)
         print(name, C.seed_range(t["seeds"]), len(t["inc"]), "incidents", flush=True)
-        tables["check-w2"] += w2_replication(name, t)
-        tables["check-partition"] += partition_check(name, t)
-        tables["waiting"] += waiting_cost(name, t)
-        tables["gate"] += gate_table(name, t)
-        tables["e1"] += e1_forms(name, t)
-        tables["ladder"] += ladder(name, t)
+        for part, fn in (("check-w2", w2_replication), ("check-partition", partition_check), ("waiting", waiting_cost), ("gate", gate_table),
+                         ("e1", e1_forms), ("ladder", ladder), ("vote", vote), ("who", who)):
+            if part in tables:
+                tables[part] += fn(name, t)
     for k, rows in tables.items():
         C.write_csv(args.out_dir / f"w3-floor-{k}.csv", rows)
     return 0

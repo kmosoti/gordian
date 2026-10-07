@@ -82,6 +82,41 @@ class SimTest(unittest.TestCase):
         self.assertFalse(r.loc[(1, 3), "recalled"])
         self.assertTrue(r.loc[(1, 1), "recalled"])
 
+    def test_vote_needs_a_leader_above_tau(self):
+        # stream 1 has hard sources of two classes at one key; incident 4 looks the key up
+        df = inc([(1, 0, "hard", "hard:A", 5, False), (1, 1, "hard", "hard:A", 5, False), (1, 2, "hard", "hard:B", 5, False),
+                  (1, 3, "plain", "plain:x", 5, False), (1, 4, "hard", "hard:A", 5, False)])
+        keys = {(1, i): "k" for i in range(5)}
+        look = {k: 10.0 + k[1] for k in keys}
+        bind = {k: float(k[1]) for k in keys}
+        # incident 3 looks up at 13 s: sources 0, 1, 2 (A, A, B): A leads with 2/3
+        last = F.simulate(df, [1], keys, bind, look, "family", False, ("hard",), None).set_index("incident")
+        self.assertEqual((last.loc[3, "recalled"], last.loc[3, "right"]), (True, False))      # the last answer is B
+        v = F.simulate(df, [1], keys, bind, look, "family", False, ("hard",), 0.5).set_index("incident")
+        self.assertTrue(v.loc[4, "right"])                    # incident 4 recalls A (3 answers: A, A, B; its own is excluded): 2/3 > 0.5
+        v9 = F.simulate(df, [1], keys, bind, look, "family", False, ("hard",), 0.8).set_index("incident")
+        self.assertFalse(v9.loc[4, "recalled"])               # 2/3 is not above 0.8
+        self.assertFalse(v9.loc[0, "recalled"])               # the first looked-up incident has no earlier answer by another incident
+        # a tie recalls nothing
+        df2 = inc([(1, 0, "hard", "hard:A", 5, False), (1, 1, "hard", "hard:B", 5, False), (1, 2, "plain", "plain:x", 5, False)])
+        keys2 = {(1, i): "k" for i in range(3)}
+        look2 = {k: 10.0 + k[1] for k in keys2}
+        bind2 = {k: float(k[1]) for k in keys2}
+        t2 = F.simulate(df2, [1], keys2, bind2, look2, "family", False, ("hard",), 0.4).set_index("incident")
+        self.assertFalse(t2.loc[2, "recalled"])
+
+    def test_vote_carries_all_answers_across_streams(self):
+        df = inc([(1, 0, "hard", "hard:A", 5, False), (1, 1, "hard", "hard:A", 5, False), (2, 0, "hard", "hard:B", 5, False), (2, 1, "plain", "plain:x", 5, False)])
+        keys = {(s, i): "k" for s in (1, 2) for i in (0, 1)}
+        look = {k: 10.0 + k[1] for k in keys}
+        bind = {k: float(k[1]) for k in keys}
+        r = F.simulate(df, [1, 2], keys, bind, look, "family", True, ("hard",), 0.5).set_index(["seed", "incident"])
+        # stream 2, incident 1: held A, A (carried) and B (this stream, bound at 0 s): leader A with 2/3
+        self.assertTrue(r.loc[(2, 1), "recalled"])
+        self.assertFalse(r.loc[(2, 1), "right"])
+        # stream 2 incident 0 (B) recalls A: the leader of the two carried answers (its own is excluded)
+        self.assertEqual((r.loc[(2, 0), "recalled"], r.loc[(2, 0), "right"]), (True, False))
+
     def test_gate_band_and_bands(self):
         self.assertEqual([F.gate_band(x * F.NS) for x in (0.5, 1, 2.9, 3, 5.9, 6, 9.9, 10, 30)], [0, 1, 1, 2, 2, 3, 3, 4, 4])
 

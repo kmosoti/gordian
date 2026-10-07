@@ -63,6 +63,7 @@ def main(argv=None) -> int:
         res = F.simulate(inc, seeds, keys, bind, look, form, not reset, ("hard",))
         mine = {(int(r.seed), int(r.incident)) for r in res[res["recalled"]].itertuples()}
         e1_gate = sum(1 for k in e1 if k in snap_at)
+        no_gate = {k for k in e1 if k not in snap_at}
         both = e1 & mine
         e1_only = e1 - mine
         mine_only = mine - e1
@@ -82,8 +83,9 @@ def main(argv=None) -> int:
                 agree += keys[a] == keys[b]
         rows.append({"arm": arm, "seeds": "40000-40199", "side": "run vs hidden", "form": form, "level": level, "reset": reset,
                      "e1_recalls": len(e1), "e1_recalls_on_incidents_with_my_snapshot": e1_gate,
-                     "e1_by_tier_plain/hard/decoy": "/".join(str(by_tier(e1)[k]) for k in ("plain", "hard", "decoy")),
-                     "floor_recalls_answered": len(mine), "floor_by_tier_plain/hard/decoy": "/".join(str(by_tier(mine)[k]) for k in ("plain", "hard", "decoy")),
+                     "e1_recalls_without_own_gate_by_tier": "/".join(str(by_tier(no_gate)[k]) for k in ("plain", "hard", "decoy")),
+                     "e1_by_tier_plain_hard_decoy": "/".join(str(by_tier(e1)[k]) for k in ("plain", "hard", "decoy")),
+                     "floor_recalls_answered": len(mine), "floor_by_tier_plain_hard_decoy": "/".join(str(by_tier(mine)[k]) for k in ("plain", "hard", "decoy")),
                      "in_both": len(both), "e1_only": len(e1_only), "floor_only": len(mine_only),
                      "e1_same_stream_recalls_with_both_keys": tot, "of_which_hidden_keys_of_source_and_target_equal": agree})
     C.write_csv(args.out_dir / "w3-floor-e1-join.csv", rows)

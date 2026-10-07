@@ -53,11 +53,11 @@ def main(argv=None) -> int:
             "range": rng, "seeds": rw["seeds"], "side": "run joined to hidden",
             "hard_recurrences": n, "R_site_keyed_reach": int(rr["incidents"]), "R_share_of_recurrences": f"{int(rr['incidents']) / n:.3f}",
             "R_fresh_signature_keyed_reach": int(rf["incidents"]), "R_fresh_share_of_recurrences": f"{int(rf['incidents']) / n:.3f}",
-            "smallest_unasked_correct_count_with_lower_bound_above_0.075": k, "as_share_of_recurrences": f"{k / n:.3f}",
+            "smallest_unasked_correct_count_lower_bound_above_0p075": k, "as_share_of_recurrences": f"{k / n:.3f}",
             "paired_margin_halfwidth_90_if_10_of_83_disagree": f"{hw_pair:.4f}",
             "R_share_of_bill": f"{bill:.4f}", "R_bill_halfwidth_90": f"{hw_bill:.4f}",
             "forty_percent_of_signature_ceiling": f"{0.4 * int(rf['incidents']) / n:.3f}",
-            "record_rung_share_above_which_plus_0.10_is_out_of_reach": f"{0.73 * int(rf['incidents']) / n:.3f}",
+            "record_rung_share_above_which_plus_0p10_is_out_of_reach": f"{0.73 * int(rf['incidents']) / n:.3f}",
         })
     C.write_csv(a.out_dir / "w3-bounds.csv", rows)
     return 0

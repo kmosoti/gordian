@@ -199,8 +199,8 @@ def propagation():
 def bounds():
     d = csv("bounds")
     rows = [[r.seeds, r.hard_recurrences, f"{r.R_site_keyed_reach} ({r.R_share_of_recurrences})", f"{r.R_fresh_signature_keyed_reach} ({r.R_fresh_share_of_recurrences})",
-             f"{getattr(r, '_9')} ({r.as_share_of_recurrences})", r.paired_margin_halfwidth_90_if_10_of_83_disagree, r.R_share_of_bill, r.R_bill_halfwidth_90,
-             r.forty_percent_of_signature_ceiling, r.record_rung_share_above_which_plus_0_10_is_out_of_reach] for r in d.itertuples()]
+             f"{r.smallest_unasked_correct_count_lower_bound_above_0p075} ({r.as_share_of_recurrences})", r.paired_margin_halfwidth_90_if_10_of_83_disagree, r.R_share_of_bill, r.R_bill_halfwidth_90,
+             r.forty_percent_of_signature_ceiling, r.record_rung_share_above_which_plus_0p10_is_out_of_reach] for r in d.itertuples()]
     return md(rows, ["seeds (run, hidden)", "hard recurrences", "site-keyed reach R (share)", "signature-keyed reach R_fresh (share)",
                      "fewest unasked-correct with 90% lower bound above 0.075 (share)", "half-width of a paired margin (10 of 83 disagree)", "R, share of bill",
                      "half-width of R's interval", "0.4 x signature ceiling", "0.73 x signature ceiling"])
@@ -255,7 +255,7 @@ ARR = "at arrival order (W2)"
 def ladder_family_reset(rng_list=("a-heldout", "c-heldout"), teacher="hard", source=ANS, reset="yes", form="family"):
     rows = []
     for rng in rng_list:
-        rows += ladder_rows(rng, form, reset, teacher, source, [6, 10, 16, 20, 32])
+        rows += ladder_rows(rng, form, reset, teacher, source, [6, 13, 16, 32])
     return md(rows, LADDER_HEAD)
 
 
@@ -299,10 +299,41 @@ def e1forms():
 def e1join():
     d = csv("floor-e1-join")
     rows = [[r.arm.replace("sel_rec_", "").replace("_privileged", "").replace("_sens", " (sens)"), r.e1_recalls, r.e1_recalls_on_incidents_with_my_snapshot,
-             getattr(r, "_8"), r.floor_recalls_answered, getattr(r, "_10"), r.in_both, r.e1_only, r.floor_only,
-             f"{r.of_which_hidden_keys_of_source_and_target_equal}/{r.e1_same_stream_recalls_with_both_keys}"] for r in d.itertuples()]
-    return md(rows, ["E1 arm (seeds 40000-40199)", "E1 recalls", "of them on an incident with a hidden-side snapshot", "E1 by tier plain/hard/decoy",
-                     "floor recalls", "floor by tier", "in both", "E1 only", "floor only", "same-stream recalls whose hidden keys of source and target are equal"])
+             r.e1_by_tier_plain_hard_decoy, r.e1_recalls_without_own_gate_by_tier, r.floor_recalls_answered, r.floor_by_tier_plain_hard_decoy, r.in_both,
+             r.e1_only, r.floor_only, f"{r.of_which_hidden_keys_of_source_and_target_equal}/{r.e1_same_stream_recalls_with_both_keys}"] for r in d.itertuples()]
+    return md(rows, ["E1 arm (seeds 40000-40199)", "E1 recalls", "on an incident with a hidden-side snapshot", "E1 by tier plain/hard/decoy",
+                     "E1 recalls with no hidden-side snapshot, by tier", "floor recalls", "floor by tier", "in both", "E1 only", "floor only",
+                     "same-stream recalls whose hidden keys of source and target are equal"])
+
+
+def vote():
+    d = csv("floor-vote")
+    rows = []
+    for rng in ("a-heldout", "c-heldout"):
+        for key, form, reset, c in (("E1 kinds", "family", "no", "snap"), ("E1 timing", "family", "no", "snap"), ("E1 timing", "family", "yes", "snap"),
+                                    ("ladder K2", "family", "no", "16"), ("ladder K4", "family", "no", "32"), ("ladder K4", "family", "yes", "16")):
+            for rule in ("last answer", "vote, leader above 0.5", "vote, leader above 0.8"):
+                x = d[(d["range"] == rng) & (d["key"] == key) & (d["form"] == form) & (d["stream_reset"] == reset) & (d["cutoff_s"].astype(str) == c) & (d["rule"] == rule)]
+                if x.empty:
+                    continue
+                y = x.iloc[0]
+                rows.append([y["seeds"], f"{key}" + (f" at {c} s" if c != "snap" else " at the snapshot"), form, "reset" if reset == "yes" else "carried", rule, y["recalls"],
+                             f"{y['recalls_on_plain']}/{y['recalls_on_decoy']}/{y['recalls_on_hard']}", y["wrong"], ci(y["wrong_share"], y["wrong_share_lo90"], y["wrong_share_hi90"]),
+                             f"{y['hard_recalled_right']}/{y['hard_incidents']}"])
+    return md(rows, ["seeds (hidden)", "key", "form", "stream", "rule", "recalls", "on plain/decoy/hard", "wrong", "collision share [90%]", "hard recalled right / hard"])
+
+
+def who():
+    d = csv("floor-who")
+    rows = []
+    for rng, lab in (("a-heldout", "A 40000-40199"), ("c-heldout", "C 70000-70199")):
+        for setting in ("ladder K2 at 6 s", "ladder K2 at 16 s", "ladder K4 at 16 s", "ladder K4 at 32 s"):
+            x = d[(d["range"] == rng) & (d["setting"] == setting) & (d["stream_reset"] == "yes") & (d["wrong"] > 0) & ~d["wrong_recalls_on"].str.startswith("plain ")]
+            items = ", ".join(f"{r.wrong_recalls_on.replace('/', ' ').replace('known', '').strip()} {r.wrong}" for r in x.sort_values("wrong", ascending=False).itertuples())
+            alt = d[(d["range"] == rng) & (d["setting"] == setting) & (d["stream_reset"] == "yes") & d["wrong_recalls_on"].str.startswith("plain ")]
+            plain_alt = "; ".join(f"{r.wrong_recalls_on.replace('plain ', '')} {r.wrong}" for r in alt.itertuples())
+            rows.append([lab, setting, items, plain_alt])
+    return md(rows, ["seeds (hidden)", "family-keyed, stream reset, hard teacher", "wrong recalls by the incident that recalled (tier family mode, count)", "of the plain ones: altered by the shift / by the added edge / unaltered"])
 
 
 def waiting():
@@ -326,7 +357,7 @@ def check_w2():
 
 def check_partition():
     d = csv("floor-check-partition")
-    rows = [[r.seeds, r.subset, r.incidents, r.w2_classes, r.data_classes, getattr(r, "_8"), getattr(r, "_9")] for r in d.itertuples()]
+    rows = [[r.seeds, r.subset, r.incidents, r.w2_classes, r.data_classes, r.incidents_whose_w2_class_has_one_data_class, r.incidents_whose_data_class_has_one_w2_class] for r in d.itertuples()]
     return md(rows, ["seeds (hidden)", "subset", "incidents", "W2 code-derived classes", "data-derived classes (K2 at 6 s)",
                      "incidents whose W2 class holds one data class", "incidents whose data class holds one W2 class"])
 
@@ -373,6 +404,17 @@ def a2_edges():
              r.relation_cascade, r.relation_added_edge, r.relation_cascade_rev, r.relation_added_edge_rev, r.relation_peer, r.relation_none] for r in d.itertuples()]
     return md(rows, ["learned edges (seed, a, b, band)", "edges", "on a true hidden-edge pair [90%]", "chance (expected share)", "cascade", "added edge",
                      "cascade, reversed", "added edge, reversed", "split-brain peer", "none"])
+
+
+def pairs():
+    d = csv("pairs")
+    rows = []
+    for r in d.itertuples():
+        rows.append([LABEL.get(r.range, "A 10000-10019 (A2's smoke)"), r.events, r.n_events, ci(r.per_stream, r.lo90, r.hi90, 2),
+                     f"{r.with_one_earlier_sighting_of_the_pair} ({num(r.per_stream_with_one, 3)} per stream)",
+                     f"{r.with_two_earlier_sightings} ({num(r.per_stream_with_two, 3)} per stream)"])
+    return md(rows, ["seeds (hidden)", "true partner events", "events", "per stream [90%]", "with at least one earlier sighting of the pair in the stream",
+                     "with at least two"])
 
 
 TABLES = {n: f for n, f in list(globals().items()) if callable(f) and not n.startswith("_") and n not in (
