@@ -1318,6 +1318,109 @@ fn the_frozen_m3_media_notice_as_they_did_at_the_freeze() {
     assert_eq!(h, M3_FROZEN_DIGEST);
 }
 
+// ---- M4: the frozen M3 media with each precision device off, pinned before M4 changes anything
+
+/// The streams the device digests are taken on (150 s each, as `medium_arm_record` plays them).
+const DEVICE_SEEDS: [u64; 4] = [3, 5, 7, 11];
+
+/// What `params` does on [`DEVICE_SEEDS`] under the selection oracle: every notice and
+/// retirement and the trajectory, hashed, and the number of notices.
+fn device_digest(params: MediumParams) -> (u64, usize) {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut notices = 0;
+    for seed in DEVICE_SEEDS {
+        let r = medium_arm_record(seed, params);
+        notices += r
+            .notice_log
+            .iter()
+            .filter(|e| e.kind == NoticeKind::Notice)
+            .count();
+        fnv(&mut h, &log_as_pinned(&r.notice_log));
+        fnv(&mut h, &format!("{:?}", r.trajectory));
+    }
+    (h, notices)
+}
+
+/// The frozen M3 medium at `tick` with one precision device off, spelled as M3 spelled it: the
+/// cluster merge's window 0; the confirmation's window in event time 0 (which is M2's latch); the
+/// ramp inhibit false.
+fn m3_device_off_as_m3_spelled_it(tick: &str, device: &str) -> MediumParams {
+    let frozen = m3_frozen(tick).unwrap();
+    match device {
+        "frozen" => frozen,
+        "merge" => MediumParams {
+            merge_window_ns: 0,
+            ..frozen
+        },
+        "confirm" => MediumParams {
+            confirm_window_ns: 0,
+            ..frozen
+        },
+        "inhibit" => MediumParams {
+            ramp_inhibit: false,
+            ..frozen
+        },
+        _ => panic!("no device {device}"),
+    }
+}
+
+/// The digests of the frozen M3 media and of each device-off variant, by tick length, pinned on
+/// M3's merged code (main at `96eb1e9`) before any M4 change, in its own commit (work item M4:
+/// "the M3 identity digests must still reproduce with the new switches at their M3 values").
+/// Order: frozen, merge off, confirmation in event time off, ramp inhibit off. (M3's 100 ms medium
+/// has no cluster merge, so its merge-off variant is itself.)
+const M3_DEVICE_DIGESTS: [(&str, [u64; 4]); 3] = [
+    (
+        "100",
+        [
+            0xdb4e_795c_e233_d8ab,
+            0xdb4e_795c_e233_d8ab,
+            0x4d44_a933_0b20_36c6,
+            0x6f7c_0aa6_97ca_6d8e,
+        ],
+    ),
+    (
+        "500",
+        [
+            0x0c58_3869_13ff_670b,
+            0xb74c_ddd6_6a9d_3078,
+            0x7079_678e_d140_c50b,
+            0x7c6e_67a4_ba69_a6d0,
+        ],
+    ),
+    (
+        "2000",
+        [
+            0x0171_5bd4_7c4d_c2d9,
+            0x6e49_83d4_b657_8160,
+            0x2704_67a1_d021_775e,
+            0x02c2_837c_60ac_92c6,
+        ],
+    ),
+];
+
+#[test]
+fn the_frozen_m3_media_with_each_device_off_notice_as_they_did_before_m4() {
+    let mut text = String::new();
+    let mut got = Vec::new();
+    for (tick, _) in M3_DEVICE_DIGESTS {
+        for device in ["frozen", "merge", "confirm", "inhibit"] {
+            let p = m3_device_off_as_m3_spelled_it(tick, device);
+            p.validate().unwrap();
+            let (h, notices) = device_digest(p);
+            writeln!(text, "{tick} {device} {h:#018x} {notices}").unwrap();
+            assert!(notices > 10, "not vacuous: {tick} {device}");
+            got.push(h);
+        }
+    }
+    eprintln!("{text}");
+    let pinned: Vec<u64> = M3_DEVICE_DIGESTS
+        .iter()
+        .flat_map(|(_, d)| d.iter().copied())
+        .collect();
+    assert_eq!(got, pinned, "{text}");
+}
+
 // ---- M3: tests added for survivors of the mutation run of M2's adapters, graph and noticing
 // code (cargo-mutants; the report lists each survivor and its disposition)
 
