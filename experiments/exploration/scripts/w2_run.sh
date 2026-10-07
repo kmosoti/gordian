@@ -25,4 +25,5 @@ run "$here/w2_ceiling.py" \
   --run a-heldout="$root/artifacts/runs/w2/w2-heldout-b5-rho0.7" \
   --l1-dir "${L1_DIR:-/home/user/gordian/artifacts/runs/l1/l1-fresh-b5-rho0.7}" \
   --hidden-root "$root/artifacts/runs/w2/hidden" --out-dir "$root/experiments/exploration"
+run "$here/w2_provenance.py"
 run "$here/w2_assemble.py"

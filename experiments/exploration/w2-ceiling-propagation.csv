@@ -1,0 +1,5 @@
+range,seeds,side,source,hard_incidents_with_an_answered_source,source_answer_right,source_answer_wrong,mixed,wrong_share,lo90,hi90
+a-tune,10000-10099,run joined to hidden,site-keyed (the template),39,18,21,0,0.5385,0.3846,0.6800
+a-tune,10000-10099,run joined to hidden,family-keyed (most recent same family and mode),64,36,28,0,0.4375,0.3425,0.5303
+a-heldout,40000-40199,run joined to hidden,site-keyed (the template),68,40,27,1,0.3971,0.2812,0.5085
+a-heldout,40000-40199,run joined to hidden,family-keyed (most recent same family and mode),115,61,51,3,0.4435,0.3542,0.5345

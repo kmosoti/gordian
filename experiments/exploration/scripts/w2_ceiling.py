@@ -51,7 +51,7 @@ ARM = "sel_reanchor_privileged"
 
 
 def load_calls(trace: pathlib.Path) -> pd.DataFrame:
-    """Every accepted `Escalate` of the ledger: (seed, call, at_ns, focus, refs, tokens, modelled_ns)."""
+    """Every accepted `Escalate` of the ledger: (seed, call, at_ns, focus, refs, tokens, modelled_ns, ready_at_ns)."""
     pending: dict[tuple[int, int], tuple[int, int, int]] = {}
     rows = []
     with open(trace) as fh:
@@ -68,9 +68,9 @@ def load_calls(trace: pathlib.Path) -> pd.DataFrame:
                     continue
                 e = d["payload"]["Escalated"]
                 at, focus, refs = pending.pop((d["seed"], d["inputs"][0]))
-                rows.append((d["seed"], e["call"], at, focus, refs, e["cost"]["tokens"], e["cost"]["modelled_ns"]))
+                rows.append((d["seed"], e["call"], at, focus, refs, e["cost"]["tokens"], e["cost"]["modelled_ns"], e["ready_at"]))
     assert not pending, "an Escalate decision with no outcome in the ledger"
-    return pd.DataFrame(rows, columns=["seed", "call", "at_ns", "focus", "refs", "tokens", "modelled_ns"])
+    return pd.DataFrame(rows, columns=["seed", "call", "at_ns", "focus", "refs", "tokens", "modelled_ns", "ready_at_ns"])
 
 
 def load_owners(path: pathlib.Path) -> dict[int, np.ndarray]:
@@ -92,7 +92,7 @@ def join_run(name: str, run_dir: pathlib.Path, hidden_root: pathlib.Path):
     res = pd.read_csv(arm / "results.csv")
     assert list(res["seed"]) == list(t["seeds"]), "the run and the hidden tables cover different streams"
     j = inc.merge(a[["seed", "incident", "tier", "family", "correct_declarations", "wrong_declarations",
-                     "first_correct_at_ns", "correct_by_deadline", "escalations"]]
+                     "first_correct_at_ns", "correct_by_deadline", "escalations", "correct_escalations"]]
                   .rename(columns={"tier": "arm_tier", "family": "arm_family"}), on=["seed", "incident"], how="left", validate="1:1")
     assert j["arm_tier"].notna().all() and len(j) == len(a), "an incident of the run has no hidden row, or the reverse"
     assert (j["arm_tier"] == j["tier"]).all(), "tier of the run's evaluator disagrees with the hidden truth"
@@ -105,10 +105,12 @@ def join_run(name: str, run_dir: pathlib.Path, hidden_root: pathlib.Path):
     owners = load_owners(hidden_root / name / "owners.jsonl")
     calls["incident"] = [int(owners[s][fc]) for s, fc in zip(calls["seed"], calls["focus"])]
     per_inc = calls[calls["incident"] >= 0].groupby(["seed", "incident"]).agg(
-        calls=("call", "size"), refs=("refs", "sum"), tokens=("tokens", "sum"), ns=("modelled_ns", "sum")).reset_index()
+        calls=("call", "size"), refs=("refs", "sum"), tokens=("tokens", "sum"), ns=("modelled_ns", "sum"),
+        last_ready_ns=("ready_at_ns", "max")).reset_index()
     j = j.merge(per_inc, on=["seed", "incident"], how="left")
     for col in ("calls", "refs", "tokens", "ns"):
         j[col] = j[col].fillna(0).astype(np.int64)
+    # last_ready_ns stays NaN for an incident nobody asked about
     # Checks: the ledger and the evaluator agree, per incident and per stream.
     assert (j["calls"] == j["escalations"]).all(), "calls per incident differ from incidents.csv escalations"
     bg = calls[calls["incident"] < 0].groupby("seed").agg(bg_calls=("call", "size"), bg_ns=("modelled_ns", "sum"))
@@ -309,6 +311,52 @@ def hard_incident_rows(name: str, t: dict, j: pd.DataFrame) -> list[dict]:
     return out
 
 
+def propagation_rows(name: str, t: dict, j: pd.DataFrame) -> list[dict]:
+    """The error a memory fed by the reasoner inherits: the stored answer was wrong. For each hard
+    incident whose source (the template, for the site-keyed form; the most recent earlier hard
+    incident of the same family and mode, for the family-keyed form) had its answer delivered
+    before the incident's first notice, the share whose source answer was wrong. An answer is wrong
+    when the source was asked and none of its calls was right, right when all were; a source with
+    both is `mixed`. This is not staleness and not collision: it is the reasoner's own error
+    carried forward, and it is the same whatever key is used."""
+    seeds = t["seeds"]
+    key = j.set_index(["seed", "incident"])
+    answered = key["last_ready_ns"].notna()
+    right = answered & (key["correct_escalations"] == key["escalations"])
+    wrong = answered & (key["correct_escalations"] == 0)
+    rows = []
+    for form in ("site-keyed (the template)", "family-keyed (most recent same family and mode)"):
+        out = []  # (seed, usable, right, wrong, mixed)
+        for seed, g in j.groupby("seed", sort=False):
+            prev: dict[str, tuple] = {}
+            n_u = n_r = n_w = n_m = 0
+            for r in g.itertuples():
+                if r.tier != "hard":
+                    continue
+                src = None
+                if form.startswith("site"):
+                    if r.is_rec:
+                        src = (seed, int(r.recurrence_of))
+                else:
+                    src = prev.get(r.fam_mode)
+                if src is not None and answered.get(src, False) and key.loc[src, "last_ready_ns"] < r.t_ref:
+                    n_u += 1
+                    n_r += bool(right.get(src, False))
+                    n_w += bool(wrong.get(src, False))
+                    n_m += not (right.get(src, False) or wrong.get(src, False))
+                if answered.get((seed, r.incident), False):
+                    prev[r.fam_mode] = (seed, r.incident)
+            out.append((n_u, n_r, n_w, n_m))
+        a = pd.DataFrame(out, columns=["usable", "right", "wrong", "mixed"], index=[s for s, _ in j.groupby("seed", sort=False)])
+        a = a.reindex(seeds, fill_value=0)
+        pw, lo, hi = boot_ratio(a["wrong"].to_numpy(float), a["usable"].to_numpy(float))
+        rows.append({"range": name, "seeds": C.seed_range(seeds), "side": "run joined to hidden", "source": form,
+                     "hard_incidents_with_an_answered_source": int(a["usable"].sum()), "source_answer_right": int(a["right"].sum()),
+                     "source_answer_wrong": int(a["wrong"].sum()), "mixed": int(a["mixed"].sum()),
+                     "wrong_share": f(pw), "lo90": f(lo), "hi90": f(hi)})
+    return rows
+
+
 def identity(run_dir: pathlib.Path, l1_dir: pathlib.Path) -> list[dict]:
     rows = []
     for fname in ("incidents.csv", "results.csv", "notice_incidents.csv", "notices.csv"):
@@ -326,7 +374,7 @@ def main(argv=None) -> int:
     ap.add_argument("--out-dir", type=pathlib.Path, default=C.OUT)
     ap.add_argument("--l1-dir", type=pathlib.Path, default=None, help="L1's fresh run directory (held-out identity)")
     args = ap.parse_args(argv)
-    ceil, bill, unasked, hard_rows, ident = [], [], [], [], []
+    ceil, bill, unasked, hard_rows, ident, prop = [], [], [], [], [], []
     for spec in args.run:
         name, d = spec.split("=", 1)
         run_dir = pathlib.Path(d)
@@ -340,6 +388,7 @@ def main(argv=None) -> int:
         bill.append(bill_row(name, t, j, res))
         unasked += unasked_rows(name, t, j)
         hard_rows += hard_incident_rows(name, t, j)
+        prop += propagation_rows(name, t, j)
         if name == "a-heldout" and args.l1_dir is not None:
             for r in identity(run_dir, args.l1_dir):
                 ident.append({"range": name, "against": "L1 fresh run, sel_reanchor_privileged", **r})
@@ -347,6 +396,7 @@ def main(argv=None) -> int:
     C.write_csv(args.out_dir / "w2-ceiling-bill.csv", bill)
     C.write_csv(args.out_dir / "w2-ceiling-unasked.csv", unasked)
     C.write_csv(args.out_dir / "w2-ceiling-hard-incidents.csv", hard_rows)
+    C.write_csv(args.out_dir / "w2-ceiling-propagation.csv", prop)
     if ident:
         C.write_csv(args.out_dir / "w2-ceiling-identity.csv", ident)
     return 0

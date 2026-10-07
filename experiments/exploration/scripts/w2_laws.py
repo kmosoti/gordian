@@ -81,7 +81,28 @@ def prepare(t: dict) -> dict:
     rec["stale_edge"] = (rec["edge_altered"] == 1) & (rec["tpl_onset_ns"] < rec["t_ea"])
     rec["stale_any"] = rec["stale_sig"] | rec["stale_edge"]
     t["rec"] = rec
+    check_signature_shift(t)
     return t
+
+
+def check_signature_shift(t: dict) -> None:
+    """An independent check of `sig_altered`: the flag comes from rebuilding the incident (the stream
+    crate's accessor); here the same set is predicted from the rule read off `present.rs` and
+    `incident.rs` (an incident is altered by a shift of kind K when it was built after the shift
+    and emits K's characteristic message: a plain incident of kind K that is not a duo; a compound
+    with K as `a`, or as `b` in a Contradict presentation or a hard Mimic's phase 2; a cascade with
+    K as `a`). The two must agree on every incident, or the script stops."""
+    inc, reg = t["inc"], t["reg"]
+    ss = reg[reg["kind"] == "signature_shift"].set_index("seed")
+    k = inc["seed"].map(ss["kind_a"])
+    post = inc["onset_ns"] >= inc["t_ss"]
+    plain = (inc["tier"] == "plain") & (inc["known_kind"] == k) & (inc["duo"] != 1)
+    comp_a = (inc["family"] == "compound") & (inc["kind_a"] == k)
+    comp_b = (inc["family"] == "compound") & (inc["kind_b"] == k) & ((inc["mode"] == "contradict") | (inc["tier"] == "hard"))
+    casc = (inc["family"] == "cascade") & (inc["kind_a"] == k)
+    predicted = (plain | comp_a | comp_b | casc) & post
+    bad = int((predicted != (inc["sig_altered"] == 1)).sum())
+    assert bad == 0, f"{bad} incidents where the rebuilt alteration disagrees with the rule read from the code"
 
 
 def groups(inc: pd.DataFrame):
@@ -222,6 +243,36 @@ def item1_stale(name: str, t: dict) -> list[dict]:
     return rows
 
 
+def per_stream_table(name: str, t: dict) -> list[dict]:
+    """One row per stream: incidents and recurrences by tier, hard recurrences by family."""
+    inc, rng_label = t["inc"], C.seed_range(t["seeds"])
+    rows = []
+    for s, g in inc.groupby("seed"):
+        row = {"range": name, "seeds": rng_label, "side": "hidden", "seed": int(s), "incidents": len(g),
+               "recurrences": int(g["is_rec"].sum())}
+        for tier in ("plain", "hard", "decoy"):
+            m = g["tier"] == tier
+            row[f"incidents_{tier}"] = int(m.sum())
+            row[f"recurrences_{tier}"] = int((m & g["is_rec"]).sum())
+        for fam in HARD_FAMILIES:
+            row[f"hard_recurrences_{fam}"] = int(((g["tier"] == "hard") & (g["family"] == fam) & g["is_rec"]).sum())
+        rows.append(row)
+    return rows
+
+
+def recurrence_table(name: str, t: dict) -> list[dict]:
+    """One row per recurrence: the incident it repeats, the gaps, and staleness."""
+    rec, rng_label = t["rec"], C.seed_range(t["seeds"])
+    rows = []
+    for r in rec.itertuples():
+        rows.append({"range": name, "seeds": rng_label, "side": "hidden", "seed": int(r.seed), "incident": int(r.incident),
+                     "repeats_incident": int(r.recurrence_of), "tier": r.tier, "family": r.family, "mode": r.mode,
+                     "site": int(r.site), "gap_incidents": int(r.gap_incidents), "gap_s": f(r.gap_s, 3),
+                     "since_template_ended_s": f(r.since_end_s, 3), "stale_signature_shift": int(r.stale_sig),
+                     "stale_added_edge": int(r.stale_edge)})
+    return rows
+
+
 # ---- item 2: same family, different site ----------------------------------------------------
 
 
@@ -341,7 +392,7 @@ def item4(name: str, t: dict):
         q = quantiles(g["delay_ms"])
         delays.append({"range": name, "seeds": rng_label, "side": "hidden", "tier": tier, "family": fam, "mode": mode,
                        "partner_is_dependent": "" if pd.isna(dep) else int(dep), "n": len(g),
-                       "unit": "ms (s for mimic)" if mode == "mimic" else "ms",
+                       "unit": "s" if mode == "mimic" else "ms",
                        "mean": f(g["delay_ms"].mean() / (1000 if mode == "mimic" else 1), 2),
                        "min": f(q[0] / (1000 if mode == "mimic" else 1), 2),
                        "p10": f(q[1] / (1000 if mode == "mimic" else 1), 2), "p50": f(q[3] / (1000 if mode == "mimic" else 1), 2),
@@ -432,16 +483,16 @@ def _vocab_sample(rows: pd.DataFrame, label_col: str, cls: str, exclude_none: bo
     return ids, lab
 
 
-def item3(name: str, t: dict) -> tuple[list[dict], list[dict]]:
+def item3(name: str, t: dict) -> tuple[list[dict], list[dict], list[dict]]:
     vocab, seeds, rng_label = t["vocab"], t["seeds"], C.seed_range(t["seeds"])
     samples = [
-        ("incident-borne (hard incidents' out-of-catalogue messages)", "any_live_hard_family", "incident", False),
-        ("background free-form, labelled by the hard family live anywhere", "any_live_hard_family", "background", True),
-        ("background free-form, labelled by the hard family live at its service", "here_live_hard_family", "background", True),
+        ("incident-borne", "incident-borne (hard incidents' out-of-catalogue messages)", "any_live_hard_family", "incident", False),
+        ("background-any", "background free-form, labelled by the hard family live anywhere", "any_live_hard_family", "background", True),
+        ("background-here", "background free-form, labelled by the hard family live at its service", "here_live_hard_family", "background", True),
     ]
-    out, prec = [], []
+    out, prec, per_stream_rows = [], [], []
     by_seed = {s: g for s, g in vocab.groupby("seed")}
-    for sname, col, cls, excl in samples:
+    for short, sname, col, cls, excl in samples:
         stats = []
         for s in seeds:
             g = by_seed.get(s)
@@ -465,6 +516,11 @@ def item3(name: str, t: dict) -> tuple[list[dict], list[dict]]:
             one_multi = float((fam_per_id[multi] == 1).mean()) if multi.any() else float("nan")
             stats.append((n, len(u), len(np.unique(lab)), mi, h, perm.mean(), np.quantile(perm, 0.95), one_all, one_multi,
                           int(multi.sum())))
+            per_stream_rows.append({"range": name, "seeds": rng_label, "side": "public ids, hidden labels",
+                                    "sample": short, "seed": int(s), "messages": n, "distinct_ids": len(u),
+                                    "labels": len(np.unique(lab)), "mi_bits": f(mi), "label_entropy_bits": f(h),
+                                    "mi_permutation_mean_bits": f(perm.mean()), "mi_permutation_p95_bits": f(np.quantile(perm, 0.95)),
+                                    "share_ids_at_exactly_one_label": f(one_all)})
         used = [x for x in stats if x is not None]
         arr = np.array(used, dtype=float) if used else np.zeros((0, 10))
 
@@ -518,7 +574,7 @@ def item3(name: str, t: dict) -> tuple[list[dict], list[dict]]:
         prec.append({"range": name, "seeds": rng_label, "side": "public ids, hidden labels", "messages": label,
                      "incident_borne": int(ni.sum()), "background": int(nb.sum()), "precision_incident_borne": f(p),
                      "lo90": f(lo), "hi90": f(hi), "recall_of_incident_borne": f(ni.sum() / cnt_inc[0].sum())})
-    return out, prec
+    return out, prec, per_stream_rows
 
 
 # ---- site collisions: what a weak key would recall wrongly ----------------------------------
@@ -639,12 +695,14 @@ def main(argv=None) -> int:
         "recurrence-summary", "recurrence-eligibility", "recurrence-gaps", "experience-curve",
         "experience-stream-order", "stale", "family-elsewhere", "regime-effects", "regime-hard-after",
         "regime-shifted-kinds", "cascade-delays", "edgeadd", "pair-recurrence", "vocabulary",
-        "vocabulary-precision", "site-collisions", "phase1-collisions")}
+        "vocabulary-precision", "vocabulary-perstream", "site-collisions", "phase1-collisions", "perstream", "recurrences")}
     for name in C.RANGES:
         t = prepare(C.read_range(args.hidden_root, name))
         world_b = C.RANGES[name]["world"] == "b"
         print(f"{name}: seeds {C.seed_range(t['seeds'])}, {len(t['inc'])} incidents, {len(t['rec'])} recurrences")
         tables["recurrence-summary"] += item1_summary(name, t)
+        tables["perstream"] += per_stream_table(name, t)
+        tables["recurrences"] += recurrence_table(name, t)
         tables["recurrence-eligibility"].append(item1_eligibility(name, t))
         tables["recurrence-gaps"] += item1_gaps(name, t)
         tables["experience-curve"] += item1_curve(name, t)
@@ -661,8 +719,9 @@ def main(argv=None) -> int:
         tables["cascade-delays"] += d
         tables["edgeadd"] += e
         tables["pair-recurrence"] += p
-        v, pr = item3(name, t)
+        v, pr, ps = item3(name, t)
         tables["vocabulary"] += v
+        tables["vocabulary-perstream"] += ps
         tables["vocabulary-precision"] += pr
         tables["site-collisions"] += collisions(name, t)
         tables["phase1-collisions"] += phase1_collisions(name, t)
