@@ -34,6 +34,7 @@
 //! | `earliest_anchor` ([`super::noticer_rung::EarliestAnchor`]) | the rung's noticer with its anchor moved to the earliest abnormal observation at the anomaly's site within `lookback_ns` before the rung's anchor |
 //! | `reanchor` ([`super::noticer_reanchor::ReanchorNoticer`], work item B2) | the rung's noticer with a later re-anchor: an anomaly anchored on an isolated abnormal observation (none other at its site within `gap_ns`) whose attached evidence holds a burst that begins after the anchor is re-anchored on that burst's first observation, at the moment of notice |
 //! | `ramp`, `split`, `ramp_split` and each with `_reanchor` ([`NoticerSpec::Composed`], work item B3) | a base noticer (the rung's, or the later re-anchor) with [`super::noticer_ramp::RampNoticer`] (a per-node trend detector on counter readings, benign ones included, which opens a noticed anomaly of its own on a smooth rise, anchored on the rise's first reading), [`super::noticer_split::SplitNoticer`] (an anomaly holding a later burst at other sites, after a silence, is two anomalies), or both, wrapped around it. Both open and move anomalies in the base's own set, so everything downstream is shared |
+//! | `dataflow` ([`super::dataflow::DataflowNoticer`], work item C1) | B3's ramp and split over the later re-anchor over the rung's candidates, re-expressed as relations kept up to date by deltas on a small general incremental engine; it must give the hand-written composition's answers, and its counted operations are priced and billed |
 //!
 //! # The record
 //!
@@ -97,6 +98,10 @@ pub enum NoticerSpec {
     /// The medium with three of its constants learned online (work item L1, Lab 3)
     /// ([`super::learned`]).
     Learned(super::learned::LearnedParams),
+    /// B3's ramp and split over the rung's or the later re-anchor's candidates, as relations
+    /// kept by deltas on a general incremental engine (work item C1, Lab 2)
+    /// ([`super::dataflow`]).
+    Dataflow(super::dataflow::DataflowSpec),
     /// A base noticer with a ramp noticer and/or a splitting noticer wrapped around it (work item
     /// B3). At least one of `ramp` and `split` is given; a manifest naming neither is refused.
     Composed {
@@ -178,6 +183,7 @@ impl NoticerSpec {
             Self::Reanchor { .. } => REANCHOR_ID,
             Self::Medium(_) => super::medium::MEDIUM_ID,
             Self::Learned(_) => super::learned::LEARNED_ID,
+            Self::Dataflow(_) => super::dataflow::DATAFLOW_ID,
             Self::Composed { base, ramp, split } => composed_id_with(
                 base,
                 ramp.is_some(),
@@ -204,6 +210,7 @@ impl NoticerSpec {
             }
             Self::Medium(params) => params.validate(),
             Self::Learned(params) => params.validate(),
+            Self::Dataflow(spec) => spec.validate(),
             Self::Composed {
                 ramp: None,
                 split: None,
@@ -861,6 +868,7 @@ pub fn build(spec: &NoticerSpec, cfg: &RungConfig, services: &[Service]) -> Box<
         }
         NoticerSpec::Medium(params) => super::medium::build(&params, cfg, services),
         NoticerSpec::Learned(params) => super::learned::build(&params, cfg, services),
+        NoticerSpec::Dataflow(spec) => super::dataflow::build(&spec, cfg, services),
         NoticerSpec::Composed { base, ramp, split } => match base {
             BaseSpec::Rung { notice_z } => {
                 let mut cfg = cfg.clone();

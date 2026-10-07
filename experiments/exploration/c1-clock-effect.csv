@@ -1,0 +1,3 @@
+stage,column,rows_differing,rows,min_difference,max_difference,mean_difference
+heldout,first_correct_at_ns,5316,5316,705.0,29965.0,5692.530939092453
+heldout,time_to_first_correct_ns,5316,5316,705.0,29965.0,5692.530939092453

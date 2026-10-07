@@ -66,5 +66,20 @@ rand_core = "0.10.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 
+[dev-dependencies]
+# Requirement (work item C1): the declared prices of the dataflow noticer's counted operations
+# (probe, write, scan, fire) are calibrated against criterion medians on this CPU
+# (src/stream/arms/dataflow/bench.rs, a [[bench]] whose source lives with the code it prices).
+# Simpler alternative: a hand-rolled timing loop; rejected, as in gordian-components and
+# gordian-medium it would reimplement warm-up, outlier handling and the median estimate.
+# Cost: dev builds only; the same version and features as gordian-components, gordian-medium and
+# gordian-world, so nothing new is compiled and Cargo.lock gains one dependency line for this crate.
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "dataflow"
+path = "src/stream/arms/dataflow/bench.rs"
+harness = false
+
 [lints]
 workspace = true

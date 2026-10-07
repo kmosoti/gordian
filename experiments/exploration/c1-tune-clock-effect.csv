@@ -1,0 +1,3 @@
+stage,column,rows_differing,rows,min_difference,max_difference,mean_difference
+tune,first_correct_at_ns,2643,2643,680.0,32115.0,5854.027377521614
+tune,time_to_first_correct_ns,2643,2643,680.0,32115.0,5854.027377521614

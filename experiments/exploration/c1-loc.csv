@@ -1,0 +1,24 @@
+group,part,file,total_lines,code_lines,test_module_code_lines
+hand-written B3,rules,crates/gordian-run/src/stream/arms/noticer_rung.rs,306,220,0
+hand-written B3,rules,crates/gordian-run/src/stream/arms/noticer_reanchor.rs,216,125,0
+hand-written B3,rules,crates/gordian-run/src/stream/arms/noticer_ramp.rs,538,343,0
+hand-written B3,rules,crates/gordian-run/src/stream/arms/noticer_split.rs,262,152,0
+"hand-written, shared",seam,crates/gordian-run/src/stream/arms/noticer.rs,918,620,0
+dataflow,rules,crates/gordian-run/src/stream/arms/dataflow/rules.rs,512,210,175
+dataflow,graph,crates/gordian-run/src/stream/arms/dataflow/program.rs,953,795,0
+dataflow,graph,crates/gordian-run/src/stream/arms/dataflow/noticing.rs,238,184,0
+dataflow,engine,crates/gordian-run/src/stream/arms/dataflow/engine.rs,419,206,100
+dataflow,spec,crates/gordian-run/src/stream/arms/dataflow/mod.rs,168,46,0
+dataflow,bench,crates/gordian-run/src/stream/arms/dataflow/bench.rs,612,512,0
+medium,graph,crates/gordian-run/src/stream/arms/medium/graph.rs,569,424,0
+medium,graph,crates/gordian-run/src/stream/arms/medium/noticing.rs,439,342,0
+medium,graph,crates/gordian-run/src/stream/arms/medium/adapters.rs,287,176,0
+medium,graph,crates/gordian-run/src/stream/arms/medium/mod.rs,43,14,0
+medium,engine,crates/gordian-medium/src/archetype.rs,844,608,62
+medium,engine,crates/gordian-medium/src/lib.rs,58,27,0
+medium,engine,crates/gordian-medium/src/medium.rs,1084,833,0
+medium,engine,crates/gordian-medium/src/oscillome.rs,625,341,86
+medium,engine,crates/gordian-medium/src/persist.rs,647,573,0
+medium,engine,crates/gordian-medium/src/ports.rs,342,210,0
+medium,engine,crates/gordian-medium/src/spec.rs,562,430,0
+medium,engine,crates/gordian-medium/src/types.rs,434,185,105
