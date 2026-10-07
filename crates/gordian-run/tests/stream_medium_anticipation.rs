@@ -240,7 +240,9 @@ fn three_follows_within_0_4_s_learn_the_edge_and_the_next_alarm_predicts_the_par
         .filter(|m| m.subject == a && m.tag >> 8 == b)
         .collect();
     assert_eq!(follows.len(), 4 * 3);
-    // Held at the fourth alarm (level about 2.3 in every band), not at the third (about 1.6).
+    // Held at the fourth alarm in the 0.4 s band (each follow worth 1 - q, q about 0.03: a level
+    // about 2.25), not at the third (about 1.6). In the 10 s band a follow is worth about half
+    // (b alarms within 10 s about half the time by chance): not held.
     let preds = d.marks(Kind::Prediction);
     assert_eq!(preds.len(), 1, "{preds:?}");
     let p = preds[0];
@@ -248,8 +250,11 @@ fn three_follows_within_0_4_s_learn_the_edge_and_the_next_alarm_predicts_the_par
     assert_eq!(p.tag, tag(b, 0), "the narrowest band held");
     assert_eq!(p.at_ns, 70_000 * MS, "the step that delivered the alarm");
     let held = d.marks(Kind::Held);
-    assert_eq!(held.len(), 3, "held in every band");
-    assert!(held.iter().all(|m| m.value > 2_000 && m.value < 2_600));
+    let band0: Vec<&Mark> = held.iter().filter(|m| m.tag == tag(b, 0)).collect();
+    assert_eq!(band0.len(), 1);
+    assert!(band0[0].value > 2_000 && band0[0].value < 2_400, "{held:?}");
+    assert!(!held.iter().any(|m| m.tag == tag(b, 2)), "{held:?}");
+    assert!(held.iter().all(|m| m.event == d.id_at(70_000)));
     // It is followed on the public side by b's alarm 100 ms later.
     let f = d.marks(Kind::Followed);
     assert_eq!(f.len(), 1);
@@ -271,9 +276,8 @@ fn a_partner_in_burst_gets_no_trial_and_no_prediction() {
     let mut d = Drive::new(with(Some(config(9_202))), &public, &obs);
     d.until(80_000);
     assert!(d.marks(Kind::Prediction).is_empty());
-    assert_eq!(
-        d.marks(Kind::Held).len(),
-        3,
+    assert!(
+        d.marks(Kind::Held).iter().any(|m| m.tag == tag(b, 0)),
         "the edge is held, the partner is busy"
     );
     // Trials opened at a's alarm at 70 s: every partner but b, three bands each.
@@ -342,7 +346,8 @@ fn an_alarm_the_public_graph_explains_is_neither_a_trial_nor_a_follow_unless_the
 fn a_miss_weighs_the_partners_chance_rate_under_the_rungs_prior() {
     let public = public();
     let (a, b) = pair(&public);
-    // One alarm at a at 30 s; nothing at b: b's rate is the prior, 3 alarms over 30 s plus 30 s.
+    // One alarm at a at 30 s; nothing at b: b's rate is the prior, 3 alarms over 30 s of quiet
+    // time plus the prior's 30 s.
     let mut d = Drive::new(with(Some(config(9_205))), &public, &[(30_000, alarm(a))]);
     d.until(50_000);
     let rate = 3.0f64 / 60.0;
@@ -355,7 +360,7 @@ fn a_miss_weighs_the_partners_chance_rate_under_the_rungs_prior() {
     assert_eq!(misses.len(), 3);
     for (k, v) in misses {
         let w = [0.4, 2.0, 10.0][k];
-        let want = -(((rate * w).exp() - 1.0) * 1000.0);
+        let want = -((1.0 - (-rate * w).exp()) * 1000.0);
         assert!((v as f64 - want).abs() <= 1.0, "band {k}: {v} {want}");
     }
     // The misses land at the deadlines.
@@ -366,6 +371,33 @@ fn a_miss_weighs_the_partners_chance_rate_under_the_rungs_prior() {
         .map(|m| m.at_ns / MS)
         .collect();
     assert_eq!(at, vec![30_400, 32_000, 40_000]);
+}
+
+#[test]
+fn the_partners_rate_is_its_counted_first_alarms_per_second_of_its_quiet_time() {
+    let public = public();
+    let (a, b) = pair(&public);
+    // b alarms at 10 s and 10.5 s (one burst: in burst from 10 s to 12.5 s), then a at 30 s.
+    let obs = vec![(10_000, alarm(b)), (10_500, alarm(b)), (30_000, alarm(a))];
+    let mut d = Drive::new(with(Some(config(9_213))), &public, &obs);
+    d.until(29_500);
+    assert_eq!(d.layer().quiet_ns(b, 30_000 * MS), 27_500 * MS);
+    assert_eq!(d.layer().quiet_ns(b, 11_000 * MS), 10_000 * MS);
+    assert_eq!(d.layer().quiet_ns(a, 30_000 * MS), 30_000 * MS);
+    d.until(50_000);
+    // One counted first alarm over 27.5 s of quiet time, with the prior's 3 over 30 s.
+    let rate = 4.0f64 / 57.5;
+    let misses: Vec<i64> = d
+        .marks(Kind::Miss)
+        .iter()
+        .filter(|m| m.subject == a && m.tag >> 8 == b)
+        .map(|m| m.value)
+        .collect();
+    assert_eq!(misses.len(), 3);
+    for (k, v) in misses.into_iter().enumerate() {
+        let want = -((1.0 - (-rate * [0.4, 2.0, 10.0][k]).exp()) * 1000.0);
+        assert!((v as f64 - want).abs() <= 1.0, "band {k}: {v} {want}");
+    }
 }
 
 #[test]

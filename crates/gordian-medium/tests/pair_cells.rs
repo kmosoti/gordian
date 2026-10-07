@@ -6,7 +6,7 @@ use gordian_medium::oscillome::decay_per_tick;
 use gordian_medium::{
     Archetype, CollectingEffector, ConstantField, CountingLedger, EV_CHANNEL, Event, Field, Limits,
     Medium, NoPlasticity, NoTrace, PairCells, PairParams, Ports, Prices, ScriptedSense, StepClock,
-    Trials, miss_weight, pair_node,
+    Trials, chance, pair_node,
 };
 
 const TICK: u64 = 100_000_000;
@@ -190,33 +190,40 @@ fn an_evidence_event_for_a_tick_already_run_goes_to_the_next_tick_at_offset_zero
 
 #[test]
 fn a_follow_credits_the_latest_open_trial_per_partner_and_band_once() {
-    let mut t = Trials::new(vec![400, 2_000, 10_000], 1.0);
-    // a = 0 at 1000 and at 4000 (both waiting for b = 1); a = 2 at 3500 waiting for b = 1.
-    t.open(0, 1, 1_000, 7, &[0.1, 0.2, 0.3]);
-    t.open(0, 1, 4_000, 8, &[0.1, 0.2, 0.3]);
-    t.open(2, 1, 3_500, 9, &[0.4, 0.5, 0.6]);
+    let mut t = Trials::new(vec![400, 2_000, 10_000]);
+    // a = 0 at 1000 and at 4000 (both waiting for b = 1); a = 2 at 3500 waiting for b = 1. The
+    // weights are (follow, miss) per band.
+    let w0 = [(0.9, 0.1), (0.8, 0.2), (0.7, 0.3)];
+    t.open(0, 1, 1_000, 7, &w0);
+    t.open(0, 1, 4_000, 8, &w0);
+    t.open(2, 1, 3_500, 9, &[(0.6, 0.4), (0.5, 0.5), (0.4, 0.6)]);
     assert_eq!(t.open_count(), 9);
     // b = 1 at 4300: for a = 0 every band's latest trial (opened at 4000) is credited; for a = 2
     // the 2 s and 10 s trials (gap 800).
     let f = t.follow(1, 4_300, 77);
-    let got: Vec<(u16, usize, u64, u32)> = f
+    let got: Vec<(u16, usize, u64, u32, f32)> = f
         .iter()
-        .map(|e| (e.trial.a, e.trial.band, e.trial.at_ns, e.trial.token))
+        .map(|e| {
+            (
+                e.trial.a,
+                e.trial.band,
+                e.trial.at_ns,
+                e.trial.token,
+                e.value,
+            )
+        })
         .collect();
     assert_eq!(
         got,
         vec![
-            (0, 0, 4_000, 8),
-            (0, 1, 4_000, 8),
-            (0, 2, 4_000, 8),
-            (2, 1, 3_500, 9),
-            (2, 2, 3_500, 9),
+            (0, 0, 4_000, 8, 0.9),
+            (0, 1, 4_000, 8, 0.8),
+            (0, 2, 4_000, 8, 0.7),
+            (2, 1, 3_500, 9, 0.5),
+            (2, 2, 3_500, 9, 0.4),
         ]
     );
-    assert!(
-        f.iter()
-            .all(|e| e.follow && e.value == 1.0 && e.by == 77 && e.at_ns == 4_300)
-    );
+    assert!(f.iter().all(|e| e.follow && e.by == 77 && e.at_ns == 4_300));
     // A second instant at 1 at 4350 credits only what is left with it in its window: a = 0's
     // 10 s trial opened at 1000 (gap 3350); a = 2's 0.4 s trial is 850 behind, out of its band.
     let f = t.follow(1, 4_350, 78);
@@ -247,8 +254,8 @@ fn a_follow_credits_the_latest_open_trial_per_partner_and_band_once() {
 
 #[test]
 fn a_trial_expires_only_once_its_deadline_is_past_and_a_follow_at_the_deadline_counts() {
-    let mut t = Trials::new(vec![400], 1.0);
-    t.open(0, 1, 1_000, 1, &[0.5]);
+    let mut t = Trials::new(vec![400]);
+    t.open(0, 1, 1_000, 1, &[(0.5, 0.5)]);
     assert!(
         t.expire(1_400).is_empty(),
         "deadline 1400 is not before 1400"
@@ -258,7 +265,7 @@ fn a_trial_expires_only_once_its_deadline_is_past_and_a_follow_at_the_deadline_c
         1,
         "a gap equal to the band is inside it"
     );
-    t.open(0, 1, 2_000, 3, &[0.5]);
+    t.open(0, 1, 2_000, 3, &[(0.5, 0.5)]);
     assert!(
         t.follow(1, 2_000, 4).is_empty(),
         "the same instant is not after it"
@@ -267,18 +274,19 @@ fn a_trial_expires_only_once_its_deadline_is_past_and_a_follow_at_the_deadline_c
 }
 
 #[test]
-fn the_miss_weight_is_the_odds_of_a_chance_follow() {
-    assert_eq!(miss_weight(0.0, 10 * S), 0.0);
-    assert_eq!(miss_weight(-1.0, 10 * S), 0.0);
-    assert_eq!(miss_weight(f64::NAN, 10 * S), 0.0);
-    let w = miss_weight(0.1, 10 * S);
-    assert!((w - (1.0f64.exp() - 1.0) as f32).abs() < 1e-6, "{w}");
-    let w = miss_weight(0.1, 400_000_000);
-    assert!((w - (0.04f64.exp() - 1.0) as f32).abs() < 1e-7, "{w}");
-    // Zero drift at chance: q * 1 - (1 - q) * w = 0 with q = 1 - exp(-r w).
-    let q = 1.0 - (-0.5f64).exp();
-    let w = f64::from(miss_weight(0.25, 2 * S));
-    assert!((q - (1.0 - q) * w).abs() < 1e-6);
+fn the_chance_is_that_of_a_poisson_instant_in_the_window_and_gives_zero_drift() {
+    assert_eq!(chance(0.0, 10 * S), 0.0);
+    assert_eq!(chance(-1.0, 10 * S), 0.0);
+    assert_eq!(chance(f64::NAN, 10 * S), 0.0);
+    let q = chance(0.1, 10 * S);
+    assert!((q - (1.0 - (-1.0f64).exp()) as f32).abs() < 1e-6, "{q}");
+    let q = chance(0.1, 400_000_000);
+    assert!((q - (1.0 - (-0.04f64).exp()) as f32).abs() < 1e-7, "{q}");
+    // Zero drift at chance: q (1 - q) - (1 - q) q = 0; and a follow is worth less the likelier
+    // it was.
+    assert!(chance(0.25, 400_000_000) < chance(0.25, 2 * S));
+    assert!(chance(0.25, 2 * S) < chance(0.25, 10 * S));
+    assert!(chance(1.0e6, 10 * S) <= 1.0);
 }
 
 #[test]

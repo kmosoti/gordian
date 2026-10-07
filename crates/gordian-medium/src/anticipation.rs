@@ -12,8 +12,9 @@
 //!
 //! The evidence is the adapter's to make; this module also gives the world-agnostic bookkeeping
 //! that turns two series of instants into evidence ([`Trials`]: a trial at `a` is followed when a
-//! `b` instant falls in its window, else it is a miss at its deadline) and the weight of a miss
-//! that makes a follow at the chance rate drift by zero ([`miss_weight`]). The crate knows nodes,
+//! `b` instant falls in its window, else it is a miss at its deadline) and the chance of a follow
+//! ([`chance`]): with a follow worth `1 - q` and a miss worth `-q` at chance `q`, the evidence is
+//! the count of follows beyond chance, which drifts by zero under chance. The crate knows nodes,
 //! instants and evidence; never services, alarms or graphs. The names label a mechanism; they
 //! claim nothing about what it finds.
 //!
@@ -46,7 +47,8 @@ pub struct PairParams {
     pub domain: u16,
     /// The bands' windows, nanoseconds, strictly ascending, each positive.
     pub bands_ns: Vec<u64>,
-    /// What a follow adds.
+    /// The scale of the evidence (a follow at chance `q` adds `gain * (1 - q)`, a miss takes
+    /// `gain * q`; the adapter's to apply).
     pub gain: f32,
     /// The level at which an edge is held.
     pub threshold: f32,
@@ -243,18 +245,18 @@ impl PairCells {
     }
 }
 
-/// The weight of a miss in a window of `window_ns` when the partner's instants come at
-/// `rate_per_s`: `exp(rate * w) - 1`, the odds that a Poisson process of that rate puts at least
-/// one instant in the window. A trial followed with that process's probability then has an
-/// expected evidence of zero (a follow worth 1). Computed with the oscillome's `exp_det` (basic
-/// IEEE operations only), rounded once to `f32`; a negative or non-finite rate counts as zero.
-pub fn miss_weight(rate_per_s: f64, window_ns: u64) -> f32 {
+/// The chance that a Poisson process of `rate_per_s` puts at least one instant in a window of
+/// `window_ns`: `1 - exp(-rate * w)`. A trial whose follow is worth `1 - q` and whose miss is worth
+/// `-q` at this `q` has an expected evidence of zero when it is followed at that chance; its level
+/// counts follows beyond chance. Computed with the oscillome's `exp_det` (basic IEEE operations
+/// only), rounded once to `f32`; a negative or non-finite rate counts as zero.
+pub fn chance(rate_per_s: f64, window_ns: u64) -> f32 {
     let r = if rate_per_s.is_finite() && rate_per_s > 0.0 {
         rate_per_s
     } else {
         0.0
     };
-    (exp_det(r * window_ns as f64 / 1.0e9) - 1.0) as f32
+    (1.0 - exp_det(-r * window_ns as f64 / 1.0e9)) as f32
 }
 
 /// One open trial: an instant at `a`, waiting for an instant at `b` in band `band`.
@@ -270,13 +272,16 @@ pub struct Trial {
     pub at_ns: u64,
     /// The last instant a follow may come at: `at_ns + w_band`.
     pub deadline_ns: u64,
+    /// What a follow adds.
+    pub follow: f32,
     /// What a miss takes (positive; the evidence is its negation).
     pub miss: f32,
     /// The adapter's name for the instant that opened it (an observation id).
     pub token: u32,
 }
 
-/// One trial resolved: a follow (`value` = the gain) or a miss (`value` = minus its weight).
+/// One trial resolved: a follow (`value` = its follow weight) or a miss (`value` = minus its miss
+/// weight).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Evidence {
     /// The trial.
@@ -295,23 +300,21 @@ pub struct Evidence {
 #[derive(Debug, Clone, Default)]
 pub struct Trials {
     bands_ns: Vec<u64>,
-    gain: f32,
     open: Vec<Trial>,
 }
 
 impl Trials {
-    /// No open trial, for these bands and gain.
-    pub fn new(bands_ns: Vec<u64>, gain: f32) -> Self {
+    /// No open trial, for these bands.
+    pub fn new(bands_ns: Vec<u64>) -> Self {
         Self {
             bands_ns,
-            gain,
             open: Vec::new(),
         }
     }
 
-    /// Open, for partner `b`, one trial per band at `at_ns`, named `token`, with the miss weights
-    /// `misses` (one per band; a missing one counts as zero).
-    pub fn open(&mut self, a: u16, b: u16, at_ns: u64, token: u32, misses: &[f32]) {
+    /// Open, for partner `b`, one trial per band at `at_ns`, named `token`, with the weights
+    /// `(follow, miss)` of each band (a missing one counts as zero).
+    pub fn open(&mut self, a: u16, b: u16, at_ns: u64, token: u32, weights: &[(f32, f32)]) {
         for (k, w) in self.bands_ns.iter().enumerate() {
             self.open.push(Trial {
                 a,
@@ -319,7 +322,8 @@ impl Trials {
                 band: k,
                 at_ns,
                 deadline_ns: at_ns.saturating_add(*w),
-                miss: misses.get(k).copied().unwrap_or(0.0),
+                follow: weights.get(k).map_or(0.0, |w| w.0),
+                miss: weights.get(k).map_or(0.0, |w| w.1),
                 token,
             });
         }
@@ -344,7 +348,7 @@ impl Trials {
             .map(|&i| Evidence {
                 trial: self.open[i],
                 at_ns,
-                value: self.gain,
+                value: self.open[i].follow,
                 follow: true,
                 by: token,
             })

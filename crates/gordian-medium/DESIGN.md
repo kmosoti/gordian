@@ -1172,6 +1172,30 @@ before the code) or fills a gap it left.
     2's `noticer.rs`): the attach switch needs when an anomaly's current burst began and whether
     its site is still speaking; both fields were private. Nothing else outside Lab 1's files
     changed.
+82. **The partner's rate is per second of its quiet time** (found by analysis before any run,
+    while writing the prediction): the section above divides `b`'s counted first alarms by the
+    elapsed time, `(n_b + prior) / (t_a + prior_t)`. A trial is opened only while `b` is quiet,
+    and a quiet service's next abnormal observation begins a burst, so the chance of a follow is
+    set by the rate at which bursts begin per unit of quiet time; the elapsed time also counts `b`'s
+    time in burst, which underestimates that rate and gives every pair a positive drift (for
+    Poisson alarms at rate `r`, first alarms come at `r exp(-2r)` per second of elapsed time but at
+    `r` per second of quiet time). The rate is now `(n_b + prior_rate * prior_t) / (quiet_b +
+    prior_t)`, with `quiet_b` the time in `[0, t_a]` not within `burst_gap_ns` after one of `b`'s
+    abnormal observations. Nothing had run.
+83. **Evidence is counted as follows beyond chance** (found by analysis before any run, while
+    writing the prediction): the section above weights a follow `g` and a miss `g * (exp(r w) -
+    1)`, the odds of a chance follow. That count also has zero drift under chance, but its steps
+    are skewed: at a chance `q` near 1 (the 10 s band, where a busy partner alarms within 10 s of
+    almost anything) a miss takes `q / (1 - q)` (about 9 at `q = 0.9`) and a follow adds 1, so the
+    level climbs by ones between rare large drops and sits above `theta` much of the time with no
+    structure at all. A null model (independent services; a partner's counted bursts at 0.1 to
+    0.3 per quiet second; 20 to 60 trials per pair per stream; the rule as written) held the 10 s
+    edge of a pair at 14% to 65% of reads and nearly every pair at some read of every stream. The
+    weights are now `g * (1 - q)` for a follow and `g * q` for a miss, with `q = 1 - exp(-r w)`
+    (`chance` replaces `miss_weight` in the crate; a trial carries both weights): the same zero
+    drift and sign, steps bounded by `g`, and a level in units of follows beyond chance, which is
+    what the threshold's stated reason ("two follows beyond chance") means. `theta`, the bands,
+    `tau`, the prior and every other value are unchanged. Nothing had run.
 
 ## Mutation checks
 

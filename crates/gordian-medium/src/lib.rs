@@ -47,7 +47,7 @@ pub mod spec;
 pub mod types;
 
 pub use anticipation::{
-    EV_CHANNEL, Evidence, MAX_BANDS, PairCells, PairParams, Trial, Trials, miss_weight,
+    EV_CHANNEL, Evidence, MAX_BANDS, PairCells, PairParams, Trial, Trials, chance,
 };
 pub use archetype::{Archetype, ParamError};
 pub use engram::{

@@ -37,14 +37,20 @@
 //! (a labelled control), every first alarm is counted.
 //!
 //! 1. **Follow.** A counted first alarm at `b` at `t_b` credits, for every `a` and band `k`, the
-//!    latest open trial `(a, b, k, t_a)` with `t_a < t_b <= t_a + w_k`: evidence `+gain` to the
-//!    pair cell `(a, b, k)` at `t_b`.
+//!    latest open trial `(a, b, k, t_a)` with `t_a < t_b <= t_a + w_k`: evidence
+//!    `+gain * (1 - q)` to the pair cell `(a, b, k)` at `t_b`, with `q` the trial's chance (below).
 //! 2. **Trial.** A counted first alarm at `a` at `t_a` opens, for every `b` unconnected to `a` and
-//!    not in burst at `t_a`, one trial per band; a trial whose window closes without a follow is a
-//!    **miss**: evidence `-gain * miss_weight(rate_b, w_k)` at its deadline. `rate_b` is the rate
-//!    of `b`'s counted first alarms before `t_a`, per second, under the rung scorer's prior:
-//!    `(n_b + prior_mhz / 1000 * prior_s) / (t_a_s + prior_s)`. At that weight a pair whose follows
-//!    come at the chance rate of `b`'s alarms drifts by zero.
+//!    not in burst at `t_a`, one trial per band, with its **chance** `q = chance(rate_b, w_k)`
+//!    (`1 - exp(-rate_b * w_k)`); a trial whose window closes without a follow is a **miss**:
+//!    evidence `-gain * q` at its deadline. The level counts follows beyond chance (departure 83:
+//!    the design weighted a follow 1 and a miss `q / (1 - q)`). `rate_b` is the rate
+//!    at which `b`'s counted first alarms began **while `b` was quiet** (not in burst) before
+//!    `t_a`, per second of `b`'s quiet time, under the rung scorer's prior:
+//!    `(n_b + prior_mhz / 1000 * prior_s) / (quiet_b_s + prior_s)`. A trial is opened only while
+//!    `b` is quiet, so this is the rate behind the chance of a follow; a pair whose follows come at
+//!    that chance drifts by zero. (Departure 82: the design divided by the elapsed time, which
+//!    counts `b`'s busy time too and so underestimates the chance; found by analysis before any
+//!    run.)
 //! 3. **Learned edge.** The layer holds `a -> b` in band `k` when the pair cell's level, read at
 //!    the layer's next tick, is at least `threshold`.
 //! 4. **Prediction.** At a trial at `a`, before its trials open, for each partner `b` (unconnected,
@@ -97,7 +103,7 @@ use gordian_core::Instant;
 use gordian_medium::{
     ConstantField, DiscardingEffector, Evidence, Field, Limits, Mark, MarkLog, Medium,
     NoPlasticity, OpCounts, PairCells, PairParams, Ports, Prices, ScriptedSense, Trace, Trials,
-    miss_weight,
+    chance,
 };
 use gordian_world::graph::dependents_mask;
 use gordian_world::{Service, ServiceId};
@@ -117,7 +123,8 @@ pub struct AnticipationConfig {
     /// The bands' windows, nanoseconds, strictly ascending.
     #[serde(default = "bands")]
     pub bands_ns: [u64; 3],
-    /// What a follow adds.
+    /// The scale of the evidence: a follow at chance `q` adds `gain * (1 - q)`, a miss takes
+    /// `gain * q`.
     #[serde(default = "one")]
     pub gain: f32,
     /// The level at which an edge is held.
@@ -357,6 +364,9 @@ pub struct Layer {
     prior_s: f64,
     /// The latest abnormal observation per service.
     last_abnormal: BTreeMap<u32, u64>,
+    /// Per service, the time in burst between its abnormal observations so far (each gap counted
+    /// up to `burst_gap_ns`), nanoseconds.
+    busy_closed: BTreeMap<u32, u64>,
     /// First alarms of the last `burst_ns`: service and instant.
     recent: VecDeque<(u32, u64)>,
     /// Counted first alarms per service so far.
@@ -419,7 +429,7 @@ impl Layer {
         .map_err(|e| format!("noticer medium anticipation: {e}"))?;
         Ok(Self {
             prices: *medium.prices(),
-            trials: Trials::new(cfg.bands_ns.to_vec(), cfg.gain),
+            trials: Trials::new(cfg.bands_ns.to_vec()),
             cfg,
             tick_ns,
             medium,
@@ -436,6 +446,7 @@ impl Layer {
             prior_per_s: rung.prior_mhz as f64 / 1000.0,
             prior_s: rung.prior_ns as f64 / 1.0e9,
             last_abnormal: BTreeMap::new(),
+            busy_closed: BTreeMap::new(),
             recent: VecDeque::new(),
             counted: BTreeMap::new(),
             open: Vec::new(),
@@ -551,10 +562,22 @@ impl Layer {
         }
     }
 
-    /// The rate of `b`'s counted first alarms before `at_ns`, per second, under the prior.
+    /// The time `b` was quiet (not in burst) in `[0, at_ns]`, nanoseconds.
+    pub fn quiet_ns(&self, b: u32, at_ns: u64) -> u64 {
+        let closed = self.busy_closed.get(&b).copied().unwrap_or(0);
+        let open = self
+            .last_abnormal
+            .get(&b)
+            .map_or(0, |l| at_ns.saturating_sub(*l).min(self.burst_gap_ns));
+        at_ns.saturating_sub(closed.saturating_add(open))
+    }
+
+    /// The rate at which `b`'s counted first alarms began per second of its quiet time before
+    /// `at_ns`, under the prior.
     fn rate(&self, b: u32, at_ns: u64) -> f64 {
         let n = self.counted.get(&b).copied().unwrap_or(0) as f64;
-        (n + self.prior_per_s * self.prior_s) / (at_ns as f64 / 1.0e9 + self.prior_s)
+        let quiet = self.quiet_ns(b, at_ns) as f64 / 1.0e9;
+        (n + self.prior_per_s * self.prior_s) / (quiet + self.prior_s)
     }
 
     /// Take in one delivered observation, at the step of instant `now`; `owner` is the noticer's
@@ -572,7 +595,9 @@ impl Layer {
             .last_abnormal
             .get(&s)
             .is_none_or(|l| t >= l.saturating_add(self.burst_gap_ns));
-        self.last_abnormal.insert(s, t);
+        if let Some(l) = self.last_abnormal.insert(s, t) {
+            *self.busy_closed.entry(s).or_insert(0) += t.saturating_sub(l).min(self.burst_gap_ns);
+        }
         if !first {
             return;
         }
@@ -665,13 +690,17 @@ impl Layer {
                 });
             }
             let rate = self.rate(b, t);
-            let misses: Vec<f32> = self
+            let gain = self.cfg.gain;
+            let weights: Vec<(f32, f32)> = self
                 .cfg
                 .bands_ns
                 .iter()
-                .map(|w| self.cfg.gain * miss_weight(rate, *w))
+                .map(|w| {
+                    let q = chance(rate, *w);
+                    (gain * (1.0 - q), gain * q)
+                })
                 .collect();
-            self.trials.open(s as u16, b as u16, t, obs, &misses);
+            self.trials.open(s as u16, b as u16, t, obs, &weights);
             self.stats.trials += self.cfg.bands_ns.len() as u64;
         }
         *self.counted.entry(s).or_insert(0) += 1;
