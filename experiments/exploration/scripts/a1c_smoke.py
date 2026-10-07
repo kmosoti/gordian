@@ -14,6 +14,13 @@ M2) and `components_run` (the consistency checks are component runs). Per stream
 with a wrong declaration and no escalation, for the plain growth with streams. The tier column is
 the evaluator's, read here to report, never by an arm.
 
+Added after the run (reporting only, nothing adjusted): a paired breakdown against the memoryless
+control `m3` on the same incidents (`a1c-smoke-paired.csv`): plain incidents unasked in both with a
+wrong declaration in the arm and none in the control (newly wrong), of those the ones that also
+carry a correct declaration (the recall added a declaration, it did not replace one), and plain
+incidents correct in the control and not in the arm (displaced); and `eng_off_gated` against
+`eng_off` column by column (monitoring alone).
+
 A1a's eight arms in this run must reproduce A1a's kept run: `incidents.csv` and `results.csv`
 identical row for row once the `run_id` column (which names the run) is removed.
 """
@@ -88,6 +95,28 @@ def main():
         w = csv.DictWriter(fh, ["arm", "incidents_identical", "results_identical"])
         w.writeheader()
         w.writerows(rep)
+    ctl = {(r["seed"], r["incident"]): r for r in rows(RUN / C.arm_name("m3") / "incidents.csv")}
+    paired = []
+    for name in names:
+        s = {"arm": name, "newly_wrong": 0, "newly_wrong_also_correct": 0, "displaced": 0}
+        for r in rows(RUN / C.arm_name(name) / "incidents.csv"):
+            c = ctl[(r["seed"], r["incident"])]
+            if r["tier"] != "plain" or int(r["escalations"]) > 0 or int(c["escalations"]) > 0:
+                continue
+            if int(r["wrong_declarations"]) > 0 and int(c["wrong_declarations"]) == 0:
+                s["newly_wrong"] += 1
+                s["newly_wrong_also_correct"] += int(r["correct_declarations"]) > 0
+            s["displaced"] += int(c["correct_declarations"]) > 0 and int(r["correct_declarations"]) == 0
+        paired.append(s)
+    with open(C.OUT / "a1c-smoke-paired.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, ["arm", "newly_wrong", "newly_wrong_also_correct", "displaced"])
+        w.writeheader()
+        w.writerows(paired)
+    off, gated = (rows(RUN / C.arm_name(n) / "incidents.csv") for n in ("eng_off", "eng_off_gated"))
+    differing = sorted({k for x, y in zip(off, gated) for k in x if k != "run_id" and x[k] != y[k]})
+    print("eng_off_gated vs eng_off, incidents.csv columns that differ:", differing)
+    for s in paired:
+        print("paired", s)
     print(",".join(fields))
     for r in out:
         print(",".join(str(r[f]) for f in fields))
