@@ -5,7 +5,8 @@ M1b, the oscillome (section 4b), is recorded in its own section below, with depa
 M3's sub-tick support in its own, with departures 53 to 57; A1a's engram in its own, written
 before its code, with departures 58 to 65; A1c's two-site key in its own, written before its code,
 with departures 66 to 70; A1d's rule of where a recall may speak and its trace marks in its own,
-written before its code, with departures from 71. This file
+written before its code, with departures 71 to 77; A2's pair cells (anticipation of hidden
+edges) in their own, written before their code, with departures from 78. This file
 records every place the build departs from the design or fills a gap in it, and why. The tick's
 total order is in `src/medium.rs`'s module documentation; the archetypes' parameters and state are
 in the table in `src/archetype.rs`.
@@ -985,6 +986,171 @@ before the code) or fills a gap it left.
 77. **B4's constants were tuned on M2's medium** (`medium_t100`); A1d's arms use M3's frozen
     medium, as A1a's and A1c's do. The constants are applied to it unchanged (the brief: nothing
     retuned).
+
+## Anticipation of hidden edges (A2): design, written before the code
+
+Work item A2 (`docs/lab-queue.md`, "## A2"). The public graph is the graph at time zero
+(`crates/gordian-stream/PUBLIC.md`, section 2: "not necessarily the graph in force later"); an
+alarm the public graph does not explain, that keeps following an alarm at another service, is the
+only trace an edge the arm was not told about leaves in its own history. A2 builds a learner of
+such edges from co-alarm timing, a prediction made from a learned edge, and a switch by which a
+learned edge may extend the anomaly's attach rule (off). The names "anticipation", "learned edge"
+and "prediction" label a mechanism; whether a learned edge is a hidden edge is Lab 3's scoring
+(W3, item 4), not a premise here. This section was committed before any A2 code; what the build
+changes against it is added below as numbered departures from 78.
+
+### What the crate builds (world-agnostic): pair cells (`anticipation`)
+
+The crate knows nodes, ordered pairs of nodes, instants and signed evidence; never services,
+alarms or graphs.
+
+- **Bands.** A store has `B` nested windows `w_0 < w_1 < ...` (at most 4), in nanoseconds. A
+  claim "`b` follows `a` within band `k`" means a gap in `(0, w_k]`; the bands are nested, not
+  disjoint as A1c's relation bands are, because a prediction in a band is a bound on the gap.
+- **Cells, per ordered pair `(a, b)` it is built for, per band `k`:**
+
+  | Cell | Archetype | Inputs | What it is for |
+  |---|---|---|---|
+  | `ev[a, b, k]` | `Sense`, mode 1 (sum of event values), pattern `(domain, pair_node(a, b), channel EV_CHANNEL + k, any tag)` | evidence events about `(a, b)` in band `k` | carries one tick's signed evidence |
+  | `cnt[a, b, k]` | `Integrator`, leak `exp(-tick / tau)` (a time constant, converted at build by the oscillome), threshold `theta`, reset 1 (keep: decay only), lookback 0 | `ev[a, b, k]`, weight 1, fixed | the **pair cell**: the decayed net count of evidence |
+
+  The edge node is A1c's `pair_node(a, b)` (nodes below 128). The structure is fixed at build
+  for the pairs given; nothing grows. The medium has the oscillome's tick length (needed for the
+  conversion and for events' offsets) and nothing else of the oscillome.
+- **Evidence** enters only as events: a value `+g` (a follow) or `-m` (a miss, below) at the
+  edge node and band channel. The pair cell's level is `sum of evidence * exp(-age / tau)`.
+  **There is no floor**: a pair that keeps missing goes negative and needs more follows to come
+  back; decay is the only forgetting.
+- **A learned edge.** `level(medium, a, b, k, tick)`: the pair cell's state decayed to the start
+  of `tick`, `state * leak^(tick - last_active)` by the archetype's own `pow_det`, i.e. the level
+  the cell would carry into `tick` before any input of `tick`. The store **holds an edge `a -> b`
+  in band `k`** when that level is at least `theta`. `held(medium, a, b, tick)` is the narrowest
+  band held, if any. A read changes nothing in the medium and is counted (below).
+- **Trials** (`Trials`, world-agnostic bookkeeping of the sense side): `open(a, at, partners,
+  misses)` opens, for each partner `b` and band `k`, a trial `(a, b, k, at)` with the miss weight
+  given for it; `follow(b, at)` credits, for every `a` and `k`, **the latest open trial
+  `(a, b, k, t_a)` with `t_a < at <= t_a + w_k`** (one follow resolves at most one trial per
+  `(a, k)`; an older open trial of the same `(a, b, k)` stays open and is a miss unless a later
+  follow falls in its window and it is then the latest), returning `+g` evidence at `at`;
+  `expire(now)` resolves every open trial whose deadline `t_a + w_k` is before `now` as a miss,
+  returning `-m` evidence at the deadline. Every trial ends in exactly one follow or one miss.
+- **The miss weight** (`miss_weight(rate, w)`): `exp(rate * w) - 1`, the odds that a Poisson
+  process of that rate puts at least one event in a window `w` (by the oscillome's `exp_det`). With
+  a follow worth `g` and a miss worth `g * miss_weight`, a pair whose follows come at the chance
+  rate of its partner's alarms drifts by zero; one whose follows come more often drifts up.
+  The rate is the adapter's to estimate (below).
+- **Cost.** The medium's ticks and operations are counted and priced as every medium's (200 / 25
+  / 40 / 2 ns, and 200 ns per tick, the adapter's `TICK_PRICE_NS`). A level read is counted as
+  one cell update (200 ns: it computes a decay as a cell run does). The trials' bookkeeping is the
+  sense adapter's arithmetic and is not priced, as no sense adapter's encoding is; it is stated,
+  not hidden.
+
+### What the adapter builds (`arms/medium/anticipation.rs`, the anticipation layer)
+
+A third medium beside the noticing graph and the engram layer, held by the medium noticer when
+its parameters name `anticipation`, on the noticer's tick, fed in `ingest` (every delivered
+observation, in id order, at the step that delivers it), ticked after the noticing graph at each
+step, charged to the arm's bill with the noticing graph's, and dropped with the noticer at the end
+of the segment. **Nothing carries across segments**: no persist port, no carry store (W2: the
+pairs a stream uses are its own). Absent from the parameters, the noticer is what it was, byte
+for byte.
+
+**Public readings it uses** (the time-zero public graph and the rung's constants only):
+
+- **First alarm**: an abnormal observation (the public rules' verdict) at a service that begins a
+  burst there: none at that service in the previous `burst_gap_ns` (2 s). A1c's rule.
+- **In burst**: a service whose latest abnormal observation is less than `burst_gap_ns` before an
+  instant; its next abnormal observation would not be a first alarm.
+- **Unconnected**: `a != b` and neither is a transitive dependent of the other in the time-zero
+  graph (A1c's `dependents_mask` rule). Pair cells exist for unconnected ordered pairs only.
+- **Explained**: a first alarm at `s` at `t` is explained when some service `u` of which `s` is a
+  transitive dependent had a first alarm in `[t - burst_ns, t]` (0.4 s) among those delivered
+  before it: the rung's propagation rule (an alarm at a dependent within the burst window of a
+  burst that began upstream belongs to that burst). An explained alarm is what the public graph
+  already predicts; a learned edge is for what it does not.
+
+**The rule (with `explained` on, the main form):**
+
+1. **Trial.** An unexplained first alarm at `a` (instant `t_a`) is a trial for every `b`
+   unconnected to `a` that is **not in burst** at `t_a`: a trial is exactly an instant at which a
+   prediction about `b` could be checked (the prediction rule below), so the pair cell measures
+   the follow rate of the predictions it licenses. For each, the miss weight is
+   `miss_weight(rate_b, w_k)`, with `rate_b` the rate of `b`'s unexplained first alarms before
+   `t_a`, under the rung scorer's prior (`prior_mhz` over `prior_ns`: `rate_b = (n_b +
+   prior_rate * prior_t) / (t_a + prior_t)`).
+2. **Follow.** An unexplained first alarm at `b` (instant `t_b`) is a follow for the trials it
+   falls in (crate rule above): `+g` to `cnt[a, b, k]` at `t_b`.
+3. **Miss.** A trial whose window closes with no follow: `-g * miss_weight` at its deadline,
+   entered at the first tick not yet run when the deadline is in a tick already run.
+4. **Learned edge**: `cnt[a, b, k] >= theta` at the layer's next tick. Pairs are per stream.
+
+With `explained` off (a labelled control): every first alarm is a trial and a follow, the rate
+counts every first alarm, and nothing else changes. It shows what the public-graph reading does
+(siblings under a common upstream co-alarm on every incident there).
+
+**The prediction (item 2).** At a trial at `a` (before its trials are opened), for each partner
+`b` of the trial (unconnected, not in burst: "no alarm at `b` yet"), if the layer holds an edge
+`a -> b`, the narrowest band `k` held: a prediction `(a, b, w_k)` with the step's instant, the
+alarm's observation id and instant. It goes to the trace port and nowhere else: **a prediction
+changes nothing in the arm's actions** (it is not a notice, an attachment, a score or a
+declaration). Each prediction is resolved on the public side for the trace: `followed` at the
+first first-alarm at `b` (explained or not) in `(t_a, t_a + w_k]`, else `expired` at the
+deadline.
+
+**Use (item 3), the switch `attach`, default off.** With `attach` on, an abnormal observation at
+`b` at `t` that the rung's attach rule (`attach_target`) gives to no anomaly, or only by its last
+rule (`b`'s own stale anomaly), is attached instead to the anomaly sited at a service `a` with a
+learned edge `a -> b` held in band `k` and whose burst began in `[t - w_k, t]` (`burst_open_at`);
+if several, the latest such burst, then the later anomaly. The rung's first two rules (the site
+still speaking; propagation along the public graph) are never overridden. It applies where the
+medium noticer attaches (on delivery, `observe`, and when unattached observations are offered
+again to a new notice). Off, it is not consulted.
+
+**The first values (fixed before any run, each with its reason; nothing tuned):**
+
+| Parameter | Value | Why |
+|---|---|---|
+| bands `w` | 0.4 s, 2 s, 10 s | the brief's (A1c's relation feature): the rung's `burst_ns` (what propagation looks like), its `burst_gap_ns` (one burst), A1c's key span |
+| `g` | 1 | a follow is the unit of evidence |
+| miss weight | `exp(rate_b * w_k) - 1`, prior 100 mHz over 30 s | zero drift at the chance rate of `b`'s alarms in that band; the prior is the rung scorer's (`prior_mhz`, `prior_ns`), the arm's existing reading of a service's alarm rate before it has seen any |
+| `theta` | 2 | two follows beyond chance, net of decay: one co-alarm is not an edge (A1a's threshold rule: a pattern needs more than one sighting) |
+| `tau` | 150 s | the time-zero graph may stop holding at an unannounced instant (PUBLIC.md, section 1); a quarter of the 600 s stream as the time constant lets evidence from the last few minutes dominate, so a change can be tracked within a stream; nothing carries past it |
+| `attach` | off | the brief |
+| `explained` | on | above |
+
+**The trace (the arm's own file, item 2).** With the layer's `trace` on (default off) and
+`GORDIAN_ENGRAM_TRACE_DIR` naming a directory (A1d's variable; the same directory), marks on the
+layer's trace port (A1d's `Mark`, `MarkLog`) are appended at the end of each segment to
+`<dir>/anticipation-trace-<trace_key>.csv`, a sibling of A1d's `engram-trace-<key>.csv`, one row
+per mark, header `segment,at_ns,kind,service,obs,partner,band,value`:
+
+| kind | at_ns | service | obs | partner | band | value |
+|---|---|---|---|---|---|---|
+| `first_alarm` | the alarm's instant | its service | its observation id | | | 1 unexplained (a trial and a follow), 0 explained |
+| `held` | the step's instant | `a` | `a`'s alarm | `b` | `k` held | the level, thousandths (every band held, every unconnected `b`, at every trial at `a`) |
+| `prediction` | the step's instant | `a` | `a`'s alarm | `b` | narrowest `k` held | the anomaly that owns `a`'s alarm when the prediction is made, -1 if none |
+| `followed` | `b`'s alarm instant | `a` | `a`'s alarm | `b` | `k` | `b`'s alarm's observation id |
+| `expired` | the deadline | `a` | `a`'s alarm | `b` | `k` | 0 |
+| `follow`, `miss` | as the evidence | `a` | `a`'s alarm | `b` | `k` | the evidence, thousandths |
+| `level_end` | the segment's last step | `a` | | `b` | `k` | the level at the end, thousandths |
+| `segment_end` | the segment's last step | | | | | pair cells |
+
+Seeds are not known to an arm; the segment ordinal (per trace key, in stream order) maps to the
+manifest's seeds, and the analysis script writes the joined file (`seed` column) under
+`artifacts/runs/a2/`. Observation ids join to the hidden incidents on Lab 3's side (an
+observation belongs to exactly one incident or none, PUBLIC.md section 5).
+
+### Not built, and why
+
+- No carry across streams (W2; the brief).
+- No pair cell for connected pairs: what the public graph connects is the rung's propagation rule.
+- No learned edge read by any decision except through `attach`, which is off in the smoke; no
+  column in `results.csv` or `incidents.csv`, nothing in the evaluator (E1's and W3's).
+- No ordered coincidence for the follow: a follow must credit one trial per band, only for a
+  partner that was not in burst, and with a weight fixed when the trial opened, which no archetype
+  expresses; the coincidence is the trials' bookkeeping, the count is in cells.
+- No three-service edges, no edge kinds, no features of the alarm beyond its instant and
+  service (invariant: no id, no value).
 
 ## Mutation checks
 
