@@ -1,0 +1,6 @@
+run_id,driver_exit,wall_s,waits
+xcheck5-r6-heldout-b5-rho0.7,13,0,2
+xcheck5-r6-heldout-b5-rho0.7,0,155,0
+b4-tunefollow-b5-rho0.7,0,301,38
+b4-tuneselect-b5-rho0.7,0,452,35
+b4-heldout-b5-rho0.7,0,325,0

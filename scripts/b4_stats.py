@@ -65,14 +65,23 @@ def per_stream(arm):
         selection_per_stream(arm).add_prefix("s_"), how="inner")
     t = t.copy()  # consolidate the joined frame before the few columns added below
     results = arm.results.set_index("seed")
+    # R6's per-stream frame already carries these two columns of results.csv; a second copy under the same
+    # name would make `t[c]` a two-column frame (the first held-out table failed on it), so they are
+    # checked equal and not added again.
+    for name in ("substrate_ns", "critical_incidents"):
+        if name in t.columns:
+            assert (t[name].to_numpy() == results.loc[t.index, name].to_numpy()).all(), name
     extra = {
         "one": 1,
-        "substrate_ns": results["substrate_ns"],
-        "critical_incidents": results["critical_incidents"].astype("int64"),
         "esc_calls": sum(t[f"s_calls_{c}"] for c in CLASSES),
         "esc_tokens": sum(t[f"s_tokens_{c}"] for c in CLASSES),
     }
-    return pd.concat([t, pd.DataFrame(extra, index=t.index)], axis=1)
+    for name in ("substrate_ns", "critical_incidents"):
+        if name not in t.columns:
+            extra[name] = results[name].astype("int64")
+    out = pd.concat([t, pd.DataFrame(extra, index=t.index)], axis=1)
+    assert not out.columns.duplicated().any(), list(out.columns[out.columns.duplicated()])
+    return out
 
 
 class Measures:

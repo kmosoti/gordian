@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import b4_common as C  # noqa: E402
 import b4_select as SEL  # noqa: E402
+import b4_separation as SEP  # noqa: E402
 import b4_stats as S  # noqa: E402
 from gordian_analysis.load import load_stream_run  # noqa: E402
 from notice_fixtures import write_notice_files  # noqa: E402
@@ -228,3 +229,77 @@ def test_a_paired_difference_is_the_difference_over_the_same_resamples(run):
     assert again[("esc_decoy_per_stream", "a", "b")] == out[("esc_decoy_per_stream", "a", "b")]
     pts, ci = m.points(["esc_plain_per_stream"]), m.boot(3, 200, measures=["esc_plain_per_stream"])
     assert ci["esc_plain_per_stream"][0][0] <= pts["esc_plain_per_stream"][0] <= ci["esc_plain_per_stream"][1][0]
+
+
+def test_every_measure_is_one_number_per_arm_and_no_column_is_doubled(run):
+    """The first held-out table failed because `per_stream` added `substrate_ns` and `critical_incidents` a
+    second time (R6's frame already has them), which made those columns two-dimensional and every measure
+    that reads them the wrong shape; no test looked at every measure."""
+    for arm in run.arms.values():
+        t = S.per_stream(arm)
+        assert not t.columns.duplicated().any(), list(t.columns[t.columns.duplicated()])
+        results = arm.results.set_index("seed")
+        assert (t["substrate_ns"] == results["substrate_ns"]).all()
+        assert (t["critical_incidents"] == results["critical_incidents"]).all()
+    m = S.Measures(run)
+    p = m.points()
+    assert set(p) == set(S.MEASURES)
+    for name, v in p.items():
+        assert np.shape(v) == (len(m.names),), name
+    for col, a in m.col.items():
+        assert a.shape == (len(m.names), m.n), col
+    # the two measures that read the columns that were doubled
+    results = run.arms["a"].results
+    assert p["substrate_s_per_stream"][m.row["a"]] == pytest.approx(results["substrate_ns"].mean() / 1e9)
+    assert p["critical_misses_per_stream"][m.row["a"]] == pytest.approx(
+        S.per_stream(run.arms["a"])["cmiss"].mean())
+
+
+# ---- the post-hoc separation analysis --------------------------------------------------------------------
+
+NS = 1_000_000_000
+
+
+def test_separation_statistics_read_the_readings_after_the_notice_within_the_horizon():
+    # A chain at one key: five readings 0..4 (the fifth, id 4 at 5 s, completes the ramp and is the notice),
+    # then follow readings, one exactly at the horizon's end (11 s) and one just after it.
+    seq = [(i, (i + 1) * NS, 10 * (i + 1)) for i in range(5)]  # values 10..50
+    seq += [(5, 6 * NS, 60), (6, 7 * NS, 45), (7, 11 * NS, 55), (8, 11 * NS + 1, 999)]
+    st = SEP.statistics(seq, 0, 5 * NS)
+    assert st["completing"] == 50 and st["n_follow"] == 3, "the reading at the horizon counts, the next does not"
+    assert st["last_minus_completing"] == 5 and st["lowest_minus_completing"] == -5
+    assert st["largest_fall"] == 15, "peak 60 down to 45"
+    # No reading after the notice: withdrawn by the follow-up rule, counted as lowest and as the largest fall.
+    st = SEP.statistics(seq[:5], 0, 5 * NS)
+    assert st["n_follow"] == 0 and st["last_minus_completing"] == -np.inf and st["largest_fall"] == np.inf
+    # The anchor must be a reading of this key; the completing reading is the last one at or before the notice.
+    assert SEP.statistics(seq, 99, 5 * NS) is None
+    assert SEP.statistics(seq, 0, 3 * NS)["completing"] == 30
+
+
+def test_the_separation_auc_counts_ties_half_and_summarises_by_class():
+    assert SEP.auc([3, 4], [1, 2]) == 1.0 and SEP.auc([1, 2], [3, 4]) == 0.0
+    assert SEP.auc([1, 2], [1, 2]) == 0.5
+    assert SEP.auc([2], [1, 2, 3]) == pytest.approx((1 + 0.5) / 3)
+    assert SEP.auc([-np.inf, 5], [-np.inf]) == pytest.approx((0.5 + 1.0) / 2)
+    assert np.isnan(SEP.auc([], [1]))
+    rows = [
+        {"class": "leak", "n_follow": 5, "last_minus_completing": 20.0, "lowest_minus_completing": 0.0, "largest_fall": 0},
+        {"class": "leak", "n_follow": 5, "last_minus_completing": 10.0, "lowest_minus_completing": 0.0, "largest_fall": 0},
+        {"class": "plain", "n_follow": 0, "last_minus_completing": -np.inf, "lowest_minus_completing": -np.inf,
+         "largest_fall": np.inf},
+        {"class": "plain", "n_follow": 3, "last_minus_completing": -4.0, "lowest_minus_completing": -9.0, "largest_fall": 9},
+    ]
+    summ, pairs = SEP.summary(pd.DataFrame(rows))
+    by = summ.set_index("class")
+    assert by.loc["leak", "notices"] == 2 and by.loc["plain", "notices"] == 2 and by.loc["decoy", "notices"] == 0
+    assert by.loc["plain", "share_no_follow_reading"] == 0.5
+    assert by.loc["plain", "median_last_minus_completing"] == -4.0, "the median is over notices with a follow reading"
+    assert by.loc["leak", "share_last_at_least_completing"] == 1.0 and by.loc["plain", "share_last_at_least_completing"] == 0.0
+    p = pairs.set_index(["class", "stat"])["auc"]
+    assert p[("auc leak vs plain", "last_minus_completing")] == 1.0
+    assert p[("auc leak vs plain", "largest_fall")] == 0.0, "a leak never falls more than a plain one here"
+    assert np.isnan(p[("auc leak vs decoy", "n_follow")])
+    r = SEP.roc(pd.DataFrame(rows)).set_index("keep_if_last_minus_completing_at_least")
+    assert r.loc[-np.inf, "leak_kept"] == 1.0 and r.loc[-np.inf, "plain_kept"] == 1.0
+    assert r.loc[0, "leak_kept"] == 1.0 and r.loc[0, "plain_kept"] == 0.0 and r.loc[15, "leak_kept"] == 0.5
