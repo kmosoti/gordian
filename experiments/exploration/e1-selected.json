@@ -1,0 +1,24 @@
+{
+  "stage1": {
+    "site": {
+      "true": {
+        "level": "kinds",
+        "note": ""
+      },
+      "false": {
+        "level": "timing",
+        "note": "fails_bound"
+      }
+    },
+    "family": {
+      "true": {
+        "level": "timing",
+        "note": "fails_bound"
+      },
+      "false": {
+        "level": "timing",
+        "note": "fails_bound"
+      }
+    }
+  }
+}

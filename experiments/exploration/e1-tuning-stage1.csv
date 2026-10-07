@@ -1,0 +1,13 @@
+stage,form,reset,level,confirm,streams,recalls,right_source_recalls,collision_recalls,collision_share,collisions_per_stream,inherited_recalls,unasked_correct_hard,hard_recurrences_unasked_correct,reasoner_calls,meets_bound
+1,site,True,kinds,never,100,11,8,0,0.0,0.0,3,7,6,209,True
+1,site,True,bands,never,100,9,6,0,0.0,0.0,3,5,5,211,True
+1,site,True,timing,never,100,4,3,0,0.0,0.0,1,2,2,215,True
+1,site,False,kinds,never,100,156,104,80,0.7692307692307693,0.8,52,23,9,185,False
+1,site,False,bands,never,100,117,81,60,0.7407407407407407,0.6,36,20,8,191,False
+1,site,False,timing,never,100,46,29,18,0.6206896551724138,0.18,17,10,3,205,False
+1,family,True,kinds,never,100,41,25,15,0.6,0.15,16,8,5,202,False
+1,family,True,bands,never,100,34,21,13,0.6190476190476191,0.13,13,6,4,205,False
+1,family,True,timing,never,100,17,13,7,0.5384615384615384,0.07,4,4,2,211,False
+1,family,False,kinds,never,100,719,452,404,0.8938053097345132,4.04,263,47,13,120,False
+1,family,False,bands,never,100,556,385,340,0.8831168831168831,3.4,167,44,11,133,False
+1,family,False,timing,never,100,239,153,125,0.8169934640522876,1.25,79,26,7,176,False
