@@ -779,4 +779,9 @@ fn every_view_in_a_run_has_at_least_one_service_and_no_more_than_its_evidence() 
         assert!(v.services >= 1, "an anomaly with evidence spans a service");
         assert!(v.services <= v.evidence.max(1), "{v:?}");
     }
+    // The count is of distinct services, not of observations: some anomaly holds several observations
+    // at one service (fewer services than evidence), and some spans more than one service.
+    assert!(views.iter().any(|v| v.services < v.evidence));
+    assert!(views.iter().any(|v| v.services > 1));
+    assert!(views.iter().any(|v| v.services == 1));
 }
