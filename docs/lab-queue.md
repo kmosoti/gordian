@@ -36,7 +36,7 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | M4 | 1 | The anchoring-against-precision frontier; a ramp inhibit that spares ramp-noticed anomalies; parity with the best public row on all three measures | M3 | stopped (tuning done, no held-out run) |
 | L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | merged |
 | C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | merged |
-| B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | stopped (selector built, identity passed) |
+| B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | running (resumed 2026-10-09 from main; criterion as fixed) |
 | C2 | 2 | An expiry-driven score window; one relational rule on both substrates (folds or joins) | B5 | queued |
 | M5 | 1 | A less redundant graph at M4's anchoring and precision, in counted operations and wall time against C1's rows | M4 | queued |
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | stopped (reservoir built, identity passed) |
@@ -49,6 +49,13 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | merged |
 | E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | merged |
 | A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions through the trace port, scored from the hidden side by Lab 3 | A1d | merged (negative on both sides; A2b not briefed) |
+| W4 | 3 | The reasoner's law from the hidden side: the ask-time ceiling, the context lever, the verification power of probes, the regime loss; what transfers across streams | W3 | running |
+| P1 | 2 | The verification loop and the conventional learner of the reasoner's law (a logistic rule under 10,000 parameters, verified episodes, carried across streams), with EXP-103's controls | B5, W4 | queued |
+| S1 | 1 | The medium's slow system: engrams keyed on ask-state with a verified signal, a consolidation cell at the slow rhythm validated on the arm's own held-out history, the persist port carrying the rule | W4, P1 | queued |
+
+**Priority after 2026-10-09** (`docs/consolidation-proposal.md`): W4 and B5 now; P1 after both;
+S1 after P1's instrument exists; criteria for P1 and S1 fixed from W4 as committed specifications.
+A1b is not briefed (review log, E1 and W3). M4 and L2 stay `stopped`.
 
 **Priority after the resumption of 2026-10-07** (charter section 1.2): A1, W2, V1, E1, then A1b and
 A2. C2 and M5 stay queued behind them; M4, B5 and L2 stay `stopped`, resumable from their origin
@@ -773,3 +780,74 @@ mechanism unit with identity and a smoke on the decision columns.
 **Acceptance (fixed 2026-10-07).** Deliverables, identity, the test in item 2, the smoke
 table on decision columns. The expected outcome is stated as a prediction by the PI before
 the run; whatever the table shows is reported. No claim.
+
+## W4 The reasoner's law from the hidden side (Lab 3, after W3)
+
+The feasibility check for the learning line (`docs/consolidation-proposal.md`, section 4).
+Experimenter-side; Lab 3 reads the hidden record and the stream crate; nothing reaches an arm.
+Seeds 10000–10099 and 40000–40199 at the default setting (a, b, c, rho 0.7, δ 0), reported
+separately; δ ∈ {0.0135, 0.05} where named.
+
+1. **The ask-time ceiling.** For every hard incident (and plain incidents beside, since the
+   budgeted selector asks about them too): the arrival instants of its decisive evidence, so
+   `q(t)` is known as a function of time after onset and after first notice (use the re-anchor
+   noticer's notice instants from E1's held-out run for the latter); the deadline; the public
+   deadline window. From the law (hidden record, section 11) the expected accuracy `p(t)` at
+   ask instants 4, 8, 12, 16, 20, 30 s after notice with the rung's context, and at the
+   per-incident optimum (the instant that maximises `p` subject to the answer arriving before
+   the deadline, with latency 2 s + 2 ms per reference). Report expected correct decisions per
+   call for the best fixed delay and for the per-incident optimum, by family and mode, with
+   intervals. This is the size of the "when" lever.
+2. **The context lever.** At the optimum instant, `p` with the minimal decisive context against
+   the rung's context (its size and its distractor count `m`), at δ 0, 0.0135 and 0.05, with
+   the context cost (5 ms per reference). The size of the "what to include" lever.
+3. **Verification power of probes.** For each answer an arm could receive (a known kind at the
+   site, a hard kind, "not an incident"), which probe answers follow in the public stream when
+   the answer is right and when it is wrong, from the hidden probe rules (section 4.2's table
+   and `probe.rs`), by family and mode: the confusion of (right, wrong) against each probe
+   pattern, the cheapest pattern that separates them, and its cost against the 150-unit and
+   1.5 s budgets per stream given the call rates of B5's selector at each `k`. Whether a
+   wrong known-kind guess about a mimic (the imitated kind) is confirmed by its own kind's
+   probe (the hidden record says a compound's resource probe answers positive): the
+   verification channel's blind spots, named.
+4. **The regime loss.** Expected accuracy of calls about plain incidents of the shifted kind
+   after 200 s against before, and about incidents alarming over the added edge after 400 s;
+   how much a learner that re-learned the shifted signature could recover (the EXP-104
+   ceiling), and the public footprint of each change (what an arm could notice).
+5. **What transfers.** A table of every quantity constant across streams at a fixed setting
+   (the law's parameters, the regime instants, the deadline windows, burst spacing, ramp rates,
+   the decoy's resolution signature, the probe rules) with its public footprint and which of
+   items 1–4 it bounds. The quantities that are per stream (services, vocabulary, pairs) listed
+   beside, with the W2/W3 evidence.
+6. **World C** (seeds 60000–60099, 70000–70199): items 1 and 3 only, for power.
+
+Report at `experiments/exploration/w4-reasoner-law.md`, as W2's: verified by running versus
+assumed; every number with range and side; the lever sizes; proposed bounds for P1's and S1's
+clauses with reasons; least sure; what the chief should examine.
+
+**Acceptance (fixed 2026-10-09).** As W2's: reproduction from the script and the manifest;
+ranges and sides named; lever sizes with intervals; proposed bounds with reasons. No arm is run.
+
+## P1 The verification loop and the conventional learner (Lab 2, after B5 and W4)
+
+Brief to be written from W4's lever sizes; outline: (1) the verification instrument: an arm
+action policy that, after an answer, runs the cheapest discriminating probe pattern W4 names,
+and the harness records each call's verification outcome in the run output (public bytes only);
+(2) a verified-episode store per arm, carried across streams as L1's store is; (3) the
+conventional learner: a logistic rule under 10,000 parameters over the public ask-state
+features, trained online from verified episodes, deciding when to ask, what to include and
+whether to trust, under B5's call budget; (4) controls: B5's tuned fixed delay (memoryless),
+the learner with learning off, a shuffled-episode control, the learner without verification
+(teacher's word only); (5) measures: verified decisions per unit cost with the verification cost
+in the bill, slopes against incidents seen with and without carry, recovery after 200 s and
+400 s, critical misses; (6) criterion as `experiments/criteria/p1.json`, fixed before any run.
+
+## S1 The medium's slow system (Lab 1, after P1)
+
+Brief to be written after P1's instrument exists; outline: engrams keyed on the public ask-state
+with the verified outcome as the signal (the A1a mechanism, re-keyed); a consolidation cell at
+the oscillome's slowest rhythm that fits a rule on the older half of the store and validates it
+on the newer half, committing only on improvement, keeping exceptions; the persist port carrying
+the committed rule across streams; ablations: no consolidation, consolidation without
+validation, random consolidation, learning off; the same measures and the same comparator as
+P1; criterion as `experiments/criteria/s1.json`, fixed before any run.

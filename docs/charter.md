@@ -548,6 +548,14 @@ supports it.
 | McSherry et al. | F. McSherry, D. Murray, R. Isaacs, M. Isard, "Differential dataflow," CIDR 2013. **To acquire and check**; the incremental-computation adversary of unit C1. |
 | Jaeger | H. Jaeger, "The 'echo state' approach to analysing and training recurrent neural networks," GMD Report 148, 2001. **To acquire and check**; the reservoir comparator of unit L2. |
 | Alman and Vassilevska Williams | J. Alman, V. Vassilevska Williams, "Truly Subquadratic 3SUM and Truly Subcubic APSP via Triangles in Sparse Lopsided Graphs," 2026. arXiv:2610.06783. **To acquire and check** (preprint v1, 5 October 2026, unreviewed). Cited in section 1.1 for one claim only: the core algorithm is reported as found by an internal language model in one unattended run of about 16 million tokens, with the scaffolding undisclosed; the mathematics is not relied on here.
+| Jensen, Hennequin, Mattar | K. T. Jensen, G. Hennequin, M. G. Mattar, "A recurrent network model of planning explains hippocampal replay and human behavior," Nature Neuroscience, 2024. **To acquire and check**; cited in the user's document of 2026-10-09 for adaptive internal iteration (`docs/consolidation-proposal.md`). |
+| Sun et al. | W. Sun, M. Advani, N. Spens, A. Saxe, N. Burgess, "Organizing memories for generalization in complementary learning systems," Nature Neuroscience, 2023. **To acquire and check**; cited 2026-10-09 for consolidation regulated by generalisation. |
+| Whittington et al. | J. C. R. Whittington et al., "The Tolman-Eichenbaum Machine," Cell, 2020. **To acquire and check**; cited 2026-10-09 for reusable relational structure across environments. |
+| Behrouz et al. (Titans) | A. Behrouz, P. Zhong, V. Mirrokni, "Titans: Learning to Memorize at Test Time," 2024. arXiv:2501.00663. **To acquire and check**; cited 2026-10-09. |
+| Behrouz et al. (Nested Learning) | A. Behrouz et al., "Nested Learning: The Illusion of Deep Learning Architectures," NeurIPS 2025. **To acquire and check**; cited 2026-10-09 for update frequencies as a design axis. |
+| Dohare et al. | S. Dohare et al., "Loss of plasticity in deep continual learning," Nature, 2024. **To acquire and check**; cited 2026-10-09 for continual backpropagation. |
+| Unidentified (theta-locked stimulation, 2025) | A 2025 human stimulation study, phase-locked to hippocampal theta, reported in the user's document of 2026-10-09. **To identify and acquire** before any citation. |
+| Unidentified (generative hippocampus, 2026) | "The hippocampus as a generative model," an Oxford perspective, 2026, reported in the user's document of 2026-10-09. **To identify and acquire** before any citation. |
 
 Citations are to be verified against the primary text before any claim in this repository relies
 on them; a secondary summary is not acquisition.

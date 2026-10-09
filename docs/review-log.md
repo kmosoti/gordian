@@ -4,6 +4,43 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Direction, 2026-10-09 — the user's brain-mechanisms document; the learning line is the reasoner's law, learned through verification and consolidated across streams
+
+**What arrived.** The user's document reformulating two hypotheses about the brain into one
+testable claim (rapid temporary representations, recurrent interpretation across timescales,
+periodic reorganisation into reusable knowledge validated on held-out experience), with a
+five-state architecture, three clocks, a three-factor fast rule, a consolidation objective and
+three experiments under matched budgets. The chief's assessment against the program's evidence,
+the mapping onto the charter, and the proposed charter changes are in
+`docs/consolidation-proposal.md` (status: proposed, awaiting the user's approval of section 6).
+
+**The chief's reading, in short.** The document and the evidence agree on three things: rhythms
+coordinate but are not the computation (M1b, M2); activity is not learning and the learning
+signal must be a consequence, not the teacher's word (W2, A1a–A1d); and the world the document
+asks for (hidden rules, delayed consequences, rare exceptions, conflicting new rules) is the
+stream world. They disagree on one, and the evidence wins: storing learned responses rather than
+experiences is not the question on this world, because both forms collide at the world's floor;
+the question is what is invariant across streams, and here that is the reasoner's law, the
+regime instants, the public windows, and what probes answer after a diagnosis. The document's
+genuine addition is consolidation validated on the arm's own held-out history and committed only
+on improvement: the charter's method, run by the agent on itself.
+
+**Decided (within the approved purpose; no charter change applied).**
+
+1. **W4 (Lab 3) launched:** the lever sizes from the hidden side before any learner is built
+   (when to ask, what to include, what probes verify at what cost, the regime loss, what
+   transfers). Feasibility first, which is the lesson of the chief's own errors.
+2. **B5 (Lab 2) resumed from main** with its criterion as fixed: the call-budgeted selector's
+   table, the delay sweep (the fixed-delay ask policy is the status quo of "when to ask") and
+   the feature AUCs. Both units are instruments; neither commits to the architecture.
+3. **P1 and S1 queued** with outlines; their briefs and criteria are written from W4's numbers as
+   committed specifications before any run. A1b stays unbriefed.
+4. **The document's citations** are entered in the source register as to acquire and check; two
+   are unidentified and so marked. Nothing in the program relies on them.
+5. **What would stop this line:** W4 finding the fixed delay within the margin of the per-incident
+   optimum and probes unable to separate right from wrong answers at an affordable cost. The
+   proposal says so in its section 7.
+
 ## W3 world C, the phase-2 floor, and A2's hidden-side score — merged (Lab 3); anticipation as built finds nothing, and memory's floor is the world's
 
 **Provenance.** Seven commits on `world-c`; the only Rust change is the `laws` example (world C,
