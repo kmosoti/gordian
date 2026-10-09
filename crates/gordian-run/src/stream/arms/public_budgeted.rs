@@ -6,7 +6,8 @@
 //! axis is therefore a **matched number of reasoner calls per stream**, spent on the anomalies a
 //! public score ranks highest. This rule is that selector. Status: built, with the readings below
 //! written before any tuning or run; its weights and threshold are tuned per budget `k` on seeds
-//! 10000-10099 (`scripts/b5_*.py`), by a rule fixed in `scripts/b5_common.py` before the run.
+//! 10000-10099 (`experiments/exploration/scripts/b5_*.py`), by a rule fixed in
+//! `experiments/exploration/scripts/b5_tuning.py` before the run.
 //!
 //! # What it does
 //!

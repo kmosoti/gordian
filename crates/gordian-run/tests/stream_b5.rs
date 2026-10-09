@@ -4,7 +4,7 @@
 //! the harness (a budget that never binds is always-escalate's question set; a budget of `k` with a
 //! flat score asks about the first `k` anomalies to become ready).
 //!
-//! The byte-identity gate against R6's recorded hashes is a run (`scripts/b5_gate.py`), not a test.
+//! The byte-identity gate against R6's recorded hashes is a run (`experiments/exploration/scripts/b5_gate.py`), not a test.
 
 mod stream_common;
 

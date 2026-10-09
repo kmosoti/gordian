@@ -1,4 +1,4 @@
-"""B5's scripts (`scripts/b5_*.py`): the arm spellings the Rust side reads, the rows and arms of each
+"""B5's scripts (`experiments/exploration/scripts/b5_*.py`): the arm spellings the Rust side reads, the rows and arms of each
 manifest, the verified-decision arithmetic, the feature AUC script, and (when it exists) the tuning rule.
 The scripts are exploration code outside the package, so the test puts the directories on the path. It
 reads no run output: every input is built here (the committed selections of B3, M2 and M3 are read, as

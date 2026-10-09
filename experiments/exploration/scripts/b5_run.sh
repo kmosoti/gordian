@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run B5 manifests one after another through the driver, logging wall time per run.
 #
-# Usage: [OUT_PREFIX=p-] scripts/b5_run.sh MANIFEST...
+# Usage: [OUT_PREFIX=p-] experiments/exploration/scripts/b5_run.sh MANIFEST...
 # Needs a clean tree whose HEAD is each manifest's source_revision, the release binary built from
 # that tree, and no build in progress. This machine is shared with other workers: the driver
 # refuses while any cargo or rustc process exists, and this script waits for it, and for any other
@@ -14,7 +14,7 @@
 # touching any other directory). A run that fails is logged with its exit status and the next one
 # still runs; nothing is deleted.
 set -u
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$root" || exit 1
 mkdir -p artifacts/runs/_logs
 for m in "$@"; do

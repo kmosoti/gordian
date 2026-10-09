@@ -14,6 +14,15 @@ Usage (TAG empty for the first replay, "2" for the replay with the final tree's 
 The run goes in its own directory (`--out`), so the manifest's run id stays R6's.
 """
 
+import pathlib
+import sys
+
+# B5's scripts live here (the unit's territory, E1's convention); the earlier units' modules they build
+# on (B2 to B4, C1, M2) live in scripts/, and the analysis package is this checkout's, not an installed one.
+_ROOT = pathlib.Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_ROOT / "scripts"))
+sys.path.insert(0, str(_ROOT / "analysis"))
+
 import hashlib
 import json
 import subprocess

@@ -19,6 +19,15 @@ environment is captured by `gordian-run init-stream`, then the arms, the reasone
 per-arm noticers are set. The byte-identity gate's manifest is `b5_gate.py manifest`.
 """
 
+import pathlib
+import sys
+
+# B5's scripts live here (the unit's territory, E1's convention); the earlier units' modules they build
+# on (B2 to B4, C1, M2) live in scripts/, and the analysis package is this checkout's, not an installed one.
+_ROOT = pathlib.Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_ROOT / "scripts"))
+sys.path.insert(0, str(_ROOT / "analysis"))
+
 import json
 import sys
 

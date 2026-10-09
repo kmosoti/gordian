@@ -20,7 +20,7 @@ import re
 import subprocess
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[3]
 CG = pathlib.Path(os.environ["B5_CARGO"])
 
 RUN = ["-p", "gordian-run", "--test", "stream_b5", "--test", "stream_b5_features"]
