@@ -276,3 +276,17 @@ def test_an_auc_over_only_not_ready_notices_is_nan_and_not_a_crash(tmp_path):
     table = AUC.auc_rows(AUC.load(path), resamples=50, seed=1)
     assert table["auc"].isna().all()
     assert not table["excludes_half"].any()
+
+
+def test_the_features_manifest_has_the_log_arms_and_the_tuning_rows_reference_arms(tmp_path, monkeypatch):
+    written = {}
+    monkeypatch.setattr(MAN.M2, "write", lambda rid, seeds, arms, noticers, run_seed, experiment:
+                        written.update(rid=rid, seeds=seeds, arms=arms, noticers=noticers))
+    MAN.features()
+    names = [a[0] for a in written["arms"]]
+    assert written["seeds"] == C.TUNING_SEEDS and written["rid"] == C.run_id("features")
+    assert [n for n in names if n.startswith("feat_")] == [f"feat_{s}" for s in C.AUC_ROWS]
+    for stem in C.TUNING_ROWS:
+        assert {C.never_arm(stem), C.always_arm(stem), C.oracle_arm(stem)} <= set(names)
+        assert written["noticers"][C.always_arm(stem)] == C.row_json(stem)
+    assert len(names) == len(set(names)) == len(C.AUC_ROWS) + 3 * len(C.TUNING_ROWS)

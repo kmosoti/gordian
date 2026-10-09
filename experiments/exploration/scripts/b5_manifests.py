@@ -3,7 +3,8 @@
 Usage:
   b5_manifests.py features      the 100 tuning streams: the arms the feature log and the AUCs are read
                                 from (the noticers of `b5_common.AUC_ROWS`; the arm's policy is a
-                                placeholder, the log tool plays its own rule over the arm's noticer)
+                                placeholder, the log tool plays its own rule over the arm's noticer), and
+                                for the tuning rows never, always (16 s) and the selection oracle
   b5_manifests.py tune K        the same streams: for budget K, the tuning grid over the tuning rows
                                 (stage T of `b5_common.py`, written after the AUCs)
   b5_manifests.py table         the 200 held-out streams (20000-20199): every row of the table under
@@ -48,7 +49,15 @@ def write(rid, seeds, triples, run_seed, experiment):
 
 
 def features():
+    """Stage A on the 100 tuning streams: the feature-log arms (placeholders; the log tool plays its own
+    rule over each arm's noticer) and, for the tuning rows, the three reference arms whose per-incident
+    outcomes the tuning rule reads: never escalate, always escalate at 16 s and the selection oracle."""
     triples = [(f"feat_{stem}", C.never_policy(), C.row_json(stem)) for stem in C.AUC_ROWS]
+    for stem in C.TUNING_ROWS:
+        noticer = C.row_json(stem)
+        triples += [(C.never_arm(stem), C.never_policy(), noticer),
+                    (C.always_arm(stem), C.always_policy(), noticer),
+                    (C.oracle_arm(stem), C.oracle_policy(), noticer)]
     write(C.run_id("features"), C.TUNING_SEEDS, triples, 16_100, "exploration-b5-features")
 
 
