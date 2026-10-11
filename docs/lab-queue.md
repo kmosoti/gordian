@@ -36,7 +36,7 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | M4 | 1 | The anchoring-against-precision frontier; a ramp inhibit that spares ramp-noticed anomalies; parity with the best public row on all three measures | M3 | stopped (tuning done, no held-out run) |
 | L1 | 3 | The learned noticer: M2's graph with constants learned online from public history, against the frozen graph and the re-anchor | M2 | merged |
 | C1 | 2 | An incremental-dataflow noticer: the public rules on a general incremental engine, against the medium | B4 | merged |
-| B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | running (resumed 2026-10-09 from main; criterion as fixed) |
+| B5 | 2 | A call-budgeted public selector; a delay sweep; feature AUCs at the ask instant | C1 | stopped again 2026-10-11 (`budgeted-selector-2` at 0c67f15; scripts moved, identity gate re-read; no table) |
 | C2 | 2 | An expiry-driven score window; one relational rule on both substrates (folds or joins) | B5 | queued |
 | M5 | 1 | A less redundant graph at M4's anchoring and precision, in counted operations and wall time against C1's rows | M4 | queued |
 | L2 | 3 | A self-supervised reservoir (ESN) noticer: the learned public comparator for the learning claim | L1 | stopped (reservoir built, identity passed) |
@@ -49,7 +49,7 @@ Status is one of `queued`, `running`, `reported`, `merged`, `rejected`, `stopped
 | V1 | 2 | Criteria as code: `scripts/criterion.py`, `experiments/criteria/`, back-tested on M2, B3 and L1 from their kept runs | — | merged |
 | E1 | 2 | Memory measures in the evaluator (`recurrence_of`, unasked-correct, stale errors, calls per correct decision); the public record rung | V1 | merged |
 | A2 | 1 | Anticipation: hidden edges learned from co-alarm timing, predictions through the trace port, scored from the hidden side by Lab 3 | A1d | merged (negative on both sides; A2b not briefed) |
-| W4 | 3 | The reasoner's law from the hidden side: the ask-time ceiling, the context lever, the verification power of probes, the regime loss; what transfers across streams | W3 | running |
+| W4 | 3 | The reasoner's law from the hidden side: the ask-time ceiling, the context lever, the verification power of probes, the regime loss; what transfers across streams | W3 | stopped 2026-10-11 (`reasoner-law` at d66a885; no number produced) |
 | P1 | 2 | The verification loop and the conventional learner of the reasoner's law (a logistic rule under 10,000 parameters, verified episodes, carried across streams), with EXP-103's controls | B5, W4 | queued |
 | S1 | 1 | The medium's slow system: engrams keyed on ask-state with a verified signal, a consolidation cell at the slow rhythm validated on the arm's own held-out history, the persist port carrying the rule | W4, P1 | queued |
 

@@ -4,6 +4,27 @@ What the coordinator checked for each merged unit, what it decided, and what it 
 to later units. Newest first. Reports from workers are model output; this log records what was
 independently verified.
 
+## Stop order, 2026-10-11 — W4 and the resumed B5 stopped before any result; nothing merged
+
+**What happened.** Both PIs were cut off by the account's weekly usage limit on 2026-10-09 while
+still in their reading and setup phases, and on 2026-10-11 the user ordered work on the project
+stopped. Each worktree's in-progress files were committed as left, unreviewed, and pushed:
+`reasoner-law` at d66a885 (a start on the `laws` example's W4 module and the report's section
+files; no number produced), `budgeted-selector-2` at 0c67f15 (three commits: the unit's scripts
+moved into place, the identity gate re-read with the stripped columns, priors committed before
+the feature log; an identity replay was started and its run directory, if any, is kept under
+`artifacts/runs/stopped-2026-10-11/`). **Neither unit reached a measurement; neither criterion is
+decided; nothing from either is merged.** Both resume from their branches with a fresh PI
+reading the stop commit first; W4's acceptance and B5's criterion stand as fixed.
+
+**State of the program at the stop.** Main at d3dcd77 on origin, gates clean at the last merge.
+Merged and verified since the resumption of 2026-10-07: W2, A1a, V1, A1c, A1d, E1, A2, W3; the
+engram and anticipation lines measured negative on this world and bounded by the world's design
+(the synthesis after A1d and the W3 entry). Proposed and awaiting the user's approval:
+`docs/consolidation-proposal.md` section 6 (four charter changes). Queued: P1, S1 (criteria to
+be fixed from W4), C2, M5. Stopped with criteria fixed: M4, B5, L2, and now W4. The next action
+when work resumes is W4, because every later unit's criterion depends on its lever sizes.
+
 ## Direction, 2026-10-09 — the user's brain-mechanisms document; the learning line is the reasoner's law, learned through verification and consolidated across streams
 
 **What arrived.** The user's document reformulating two hypotheses about the brain into one
