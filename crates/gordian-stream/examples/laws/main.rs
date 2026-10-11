@@ -33,11 +33,19 @@
 //! the incident's own observations. `--alarms` writes `alarms.csv` (every abnormal observation with
 //! its owner) and `graph.csv` (the time-zero graph) for scoring A2's predictions. Neither changes
 //! the five files above. The output is a pure function of the
-//! arguments, so two runs have the same sha256. The example needs the hidden-state feature;
+//! arguments, so two runs have the same sha256.
+//!
+//! `--w4` (W4, the reasoner's law) hands over to `w4.rs`, which shares this example's worlds and
+//! nothing else: it reads a kept run's notice records and writes its own tables (see there).
+//!
+//! The example needs the hidden-state feature;
 //! without it the binary only says so. Nothing here reaches a policy.
 
 #[cfg(feature = "reveal-hidden-state")]
 mod floor;
+
+#[cfg(feature = "reveal-hidden-state")]
+mod w4;
 
 #[cfg(not(feature = "reveal-hidden-state"))]
 fn main() -> std::process::ExitCode {
@@ -74,13 +82,13 @@ mod real {
     }
 
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum World {
+    pub(crate) enum World {
         A,
         B,
         C,
     }
 
-    fn params(world: World, seed: u64) -> StreamParams {
+    pub(crate) fn params(world: World, seed: u64) -> StreamParams {
         let mut p = StreamParams::new(seed);
         if world == World::C {
             // W3's world C: hard 100 -> 300 per mille; decoys stay at 100, plain takes the
@@ -176,6 +184,10 @@ mod real {
     }
 
     pub fn main() -> ExitCode {
+        // W4's measurements share this example's worlds and nothing else: `--w4` hands over.
+        if std::env::args().any(|a| a == "--w4") {
+            return crate::w4::main();
+        }
         let (mut seed_from, mut count) = (40_000u64, 200u64);
         let mut world = World::A;
         let mut out_dir: Option<PathBuf> = None;
