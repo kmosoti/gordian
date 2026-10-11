@@ -10,16 +10,16 @@
 # The driver does the isolation (scripts/cgroup-run.sh, cores 0-2, driver on core 3). Run ids, exit
 # statuses and wall times go to artifacts/runs/_logs/b5-runs.log; each run's stderr to
 # artifacts/runs/_logs/<run_id>.log. With OUT_PREFIX set, a run's directory is
-# artifacts/runs/<OUT_PREFIX><run_id> (used to replay R6's manifest under its own run id without
+# artifacts/runs/b5/<OUT_PREFIX><run_id> (used to replay R6's manifest under its own run id without
 # touching any other directory). A run that fails is logged with its exit status and the next one
 # still runs; nothing is deleted.
 set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$root" || exit 1
-mkdir -p artifacts/runs/_logs
+mkdir -p artifacts/runs/_logs artifacts/runs/b5
 for m in "$@"; do
   id="$(jq -r .run_id "$m")"
-  out="artifacts/runs/${OUT_PREFIX:-}$id"
+  out="artifacts/runs/b5/${OUT_PREFIX:-}$id"
   waited=0
   while pgrep -x cargo >/dev/null || pgrep -x rustc >/dev/null || pgrep -x gordian-run >/dev/null || pgrep -f '[b]ench' >/dev/null; do
     echo "$(date +%T) ${OUT_PREFIX:-}$id waiting-for-other-process" >> artifacts/runs/_logs/b5-runs.log

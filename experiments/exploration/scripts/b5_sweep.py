@@ -56,7 +56,7 @@ def label(stem):
 
 
 def main():
-    run = load_stream_run(C.RUNS / C.run_id("sweep"))
+    run = load_stream_run(C.RUN_DIR / C.run_id("sweep"))
     seeds = [int(s) for s in next(iter(run.arms.values())).results["seed"]]
     assert seeds == list(range(C.HELDOUT_SEEDS[0], C.HELDOUT_SEEDS[0] + C.HELDOUT_SEEDS[1])), "held-out seeds"
     m = S.Measures(run)

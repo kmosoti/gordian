@@ -16,7 +16,7 @@ checked for being empty of recalls.
 Usage:
   b5_gate.py manifest TAG   write the manifest (R6's, `source_revision` replaced by HEAD, run id kept)
                             to artifacts/runs/_manifests/b5-xcheck-TAG-r6-heldout-b5-rho0.7.json
-  b5_gate.py check TAG      compare artifacts/runs/b5-xcheck-TAG-r6-heldout-b5-rho0.7 (the run played
+  b5_gate.py check TAG      compare artifacts/runs/b5/b5-xcheck-TAG-r6-heldout-b5-rho0.7 (the run played
                             with OUT_PREFIX=b5-xcheck-TAG-) with experiments/exploration/r6-results-sha256.csv;
                             write experiments/exploration/b5-regression-TAG.csv; exit 1 unless 62 of 62 match
 
@@ -83,7 +83,7 @@ def manifest():
 
 
 def check():
-    d = C.RUNS / NAME
+    d = C.RUN_DIR / NAME
     with open(C.OUT / "r6-results-sha256.csv") as fh:
         want = {r["arm"]: r for r in csv.DictReader(fh) if r["dir"] == RID}
     arms = sorted(p.name for p in d.iterdir() if p.is_dir())

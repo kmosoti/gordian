@@ -9,7 +9,7 @@ evaluator's (`crates/gordian-stream-eval/RULES.md`), not this file's; the arithm
 setting, the bootstrap, the selection oracle's 16 s delay and B3's rows are B2's to B4's, reused
 unchanged (through `b4_common`).
 
-Run directories live in artifacts/runs/ of this worktree (git-ignored); manifests in
+Run directories live in artifacts/runs/b5/ of this worktree (git-ignored); manifests in
 artifacts/runs/_manifests/.
 
 READINGS (fixed here, before any B5 run)
@@ -80,6 +80,7 @@ C2 = C4.C2
 M = C1.M  # M2's common module: R6_RUNS, the selections
 ROOT = C4.ROOT
 RUNS = C4.RUNS
+RUN_DIR = RUNS / "b5"  # this unit's run directories (kept until the chief has verified them)
 MANIFESTS = C4.MANIFESTS
 OUT = C4.OUT
 BIN = C4.BIN

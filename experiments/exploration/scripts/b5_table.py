@@ -91,7 +91,7 @@ def arm_for(stem, selector):
 
 
 def main():
-    run = load_stream_run(C.RUNS / C.run_id("table"))
+    run = load_stream_run(C.RUN_DIR / C.run_id("table"))
     seeds = [int(s) for s in next(iter(run.arms.values())).results["seed"]]
     assert seeds == list(range(C.HELDOUT_SEEDS[0], C.HELDOUT_SEEDS[0] + C.HELDOUT_SEEDS[1])), "held-out seeds"
     m = S.Measures(run)
